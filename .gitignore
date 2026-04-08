@@ -1,0 +1,54 @@
+# === Variables de entorno ===
+.env
+.env.local
+.env.*.local
+
+# === Config local de Claude Code ===
+.claude/settings.local.json
+
+# === Base de datos SQLite ===
+database/*.db
+database/*.db-journal
+database/*.db-wal
+database/*.db-shm
+
+# === Composer ===
+vendor/
+composer.lock
+
+# === Node (solo para herramientas de desarrollo, NO para el frontend) ===
+node_modules/
+.npm
+.yarn
+
+# === Logs y storage ===
+storage/logs/*
+!storage/logs/.gitkeep
+storage/sessions/*
+!storage/sessions/.gitkeep
+
+# === Uploads de usuarios ===
+public/uploads/*
+!public/uploads/.gitkeep
+
+# === Build / cache ===
+dist/
+build/
+*.log
+*.cache
+.phpunit.result.cache
+
+# === Sistema operativo ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === IDEs ===
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# === Secretos detectados accidentalmente (defensa en profundidad) ===
+**/secrets.json
+**/credentials.json

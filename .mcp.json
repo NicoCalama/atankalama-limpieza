@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["--yes", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@github/github-mcp-server"]
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-sqlite", "database/atankalama.db"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}
