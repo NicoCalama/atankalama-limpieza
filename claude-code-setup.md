@@ -3,7 +3,7 @@
 **Proyecto:** `atankalama-limpieza`
 **Entorno:** Windows + VS Code + Claude Code v2.1.92
 **Modo de trabajo:** Autonomía Híbrida (c3) — ver `plan.md` sección 16.1
-**Versión:** 2.0 (refleja MCPs ya instalados y decisiones arquitectónicas confirmadas)
+**Versión:** 2.1 (incluye decisiones del diseño detallado de la Home de la Supervisora)
 **Fecha:** 08 de abril de 2026
 
 > Este documento es la **guía operacional** del entorno de desarrollo donde Claude Code va a codificar el MVP de Atankalama Limpieza. Complementa a `plan.md`: mientras `plan.md` describe **qué** vamos a construir, este archivo describe **cómo** está configurado el entorno técnico y cómo trabajar con Claude Code sobre él.
@@ -89,10 +89,11 @@ atankalama-limpieza/
 │   └── settings.local.json      # Token GitHub (ya existe, gitignored)
 │
 ├── docs/                        # Especificaciones detalladas por módulo
-│   ├── home-trabajador.md       # ⭐ YA DISEÑADA (pendiente escribir al repo)
-│   ├── home-supervisora.md      # (a crear en fase de detalle)
-│   ├── home-recepcion.md
-│   ├── home-admin.md
+│   ├── home-trabajador.md       # ✅ v1.0 COMPLETO
+│   ├── home-supervisora.md      # ✅ v2.1 COMPLETO
+│   ├── home-recepcion.md        # 🚧 siguiente
+│   ├── home-admin.md            # 🚧 pendiente
+│   ├── handoff-2026-04-08.md    # ✅ documento de traspaso
 │   ├── auth.md
 │   ├── checklist.md
 │   ├── habitaciones.md
@@ -427,6 +428,16 @@ La auditoría NO es binaria (aprobado/rechazado). Tiene **3 estados**:
 
 Ver `docs/auditoria.md` para el flujo completo.
 
+**Inmutabilidad post-auditoría (NO NEGOCIABLE):**
+
+Una vez una habitación recibe veredicto de auditoría (cualquiera de los 3 estados), **NO puede ser re-auditada**. En la UI:
+- Aparece en las listas de auditoría como solo lectura
+- Visualmente diferenciada: opacidad reducida, badge "Auditada"
+- Sin botones de acción (no muestra los 3 botones)
+- Tap → muestra detalle histórico (auditor, fecha, comentario, ítems desmarcados si aplica)
+
+Backend: el endpoint `POST /api/auditoria/{habitacion_id}` debe rechazar con error 409 (Conflict) si la habitación ya tiene un registro en `auditorias` para esa ejecución.
+
 ## Arquitectura clave — Persistencia del checklist
 
 El progreso del trabajador en un checklist se guarda **a cada tap**, no al final:
@@ -451,6 +462,23 @@ El sistema calcula en tiempo real si cada trabajador va a alcanzar a terminar su
 - La alerta es **solo visible para supervisoras con permiso `alertas.recibir_predictivas`**
 - El trabajador **NUNCA** ve la alerta ni sabe de su existencia
 - El umbral de margen de seguridad (default 15 min) es configurable desde Ajustes por roles con permiso `alertas.configurar_umbrales`
+
+**Tipos de alertas y prioridades (definidos en `docs/home-supervisora.md`):**
+
+El sistema maneja 6 tipos de alertas con prioridades 0-3:
+
+- P0: `cloudbeds_sync_failed`
+- P1: `trabajador_en_riesgo`, `habitacion_rechazada`, `fin_turno_pendientes`
+- P2: `trabajador_disponible`, `ticket_nuevo`
+- P3: (reservado para casos futuros)
+
+Cada tipo de alerta tiene:
+- Un título claro y accionable
+- Una descripción con datos concretos
+- Máximo 2 botones de acción
+- NO tiene botón "descartar" (las alertas persisten hasta resolverse o hasta que la condición desaparezca)
+
+Las acciones sobre alertas se registran en la tabla `bitacora_alertas`.
 
 ## Convenciones de código PHP
 
@@ -1021,46 +1049,52 @@ Este es el orden óptimo. Cada módulo construye sobre los anteriores.
 25. **Tabla de configuración de umbrales**
 26. **Recálculo automático** al completar habitaciones y en background
 27. **Endpoints** para ver bandeja de alertas y marcar como atendidas
+28. **Servicio `AlertasService`** con los 6 tipos de alertas definidos
+29. **Tabla `bitacora_alertas`** con sus índices
+30. **Cálculo de prioridades** según tipo y antigüedad
+31. **Endpoints** para listar alertas top 5 + ver todas + ejecutar acciones
+32. **Refresco automático** al completar habitaciones y cada 15 min
+33. **Validación de inmutabilidad de auditoría** en backend (error 409)
 
 ### Etapa F — Tickets, usuarios, turnos (autonomía total)
 
-28. **Endpoints de tickets simplificados**
-29. **Endpoints de gestión de usuarios**
-30. **Endpoints de gestión de turnos**
-31. **Endpoint de reset de contraseña por admin**
+34. **Endpoints de tickets simplificados**
+35. **Endpoints de gestión de usuarios**
+36. **Endpoints de gestión de turnos**
+37. **Endpoint de reset de contraseña por admin**
 
 ### Etapa G — Copilot IA (autonomía total para motor, supervisión para prompts)
 
-32. **Servicio `CopilotService`** con Claude API y tool use
-33. **Definición de tools por rol** (validando permisos dinámicos)
-34. **Endpoint** `POST /api/copilot/mensaje`
-35. **Persistencia de conversaciones**
+38. **Servicio `CopilotService`** con Claude API y tool use
+39. **Definición de tools por rol** (validando permisos dinámicos)
+40. **Endpoint** `POST /api/copilot/mensaje`
+41. **Persistencia de conversaciones**
 
 ### Etapa H — Frontend (SUPERVISIÓN)
 
-36. **Layout base** — sidebar desktop + bottom nav móvil + FAB del copilot
-37. **Pantalla de Login** + cambio forzado de contraseña
-38. **Home del Trabajador** ⭐ (ya diseñada en detalle, ver `docs/home-trabajador.md`)
-39. **Home de la Supervisora** (pendiente diseño)
-40. **Home de Recepción** (pendiente diseño)
-41. **Home del Admin** (pendiente diseño)
-42. **Listado y detalle de habitaciones + checklist persistente**
-43. **Vista de asignación**
-44. **Bandeja de auditoría** con los 3 botones y checklist expandible
-45. **Levantar ticket de mantenimiento**
-46. **Gestión de usuarios**
-47. **Matriz RBAC de roles y permisos** (una de las pantallas más importantes)
-48. **Gestión de turnos**
-49. **Configuración de alertas predictivas**
-50. **Ajustes por rol**
-51. **Panel del copilot IA** (FAB + panel deslizable + voz)
-52. **Modo día/noche** persistido
+42. **Layout base** — sidebar desktop + bottom nav móvil + FAB del copilot
+43. **Pantalla de Login** + cambio forzado de contraseña
+44. **Home del Trabajador** ⭐ (ya diseñada en detalle, ver `docs/home-trabajador.md`)
+45. **Home de la Supervisora** ⭐ (ya diseñada en detalle, ver `docs/home-supervisora.md`)
+46. **Home de Recepción** (pendiente diseño)
+47. **Home del Admin** (pendiente diseño)
+48. **Listado y detalle de habitaciones + checklist persistente**
+49. **Vista de asignación**
+50. **Bandeja de auditoría** con los 3 botones y checklist expandible
+51. **Levantar ticket de mantenimiento**
+52. **Gestión de usuarios**
+53. **Matriz RBAC de roles y permisos** (una de las pantallas más importantes)
+54. **Gestión de turnos**
+55. **Configuración de alertas predictivas**
+56. **Ajustes por rol**
+57. **Panel del copilot IA** (FAB + panel deslizable + voz)
+58. **Modo día/noche** persistido
 
 ### Etapa I — Pulido final
 
-53. **Datos de demo realistas**
-54. **README.md** con instrucciones de setup y uso
-55. **Despliegue al VPS**
+59. **Datos de demo realistas**
+60. **README.md** con instrucciones de setup y uso
+61. **Despliegue al VPS**
 
 ---
 

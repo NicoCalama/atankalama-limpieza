@@ -3,8 +3,8 @@
 **Proyecto:** Sistema de gestión de limpieza hotelera — reemplazo de Flexkeeping
 **Empresa:** Atankalama Corp
 **Propiedades:** Hotel Atankalama Inn (Chorrillos 558) y Hotel Atankalama (1 Sur 858) — Calama, Chile
-**Fecha del documento:** 08 de abril de 2026
-**Versión:** 3.0 (incluye decisiones arquitectónicas y de UX posteriores al esqueleto)
+**Fecha del documento:** 13 de abril de 2026
+**Versión:** 3.1 (incluye decisiones del diseño detallado de la Home de la Supervisora)
 **Estado:** Planificación general — esqueleto consolidado con decisiones de diseño
 **Repositorio:** `atankalama-limpieza` (público, GitHub / NicoCalama)
 **Autor de referencia:** Nicolás Campos (Informática / Atankalama Corp)
@@ -287,7 +287,9 @@ Layout en 5 secciones mobile-first:
 - **Habitaciones con observación de auditoría** — aparecen como aprobadas en la UI del trabajador, pero internamente afectan KPIs (el trabajador no ve nada, la supervisora sí)
 - **Habitaciones rechazadas** — aparecen en el historial marcadas como rechazadas; la supervisora recibe alerta y decide a quién reasignar la re-limpieza
 
-**8.2.2 Home de la Supervisora** — PENDIENTE DE DISEÑO DETALLADO
+**8.2.2 Home de la Supervisora** — ✅ DISEÑADA EN DETALLE en `docs/home-supervisora.md` v2.1
+
+Layout en 4 secciones mobile-first: Header (con selector de hotel y opción "Ambos hoteles") + Sección de Alertas Urgentes (top 5 con jerarquía de prioridades) + Estado del Equipo (lista vertical con números visibles) + Bottom Tab Bar (Inicio / Auditoría / Tickets / Ajustes) + FAB del copilot. Refresco cada 60 segundos. Los detalles completos viven en el archivo de documentación.
 
 **8.2.3 Home del Trabajador de Recepción** — PENDIENTE DE DISEÑO DETALLADO
 
@@ -337,6 +339,8 @@ Layout en 5 secciones mobile-first:
 - En el historial del trabajador original aparece como "Rechazada"
 
 **UI de la pantalla de auditoría:** 3 botones grandes claramente diferenciados — ✅ Aprobar / 📝 Aprobar con observación / ❌ Rechazar.
+
+**Inmutabilidad post-auditoría:** una vez una habitación recibe veredicto de auditoría (`aprobada`, `aprobada_con_observacion` o `rechazada`), **no puede ser re-auditada**. Aparece en las listas de auditoría como solo lectura, visualmente diferenciada (opaca, badge "Auditada"), sin botones de acción. Esto mantiene la trazabilidad histórica para KPIs sin ambigüedades. Aplica tanto a Supervisora como a Recepción.
 
 ### 8.5 Módulo de Habitaciones (núcleo)
 - Listado por hotel, por estado, por tipo
@@ -452,6 +456,15 @@ El sistema calcula en tiempo real, para cada trabajador activo, si va a alcanzar
 
 **Visibilidad:** la alerta es **exclusivamente para la supervisora**. El trabajador nunca ve el cálculo ni sabe que existe la alerta. Esto es deliberado para no generar ansiedad.
 
+**Tipos de alerta y prioridades (definidos en `docs/home-supervisora.md`):**
+
+- **Prioridad 0 (Crítica máxima):** Sincronización Cloudbeds falló
+- **Prioridad 1 (Crítica):** Trabajador en riesgo predictivo, Habitación rechazada por Recepción, Fin de turno con pendientes
+- **Prioridad 2 (Importante):** Trabajador disponible sin carga, Ticket de mantenimiento nuevo
+- **Prioridad 3 (Menos urgente):** Trabajador disponible (anteriormente "inactivo")
+
+Las prioridades son **editables desde Ajustes** por Admin. En el MVP, todos los tickets entran como Prioridad 2.
+
 ### 9.3 Guiños a Fase 2 (visibles en Ajustes como opciones grises deshabilitadas con tooltip "Próximamente")
 
 - **Ponderación por tipo de habitación** (Suite vs Doble vs VIP — cada tipo con su propio tiempo promedio)
@@ -550,6 +563,7 @@ Esqueleto de tablas principales. El schema detallado y ejecutable se definirá e
 **Alertas predictivas**
 - `alertas_predictivas` — id, trabajador_id, supervisora_id_notificada, mensaje, creada_en, atendida_en, estado
 - `alertas_config` — key, value (tabla de configuración clave-valor para umbrales configurables)
+- `bitacora_alertas` — id, alerta_id (FK), accion, usuario_id (FK), timestamp, datos_json
 
 **Disponibilidad del trabajador**
 - `notificaciones_disponibilidad` — id, trabajador_id, supervisora_id_notificada, timestamp, atendida
@@ -611,18 +625,19 @@ Todo lo descrito en este documento:
 
 ## 15. Próximos pasos inmediatos
 
-1. **Terminar el setup del repo** (este es el paso actual)
-2. **Diseño detallado de la Home de la Supervisora, Recepción y Admin** (la del Trabajador ya está hecha, ver 8.2.1)
-3. **Diseño detallado del listado y detalle de habitación + checklist**
-4. **Diseño detallado de asignación**
-5. **Diseño detallado de auditoría** (incluyendo el flujo del checklist expandible en "aprobar con observación")
-6. **Diseño detallado del copilot IA** — UI del panel flotante, prompts base, definición de tools por rol
-7. **Diseño detallado de Ajustes por rol** (incluyendo la matriz RBAC)
-8. **Diseño detallado de alertas predictivas** (UI de la bandeja, banner, flujo de resolución)
-9. **Schema SQLite definitivo** (`database-schema.sql`)
-10. **Listado completo de endpoints de la API REST** (`api-endpoints.md`)
-11. **Estructura de carpetas del proyecto PHP** (queda formalizada en `claude-code-setup.md`)
-12. **Definición del módulo Cloudbeds** (clientes, manejo de errores, cola de reintentos)
+1. ~~Home del Trabajador~~ ✅ COMPLETADA en `docs/home-trabajador.md`
+2. ~~Home de la Supervisora~~ ✅ COMPLETADA en `docs/home-supervisora.md` v2.1
+3. **Home de Recepción** — siguiente paso natural (más simple, mayormente auditoría)
+4. **Home del Admin** — la última, gestión completa
+5. **Diseño detallado del listado y detalle de habitación + checklist**
+6. **Diseño detallado de asignación**
+7. **Diseño detallado de auditoría** (incluyendo el flujo del checklist expandible en "aprobar con observación")
+8. **Diseño detallado del copilot IA** — UI del panel flotante, prompts base, definición de tools por rol
+9. **Diseño detallado de Ajustes por rol** (incluyendo la matriz RBAC)
+10. **Diseño detallado de alertas predictivas** (UI de la bandeja, banner, flujo de resolución)
+11. **Schema SQLite definitivo** (`database-schema.sql`)
+12. **Listado completo de endpoints de la API REST** (`api-endpoints.md`)
+13. **Definición del módulo Cloudbeds** (clientes, manejo de errores, cola de reintentos)
 
 Cada uno de los puntos 2–8 generará su propio archivo `.md` en `docs/`, listo para ser consumido por Claude Code durante la codificación.
 

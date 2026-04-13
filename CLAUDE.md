@@ -82,6 +82,16 @@ La auditoría NO es binaria (aprobado/rechazado). Tiene **3 estados**:
 
 Ver `docs/auditoria.md` para el flujo completo.
 
+**Inmutabilidad post-auditoría (NO NEGOCIABLE):**
+
+Una vez una habitación recibe veredicto de auditoría (cualquiera de los 3 estados), **NO puede ser re-auditada**. En la UI:
+- Aparece en las listas de auditoría como solo lectura
+- Visualmente diferenciada: opacidad reducida, badge "Auditada"
+- Sin botones de acción (no muestra los 3 botones)
+- Tap → muestra detalle histórico (auditor, fecha, comentario, ítems desmarcados si aplica)
+
+Backend: el endpoint `POST /api/auditoria/{habitacion_id}` debe rechazar con error 409 (Conflict) si la habitación ya tiene un registro en `auditorias` para esa ejecución.
+
 ## Arquitectura clave — Persistencia del checklist
 
 El progreso del trabajador en un checklist se guarda **a cada tap**, no al final:
@@ -106,6 +116,23 @@ El sistema calcula en tiempo real si cada trabajador va a alcanzar a terminar su
 - La alerta es **solo visible para supervisoras con permiso `alertas.recibir_predictivas`**
 - El trabajador **NUNCA** ve la alerta ni sabe de su existencia
 - El umbral de margen de seguridad (default 15 min) es configurable desde Ajustes por roles con permiso `alertas.configurar_umbrales`
+
+**Tipos de alertas y prioridades (definidos en `docs/home-supervisora.md`):**
+
+El sistema maneja 6 tipos de alertas con prioridades 0-3:
+
+- P0: `cloudbeds_sync_failed`
+- P1: `trabajador_en_riesgo`, `habitacion_rechazada`, `fin_turno_pendientes`
+- P2: `trabajador_disponible`, `ticket_nuevo`
+- P3: (reservado para casos futuros)
+
+Cada tipo de alerta tiene:
+- Un título claro y accionable
+- Una descripción con datos concretos
+- Máximo 2 botones de acción
+- NO tiene botón "descartar" (las alertas persisten hasta resolverse o hasta que la condición desaparezca)
+
+Las acciones sobre alertas se registran en la tabla `bitacora_alertas`.
 
 ## Convenciones de código PHP
 
