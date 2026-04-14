@@ -2,7 +2,7 @@
 
 > Referencia de secciones y líneas para los archivos grandes del proyecto.
 > Usa esto para saltar directamente a la sección que necesitas sin leer archivos completos.
-> Actualizado: 13 abril 2026.
+> Actualizado: 14 abril 2026.
 
 ---
 
@@ -140,3 +140,60 @@
 | 690-727 | §14 Refresco de datos | Auto (30s), pull-to-refresh, al volver del checklist |
 | 728-768 | §15-16 Críticos + vinculación | Reglas, conexión con otros módulos |
 | 769-801 | §17 Notas para Claude Code | Modo codificación, archivos, tests |
+
+---
+
+## docs/home-recepcion.md (696 líneas, v1.0)
+
+| Líneas | Sección | Contenido clave |
+|--------|---------|-----------------|
+| 1-13 | Header | Versión, fecha, status, resumen |
+| 14-40 | §1 Contexto y propósito | Foco en auditoría; Cloudbeds es la herramienta principal |
+| 42-59 | §2 Permisos requeridos | auditoria.*, habitaciones.ver_todas (contexto) |
+| 61-85 | §3 Layout general | Grid vertical de pendientes, sin buscador |
+| 87-143 | §4 Header | Avatar, saludo, selector hotel |
+| 145-213 | §5 Grid de habitaciones pendientes | Tarjetas tappables, prefijos por hotel |
+| 215-259 | §6 Estados especiales | Sin pendientes / error / offline |
+| 261-288 | §7-8 Tab Bar + FAB | Sparkles icon, posición |
+| 290-331 | §9 Refresco de datos | 5 min auto, pull-to-refresh, post-auditoría |
+| 333-368 | §10 Flujo de auditoría | 3 botones + inmutabilidad post-auditoría visual |
+| 370-387 | §11 Selector de hotel | ATAN / INN / Ambos; persistencia |
+| 389-469 | §12 Datos del backend | Endpoint GET /api/home/recepcion + shape JSON |
+| 471-494 | §13 Estados de carga/error | Skeleton, error, offline |
+| 496-522 | §14-15 Modo día/noche + accesibilidad | Dark mode, targets 44px |
+| 524-551 | §16 Comportamientos críticos | Checklist del módulo |
+| 553-574 | §17 Vinculación con otros módulos | Dependencias y conexiones |
+| 576-647 | §18 Notas para Claude Code | Archivos sugeridos, tests, decisiones |
+| 649-696 | §19-20 Anotaciones + resumen | Pendientes y decisiones principales |
+
+---
+
+## docs/home-admin.md (1009 líneas, v1.0)
+
+| Líneas | Sección | Contenido clave |
+|--------|---------|-----------------|
+| 1-12 | Header | Versión, fecha, status |
+| 14-22 | §0 Decisiones marco | P0.1 dashboard ejecutivo, P0.2 propia, P0.3 "Ambos hoteles" default |
+| 24-54 | §1 Contexto y propósito | Admin IT, control total, mobile-first |
+| 56-73 | §2 Permisos requeridos | alertas.recibir_predictivas, kpis.ver_operativas, sistema.ver_salud |
+| 75-107 | §3 Layout general | Móvil una columna, desktop 2 columnas |
+| 109-178 | §4 Header | Avatar con iniciales (NC), selector hotel, indicador 🟢/🟡/🔴, campana |
+| 180-249 | §5 Tab "Inicio" — Alertas técnicas | Jerarquía P0-P1, tabla compacta de flujos de resolución |
+| 251-388 | §6 Tab "Operativas" — Métricas | 4 contadores + 3 KPIs (tiempo, rechazo, eficiencia) |
+| 390-488 | §7 Tab "Técnicas" — Salud sistema | Cloudbeds, errores, BD, usuarios, versión |
+| 490-513 | §8 Bottom Tab Bar | 4 tabs; Ajustes navega a módulo separado |
+| 515-533 | §9 FAB Copilot | Lucide sparkles estandarizado, bottom-20/md:bottom-6 |
+| 535-549 | §10 Refresco de datos | 30 min auto, pull-to-refresh móvil |
+| 551-588 | §11 Responsive | Móvil vs desktop, 2 columnas equilibradas |
+| 590-611 | §12-13 Día/noche + Accesibilidad | Dark mode, WCAG AA, targets 44px |
+| 613-803 | §14 Datos del backend | Endpoint GET /api/home/admin + schema JSON completo |
+| 805-824 | §15 Checklist comportamientos críticos | 10 críticos + link a QA checklist completa |
+| 826-895 | §16 Vinculaciones con otros módulos | Dependencias, accede, comparte, monitorea |
+| 897-981 | §17 Notas para Claude Code | Archivos, tests, decisiones autónomas |
+| 983-1009 | §18 Formato y estructura de entrega | Estado, próximos pasos, Fase 2 |
+
+---
+
+## docs/home-admin-qa-checklist.md (complementario)
+
+Checklist exhaustiva (~140 líneas, 75+ items) organizada por áreas: cálculos, filtrado por hotel, estados de KPI, refresco, alertas técnicas, indicador de estado, permisos dinámicos, responsive, header, FAB, UI/UX, tab bar, seguridad, performance.

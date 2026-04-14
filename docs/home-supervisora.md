@@ -348,12 +348,12 @@ Botones visibles solo si: tiene permiso `asignaciones.asignar_manual`.
 Botón flotante en esquina inferior derecha (visible siempre, incluso al scroll).
 
 ```
-         [?] ← Icono Lucide "message-square" + "sparkles" overlay
+         [✨] ← Icono Lucide "sparkles"
 ```
 
 - Diámetro: 56px
 - Fondo: azul principal (`bg-blue-600`)
-- Icono: blanco, `w-6 h-6`
+- Icono: Lucide **`sparkles`** (blanco, `w-6 h-6`). Estandarizado en las 4 Homes para transmitir "asistente IA".
 - Sombra: `shadow-lg`
 - Tappable: abre panel del Copilot IA
 
