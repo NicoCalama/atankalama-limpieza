@@ -197,3 +197,226 @@
 ## docs/home-admin-qa-checklist.md (complementario)
 
 Checklist exhaustiva (~140 líneas, 75+ items) organizada por áreas: cálculos, filtrado por hotel, estados de KPI, refresco, alertas técnicas, indicador de estado, permisos dinámicos, responsive, header, FAB, UI/UX, tab bar, seguridad, performance.
+
+---
+
+## docs/roles-permisos.md (392 líneas, v1.0)
+
+Catálogo canónico RBAC — fuente de verdad para permisos.
+
+| Líneas | Sección | Contenido clave |
+|--------|---------|-----------------|
+| 1-8 | Header | Versión, estado, propósito |
+| 10-37 | §1 Filosofía RBAC dinámico | Regla de oro, principios, no hay home.ver_* |
+| 39-180 | §2 Catálogo completo (50 permisos) | Tablas por categoría (17 categorías) |
+| 182-245 | §3 Roles por defecto (4) | Trabajador, Supervisora, Recepción, Admin con asignación |
+| 247-301 | §4 Matriz visual permisos × roles | Tabla con ✅ / ⚪ por cada permiso × rol |
+| 303-322 | §5 Reglas de herencia | Múltiples roles (unión), no hay permisos negativos, safeguards |
+| 324-343 | §6 Cómo agregar un permiso nuevo | Flujo seeder → rol_permisos → middleware → UI |
+| 345-370 | §7 Vinculación con schema | Tablas permisos/roles/rol_permisos/usuarios_roles + query |
+| 372-392 | §8 Referencias cruzadas | Links a Homes, auth, schema |
+
+---
+
+## docs/database-schema.sql (511 líneas)
+
+DDL completo SQLite. 26 tablas en 8 bloques.
+
+| Líneas | Bloque | Tablas |
+|--------|--------|--------|
+| 1-30 | Header + PRAGMA | Convenciones, FK ON, WAL |
+| 32-100 | Bloque 1 RBAC/Auth | permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales |
+| 102-230 | Bloque 2 Operación | hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos, asignaciones, checklists_template, items_checklist, ejecuciones_checklist, ejecuciones_items |
+| 232-260 | Bloque 3 Auditoría | auditorias (con UNIQUE(ejecucion_id) para inmutabilidad) |
+| 262-325 | Bloque 4 Alertas | alertas_activas, bitacora_alertas, alertas_config |
+| 327-380 | Bloque 5 Cloudbeds | cloudbeds_sync_historial, cloudbeds_config |
+| 382-410 | Bloque 6 Tickets | tickets |
+| 412-460 | Bloque 7 Logs | logs_eventos, audit_log |
+| 462-500 | Bloque 8 Copilot | copilot_conversaciones, copilot_mensajes |
+| 502-511 | Fin | Total 26 tablas |
+
+---
+
+## docs/auth.md (160 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §1 Login | Formulario, validación RUT (módulo 11), endpoint POST /api/auth/login, decisión de home_target |
+| §2 Logout | DELETE sesión |
+| §3 Cambio contraseña | Validaciones (8 chars, letra+número), endpoint |
+| §4 Reset admin | Pwd temporal sin caracteres ambiguos, audit log |
+| §5 Creación | Pwd temporal al crear usuario |
+| §6 AuthCheck | Middleware, sliding window 8h |
+| §7 PermissionCheck | Middleware con OR múltiple |
+| §8 Script rescate | scripts/reset-admin-password.php |
+| §9 Seguridad | bcrypt, no loggear tokens, HTTPS, rate limit |
+
+---
+
+## docs/habitaciones.md (120 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Estados (6) | sucia, en_progreso, completada_pendiente_auditoria, aprobada, aprobada_con_observacion, rechazada |
+| §3 Transiciones | Diagrama + prohibidas + EstadoHabitacionService |
+| §4 Sync Cloudbeds | Entrada 2x/día + salida on-aprobación |
+| §5 Filtrado hotel | 1_sur / inn / ambos, persistencia |
+| §6 Asignación | Manual, round-robin, reasignar, reordenar cola |
+| §7 Endpoints REST | Resumen tabla |
+
+---
+
+## docs/checklist.md (160 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Templates | Por tipo de habitación, items ordenados, obligatorio flag |
+| §3 Ejecución | Inicio, persistencia tap-a-tap (PUT /api/ejecuciones/{id}/items/{item_id}) |
+| §3.3 Offline | Cola localStorage, reintento, badge sincronizando |
+| §3.4 Reanudar | Tras cerrar app |
+| §3.5 Botón terminada | Gate 100% obligatorios |
+| §4 Tracking oculto | timestamp_inicio/fin nunca visible al trabajador |
+| §5 Items desmarcados por auditor | Flujo + efectos |
+
+---
+
+## docs/auditoria.md (180 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 3 estados | aprobado, aprobado_con_observacion, rechazado |
+| §3 Inmutabilidad | 409 Conflict + UNIQUE(ejecucion_id) + UI opacidad 50% |
+| §4.1-4.3 Flujo por veredicto | Modal, items_desmarcados, alerta rechazado |
+| §5 Post-auditoría | Solo lectura, detalle histórico |
+| §6 Endpoint POST /api/auditoria/{habitacion_id} | Request, errores 409/404/403/400 |
+
+---
+
+## docs/cloudbeds.md (140 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Credenciales .env | CLOUDBEDS_API_KEY, rotación, nunca loggear |
+| §3 Endpoints Cloudbeds | getRooms, getRoomStatuses, postHousekeepingStatus |
+| §4 Sync entrante | Cron 2x/día (07:00/15:00) + manual |
+| §5 Sync saliente | Cola reintentos 1s/2s/4s, alerta P0 al fallar |
+| §5.2 401 inválida | No reintenta, alerta P0 inmediata |
+| §6 Sanitización | LogSanitizer.sanitize() obligatoria |
+| §7 Config | cloudbeds_config (schedule, timeout, reintentos) |
+
+---
+
+## docs/alertas-predictivas.md (150 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Prioridades | P0/P1/P2/P3 + UI |
+| §3 Tipos (6) | cloudbeds_sync_failed, trabajador_en_riesgo, habitacion_rechazada, fin_turno_pendientes, trabajador_disponible, ticket_nuevo |
+| §4 Algoritmo predictivo | tiempo_promedio_personal × habitaciones_restantes, margen 15 min |
+| §4.4 Trabajador nuevo | Fallback 30 min/habitación |
+| §5 Permisos | alertas.recibir_predictivas (trabajador NUNCA) |
+| §6 Ciclo BD | alertas_activas → bitacora_alertas |
+| §7 Config | alertas_config claves + defaults |
+
+---
+
+## docs/copilot-ia.md (180 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Stack | Claude API, claude-sonnet-4-6, timeout 30s |
+| §3 Permisos | Nivel 1 consultas / Nivel 2 acciones |
+| §4 Tools dinámicas | Filtradas por permisos RBAC del usuario |
+| §5 Prompts por rol | Base + rol-specific |
+| §6 UI | FAB sparkles + panel slide-up/lateral |
+| §7 Voz | Web Speech API es-CL |
+| §9 Auditoría | audit_log con origen=copilot |
+| §10 Doble validación | Frontend + backend re-validan cada tool |
+
+---
+
+## docs/tickets.md (90 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §1 Alcance MVP | Simple, no workflow complejo |
+| §3 Estados | abierto → en_progreso → resuelto → cerrado |
+| §4 Permisos | crear, ver_propios, ver_todos |
+| §5 Crear | Desde Home o copilot + alerta P2 |
+| §6 Gestión | Tomar/asignar/resolver/cerrar/reabrir |
+
+---
+
+## docs/turnos.md (100 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §1 Turnos base | mañana 08-16, tarde 14-22 |
+| §2 Modelo | turnos + usuarios_turnos (UNIQUE usuario+fecha) |
+| §3 Asignación | Calendario semanal, copiar semana |
+| §4 Estados derivados | fuera_turno / pre / activo / disponible / post |
+| §5 Reglas | Sin overtime, sin cross-midnight MVP |
+
+---
+
+## docs/usuarios.md (115 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §2 Trabajadores | Subconjunto filtrado por rol, no entidad separada |
+| §3 CRUD | Listar, detalle, crear (pwd temporal), editar, activo, roles |
+| §3.7 Safeguards | Auto-desactivación, último admin |
+| §4 Mi cuenta | Todos los usuarios |
+
+---
+
+## docs/ajustes.md (145 líneas, v1.0)
+
+Módulo separado `/ajustes`. 8 secciones filtradas por permisos.
+
+| Sección | Contenido |
+|---------|-----------|
+| §2.2 Secciones | Mi cuenta, Roles/Permisos, Usuarios, Turnos, Checklists, Alertas, Cloudbeds, Logs |
+| §3 Matriz RBAC | Tabla editable con checkboxes + safeguards |
+| §4 Alertas config | Editar umbrales |
+| §5 Cloudbeds | Credenciales .env + sync schedule + historial |
+| §6 Mi cuenta | Datos, seguridad, copilot historial, logout |
+
+---
+
+## docs/logs.md (110 líneas, v1.0)
+
+| Sección | Contenido |
+|---------|-----------|
+| §1 Dos tablas | logs_eventos (técnico) vs audit_log (acciones) |
+| §2 NO loggear | Tokens, API keys, passwords, Authorization |
+| §3 Formato | Niveles INFO/WARNING/ERROR + campos audit_log |
+| §4 Viewer | 2 tabs + filtros + JSON pretty |
+| §5 Rotación | Post-MVP (90 días eventos, 1 año audit) |
+
+---
+
+## docs/api-endpoints.md (170 líneas, v1.0)
+
+Referencia maestra de todos los endpoints REST. Índice por módulo.
+
+| Sección | Módulo |
+|---------|--------|
+| §2 | Auth |
+| §3 | Usuarios |
+| §4 | Roles/permisos |
+| §5 | Habitaciones |
+| §6 | Asignaciones |
+| §7 | Checklist |
+| §8 | Auditoría |
+| §9 | Alertas |
+| §10 | Tickets |
+| §11 | Turnos |
+| §12 | Cloudbeds |
+| §13 | Copilot |
+| §14 | Homes (agregados) |
+| §15 | Sistema |
+| §16 | Logs |
+| §17 | Disponibilidad/Notificaciones |
+
+Convenciones (§1): respuestas `{ok, data}` / `{ok, error}`, códigos 200/201/400/401/403/404/409/500, paginación `?pagina&por_pagina`, scope "propio" filtrado por sesión.
