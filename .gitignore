@@ -15,6 +15,7 @@ database/*.db-shm
 # === Composer ===
 vendor/
 composer.lock
+composer.phar
 
 # === Node (solo para herramientas de desarrollo, NO para el frontend) ===
 node_modules/
