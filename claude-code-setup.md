@@ -1076,8 +1076,8 @@ Este es el orden óptimo. Cada módulo construye sobre los anteriores.
 43. **Pantalla de Login** + cambio forzado de contraseña
 44. **Home del Trabajador** ⭐ (ya diseñada en detalle, ver `docs/home-trabajador.md`)
 45. **Home de la Supervisora** ⭐ (ya diseñada en detalle, ver `docs/home-supervisora.md`)
-46. **Home de Recepción** (pendiente diseño)
-47. **Home del Admin** (pendiente diseño)
+46. **Home de Recepción** ⭐ (ya diseñada en detalle, ver `docs/home-recepcion.md`)
+47. **Home del Admin** ⭐ (ya diseñada en detalle, ver `docs/home-admin.md` y `docs/home-admin-qa-checklist.md`)
 48. **Listado y detalle de habitaciones + checklist persistente**
 49. **Vista de asignación**
 50. **Bandeja de auditoría** con los 3 botones y checklist expandible
