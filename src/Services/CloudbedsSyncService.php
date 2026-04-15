@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Helpers\LogSanitizer;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Models\Hotel;
 
@@ -22,6 +23,7 @@ final class CloudbedsSyncService
         private readonly CloudbedsClient $client,
         private readonly HotelService $hoteles = new HotelService(),
         private readonly HabitacionService $habitaciones = new HabitacionService(),
+        private readonly AlertasService $alertas = new AlertasService(),
     ) {
     }
 
@@ -224,9 +226,16 @@ final class CloudbedsSyncService
 
     private function crearAlertaP0(string $tipo, string $titulo, string $descripcion): void
     {
-        Database::execute(
-            'INSERT INTO alertas_activas (tipo, prioridad, titulo, descripcion) VALUES (?, 0, ?, ?)',
-            [$tipo, $titulo, $descripcion]
+        if ($tipo !== AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED) {
+            return;
+        }
+        $this->alertas->levantar(
+            AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED,
+            $titulo,
+            $descripcion,
+            [],
+            null,
+            'cloudbeds_sync',
         );
     }
 }

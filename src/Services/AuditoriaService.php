@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Models\Auditoria;
 use Atankalama\Limpieza\Models\EjecucionChecklist;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Habitacion;
 
 final class AuditoriaService
@@ -16,6 +17,7 @@ final class AuditoriaService
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly ChecklistService $checklist = new ChecklistService(),
         private readonly ?CloudbedsSyncService $cloudbeds = null,
+        private readonly AlertasService $alertas = new AlertasService(),
     ) {
     }
 
@@ -184,16 +186,13 @@ final class AuditoriaService
             [$habitacionId]
         );
         $numero = $habFila['numero'] ?? '?';
-        Database::execute(
-            'INSERT INTO alertas_activas (tipo, prioridad, titulo, descripcion, contexto_json, hotel_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [
-                'habitacion_rechazada',
-                1,
-                "Habitación {$numero} rechazada",
-                $comentario ?? 'Revisar y reasignar.',
-                json_encode(['habitacion_id' => $habitacionId, 'trabajador_id' => $trabajadorId]),
-                $habFila['hotel_id'] ?? null,
-            ]
+        $this->alertas->levantar(
+            AlertaActiva::TIPO_HABITACION_RECHAZADA,
+            "Habitación {$numero} rechazada",
+            $comentario ?? 'Revisar y reasignar.',
+            ['habitacion_id' => $habitacionId, 'trabajador_id' => $trabajadorId],
+            isset($habFila['hotel_id']) && $habFila['hotel_id'] !== null ? (int) $habFila['hotel_id'] : null,
+            "habitacion:{$habitacionId}",
         );
     }
 }

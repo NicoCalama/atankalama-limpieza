@@ -14,6 +14,7 @@ final class ChecklistService
     public function __construct(
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
+        private readonly ?AlertasPredictivasService $predictivas = null,
     ) {
     }
 
@@ -242,6 +243,25 @@ final class ChecklistService
         Logger::audit($usuarioId, 'checklist.completar', 'ejecucion_checklist', $ejecucionId, [
             'habitacion_id' => $ejec->habitacionId,
         ]);
+
+        try {
+            $svc = $this->predictivas ?? new AlertasPredictivasService();
+            $turno = Database::fetchOne(
+                'SELECT t.hora_fin
+                   FROM usuarios_turnos ut
+                   JOIN turnos t ON t.id = ut.turno_id
+                  WHERE ut.usuario_id = ? AND ut.fecha = date(\'now\')
+                  ORDER BY ut.id DESC LIMIT 1',
+                [$usuarioId]
+            );
+            if ($turno !== null) {
+                $svc->evaluarTrabajador($usuarioId, date('Y-m-d'), (string) $turno['hora_fin'], date('H:i'));
+            }
+        } catch (\Throwable $e) {
+            Logger::error('alertas_predictivas', 'fallo recálculo post-completar', [
+                'mensaje' => $e->getMessage(),
+            ]);
+        }
     }
 
     /** @return array{marcados:int,total:int,porcentaje:int,obligatorios_total:int,obligatorios_marcados:int,obligatorios_pendientes:int} */

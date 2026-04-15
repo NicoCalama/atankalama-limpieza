@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Core;
 
+use Atankalama\Limpieza\Controllers\AlertasController;
 use Atankalama\Limpieza\Controllers\AsignacionesController;
 use Atankalama\Limpieza\Controllers\AuditoriaController;
 use Atankalama\Limpieza\Controllers\AuthController;
@@ -135,6 +136,37 @@ final class Kernel
         $router->get('/api/auditoria/{id}/historial', [$auditoria, 'historial'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+
+        // Alertas
+        $alertas = new AlertasController();
+        $router->get('/api/alertas/activas', [$alertas, 'activas'], [
+            $authCheck,
+            new PermissionCheck('alertas.recibir_predictivas'),
+        ]);
+        $router->get('/api/alertas', [$alertas, 'listar'], [
+            $authCheck,
+            new PermissionCheck('alertas.recibir_predictivas'),
+        ]);
+        $router->post('/api/alertas/{id}/accion', [$alertas, 'ejecutarAccion'], [
+            $authCheck,
+            new PermissionCheck('alertas.recibir_predictivas'),
+        ]);
+        $router->get('/api/alertas/bitacora', [$alertas, 'bitacora'], [
+            $authCheck,
+            new PermissionCheck('alertas.recibir_predictivas'),
+        ]);
+        $router->get('/api/alertas/config', [$alertas, 'listarConfig'], [
+            $authCheck,
+            new PermissionCheck('alertas.configurar_umbrales'),
+        ]);
+        $router->put('/api/alertas/config', [$alertas, 'actualizarConfig'], [
+            $authCheck,
+            new PermissionCheck('alertas.configurar_umbrales'),
+        ]);
+        $router->post('/api/alertas/recalcular', [$alertas, 'recalcular'], [
+            $authCheck,
+            new PermissionCheck('alertas.configurar_umbrales'),
         ]);
 
         return $router;
