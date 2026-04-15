@@ -68,6 +68,33 @@ final class TestDatabase
     }
 
     /**
+     * Siembra un template de checklist por cada tipo de habitación existente,
+     * usando los items canónicos de database/seeds/checklists.php.
+     * Se llama desde los tests que necesitan ejecuciones de checklist.
+     */
+    public static function sembrarChecklistTemplates(): void
+    {
+        $seedDir = Config::basePath() . '/database/seeds';
+        $data = require $seedDir . '/checklists.php';
+        $items = $data['template_default_items'];
+
+        $tipos = Database::fetchAll('SELECT id, nombre FROM tipos_habitacion');
+        foreach ($tipos as $tipo) {
+            Database::execute(
+                'INSERT INTO checklists_template (tipo_habitacion_id, nombre, activo) VALUES (?, ?, 1)',
+                [(int) $tipo['id'], 'Checklist ' . (string) $tipo['nombre']]
+            );
+            $templateId = Database::lastInsertId();
+            foreach ($items as $item) {
+                Database::execute(
+                    'INSERT INTO items_checklist (template_id, orden, descripcion, obligatorio, activo) VALUES (?, ?, ?, ?, 1)',
+                    [$templateId, (int) $item['orden'], (string) $item['descripcion'], (int) $item['obligatorio']]
+                );
+            }
+        }
+    }
+
+    /**
      * Crea un usuario de prueba con un rol específico y pwd conocida.
      * Retorna [usuario_id, password].
      *

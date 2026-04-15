@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Core;
 
+use Atankalama\Limpieza\Controllers\AsignacionesController;
+use Atankalama\Limpieza\Controllers\AuditoriaController;
 use Atankalama\Limpieza\Controllers\AuthController;
+use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\RolesController;
@@ -82,6 +85,56 @@ final class Kernel
         $router->put('/api/cloudbeds/config', [$cloudbeds, 'actualizarConfig'], [
             $authCheck,
             new PermissionCheck('cloudbeds.configurar_credenciales'),
+        ]);
+
+        // Checklists y ejecuciones
+        $checklists = new ChecklistsController();
+        $router->get('/api/checklists/templates', [$checklists, 'listarTemplates'], [
+            $authCheck,
+            new PermissionCheck('checklists.ver'),
+        ]);
+        $router->get('/api/checklists/templates/{id}/items', [$checklists, 'itemsDelTemplate'], [
+            $authCheck,
+            new PermissionCheck('checklists.ver'),
+        ]);
+        $router->post('/api/habitaciones/{id}/iniciar', [$checklists, 'iniciar'], [$authCheck]);
+        $router->post('/api/habitaciones/{id}/completar', [$checklists, 'completar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_completada'),
+        ]);
+        $router->get('/api/ejecuciones/{id}', [$checklists, 'estadoEjecucion'], [$authCheck]);
+        $router->put('/api/ejecuciones/{id}/items/{itemId}', [$checklists, 'marcarItem'], [$authCheck]);
+
+        // Asignaciones
+        $asignaciones = new AsignacionesController();
+        $router->post('/api/asignaciones', [$asignaciones, 'crear'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+        $router->post('/api/asignaciones/auto', [$asignaciones, 'auto'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.auto_asignar'),
+        ]);
+        $router->post('/api/asignaciones/reasignar', [$asignaciones, 'reasignar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+        $router->put('/api/asignaciones/orden', [$asignaciones, 'reordenar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.reordenar_cola_trabajador'),
+        ]);
+        $router->get('/api/usuarios/{id}/cola', [$asignaciones, 'colaTrabajador'], [$authCheck]);
+
+        // Auditoría
+        $auditoria = new AuditoriaController();
+        $router->get('/api/auditoria/bandeja', [$auditoria, 'bandeja'], [
+            $authCheck,
+            new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+        $router->post('/api/auditoria/{id}', [$auditoria, 'emitirVeredicto'], [$authCheck]);
+        $router->get('/api/auditoria/{id}/historial', [$auditoria, 'historial'], [
+            $authCheck,
+            new PermissionCheck('auditoria.ver_bandeja'),
         ]);
 
         return $router;
