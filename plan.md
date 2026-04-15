@@ -588,16 +588,16 @@ Esqueleto de tablas principales. El schema detallado y ejecutable se definirá e
 
 ## 14. Fases de implementación
 
-### Fase 0 — Setup (pre-desarrollo)
+### Fase 0 — Setup (pre-desarrollo) ✅ COMPLETADA
 - Crear repo `atankalama-limpieza` en GitHub (público) ✅
 - Configurar Claude Code en VS Code con los MCPs recomendados ✅
-- Crear estructura de carpetas inicial del proyecto
-- Configurar entorno local Windows + EasyPanel en VPS
-- Variables de entorno (API keys Cloudbeds x2, Claude API)
-- Instalar y configurar `gitleaks`
-- Crear `CLAUDE.md` raíz con convenciones del proyecto
-- Crear schema SQLite inicial con todas las tablas (incluyendo RBAC dinámico y alertas predictivas)
-- Seeders de permisos, roles por defecto, turnos por defecto, admin inicial
+- Crear estructura de carpetas inicial del proyecto ✅
+- Variables de entorno (API keys Cloudbeds x2, Claude API) ✅ (`.env.example`)
+- Instalar y configurar `gitleaks` ✅ (hook pre-commit activo)
+- Crear `CLAUDE.md` raíz con convenciones del proyecto ✅
+- Crear schema SQLite inicial con todas las tablas (RBAC + alertas) ✅ (`docs/database-schema.sql`, commit `b0542a4`)
+- Seeders de permisos (50), roles (4), turnos (2), hoteles (2), admin inicial ✅ (commit `b0542a4`)
+- Pendiente solo: configurar despliegue EasyPanel en VPS (no bloquea desarrollo)
 
 ### Fase 1 — MVP (este plan)
 Todo lo descrito en este documento:
@@ -625,21 +625,37 @@ Todo lo descrito en este documento:
 
 ## 15. Próximos pasos inmediatos
 
-1. ~~Home del Trabajador~~ ✅ COMPLETADA en `docs/home-trabajador.md`
-2. ~~Home de la Supervisora~~ ✅ COMPLETADA en `docs/home-supervisora.md` v2.1
-3. **Home de Recepción** — siguiente paso natural (más simple, mayormente auditoría)
-4. **Home del Admin** — la última, gestión completa
-5. **Diseño detallado del listado y detalle de habitación + checklist**
-6. **Diseño detallado de asignación**
-7. **Diseño detallado de auditoría** (incluyendo el flujo del checklist expandible en "aprobar con observación")
-8. **Diseño detallado del copilot IA** — UI del panel flotante, prompts base, definición de tools por rol
-9. **Diseño detallado de Ajustes por rol** (incluyendo la matriz RBAC)
-10. **Diseño detallado de alertas predictivas** (UI de la bandeja, banner, flujo de resolución)
-11. **Schema SQLite definitivo** (`database-schema.sql`)
-12. **Listado completo de endpoints de la API REST** (`api-endpoints.md`)
-13. **Definición del módulo Cloudbeds** (clientes, manejo de errores, cola de reintentos)
+### Diseño de documentación — ✅ CERRADA
 
-Cada uno de los puntos 2–8 generará su propio archivo `.md` en `docs/`, listo para ser consumido por Claude Code durante la codificación.
+Todos los docs de diseño ya existen en `docs/`:
+
+1. ~~Home del Trabajador~~ ✅ `docs/home-trabajador.md`
+2. ~~Home de la Supervisora~~ ✅ `docs/home-supervisora.md` v2.1
+3. ~~Home de Recepción~~ ✅ `docs/home-recepcion.md`
+4. ~~Home del Admin~~ ✅ `docs/home-admin.md` + `docs/home-admin-qa-checklist.md`
+5. ~~Habitaciones + checklist + asignación~~ ✅ `docs/habitaciones.md`, `docs/checklist.md`
+6. ~~Auditoría (3 estados)~~ ✅ `docs/auditoria.md`
+7. ~~Copilot IA~~ ✅ `docs/copilot-ia.md`
+8. ~~Ajustes + matriz RBAC~~ ✅ `docs/ajustes.md`, `docs/roles-permisos.md`
+9. ~~Alertas predictivas~~ ✅ `docs/alertas-predictivas.md`
+10. ~~Schema SQLite~~ ✅ `docs/database-schema.sql`
+11. ~~Endpoints REST~~ ✅ `docs/api-endpoints.md`
+12. ~~Cloudbeds~~ ✅ `docs/cloudbeds.md`
+13. ~~Auth, logs, tickets, turnos, usuarios~~ ✅ docs respectivos
+
+### Codificación — EN CURSO
+
+Ver `claude-code-setup.md` §10 para el plan detallado (etapas A–I).
+
+- ✅ **Etapa A — Fundación** (commit `b0542a4`)
+- ✅ **Etapa B — Auth y RBAC** (commit `8ebbe68`)
+- ✅ **Etapa C — Habitaciones y Cloudbeds** (commit `7906b71`)
+- ⏭️ **Etapa D — Checklists, asignaciones, auditoría** (siguiente)
+- ⏳ Etapa E — Alertas predictivas
+- ⏳ Etapa F — Tickets, usuarios, turnos
+- ⏳ Etapa G — Copilot IA
+- ⏳ Etapa H — Frontend (supervisión)
+- ⏳ Etapa I — Pulido final + despliegue VPS
 
 ---
 

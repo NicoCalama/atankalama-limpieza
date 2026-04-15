@@ -28,30 +28,14 @@
 
 ## 1. Estado actual del setup
 
-Al momento de generar este documento (v2.0), el setup va así:
+**Setup 100% completo ✅** (Fase 0 cerrada).
 
-**Ya hecho ✅**
-- Pre-requisitos de Windows instalados (Git, Node.js 24, npm 11, PHP 8.2.30, VS Code 1.114)
-- Extensión Claude Code v2.1.92 instalada
-- Repositorio `atankalama-limpieza` creado en GitHub (público, owner NicoCalama)
-- Repo clonado localmente en `C:\Proyectos\atankalama-limpieza`
-- Personal Access Token de GitHub generado y guardado localmente
-- `.mcp.json` creado con los 5 MCPs (filesystem, github, sqlite, context7, playwright)
-- Token de GitHub configurado en `.claude/settings.local.json` (fuera del repo)
-- `.gitignore` inicial creado por Claude Code (básico, se va a completar)
+**Progreso de codificación (a 2026-04-14):**
+- ✅ **Etapa A — Fundación** (commit `b0542a4`): composer, schema SQLite aplicado, seeders (50 permisos, 4 roles, 2 hoteles, 2 turnos, admin inicial), servicios base (`Config`, `Database`, `Logger`, `LogSanitizer`, `RutValidator`, `PasswordService`).
+- ✅ **Etapa B — Auth y RBAC dinámico** (commit `8ebbe68`): `Usuario` con `tienePermiso()`, `AuthService` (login RUT + sesiones sliding 8h + cambio forzado primer login), `RbacService` (CRUD roles/permisos), middleware `AuthCheck` + `PermissionCheck`, endpoints `/api/auth/*` y `/api/roles/*`, 60 tests.
+- ✅ **Etapa C — Habitaciones y Cloudbeds** (commit `7906b71`): modelos Hotel/TipoHabitacion/Habitacion (6 estados), `EstadoHabitacionService` con matriz de transiciones, `CloudbedsClient` con reintentos exponenciales (3×) y 401→CREDENCIAL_INVALIDA, `CloudbedsSyncService` (sync 2×/día + escritura Clean + alertas P0 al fallar), endpoints `/api/hoteles`, `/api/habitaciones`, `/api/cloudbeds/*`, script CLI `scripts/sync-cloudbeds.php`. 89 tests totales (272 assertions).
 
-**Pendiente 🚧**
-- Copiar `plan.md` v3.0 y `claude-code-setup.md` v2.0 al repo
-- Crear estructura completa de carpetas del proyecto PHP
-- Completar `.gitignore` con exclusiones específicas de PHP
-- Crear `.env.example` con todas las variables del proyecto
-- Crear `CLAUDE.md` raíz con todas las convenciones
-- Crear las 3 skills personalizadas
-- Instalar y configurar gitleaks
-- Hacer el primer commit con todo lo anterior
-- Hacer push a `main`
-
-Este documento describe el estado **objetivo** — es decir, cómo debe quedar todo cuando el setup esté 100% terminado. Claude Code usará estas instrucciones para completar los pendientes en un solo prompt grande.
+**Siguiente**: Etapa D — Checklists, asignaciones y auditoría (ver §10).
 
 ---
 
@@ -92,7 +76,7 @@ atankalama-limpieza/
 │   ├── home-trabajador.md       # ✅ v1.0 COMPLETO
 │   ├── home-supervisora.md      # ✅ v2.1 COMPLETO
 │   ├── home-recepcion.md        # 🚧 siguiente
-│   ├── home-admin.md            # 🚧 pendiente
+│   ├── home-admin.md            # ✅ COMPLETO
 │   ├── handoff-2026-04-08.md    # ✅ documento de traspaso
 │   ├── auth.md
 │   ├── checklist.md
