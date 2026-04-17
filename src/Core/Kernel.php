@@ -10,6 +10,7 @@ use Atankalama\Limpieza\Controllers\AuditoriaController;
 use Atankalama\Limpieza\Controllers\AuthController;
 use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
+use Atankalama\Limpieza\Controllers\CopilotController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\TicketsController;
@@ -242,6 +243,26 @@ final class Kernel
             $authCheck,
             new PermissionCheck('alertas.configurar_umbrales'),
         ]);
+
+        // Copilot IA
+        $copilot = new CopilotController();
+        $router->post('/api/copilot/mensaje', [$copilot, 'mensaje'], [
+            $authCheck,
+            new PermissionCheck('copilot.usar_nivel_1_consultas'),
+        ]);
+        $router->get('/api/copilot/conversaciones', [$copilot, 'listarConversaciones'], [
+            $authCheck,
+            new PermissionCheck('copilot.ver_historial_propio'),
+        ]);
+        $router->get('/api/copilot/conversaciones/todas', [$copilot, 'listarTodasConversaciones'], [
+            $authCheck,
+            new PermissionCheck('copilot.ver_historial_todos'),
+        ]);
+        $router->get('/api/copilot/conversaciones/{id}', [$copilot, 'obtenerConversacion'], [
+            $authCheck,
+            new PermissionCheck('copilot.ver_historial_propio'),
+        ]);
+        $router->delete('/api/copilot/conversaciones/{id}', [$copilot, 'borrarConversacion'], [$authCheck]);
 
         return $router;
     }
