@@ -1,0 +1,50 @@
+/*
+ * custom.css — Overrides mínimos que Tailwind CDN no cubre.
+ * Mantener al mínimo — preferir siempre clases de Tailwind.
+ */
+
+/* Alpine.js x-cloak: ocultar elementos hasta que Alpine los inicialice */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Safe area para bottom nav en dispositivos con notch (iOS) */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Transición suave para el cambio de tema */
+html.transitioning,
+html.transitioning *,
+html.transitioning *::before,
+html.transitioning *::after {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+
+/* Scrollbar sutil para paneles con overflow */
+.scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.4);
+    border-radius: 2px;
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.4);
+}
+
+/* Spinner de carga global */
+.spinner {
+    border: 3px solid rgba(59, 130, 246, 0.2);
+    border-top-color: rgb(59, 130, 246);
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

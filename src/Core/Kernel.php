@@ -12,11 +12,13 @@ use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
+use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
 use Atankalama\Limpieza\Controllers\UsuariosController;
 use Atankalama\Limpieza\Middleware\AuthCheck;
+use Atankalama\Limpieza\Middleware\OptionalAuth;
 use Atankalama\Limpieza\Middleware\PermissionCheck;
 
 final class Kernel
@@ -27,6 +29,14 @@ final class Kernel
         $auth = new AuthController();
         $roles = new RolesController();
         $authCheck = new AuthCheck();
+        $optionalAuth = new OptionalAuth();
+
+        // Páginas HTML
+        $paginas = new PaginasController();
+        $router->get('/', [$paginas, 'raiz'], [$optionalAuth]);
+        $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
+        $router->get('/home', [$paginas, 'home'], [$optionalAuth]);
+        $router->get('/cambiar-contrasena', [$paginas, 'cambiarContrasena'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
