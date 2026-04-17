@@ -992,67 +992,67 @@ Una vez el setup esté completo, así es como trabajar con Claude Code para este
 
 Este es el orden óptimo. Cada módulo construye sobre los anteriores.
 
-### Etapa A — Fundación (autonomía total)
+### Etapa A — Fundación (autonomía total) ✅ `b0542a4`
 
-1. **Setup del proyecto PHP** — `composer.json`, autoload PSR-4, estructura Core
-2. **Base de datos** — schema SQLite completo con tablas de RBAC + todas las demás
-3. **Seeders** — catálogo de permisos, 4 roles por defecto, 2 turnos, 2 hoteles, admin inicial
-4. **Servicios base** — `Config`, `Logger`, `RutValidator`, `PasswordService`
+1. ✅ **Setup del proyecto PHP** — `composer.json`, autoload PSR-4, estructura Core
+2. ✅ **Base de datos** — schema SQLite completo con tablas de RBAC + todas las demás
+3. ✅ **Seeders** — catálogo de permisos, 4 roles por defecto, 2 turnos, 2 hoteles, admin inicial
+4. ✅ **Servicios base** — `Config`, `Logger`, `RutValidator`, `PasswordService`
 
-### Etapa B — RBAC y Auth (autonomía total)
+### Etapa B — RBAC y Auth (autonomía total) ✅ `8ebbe68`
 
-5. **Modelo `Usuario`** con método `tienePermiso($codigo)`
-6. **Servicio RBAC** — gestión de roles y permisos
-7. **Middleware `PermissionCheck`**
-8. **Endpoints de auth** — login, logout, cambio de contraseña
-9. **Endpoints de gestión de roles/permisos** (CRUD)
-10. **Tests de auth y RBAC**
+5. ✅ **Modelo `Usuario`** con método `tienePermiso($codigo)`
+6. ✅ **Servicio RBAC** — gestión de roles y permisos
+7. ✅ **Middleware `PermissionCheck`**
+8. ✅ **Endpoints de auth** — login, logout, cambio de contraseña
+9. ✅ **Endpoints de gestión de roles/permisos** (CRUD)
+10. ✅ **Tests de auth y RBAC**
 
-### Etapa C — Habitaciones y Cloudbeds (autonomía total)
+### Etapa C — Habitaciones y Cloudbeds (autonomía total) ✅ `7906b71`
 
-11. **Cliente Cloudbeds** con cola de reintentos
-12. **Modelos** de Hotel, TipoHabitacion, Habitacion
-13. **HabitacionService**
-14. **Endpoints REST** de habitaciones
-15. **Script de sincronización** (cron 2×/día)
+11. ✅ **Cliente Cloudbeds** con cola de reintentos
+12. ✅ **Modelos** de Hotel, TipoHabitacion, Habitacion
+13. ✅ **HabitacionService**
+14. ✅ **Endpoints REST** de habitaciones
+15. ✅ **Script de sincronización** (cron 2×/día)
 
-### Etapa D — Checklists, asignaciones, auditoría (autonomía total)
+### Etapa D — Checklists, asignaciones, auditoría (autonomía total) ✅ `570aca0`
 
-16. **Modelos y servicios** de checklist, asignación
-17. **Lógica de persistencia tap a tap** del checklist
-18. **Tracking de tiempo oculto**
-19. **Auto-asignación round-robin**
-20. **Endpoints REST** de checklists, asignaciones
-21. **Auditoría con 3 estados**
-22. **Lógica de "rechazar → vuelve a sucia + reasignable"**
-23. **Lógica de "aprobado con observación" con items desmarcados**
+16. ✅ **Modelos y servicios** de checklist, asignación
+17. ✅ **Lógica de persistencia tap a tap** del checklist
+18. ✅ **Tracking de tiempo oculto**
+19. ✅ **Auto-asignación round-robin**
+20. ✅ **Endpoints REST** de checklists, asignaciones
+21. ✅ **Auditoría con 3 estados**
+22. ✅ **Lógica de "rechazar → vuelve a sucia + reasignable"**
+23. ✅ **Lógica de "aprobado con observación" con items desmarcados**
 
-### Etapa E — Alertas predictivas (autonomía total)
+### Etapa E — Alertas predictivas (autonomía total) ✅ `9824eb2`
 
-24. **Servicio `AlertasPredictivas`** con el algoritmo
-25. **Tabla de configuración de umbrales**
-26. **Recálculo automático** al completar habitaciones y en background
-27. **Endpoints** para ver bandeja de alertas y marcar como atendidas
-28. **Servicio `AlertasService`** con los 6 tipos de alertas definidos
-29. **Tabla `bitacora_alertas`** con sus índices
-30. **Cálculo de prioridades** según tipo y antigüedad
-31. **Endpoints** para listar alertas top 5 + ver todas + ejecutar acciones
-32. **Refresco automático** al completar habitaciones y cada 15 min
-33. **Validación de inmutabilidad de auditoría** en backend (error 409)
+24. ✅ **Servicio `AlertasPredictivas`** con el algoritmo
+25. ✅ **Tabla de configuración de umbrales**
+26. ✅ **Recálculo automático** al completar habitaciones y en background
+27. ✅ **Endpoints** para ver bandeja de alertas y marcar como atendidas
+28. ✅ **Servicio `AlertasService`** con los 6 tipos de alertas definidos
+29. ✅ **Tabla `bitacora_alertas`** con sus índices
+30. ✅ **Cálculo de prioridades** según tipo y antigüedad
+31. ✅ **Endpoints** para listar alertas top 5 + ver todas + ejecutar acciones
+32. ✅ **Refresco automático** al completar habitaciones y cada 15 min
+33. ✅ **Validación de inmutabilidad de auditoría** en backend (error 409)
 
-### Etapa F — Tickets, usuarios, turnos (autonomía total)
+### Etapa F — Tickets, usuarios, turnos (autonomía total) ✅ `51b578c`
 
-34. **Endpoints de tickets simplificados**
-35. **Endpoints de gestión de usuarios**
-36. **Endpoints de gestión de turnos**
-37. **Endpoint de reset de contraseña por admin**
+34. ✅ **Endpoints de tickets simplificados**
+35. ✅ **Endpoints de gestión de usuarios**
+36. ✅ **Endpoints de gestión de turnos**
+37. ✅ **Endpoint de reset de contraseña por admin** (implementado en Etapa B)
 
-### Etapa G — Copilot IA (autonomía total para motor, supervisión para prompts)
+### Etapa G — Copilot IA (autonomía total para motor, supervisión para prompts) ✅ `3464c7c`
 
-38. **Servicio `CopilotService`** con Claude API y tool use
-39. **Definición de tools por rol** (validando permisos dinámicos)
-40. **Endpoint** `POST /api/copilot/mensaje`
-41. **Persistencia de conversaciones**
+38. ✅ **Servicio `CopilotService`** con Claude API y tool use
+39. ✅ **Definición de tools por rol** (validando permisos dinámicos)
+40. ✅ **Endpoint** `POST /api/copilot/mensaje`
+41. ✅ **Persistencia de conversaciones**
 
 ### Etapa H — Frontend (SUPERVISIÓN)
 

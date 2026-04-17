@@ -653,7 +653,7 @@ Ver `claude-code-setup.md` §10 para el plan detallado (etapas A–I).
 - ✅ **Etapa D — Checklists, asignaciones, auditoría** (commit `570aca0`)
 - ✅ **Etapa E — Alertas predictivas** (commit `9824eb2`)
 - ✅ **Etapa F — Tickets, usuarios, turnos** (commit `51b578c`)
-- ✅ **Etapa G — Copilot IA** (commit pendiente)
+- ✅ **Etapa G — Copilot IA** (commit `3464c7c`)
 - ⏭️ **Etapa H — Frontend (supervisión)** (siguiente)
 - ⏳ Etapa I — Pulido final + despliegue VPS
 
