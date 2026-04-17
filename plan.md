@@ -651,9 +651,9 @@ Ver `claude-code-setup.md` §10 para el plan detallado (etapas A–I).
 - ✅ **Etapa B — Auth y RBAC** (commit `8ebbe68`)
 - ✅ **Etapa C — Habitaciones y Cloudbeds** (commit `7906b71`)
 - ✅ **Etapa D — Checklists, asignaciones, auditoría** (commit `570aca0`)
-- ✅ **Etapa E — Alertas predictivas** (commit pendiente)
-- ⏭️ **Etapa F — Tickets, usuarios, turnos** (siguiente)
-- ⏳ Etapa G — Copilot IA
+- ✅ **Etapa E — Alertas predictivas** (commit `9824eb2`)
+- ✅ **Etapa F — Tickets, usuarios, turnos** (commit pendiente)
+- ⏭️ **Etapa G — Copilot IA** (siguiente)
 - ⏳ Etapa H — Frontend (supervisión)
 - ⏳ Etapa I — Pulido final + despliegue VPS
 

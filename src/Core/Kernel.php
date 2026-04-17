@@ -12,6 +12,9 @@ use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\RolesController;
+use Atankalama\Limpieza\Controllers\TicketsController;
+use Atankalama\Limpieza\Controllers\TurnosController;
+use Atankalama\Limpieza\Controllers\UsuariosController;
 use Atankalama\Limpieza\Middleware\AuthCheck;
 use Atankalama\Limpieza\Middleware\PermissionCheck;
 
@@ -136,6 +139,77 @@ final class Kernel
         $router->get('/api/auditoria/{id}/historial', [$auditoria, 'historial'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+
+        // Tickets
+        $tickets = new TicketsController();
+        $router->get('/api/tickets', [$tickets, 'listar'], [$authCheck]);
+        $router->get('/api/tickets/{id}', [$tickets, 'obtener'], [$authCheck]);
+        $router->post('/api/tickets', [$tickets, 'crear'], [
+            $authCheck,
+            new PermissionCheck('tickets.crear'),
+        ]);
+        $router->put('/api/tickets/{id}/asignar', [$tickets, 'asignar'], [
+            $authCheck,
+            new PermissionCheck('tickets.ver_todos'),
+        ]);
+        $router->put('/api/tickets/{id}/estado', [$tickets, 'cambiarEstado'], [
+            $authCheck,
+            new PermissionCheck('tickets.ver_todos'),
+        ]);
+
+        // Usuarios CRUD
+        $usuarios = new UsuariosController();
+        $router->get('/api/usuarios', [$usuarios, 'listar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.ver'),
+        ]);
+        $router->get('/api/usuarios/{id}', [$usuarios, 'obtener'], [
+            $authCheck,
+            new PermissionCheck('usuarios.ver'),
+        ]);
+        $router->post('/api/usuarios', [$usuarios, 'crear'], [
+            $authCheck,
+            new PermissionCheck('usuarios.crear'),
+        ]);
+        $router->put('/api/usuarios/{id}', [$usuarios, 'actualizar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.editar'),
+        ]);
+        $router->post('/api/usuarios/{id}/activar', [$usuarios, 'activar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.activar_desactivar'),
+        ]);
+        $router->post('/api/usuarios/{id}/desactivar', [$usuarios, 'desactivar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.activar_desactivar'),
+        ]);
+
+        // Turnos
+        $turnos = new TurnosController();
+        $router->get('/api/turnos', [$turnos, 'listar'], [
+            $authCheck,
+            new PermissionCheck('turnos.ver'),
+        ]);
+        $router->post('/api/turnos', [$turnos, 'crear'], [
+            $authCheck,
+            new PermissionCheck('turnos.crear_editar'),
+        ]);
+        $router->put('/api/turnos/{id}', [$turnos, 'actualizar'], [
+            $authCheck,
+            new PermissionCheck('turnos.crear_editar'),
+        ]);
+        $router->post('/api/usuarios/{id}/turno', [$turnos, 'asignarAUsuario'], [
+            $authCheck,
+            new PermissionCheck('turnos.asignar_a_usuario'),
+        ]);
+        $router->delete('/api/usuarios/{id}/turno', [$turnos, 'quitarDeUsuario'], [
+            $authCheck,
+            new PermissionCheck('turnos.asignar_a_usuario'),
+        ]);
+        $router->get('/api/turnos/dia', [$turnos, 'turnosDelDia'], [
+            $authCheck,
+            new PermissionCheck('turnos.ver'),
         ]);
 
         // Alertas
