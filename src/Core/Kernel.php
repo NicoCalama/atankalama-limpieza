@@ -12,6 +12,7 @@ use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
+use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\TicketsController;
@@ -49,6 +50,11 @@ final class Kernel
             $authCheck,
             new PermissionCheck('usuarios.resetear_password'),
         ]);
+
+        // Home API
+        $home = new HomeController();
+        $router->get('/api/home/trabajador', [$home, 'trabajador'], [$authCheck]);
+        $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [$authCheck]);
 
         // RBAC
         $router->get('/api/roles', [$roles, 'listar'], [$authCheck, new PermissionCheck('ajustes.acceder')]);

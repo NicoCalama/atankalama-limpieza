@@ -495,9 +495,23 @@ CREATE TABLE copilot_mensajes (
 CREATE INDEX idx_copilot_mensajes_conversacion ON copilot_mensajes(conversacion_id);
 
 -- ============================================================================
+-- Bloque 9: Notificaciones internas
+-- ============================================================================
+
+-- Aviso de disponibilidad del trabajador (1 por día máximo)
+CREATE TABLE notificaciones_disponibilidad (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    trabajador_id       INTEGER NOT NULL,
+    fecha               TEXT    NOT NULL, -- YYYY-MM-DD
+    created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (trabajador_id) REFERENCES usuarios(id),
+    UNIQUE (trabajador_id, fecha)
+);
+
+-- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 24
---   Bloque 1 (RBAC/Auth):  6  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales → 7)
+-- Total de tablas: 27
+--   Bloque 1 (RBAC/Auth):  7  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,
 --                              ejecuciones_checklist, ejecuciones_items)
@@ -507,5 +521,6 @@ CREATE INDEX idx_copilot_mensajes_conversacion ON copilot_mensajes(conversacion_
 --   Bloque 6 (Tickets):    1  (tickets)
 --   Bloque 7 (Logs):       2  (logs_eventos, audit_log)
 --   Bloque 8 (Copilot):    2  (copilot_conversaciones, copilot_mensajes)
---   TOTAL: 26 tablas
+--   Bloque 9 (Notif.):     1  (notificaciones_disponibilidad)
+--   TOTAL: 27 tablas
 -- ============================================================================
