@@ -67,6 +67,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('habitaciones.ver_todas'),
         ]);
+        $router->get('/api/home/admin', [$home, 'admin'], [
+            $authCheck,
+            new PermissionCheck('ajustes.acceder'),
+        ]);
 
         // RBAC
         $router->get('/api/roles', [$roles, 'listar'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
