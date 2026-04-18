@@ -69,6 +69,16 @@
         <?php if ($usuario->tienePermiso('tickets.crear')): ?>
             <?php include __DIR__ . '/componentes/modal-ticket-nuevo.php'; ?>
         <?php endif; ?>
+
+        <!-- Modal reutilizable "Nuevo usuario" (abrible vía evento abrir-modal-usuario-nuevo) -->
+        <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
+            <?php include __DIR__ . '/componentes/modal-usuario-nuevo.php'; ?>
+        <?php endif; ?>
+
+        <!-- Modal reutilizable "Detalle de usuario" (abrible vía evento abrir-modal-usuario-detalle) -->
+        <?php if ($usuario->tienePermiso('usuarios.ver')): ?>
+            <?php include __DIR__ . '/componentes/modal-usuario-detalle.php'; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- App JS -->
