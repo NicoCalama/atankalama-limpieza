@@ -174,6 +174,21 @@ if ($hora < 12) {
                 </div>
             </template>
 
+            <?php if ($usuario->tienePermiso('tickets.crear')): ?>
+            <!-- Reportar problema -->
+            <div class="px-4 mt-6">
+                <button type="button"
+                        @click="reportarProblema()"
+                        class="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-2
+                               bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600
+                               text-gray-700 dark:text-gray-200 rounded-xl font-medium
+                               hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                    Reportar un problema
+                </button>
+            </div>
+            <?php endif; ?>
+
         </main>
     </template>
 </div>
@@ -237,6 +252,14 @@ function homeTrabajador() {
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';
+        },
+
+        reportarProblema() {
+            var detail = {};
+            if (this.data && this.data.habitacion_actual) {
+                detail.habitacionId = this.data.habitacion_actual.id;
+            }
+            window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: detail }));
         },
 
         async avisarDisponibilidad() {

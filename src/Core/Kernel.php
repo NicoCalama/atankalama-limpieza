@@ -42,6 +42,7 @@ final class Kernel
         $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
+        $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);

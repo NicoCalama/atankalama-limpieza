@@ -106,6 +106,20 @@ final class PaginasController
         ]);
     }
 
+    public function tickets(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        return View::conLayout('tickets', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Tickets',
+        ]);
+    }
+
     public function auditoriaDetalle(Request $request): Response
     {
         if ($request->usuario === null) {

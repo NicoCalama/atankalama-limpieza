@@ -64,6 +64,11 @@
         <?php if ($usuario->tienePermiso('copilot.usar_nivel_1_consultas')): ?>
             <?php include __DIR__ . '/componentes/fab-copilot.php'; ?>
         <?php endif; ?>
+
+        <!-- Modal reutilizable "Nuevo ticket" (abrible vía evento abrir-modal-ticket) -->
+        <?php if ($usuario->tienePermiso('tickets.crear')): ?>
+            <?php include __DIR__ . '/componentes/modal-ticket-nuevo.php'; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- App JS -->
