@@ -107,4 +107,95 @@ final class AsignacionesController
         $cola = $this->svc->colaDelTrabajador($usuarioId, is_string($fecha) ? $fecha : date('Y-m-d'));
         return Response::ok(['cola' => $cola, 'total' => count($cola)]);
     }
+
+    /**
+     * Vista consolidada para la página de Asignaciones:
+     *   - habitaciones "sucia" sin asignar hoy (agrupadas por hotel)
+     *   - trabajadores con turno hoy, con su cola (habitaciones + estados)
+     */
+    public function vista(Request $request): Response
+    {
+        $hotel = $request->query['hotel'] ?? 'ambos';
+        $fecha = $request->query['fecha'] ?? date('Y-m-d');
+        $hotel = is_string($hotel) ? $hotel : 'ambos';
+        $fecha = is_string($fecha) ? $fecha : date('Y-m-d');
+
+        $filtroHotel = ($hotel === 'ambos') ? null : $hotel;
+
+        // Habitaciones sucias SIN asignación activa hoy
+        $sqlSin = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                     FROM habitaciones h
+                     JOIN hoteles ho ON ho.id = h.hotel_id
+                     JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                LEFT JOIN asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                    WHERE h.activa = 1
+                      AND h.estado = \'sucia\'
+                      AND a.id IS NULL';
+        $paramsSin = [$fecha];
+        if ($filtroHotel !== null) {
+            $sqlSin .= ' AND ho.codigo = ?';
+            $paramsSin[] = $filtroHotel;
+        }
+        $sqlSin .= ' ORDER BY ho.codigo, h.numero';
+        $sinAsignar = \Atankalama\Limpieza\Core\Database::fetchAll($sqlSin, $paramsSin);
+
+        // Trabajadores con turno hoy (filtrados por hotel si aplica)
+        $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
+                    FROM usuarios u
+                    JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+                   WHERE ut.fecha = ?
+                     AND u.activo = 1';
+        $paramsTr = [$fecha];
+        if ($filtroHotel !== null) {
+            $sqlTr .= " AND (u.hotel_default = ? OR u.hotel_default = 'ambos')";
+            $paramsTr[] = $filtroHotel;
+        }
+        $sqlTr .= ' ORDER BY u.nombre';
+        $trabajadores = \Atankalama\Limpieza\Core\Database::fetchAll($sqlTr, $paramsTr);
+
+        $trabajadoresVista = [];
+        foreach ($trabajadores as $tr) {
+            $cola = $this->svc->colaDelTrabajador((int) $tr['id'], $fecha);
+            if ($filtroHotel !== null) {
+                $cola = array_values(array_filter(
+                    $cola,
+                    static fn(array $h) => ($h['hotel_codigo'] ?? null) === $filtroHotel
+                ));
+            }
+            $pendientes = 0;
+            $enProgreso = 0;
+            $completadas = 0;
+            $rechazadas = 0;
+            foreach ($cola as $h) {
+                $estado = $h['estado'] ?? '';
+                if ($estado === 'sucia') $pendientes++;
+                elseif ($estado === 'en_progreso') $enProgreso++;
+                elseif (in_array($estado, ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion'], true)) $completadas++;
+                elseif ($estado === 'rechazada') $rechazadas++;
+            }
+            $trabajadoresVista[] = [
+                'usuario' => [
+                    'id' => (int) $tr['id'],
+                    'nombre' => $tr['nombre'],
+                    'rut' => $tr['rut'],
+                    'hotel_default' => $tr['hotel_default'],
+                ],
+                'cola' => $cola,
+                'progreso' => [
+                    'pendientes' => $pendientes,
+                    'en_progreso' => $enProgreso,
+                    'completadas' => $completadas,
+                    'rechazadas' => $rechazadas,
+                    'total' => count($cola),
+                ],
+            ];
+        }
+
+        return Response::ok([
+            'fecha' => $fecha,
+            'hotel' => $hotel,
+            'sin_asignar' => $sinAsignar,
+            'trabajadores' => $trabajadoresVista,
+        ]);
+    }
 }

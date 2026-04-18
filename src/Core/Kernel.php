@@ -41,6 +41,7 @@ final class Kernel
         $router->get('/habitaciones', [$paginas, 'habitaciones'], [$optionalAuth]);
         $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
+        $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
@@ -61,6 +62,10 @@ final class Kernel
         $router->get('/api/home/recepcion', [$home, 'recepcion'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+        $router->get('/api/home/supervisora', [$home, 'supervisora'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_todas'),
         ]);
 
         // RBAC
@@ -156,6 +161,10 @@ final class Kernel
             new PermissionCheck('asignaciones.reordenar_cola_trabajador'),
         ]);
         $router->get('/api/usuarios/{id}/cola', [$asignaciones, 'colaTrabajador'], [$authCheck]);
+        $router->get('/api/asignaciones/vista', [$asignaciones, 'vista'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
 
         // Auditoría
         $auditoria = new AuditoriaController();

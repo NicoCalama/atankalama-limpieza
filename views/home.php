@@ -10,10 +10,16 @@ $authSvc = new AuthService();
 $homeTarget = $authSvc->calcularHomeTarget($usuario);
 
 // El Home del Trabajador tiene su propia vista completa (item 44).
+// El Home de la Supervisora tiene su propia vista completa (item 45).
 // El Home de Recepción tiene su propia vista completa (item 46).
 // Los demás roles mantienen placeholders hasta sus items respectivos.
 if ($homeTarget === '/home-trabajador') {
     include __DIR__ . '/home-trabajador.php';
+    return;
+}
+
+if ($homeTarget === '/home-supervisora') {
+    include __DIR__ . '/home-supervisora.php';
     return;
 }
 
@@ -22,7 +28,7 @@ if ($homeTarget === '/home-recepcion') {
     return;
 }
 
-// --- Placeholders para roles que se implementan en items 45-47 ---
+// --- Placeholder para Home Admin (item 47) ---
 
 require_once __DIR__ . '/componentes/avatar.php';
 
@@ -88,37 +94,6 @@ if ($hora < 12) {
                 <a href="/ajustes" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
                     <i data-lucide="settings" class="w-6 h-6 mx-auto mb-2 text-gray-600 dark:text-gray-400"></i>
                     <span class="text-sm font-medium">Ajustes</span>
-                </a>
-            </div>
-        </div>
-
-    <?php elseif ($homeTarget === '/home-supervisora'): ?>
-        <div class="space-y-6">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                        <i data-lucide="eye" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
-                    </div>
-                    <h2 class="text-lg font-semibold">Panel de Supervisión</h2>
-                </div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Vista completa en item 45.</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <a href="/habitaciones" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="clipboard-list" class="w-6 h-6 mx-auto mb-2 text-blue-600 dark:text-blue-400"></i>
-                    <span class="text-sm font-medium">Habitaciones</span>
-                </a>
-                <a href="/alertas" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="bell-ring" class="w-6 h-6 mx-auto mb-2 text-amber-600 dark:text-amber-400"></i>
-                    <span class="text-sm font-medium">Alertas</span>
-                </a>
-                <a href="/asignaciones" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="users" class="w-6 h-6 mx-auto mb-2 text-emerald-600 dark:text-emerald-400"></i>
-                    <span class="text-sm font-medium">Asignaciones</span>
-                </a>
-                <a href="/tickets" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="wrench" class="w-6 h-6 mx-auto mb-2 text-rose-600 dark:text-rose-400"></i>
-                    <span class="text-sm font-medium">Tickets</span>
                 </a>
             </div>
         </div>

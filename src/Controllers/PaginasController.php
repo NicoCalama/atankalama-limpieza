@@ -92,6 +92,20 @@ final class PaginasController
         ]);
     }
 
+    public function asignaciones(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        return View::conLayout('asignaciones', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Asignaciones',
+        ]);
+    }
+
     public function auditoriaDetalle(Request $request): Response
     {
         if ($request->usuario === null) {
