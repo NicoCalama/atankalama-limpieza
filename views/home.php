@@ -10,9 +10,15 @@ $authSvc = new AuthService();
 $homeTarget = $authSvc->calcularHomeTarget($usuario);
 
 // El Home del Trabajador tiene su propia vista completa (item 44).
+// El Home de Recepción tiene su propia vista completa (item 46).
 // Los demás roles mantienen placeholders hasta sus items respectivos.
 if ($homeTarget === '/home-trabajador') {
     include __DIR__ . '/home-trabajador.php';
+    return;
+}
+
+if ($homeTarget === '/home-recepcion') {
+    include __DIR__ . '/home-recepcion.php';
     return;
 }
 
@@ -117,28 +123,6 @@ if ($hora < 12) {
             </div>
         </div>
 
-    <?php elseif ($homeTarget === '/home-recepcion'): ?>
-        <div class="space-y-6">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 rounded-lg bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center">
-                        <i data-lucide="concierge-bell" class="w-5 h-5 text-cyan-600 dark:text-cyan-400"></i>
-                    </div>
-                    <h2 class="text-lg font-semibold">Recepción</h2>
-                </div>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Vista completa en item 46.</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <a href="/habitaciones" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="clipboard-list" class="w-6 h-6 mx-auto mb-2 text-blue-600 dark:text-blue-400"></i>
-                    <span class="text-sm font-medium">Habitaciones</span>
-                </a>
-                <a href="/auditoria" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
-                    <i data-lucide="shield-check" class="w-6 h-6 mx-auto mb-2 text-emerald-600 dark:text-emerald-400"></i>
-                    <span class="text-sm font-medium">Auditoría</span>
-                </a>
-            </div>
-        </div>
     <?php endif; ?>
 
 </main>

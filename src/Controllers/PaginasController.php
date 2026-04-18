@@ -92,6 +92,25 @@ final class PaginasController
         ]);
     }
 
+    public function auditoriaDetalle(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('auditoria-detalle', [
+            'usuario' => $request->usuario,
+            'habitacionId' => $id,
+            'titulo' => 'Auditoría',
+        ]);
+    }
+
     private static function redirect(string $url): Response
     {
         $response = new Response(302, '', 'text/html; charset=utf-8');

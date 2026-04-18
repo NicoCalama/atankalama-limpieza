@@ -40,6 +40,7 @@ final class Kernel
         $router->get('/cambiar-contrasena', [$paginas, 'cambiarContrasena'], [$optionalAuth]);
         $router->get('/habitaciones', [$paginas, 'habitaciones'], [$optionalAuth]);
         $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
+        $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
@@ -57,6 +58,10 @@ final class Kernel
         $home = new HomeController();
         $router->get('/api/home/trabajador', [$home, 'trabajador'], [$authCheck]);
         $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [$authCheck]);
+        $router->get('/api/home/recepcion', [$home, 'recepcion'], [
+            $authCheck,
+            new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
 
         // RBAC
         $router->get('/api/roles', [$roles, 'listar'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
@@ -85,6 +90,10 @@ final class Kernel
         $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [
             $authCheck,
             new PermissionCheck('habitaciones.ver_todas'),
+        ]);
+        $router->get('/api/habitaciones/{id}/auditoria', [$habitaciones, 'auditoriaActual'], [
+            $authCheck,
+            new PermissionCheck('auditoria.ver_bandeja'),
         ]);
 
         // Cloudbeds

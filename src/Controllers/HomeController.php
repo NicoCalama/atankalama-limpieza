@@ -8,11 +8,13 @@ use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionService;
+use Atankalama\Limpieza\Services\AuditoriaService;
 
 final class HomeController
 {
     public function __construct(
         private readonly AsignacionService $asignaciones = new AsignacionService(),
+        private readonly AuditoriaService $auditorias = new AuditoriaService(),
     ) {
     }
 
@@ -143,6 +145,44 @@ final class HomeController
         );
 
         return Response::ok(['mensaje' => 'Aviso enviado a tu supervisora.']);
+    }
+
+    /**
+     * GET /api/home/recepcion
+     * Retorna la bandeja de auditoría para Recepción (o cualquiera con auditoria.ver_bandeja).
+     */
+    public function recepcion(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+
+        $hotelQuery = $request->query['hotel'] ?? 'ambos';
+        $hotel = is_string($hotelQuery) && $hotelQuery !== '' ? $hotelQuery : 'ambos';
+
+        $pendientes = $this->auditorias->bandejaPendientes($hotel);
+
+        $primerNombre = explode(' ', $usuario->nombre)[0];
+
+        return Response::ok([
+            'usuario' => [
+                'id' => $usuario->id,
+                'nombre' => $usuario->nombre,
+                'primer_nombre' => $primerNombre,
+                'rut' => $usuario->rut,
+            ],
+            'hotel_seleccionado' => $hotel,
+            'habitaciones_pendientes' => $pendientes,
+            'total_pendientes' => count($pendientes),
+            'permisos' => [
+                'auditoria_ver_bandeja' => $usuario->tienePermiso('auditoria.ver_bandeja'),
+                'auditoria_aprobar' => $usuario->tienePermiso('auditoria.aprobar'),
+                'auditoria_aprobar_con_observacion' => $usuario->tienePermiso('auditoria.aprobar_con_observacion'),
+                'auditoria_rechazar' => $usuario->tienePermiso('auditoria.rechazar'),
+                'auditoria_editar_checklist' => $usuario->tienePermiso('auditoria.editar_checklist_durante_auditoria'),
+            ],
+        ]);
     }
 
     /**
