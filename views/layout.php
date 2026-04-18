@@ -79,6 +79,12 @@
         <?php if ($usuario->tienePermiso('usuarios.ver')): ?>
             <?php include __DIR__ . '/componentes/modal-usuario-detalle.php'; ?>
         <?php endif; ?>
+
+        <!-- Modales RBAC (abribles vía eventos abrir-modal-rol-nuevo / abrir-modal-rol-editar) -->
+        <?php if ($usuario->tienePermiso('permisos.asignar_a_rol')): ?>
+            <?php include __DIR__ . '/componentes/modal-rol-nuevo.php'; ?>
+            <?php include __DIR__ . '/componentes/modal-rol-editar.php'; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- App JS -->

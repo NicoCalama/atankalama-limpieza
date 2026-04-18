@@ -70,6 +70,15 @@ if ($usuario->tienePermiso('usuarios.ver')) {
     ];
 }
 
+if ($usuario->tienePermiso('permisos.asignar_a_rol')) {
+    $items[] = [
+        'ruta' => '/ajustes/rbac',
+        'icono' => 'shield',
+        'label' => 'Roles y permisos',
+        'activo' => $rutaActual === '/ajustes/rbac',
+    ];
+}
+
 $items[] = [
     'ruta' => '/ajustes',
     'icono' => 'settings',

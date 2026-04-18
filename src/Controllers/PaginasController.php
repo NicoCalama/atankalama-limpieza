@@ -106,6 +106,23 @@ final class PaginasController
         ]);
     }
 
+    public function ajustesRbac(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('permisos.asignar_a_rol')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('ajustes-rbac', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Roles y permisos',
+        ]);
+    }
+
     public function usuarios(Request $request): Response
     {
         if ($request->usuario === null) {
