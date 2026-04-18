@@ -59,6 +59,39 @@ final class PaginasController
         ]);
     }
 
+    public function habitaciones(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        return View::conLayout('habitaciones', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Habitaciones',
+        ]);
+    }
+
+    public function habitacionDetalle(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return self::redirect('/habitaciones');
+        }
+        return View::conLayout('habitacion-detalle', [
+            'usuario' => $request->usuario,
+            'habitacionId' => $id,
+            'titulo' => 'Habitación',
+        ]);
+    }
+
     private static function redirect(string $url): Response
     {
         $response = new Response(302, '', 'text/html; charset=utf-8');

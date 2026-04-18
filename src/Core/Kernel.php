@@ -38,6 +38,8 @@ final class Kernel
         $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
         $router->get('/home', [$paginas, 'home'], [$optionalAuth]);
         $router->get('/cambiar-contrasena', [$paginas, 'cambiarContrasena'], [$optionalAuth]);
+        $router->get('/habitaciones', [$paginas, 'habitaciones'], [$optionalAuth]);
+        $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
