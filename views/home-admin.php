@@ -440,12 +440,7 @@ if ($hora < 12) {
         </div>
     </nav>
 
-    <!-- FAB copilot -->
-    <button x-show="data" x-cloak
-            class="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg flex items-center justify-center transition"
-            aria-label="Asistente IA">
-        <i data-lucide="sparkles" class="w-6 h-6"></i>
-    </button>
+    <!-- FAB copilot lo inyecta layout.php vía views/componentes/fab-copilot.php -->
 </div>
 
 <script>

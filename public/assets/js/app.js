@@ -109,51 +109,6 @@ function homeApp() {
     };
 }
 
-// --- Alpine component: copilotInput (para el FAB) ---
-function copilotInput() {
-    return {
-        mensaje: '',
-        enviando: false,
-
-        async enviar() {
-            if (this.mensaje.trim() === '' || this.enviando) return;
-            this.enviando = true;
-
-            var texto = this.mensaje.trim();
-            this.mensaje = '';
-
-            var contenedor = document.getElementById('copilot-mensajes');
-            if (contenedor) {
-                // Agregar burbuja del usuario
-                contenedor.innerHTML += '<div class="flex justify-end mb-3"><div class="bg-blue-600 text-white text-sm rounded-2xl rounded-br-md px-4 py-2 max-w-[80%]">' +
-                    escapeHtml(texto) + '</div></div>';
-                contenedor.scrollTop = contenedor.scrollHeight;
-            }
-
-            try {
-                var data = await apiPost('/api/copilot/mensaje', {
-                    mensaje: texto
-                });
-
-                if (contenedor) {
-                    var respuesta = (data && data.ok && data.data.respuesta) || 'No pude procesar tu mensaje.';
-                    contenedor.innerHTML += '<div class="flex justify-start mb-3"><div class="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%]">' +
-                        escapeHtml(respuesta) + '</div></div>';
-                    contenedor.scrollTop = contenedor.scrollHeight;
-                }
-            } catch (e) {
-                if (contenedor) {
-                    contenedor.innerHTML += '<div class="flex justify-start mb-3"><div class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm rounded-2xl rounded-bl-md px-4 py-2 max-w-[80%]">No pudimos conectar con el servidor.</div></div>';
-                    contenedor.scrollTop = contenedor.scrollHeight;
-                }
-            } finally {
-                this.enviando = false;
-                lucide.createIcons();
-            }
-        }
-    };
-}
-
 // --- Util: escape HTML para prevenir XSS ---
 function escapeHtml(text) {
     var div = document.createElement('div');
