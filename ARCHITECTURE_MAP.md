@@ -2,7 +2,24 @@
 
 > Referencia de secciones y líneas para los archivos grandes del proyecto.
 > Usa esto para saltar directamente a la sección que necesitas sin leer archivos completos.
-> Actualizado: 14 abril 2026.
+> Actualizado: 19 abril 2026.
+
+---
+
+## README.md (226 líneas, v1.0)
+
+Punto de entrada público. Setup local, credenciales demo, comandos útiles, links a docs/.
+
+| Sección | Contenido clave |
+|---------|-----------------|
+| Header | Stack, tests count, licencia |
+| Requisitos | PHP 8.2+, extensiones, Composer |
+| Setup local | 5 pasos: clone → composer install → .env → init-db + seed → serve |
+| Credenciales demo | Tabla con 10 RUTs (pwd uniforme `Demo1234!`) |
+| Comandos útiles | composer scripts + phpunit + seeders + crons |
+| Estructura del proyecto | Árbol abreviado del repo |
+| Documentación | Links a los 21 docs de `docs/` + top-level |
+| Deploy a producción | Placeholder (item 61 pendiente) |
 
 ---
 

@@ -1076,9 +1076,9 @@ Este es el orden óptimo. Cada módulo construye sobre los anteriores.
 
 ### Etapa I — Pulido final
 
-59. **Datos de demo realistas**
-60. **README.md** con instrucciones de setup y uso
-61. **Despliegue al VPS**
+59. **Datos de demo realistas** ✅ (commits `049498d` + `d4590f5`)
+60. **README.md** con instrucciones de setup y uso ✅ (commit pendiente en esta sesión)
+61. **Despliegue al VPS** ⏳
 
 ---
 
