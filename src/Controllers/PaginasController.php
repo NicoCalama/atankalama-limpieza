@@ -123,6 +123,68 @@ final class PaginasController
         ]);
     }
 
+    public function ajustes(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        return View::conLayout('ajustes', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Ajustes',
+        ]);
+    }
+
+    public function ajustesMiCuenta(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        return View::conLayout('ajustes-mi-cuenta', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Mi cuenta',
+        ]);
+    }
+
+    public function ajustesTurnos(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('turnos.ver')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-turnos', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Turnos',
+        ]);
+    }
+
+    public function ajustesAlertas(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('alertas.configurar_umbrales')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-alertas', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Alertas',
+        ]);
+    }
+
     public function usuarios(Request $request): Response
     {
         if ($request->usuario === null) {

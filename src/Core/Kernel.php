@@ -44,6 +44,10 @@ final class Kernel
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
         $router->get('/usuarios', [$paginas, 'usuarios'], [$optionalAuth]);
+        $router->get('/ajustes', [$paginas, 'ajustes'], [$optionalAuth]);
+        $router->get('/ajustes/mi-cuenta', [$paginas, 'ajustesMiCuenta'], [$optionalAuth]);
+        $router->get('/ajustes/turnos', [$paginas, 'ajustesTurnos'], [$optionalAuth]);
+        $router->get('/ajustes/alertas', [$paginas, 'ajustesAlertas'], [$optionalAuth]);
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
 
         // Auth público

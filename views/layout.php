@@ -85,6 +85,14 @@
             <?php include __DIR__ . '/componentes/modal-rol-nuevo.php'; ?>
             <?php include __DIR__ . '/componentes/modal-rol-editar.php'; ?>
         <?php endif; ?>
+
+        <!-- Modal cambiar contraseña (disponible para todo usuario autenticado) -->
+        <?php include __DIR__ . '/componentes/modal-cambiar-password.php'; ?>
+
+        <!-- Modal editor de turno (crear/editar catálogo) -->
+        <?php if ($usuario->tienePermiso('turnos.crear_editar')): ?>
+            <?php include __DIR__ . '/componentes/modal-turno-editor.php'; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- App JS -->

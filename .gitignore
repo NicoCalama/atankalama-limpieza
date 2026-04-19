@@ -50,6 +50,9 @@ desktop.ini
 *.swp
 *.swo
 
+# === Playwright MCP artefactos ===
+.playwright-mcp/
+
 # === Secretos detectados accidentalmente (defensa en profundidad) ===
 **/secrets.json
 **/credentials.json
