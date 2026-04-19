@@ -18,6 +18,7 @@ Database::transaction(function () use ($seedDir) {
     seedPermisos($seedDir);
     seedRoles($seedDir);
     seedCatalogos($seedDir);
+    seedChecklistTemplates($seedDir);
     seedAdminInicial();
 });
 
@@ -108,6 +109,44 @@ function seedCatalogos(string $seedDir): void
         );
     }
     echo "  cloudbeds_config: " . count($c['cloudbeds_config']) . "\n";
+}
+
+function seedChecklistTemplates(string $seedDir): void
+{
+    $checklists = require $seedDir . '/checklists.php';
+    $items = $checklists['template_default_items'];
+
+    $tipos = Database::fetchAll('SELECT id, nombre FROM tipos_habitacion ORDER BY id');
+    $creados = 0;
+    $reusados = 0;
+
+    foreach ($tipos as $tipo) {
+        $existente = Database::fetchOne(
+            'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
+            [$tipo['id']]
+        );
+
+        if ($existente !== null) {
+            $reusados++;
+            continue;
+        }
+
+        Database::execute(
+            'INSERT INTO checklists_template (tipo_habitacion_id, nombre) VALUES (?, ?)',
+            [$tipo['id'], 'Checklist estándar — ' . $tipo['nombre']]
+        );
+        $templateId = Database::lastInsertId();
+
+        foreach ($items as $item) {
+            Database::execute(
+                'INSERT INTO items_checklist (template_id, orden, descripcion, obligatorio) VALUES (?, ?, ?, ?)',
+                [$templateId, $item['orden'], $item['descripcion'], $item['obligatorio']]
+            );
+        }
+        $creados++;
+    }
+
+    echo "  checklists_template: {$creados} creados, {$reusados} ya existían (" . count($items) . " items c/u)\n";
 }
 
 function seedAdminInicial(): void
