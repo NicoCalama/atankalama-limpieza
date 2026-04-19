@@ -1054,30 +1054,32 @@ Este es el orden óptimo. Cada módulo construye sobre los anteriores.
 40. ✅ **Endpoint** `POST /api/copilot/mensaje`
 41. ✅ **Persistencia de conversaciones**
 
-### Etapa H — Frontend (SUPERVISIÓN)
+### Etapa H — Frontend (SUPERVISIÓN) ✅ 100% completa
 
-42. **Layout base** — sidebar desktop + bottom nav móvil + FAB del copilot
-43. **Pantalla de Login** + cambio forzado de contraseña
-44. **Home del Trabajador** ⭐ (ya diseñada en detalle, ver `docs/home-trabajador.md`)
-45. **Home de la Supervisora** ⭐ (ya diseñada en detalle, ver `docs/home-supervisora.md`)
-46. **Home de Recepción** ⭐ (ya diseñada en detalle, ver `docs/home-recepcion.md`)
-47. **Home del Admin** ⭐ (ya diseñada en detalle, ver `docs/home-admin.md` y `docs/home-admin-qa-checklist.md`)
-48. **Listado y detalle de habitaciones + checklist persistente**
-49. **Vista de asignación**
-50. **Bandeja de auditoría** con los 3 botones y checklist expandible
-51. **Levantar ticket de mantenimiento**
-52. **Gestión de usuarios**
-53. **Matriz RBAC de roles y permisos** (una de las pantallas más importantes)
-54. **Gestión de turnos**
-55. **Configuración de alertas predictivas**
-56. **Ajustes por rol**
-57. **Panel del copilot IA** (FAB + panel deslizable + voz)
-58. **Modo día/noche** persistido
+Entregada en sub-etapas H1 → H3e (14 commits entre `148a168` y `f46c363`).
+
+42. ✅ **Layout base** — sidebar desktop + bottom nav móvil + FAB del copilot (`148a168`, H1)
+43. ✅ **Pantalla de Login** + cambio forzado de contraseña (`148a168`, H1)
+44. ✅ **Home del Trabajador** ⭐ (`7a2c897`, H2a — ver `docs/home-trabajador.md`)
+45. ✅ **Home de la Supervisora** ⭐ (`f109636`, H2d — ver `docs/home-supervisora.md`)
+46. ✅ **Home de Recepción** ⭐ (`f9c67bc`, H2c — ver `docs/home-recepcion.md`)
+47. ✅ **Home del Admin** ⭐ (`accb7eb`, H2e — ver `docs/home-admin.md` y `docs/home-admin-qa-checklist.md`)
+48. ✅ **Listado y detalle de habitaciones + checklist persistente** (`2d4760b`, H2b)
+49. ✅ **Vista de asignación** (`f109636`, H2d)
+50. ✅ **Bandeja de auditoría** con los 3 botones y checklist expandible (`f9c67bc`, H2c)
+51. ✅ **Levantar ticket de mantenimiento** (`8075dc8`, H3a)
+52. ✅ **Gestión de usuarios** (`1fa586c`, H3b)
+53. ✅ **Matriz RBAC de roles y permisos** (`c34f84d`, H3c)
+54. ✅ **Gestión de turnos** (`cb40152`, H3d)
+55. ✅ **Configuración de alertas predictivas** (`cb40152`, H3d)
+56. ✅ **Ajustes por rol** (`cb40152`, H3d)
+57. ✅ **Panel del copilot IA** (FAB + panel deslizable + voz) (`f46c363`, H3e)
+58. ✅ **Modo día/noche** persistido (`cb40152`, H3d — implementación inicial en `148a168`)
 
 ### Etapa I — Pulido final
 
 59. **Datos de demo realistas** ✅ (commits `049498d` + `d4590f5`)
-60. **README.md** con instrucciones de setup y uso ✅ (commit pendiente en esta sesión)
+60. **README.md** con instrucciones de setup y uso ✅ (commit `04f125e`)
 61. **Despliegue al VPS** ⏳
 
 ---
