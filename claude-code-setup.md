@@ -1080,7 +1080,7 @@ Entregada en sub-etapas H1 → H3e (14 commits entre `148a168` y `f46c363`).
 
 59. **Datos de demo realistas** ✅ (commits `049498d` + `d4590f5`)
 60. **README.md** con instrucciones de setup y uso ✅ (commit `04f125e`)
-61. **Despliegue al VPS** ⏳
+61. **Despliegue al VPS** ✅ (ver `docs/deploy-vps.md` + `Caddyfile.example` + `scripts/deploy.sh` + `scripts/backup-db.sh` + endpoint `/api/health`)
 
 ---
 

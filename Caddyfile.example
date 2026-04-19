@@ -1,0 +1,66 @@
+# Caddyfile.example — configuración canónica para Atankalama Limpieza en producción.
+#
+# Copia este archivo a /etc/caddy/Caddyfile y reemplaza:
+#   - limpieza.atankalama.cl    → tu dominio real
+#   - /var/www/atankalama-limpieza → tu ruta de instalación
+#   - /run/php/php8.2-fpm.sock  → el socket de tu PHP-FPM
+#
+# Caddy gestiona HTTPS automáticamente vía Let's Encrypt — no tienes que
+# configurar certificados.
+
+limpieza.atankalama.cl {
+    root * /var/www/atankalama-limpieza/public
+    encode zstd gzip
+
+    # PHP-FPM
+    php_fastcgi unix//run/php/php8.2-fpm.sock
+
+    # Archivos estáticos y fallback al index.php
+    file_server
+
+    # Headers de seguridad
+    header {
+        # HSTS: forzar HTTPS por 1 año, incluir subdominios
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+        # Evitar clickjacking
+        X-Frame-Options "DENY"
+
+        # MIME sniffing off
+        X-Content-Type-Options "nosniff"
+
+        # Referrer policy razonable
+        Referrer-Policy "strict-origin-when-cross-origin"
+
+        # Permissions policy: denegar APIs que la app no usa
+        Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
+
+        # CSP básico (Tailwind, Alpine, Lucide vienen por CDN; ajustar si cambias)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+
+        # Ocultar versión del servidor
+        -Server
+    }
+
+    # Bloquear accesos directos a archivos sensibles
+    @bloqueados path /.env /.env.* /composer.* /phpunit.xml /.git/*
+    respond @bloqueados 404
+
+    # Proteger directorios de backend
+    @backend path /src/* /database/* /scripts/* /tests/* /vendor/* /docs/* /views/*
+    respond @backend 404
+
+    # Logs
+    log {
+        output file /var/log/caddy/atankalama-access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}
+
+# Redirección apex → subdominio (opcional, borra si no aplica)
+atankalama.cl, www.atankalama.cl {
+    redir https://limpieza.atankalama.cl{uri} permanent
+}

@@ -209,15 +209,22 @@ Base de datos de tests: SQLite en memoria, recreada por cada test (`TestDatabase
 
 ## Deploy a producción
 
-Deploy a VPS (Caddy/Nginx + PHP-FPM + cron para Cloudbeds y alertas predictivas) — **documentación pendiente** (item 61 de la Etapa I).
+Deploy a VPS (Caddy + PHP-FPM + cron) documentado paso-a-paso en [docs/deploy-vps.md](docs/deploy-vps.md).
 
-Lineamientos generales:
+Artefactos de deploy en el repo:
 
-- Servir `public/` como document root
-- PHP-FPM 8.2 con OPcache habilitado
-- HTTPS obligatorio (Caddy automatiza certificados con Let's Encrypt)
-- Cron: `sync-cloudbeds.php` 2×/día (ver `SYNC_HOUR_MORNING` y `SYNC_HOUR_EVENING` en `.env`); `recalcular-alertas.php` cada 15 minutos
-- Backups diarios del archivo SQLite
+- [Caddyfile.example](Caddyfile.example) — configuración canónica de Caddy (HTTPS, headers de seguridad, bloqueo de rutas sensibles)
+- [.env.production.example](.env.production.example) — plantilla de variables con `APP_ENV=production`
+- [scripts/deploy.sh](scripts/deploy.sh) — deploy idempotente (`git pull` + `composer install --no-dev` + `init-db` + reload PHP-FPM)
+- [scripts/backup-db.sh](scripts/backup-db.sh) — backup diario de SQLite con rotación 7 días
+- Endpoint `GET /api/health` — health check público para uptime monitors
+
+Resumen técnico:
+
+- Ubuntu 22.04 LTS · Caddy (HTTPS automático vía Let's Encrypt) · PHP 8.2-FPM · SQLite
+- Usuario de servicio `atankalama`, firewall UFW (solo SSH + HTTPS)
+- Cron: `sync-cloudbeds.php` 2×/día · `recalcular-alertas.php` cada 15 min · backup diario 03:30
+- Logrotate + monitoreo externo opcional (UptimeRobot, Betterstack)
 
 ---
 

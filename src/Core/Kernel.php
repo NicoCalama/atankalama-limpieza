@@ -15,6 +15,7 @@ use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
+use Atankalama\Limpieza\Controllers\SistemaController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
 use Atankalama\Limpieza\Controllers\UsuariosController;
@@ -310,6 +311,10 @@ final class Kernel
             new PermissionCheck('copilot.ver_historial_propio'),
         ]);
         $router->delete('/api/copilot/conversaciones/{id}', [$copilot, 'borrarConversacion'], [$authCheck]);
+
+        // Sistema — health check público (sin auth, para uptime monitors)
+        $sistema = new SistemaController();
+        $router->get('/api/health', [$sistema, 'salud']);
 
         return $router;
     }

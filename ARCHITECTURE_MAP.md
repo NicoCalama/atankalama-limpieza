@@ -413,6 +413,30 @@ Módulo separado `/ajustes`. 8 secciones filtradas por permisos.
 
 ---
 
+## docs/deploy-vps.md (~270 líneas, v1.0)
+
+Guía completa de despliegue a VPS (Ubuntu 22.04 + Caddy + PHP-FPM + SQLite).
+
+| Sección | Contenido clave |
+|---------|-----------------|
+| §0 | Requisitos VPS (1 vCPU / 2GB / DNS) |
+| §1 | Instalación sistema base (PHP 8.2, Composer, Caddy, sqlite3) |
+| §2 | Firewall UFW (SSH + 80/443) |
+| §3 | Usuario de servicio `atankalama` |
+| §4 | Clone repo + composer install --no-dev |
+| §5 | Setup `.env` de producción (SESSION_SECRET con openssl) |
+| §6 | init-db + seed + permisos SQLite |
+| §7 | PHP-FPM pool dedicado + hardening php.ini |
+| §8 | Caddy config desde Caddyfile.example |
+| §9 | Crontab (sync 2x/día, alertas c/15min, backup 03:30) |
+| §10 | Logrotate |
+| §11 | Smoke tests + checklist manual |
+| Deploys subsecuentes | `scripts/deploy.sh` |
+| Rollback | Manual (git reset + restaurar backup) |
+| Hardening opcional | Fail2ban, unattended-upgrades, monitoreo externo |
+
+---
+
 ## docs/api-endpoints.md (170 líneas, v1.0)
 
 Referencia maestra de todos los endpoints REST. Índice por módulo.
