@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 return [
     'hoteles' => [
-        ['codigo' => '1_sur', 'nombre' => 'Atankalama (1 Sur 858)', 'cloudbeds_property_id' => null],
-        ['codigo' => 'inn', 'nombre' => 'Atankalama Inn (Chorrillos 558)', 'cloudbeds_property_id' => null],
+        ['codigo' => '1_sur', 'nombre' => 'Atankalama', 'cloudbeds_property_id' => null],
+        ['codigo' => 'inn', 'nombre' => 'Atankalama INN', 'cloudbeds_property_id' => null],
     ],
     'turnos' => [
         ['nombre' => 'mañana', 'hora_inicio' => '08:00', 'hora_fin' => '16:00'],

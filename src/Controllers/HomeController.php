@@ -391,8 +391,8 @@ final class HomeController
     private function nombreHotel(?string $codigo): string
     {
         return match ($codigo) {
-            'inn' => 'Hotel Atankalama Inn',
-            '1_sur' => 'Hotel Atankalama 1 Sur',
+            'inn' => 'Atankalama INN',
+            '1_sur' => 'Atankalama',
             default => 'Atankalama',
         };
     }

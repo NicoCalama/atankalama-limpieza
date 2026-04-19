@@ -344,7 +344,7 @@ function seedAsignacionesDemo(array $usuarios, array $habitaciones, callable $lo
 
 /**
  * Estados a sembrar:
- *   - 4 completadas (timestamp_fin seteado, estado='completada' si aún no auditada)
+ *   - 5 completadas (3 luego se auditan con los 3 veredictos; 2 quedan pendientes para la bandeja de Recepción)
  *   - 2 en_progreso (algunos items marcados, timestamp_fin = null)
  *   - resto de asignaciones: sin ejecución todavía
  *
@@ -356,8 +356,8 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
     $completadas = [];
     $enProgreso = [];
 
-    // Primeras 4 asignaciones → completadas
-    for ($i = 0; $i < 4 && $i < count($asignaciones); $i++) {
+    // Primeras 5 asignaciones → completadas
+    for ($i = 0; $i < 5 && $i < count($asignaciones); $i++) {
         $a = $asignaciones[$i];
         $templateId = (int) Database::fetchOne(
             'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
@@ -405,8 +405,8 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
         ];
     }
 
-    // Asignaciones 4 y 5 → en_progreso
-    for ($i = 4; $i < 6 && $i < count($asignaciones); $i++) {
+    // Asignaciones 5 y 6 → en_progreso
+    for ($i = 5; $i < 7 && $i < count($asignaciones); $i++) {
         $a = $asignaciones[$i];
         $templateId = (int) Database::fetchOne(
             'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
@@ -461,17 +461,17 @@ function seedAuditoriasDemo(array $usuarios, array $ejecuciones, callable $log):
 {
     $completadas = $ejecuciones['completadas'];
     $auditor = $usuarios['supervisoras'][0] ?? null;
-    if ($auditor === null || count($completadas) < 4) {
-        $log("  auditorias: omitidas (sin supervisora o menos de 4 completadas)\n");
+    if ($auditor === null || count($completadas) < 3) {
+        $log("  auditorias: omitidas (sin supervisora o menos de 3 completadas)\n");
         return;
     }
 
-    // Mapa: índice → veredicto
+    // Mapa: índice → veredicto (solo las primeras 3 completadas se auditan;
+    // las restantes quedan en 'completada_pendiente_auditoria' para poblar la bandeja de Recepción)
     $veredictos = [
         0 => ['aprobado',                   'Todo perfecto. Buen trabajo.',                              null],
-        1 => ['aprobado',                   'Aprobada sin observaciones.',                              null],
-        2 => ['aprobado_con_observacion',   'Baño requirió repaso en espejo, lo resolví en sitio.',     'espejo'],
-        3 => ['rechazado',                  'Falta aspirar bajo la cama y reponer shampoo. Se reasigna.','rechazo'],
+        1 => ['aprobado_con_observacion',   'Baño requirió repaso en espejo, lo resolví en sitio.',     'espejo'],
+        2 => ['rechazado',                  'Falta aspirar bajo la cama y reponer shampoo. Se reasigna.','rechazo'],
     ];
 
     foreach ($veredictos as $idx => [$veredicto, $comentario, $tipo]) {
@@ -510,7 +510,7 @@ function seedAuditoriasDemo(array $usuarios, array $ejecuciones, callable $log):
         Database::execute("UPDATE ejecuciones_checklist SET estado = 'auditada' WHERE id = ?", [$ejec['id']]);
     }
 
-    $log("  auditorias: 4 creadas (2 aprobado, 1 observación, 1 rechazado)\n");
+    $log("  auditorias: 3 creadas (1 aprobado, 1 observación, 1 rechazado); 2 completadas quedan pendientes\n");
 }
 
 // -----------------------------------------------------------------------------

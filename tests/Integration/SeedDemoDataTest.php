@@ -78,8 +78,11 @@ final class SeedDemoDataTest extends TestCase
 
         $completadas = (int) Database::fetchOne("SELECT COUNT(*) c FROM ejecuciones_checklist WHERE estado IN ('completada','auditada')")['c'];
         $enProgreso = (int) Database::fetchOne("SELECT COUNT(*) c FROM ejecuciones_checklist WHERE estado = 'en_progreso'")['c'];
-        $this->assertSame(4, $completadas);
+        $this->assertSame(5, $completadas);
         $this->assertSame(2, $enProgreso);
+
+        $pendientesAuditoria = (int) Database::fetchOne("SELECT COUNT(*) c FROM ejecuciones_checklist WHERE estado = 'completada'")['c'];
+        $this->assertSame(2, $pendientesAuditoria, 'Debe quedar bandeja de Recepción con 2 pendientes');
     }
 
     public function testSeederCreaAuditoriasConLos3Veredictos(): void
@@ -90,7 +93,7 @@ final class SeedDemoDataTest extends TestCase
         foreach (Database::fetchAll('SELECT veredicto, COUNT(*) c FROM auditorias GROUP BY veredicto') as $r) {
             $veredictos[$r['veredicto']] = (int) $r['c'];
         }
-        $this->assertSame(2, $veredictos['aprobado'] ?? 0);
+        $this->assertSame(1, $veredictos['aprobado'] ?? 0);
         $this->assertSame(1, $veredictos['aprobado_con_observacion'] ?? 0);
         $this->assertSame(1, $veredictos['rechazado'] ?? 0);
     }

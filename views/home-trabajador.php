@@ -37,7 +37,7 @@ if ($hora < 12) {
                 </a>
                 <div>
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100"><?= htmlspecialchars($saludo) ?>, <?= htmlspecialchars($primerNombre) ?></p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400" x-text="data?.hotel_actual?.nombre || '<?= htmlspecialchars($usuario->hotelDefault === 'inn' ? 'Hotel Atankalama Inn' : ($usuario->hotelDefault === '1_sur' ? 'Hotel Atankalama 1 Sur' : 'Atankalama')) ?>'"></p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400" x-text="data?.hotel_actual?.nombre || '<?= htmlspecialchars($usuario->hotelDefault === 'inn' ? 'Atankalama INN' : 'Atankalama') ?>'"></p>
                 </div>
             </div>
             <!-- Campana -->
