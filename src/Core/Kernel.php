@@ -105,10 +105,7 @@ final class Kernel
             $authCheck,
             new PermissionCheck('habitaciones.ver_todas'),
         ]);
-        $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [
-            $authCheck,
-            new PermissionCheck('habitaciones.ver_todas'),
-        ]);
+        $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [$authCheck]);
         $router->get('/api/habitaciones/{id}/auditoria', [$habitaciones, 'auditoriaActual'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),

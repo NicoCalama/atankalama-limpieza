@@ -44,10 +44,32 @@ final class HabitacionesController
         if ($id === null) {
             return Response::error('ID_INVALIDO', 'ID de habitación inválido.', 400);
         }
+
+        $usuario = $request->usuario;
+        $puedeVerTodas = $usuario !== null && $usuario->tienePermiso('habitaciones.ver_todas');
+        $puedeVerPropias = $usuario !== null && $usuario->tienePermiso('habitaciones.ver_asignadas_propias');
+
+        if (!$puedeVerTodas && !$puedeVerPropias) {
+            return Response::error('SIN_PERMISO', 'No tienes permisos para esta acción.', 403);
+        }
+
         $detalle = $this->habitaciones->obtenerDetalle($id);
         if ($detalle === null) {
             return Response::error('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
+
+        // Trabajadora: solo puede ver habitaciones que le están asignadas hoy
+        if (!$puedeVerTodas && $puedeVerPropias) {
+            $hoy = date('Y-m-d');
+            $asignada = \Atankalama\Limpieza\Core\Database::fetchOne(
+                'SELECT id FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+                [$id, $usuario->id, $hoy]
+            );
+            if ($asignada === null) {
+                return Response::error('SIN_PERMISO', 'No tienes esta habitación asignada.', 403);
+            }
+        }
+
         return Response::ok(['habitacion' => $detalle]);
     }
 
