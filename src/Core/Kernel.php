@@ -41,6 +41,7 @@ final class Kernel
         $router->get('/cambiar-contrasena', [$paginas, 'cambiarContrasena'], [$optionalAuth]);
         $router->get('/habitaciones', [$paginas, 'habitaciones'], [$optionalAuth]);
         $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
+        $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);

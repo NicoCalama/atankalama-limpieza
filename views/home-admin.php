@@ -546,8 +546,8 @@ function homeAdmin() {
         },
 
         nombreHotelCorto(codigo) {
-            if (codigo === 'inn') return 'Inn';
-            if (codigo === '1_sur') return '1 Sur';
+            if (codigo === 'inn') return 'Atankalama INN';
+            if (codigo === '1_sur') return 'Atankalama';
             return codigo || '';
         },
 

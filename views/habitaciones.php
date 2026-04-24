@@ -152,8 +152,8 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
 
         hotelesOpciones: [
             { codigo: 'ambos', etiqueta: 'Ambos' },
-            { codigo: '1_sur', etiqueta: '1 Sur' },
-            { codigo: 'inn', etiqueta: 'Inn' }
+            { codigo: '1_sur', etiqueta: 'Atankalama' },
+            { codigo: 'inn', etiqueta: 'Atankalama INN' }
         ],
 
         estadosOpciones: [
@@ -219,8 +219,8 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
         },
 
         hotelCorto(codigo) {
-            if (codigo === '1_sur') return '1 Sur';
-            if (codigo === 'inn') return 'Inn';
+            if (codigo === '1_sur') return 'Atankalama';
+            if (codigo === 'inn') return 'Atankalama INN';
             return codigo || '';
         },
 

@@ -144,8 +144,8 @@ function homeRecepcion() {
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
-            { valor: '1_sur', etiqueta: 'Atankalama 1 Sur' },
-            { valor: 'inn', etiqueta: 'Atankalama Inn' }
+            { valor: '1_sur', etiqueta: 'Atankalama' },
+            { valor: 'inn', etiqueta: 'Atankalama INN' }
         ],
 
         async cargar() {
@@ -196,7 +196,7 @@ function homeRecepcion() {
 
         etiquetaTarjeta(hab) {
             if (this.hotel !== 'ambos') return String(hab.numero);
-            var prefijo = hab.hotel_codigo === '1_sur' ? 'ATAN' : (hab.hotel_codigo === 'inn' ? 'INN' : hab.hotel_codigo);
+            var prefijo = hab.hotel_codigo === '1_sur' ? 'ATAN' : (hab.hotel_codigo === 'inn' ? 'ATAN-INN' : hab.hotel_codigo);
             return prefijo + '-' + hab.numero;
         }
     };

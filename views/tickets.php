@@ -297,8 +297,8 @@ function ticketsApp() {
 
         hotelesFiltro: [
             { valor: 'ambos', etiqueta: 'Ambos' },
-            { valor: '1_sur', etiqueta: '1 Sur' },
-            { valor: 'inn', etiqueta: 'Inn' }
+            { valor: '1_sur', etiqueta: 'Atankalama' },
+            { valor: 'inn', etiqueta: 'Atankalama INN' }
         ],
 
         get puedeCrear() {
@@ -423,8 +423,8 @@ function ticketsApp() {
         // --- Helpers visuales ---
 
         nombreHotelCorto(codigo) {
-            if (codigo === 'inn') return 'Inn';
-            if (codigo === '1_sur') return '1 Sur';
+            if (codigo === 'inn') return 'Atankalama INN';
+            if (codigo === '1_sur') return 'Atankalama';
             return codigo || '';
         },
 

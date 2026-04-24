@@ -213,6 +213,23 @@ final class PaginasController
         ]);
     }
 
+    public function auditoriaBandeja(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('auditoria.ver_bandeja')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('auditoria-bandeja', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Auditoría',
+        ]);
+    }
+
     public function auditoriaDetalle(Request $request): Response
     {
         if ($request->usuario === null) {
