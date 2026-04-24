@@ -4,28 +4,19 @@
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
 
-use Atankalama\Limpieza\Services\AuthService;
-
-$authSvc = new AuthService();
-$homeTarget = $authSvc->calcularHomeTarget($usuario);
-
-// Cada Home tiene su propia vista completa según rol (items 44-47).
-if ($homeTarget === '/home-trabajador') {
-    include __DIR__ . '/home-trabajador.php';
+if ($usuario->tienePermiso('ajustes.acceder')) {
+    include __DIR__ . '/home-admin.php';
     return;
 }
 
-if ($homeTarget === '/home-supervisora') {
+if ($usuario->tienePermiso('alertas.recibir_predictivas') && $usuario->tienePermiso('asignaciones.asignar_manual')) {
     include __DIR__ . '/home-supervisora.php';
     return;
 }
 
-if ($homeTarget === '/home-recepcion') {
+if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     include __DIR__ . '/home-recepcion.php';
     return;
 }
 
-if ($homeTarget === '/home-admin') {
-    include __DIR__ . '/home-admin.php';
-    return;
-}
+include __DIR__ . '/home-trabajador.php';
