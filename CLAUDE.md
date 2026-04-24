@@ -4,7 +4,7 @@ Este documento contiene las reglas y convenciones para trabajar en el proyecto *
 
 ## Sobre el proyecto
 
-Aplicación web mobile-first en PHP 8.2 + SQLite para gestionar limpieza hotelera en las dos propiedades de Atankalama Corp (Calama, Chile). Reemplaza Flexkeeping. Integra con Cloudbeds API y con Claude API (copilot conversacional). Ver `plan.md` para el contexto completo.
+Aplicación web mobile-first en PHP 8.4 + SQLite para gestionar limpieza hotelera en las dos propiedades de Atankalama Corp (Calama, Chile). Reemplaza Flexkeeping. Integra con Cloudbeds API y con Claude API (copilot conversacional). Ver `plan.md` para el contexto completo.
 
 ## Documentación obligatoria a consultar
 
@@ -27,7 +27,7 @@ Cuando estés en modo autonomía total y debas tomar una decisión que no esté 
 
 ## Stack obligatorio
 
-- **PHP 8.2** — usa features modernos: typed properties, readonly, enums, match expressions, named arguments
+- **PHP 8.4** — usa features modernos: typed properties, readonly, enums, match expressions, named arguments
 - **SQLite** vía PDO — nada de ORMs externos en el MVP
 - **Tailwind CSS via CDN** — sin build step, sin npm para el frontend
 - **Alpine.js via CDN** — para interactividad puntual (checkboxes, modales, FAB, modo día/noche)
