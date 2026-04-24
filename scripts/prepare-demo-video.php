@@ -16,6 +16,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Config;
+use Atankalama\Limpieza\Services\PasswordService;
 
 Config::load(dirname(__DIR__));
 
@@ -118,6 +119,11 @@ try {
     // ─── 3. Asegurar que habitación #202 sigue en_progreso ─────────────────
     $pdo->prepare("UPDATE habitaciones SET estado='en_progreso' WHERE id=?")->execute([$hab202]);
     echo "\n  [OK] #202 confirmada en estado en_progreso\n";
+
+    // ─── 4. Igualar contraseña del admin a Demo1234! ───────────────────────
+    $hash = (new PasswordService())->hash('Demo1234!');
+    $pdo->prepare("UPDATE usuarios SET password_hash=?, requiere_cambio_pwd=0 WHERE rut='11111111-1'")->execute([$hash]);
+    echo "  [OK] Contraseña admin igualada a Demo1234!\n";
 
     $pdo->commit();
     echo "\n✅ Demo lista. Resumen:\n";
