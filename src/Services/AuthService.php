@@ -159,19 +159,7 @@ final class AuthService
 
     public function calcularHomeTarget(Usuario $usuario): string
     {
-        if ($usuario->tienePermiso('ajustes.acceder')) {
-            return '/home-admin';
-        }
-        if ($usuario->tienePermiso('alertas.recibir_predictivas') && $usuario->tienePermiso('asignaciones.asignar_manual')) {
-            return '/home-supervisora';
-        }
-        if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
-            return '/home-recepcion';
-        }
-        if ($usuario->tienePermiso('habitaciones.ver_asignadas_propias')) {
-            return '/home-trabajador';
-        }
-        return '/login';
+        return '/home';
     }
 
     private function crearSesion(int $usuarioId, ?string $ip, ?string $userAgent): string
