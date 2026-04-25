@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sin conexión — Atankalama</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #111827;
+            color: #f9fafb;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        .icon { font-size: 4rem; margin-bottom: 1.5rem; }
+        h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.75rem; }
+        p { color: #9ca3af; font-size: 0.95rem; max-width: 280px; margin-bottom: 2rem; line-height: 1.6; }
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 0.75rem;
+            padding: 0.875rem 2rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            min-height: 44px;
+        }
+        button:active { background: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="icon">📶</div>
+    <h1>Sin conexión a internet</h1>
+    <p>No pudimos conectar con el servidor. Verifica tu red e intenta de nuevo.</p>
+    <button onclick="window.location.reload()">Reintentar</button>
+</body>
+</html>
