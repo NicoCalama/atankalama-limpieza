@@ -1082,6 +1082,24 @@ Entregada en sub-etapas H1 → H3e (14 commits entre `148a168` y `f46c363`).
 60. **README.md** con instrucciones de setup y uso ✅ (commit `04f125e`)
 61. **Despliegue al VPS** ✅ (ver `docs/deploy-vps.md` + `Caddyfile.example` + `scripts/deploy.sh` + `scripts/backup-db.sh` + endpoint `/api/health`)
 
+### Etapa J — Features post-MVP (sesión 25/04/2026)
+
+Las siguientes features se implementaron una vez el MVP estuvo completo y desplegado, en una sola sesión de trabajo.
+
+62. ✅ **Push notifications (Web Push API + VAPID)** — `PushService`, `PushController`, `push_subscriptions` tabla, Service Worker (`public/sw.js`), integración con alertas P1/P2 del sistema. Commit `f2b2d2a`.
+
+63. ✅ **Botón de cerrar turno + filtro push por horario** — campo `turno_activo` en `usuarios_turnos`, botón en Home Trabajador, `PushService::filtrarPorTurnoActivo()` para no molestar fuera de turno. Commit `4da68d6`.
+
+64. ✅ **Módulo de reportes y KPIs con exportación a Excel (CSV)** — `ReportesController`, `ReportesService`, vista `/ajustes/reportes`, métricas de rendimiento individual y por hotel, exportación CSV lista para abrir en Excel. Commit `badaea9`.
+
+65. ✅ **Centro de notificaciones con badge y popup global** — `Alpine.store('notif')`, badge azul en todas las campanas de los 4 Homes (dispatch `toggle-notif`), popup con listado y marcar-todo-leído. Commit `b84a9f5`.
+
+66. ✅ **Importador masivo de turnos desde CSV de Breik** — `TurnosImportService`, `TurnosImportController`, wizard de 3 pasos en `/ajustes/importar-turnos`, cross-match de RUTs (normalización de formato Breik vs BD), token de sesión para confirmar sin re-subir archivo. Commit `aa751e6`.
+
+67. ✅ **Envío de contraseña temporal por email** — `EmailService` (PHPMailer v7.0.2), SMTP configurable vía `.env`, no bloqueante (silent no-op si SMTP_HOST vacío), integrado en `UsuarioService::crear()` y `AuthService::resetearContrasenaTemporal()`. Commit `cfa1986`.
+
+68. ✅ **3 skills de agentes especializados** — `/auditoria-codigo` (7 categorías de auditoría PHP), `/debug` (9 escenarios con diagnóstico paso a paso), `/seguridad-rgpd` (OWASP + Ley 21.096 Chile + RGPD/GDPR). Sesión 25/04/2026.
+
 ---
 
 ## 11. Prompts de ejemplo para arrancar cada módulo
