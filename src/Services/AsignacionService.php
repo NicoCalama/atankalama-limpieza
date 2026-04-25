@@ -11,6 +11,11 @@ use Atankalama\Limpieza\Models\Habitacion;
 
 final class AsignacionService
 {
+    public function __construct(
+        private readonly NotificacionesService $notificaciones = new NotificacionesService(),
+    ) {
+    }
+
     public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null): Asignacion
     {
         $this->validarFecha($fecha);
@@ -27,8 +32,21 @@ final class AsignacionService
             'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'fecha' => $fecha,
         ]);
 
-        return $this->obtener($id)
+        $asignacion = $this->obtener($id)
             ?? throw new AsignacionException('ASIGNACION_NO_CREADA', 'Error al crear asignación.', 500);
+
+        $hab = Database::fetchOne('SELECT numero FROM habitaciones WHERE id = ?', [$habitacionId]);
+        if ($hab !== null) {
+            $this->notificaciones->crear(
+                $usuarioId,
+                'asignacion',
+                'Nueva habitación asignada',
+                "Se te asignó la habitación #{$hab['numero']} para hoy.",
+                "/habitaciones/{$habitacionId}"
+            );
+        }
+
+        return $asignacion;
     }
 
     /**

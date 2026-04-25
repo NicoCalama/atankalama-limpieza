@@ -41,9 +41,14 @@ if ($hora < 12) {
                 </div>
             </div>
             <!-- Campana -->
-            <button class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
+            <button @click="$dispatch('toggle-notif')"
+                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
                     aria-label="Notificaciones">
                 <i data-lucide="bell" class="w-6 h-6 text-gray-600 dark:text-gray-400"></i>
+                <template x-if="$store.notif && $store.notif.sinLeer > 0">
+                    <span class="absolute top-1 right-1 min-w-[16px] h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none"
+                          x-text="$store.notif.sinLeer > 9 ? '9+' : $store.notif.sinLeer"></span>
+                </template>
             </button>
         </div>
     </header>

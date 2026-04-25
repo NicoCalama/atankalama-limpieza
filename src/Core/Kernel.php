@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Core;
 
 use Atankalama\Limpieza\Controllers\AlertasController;
+use Atankalama\Limpieza\Controllers\NotificacionesController;
 use Atankalama\Limpieza\Controllers\ReportesController;
 use Atankalama\Limpieza\Controllers\AsignacionesController;
 use Atankalama\Limpieza\Controllers\AuditoriaController;
@@ -318,6 +319,11 @@ final class Kernel
         $router->get('/api/push/vapid-public-key', [$push, 'vapidPublicKey'], [$authCheck]);
         $router->post('/api/push/suscribir', [$push, 'suscribir'], [$authCheck]);
         $router->delete('/api/push/suscribir', [$push, 'desuscribir'], [$authCheck]);
+
+        // Notificaciones (inbox por usuario)
+        $notif = new NotificacionesController();
+        $router->get('/api/notificaciones', [$notif, 'listar'], [$authCheck]);
+        $router->get('/api/notificaciones/sin-leer', [$notif, 'sinLeer'], [$authCheck]);
 
         // Reportes y KPIs
         $reportes = new ReportesController();

@@ -64,6 +64,15 @@ if ($hora < 12) {
                     <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
                        :class="cargando ? 'animate-spin' : ''"></i>
                 </button>
+                <button @click="$dispatch('toggle-notif')"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
+                        aria-label="Notificaciones">
+                    <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    <template x-if="$store.notif && $store.notif.sinLeer > 0">
+                        <span class="absolute top-1 right-1 min-w-[16px] h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none"
+                              x-text="$store.notif.sinLeer > 9 ? '9+' : $store.notif.sinLeer"></span>
+                    </template>
+                </button>
                 <button @click="cerrarSesion()"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400"
                         aria-label="Cerrar sesión">

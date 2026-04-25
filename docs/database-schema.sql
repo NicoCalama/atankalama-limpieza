@@ -521,9 +521,24 @@ CREATE TABLE push_subscriptions (
 );
 CREATE INDEX idx_push_subscriptions_usuario ON push_subscriptions(usuario_id);
 
+-- Bandeja de notificaciones por usuario (inbox persistente)
+CREATE TABLE IF NOT EXISTS notificaciones (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id  INTEGER NOT NULL,
+    tipo        TEXT    NOT NULL DEFAULT 'general', -- asignacion|rechazo|riesgo|disponible|auditoria|general
+    titulo      TEXT    NOT NULL,
+    cuerpo      TEXT    NOT NULL,
+    url         TEXT    NOT NULL DEFAULT '/home',
+    leida       INTEGER NOT NULL DEFAULT 0,         -- 0 = no leída, 1 = leída
+    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario ON notificaciones(usuario_id, leida);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_created ON notificaciones(created_at);
+
 -- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 28
+-- Total de tablas: 29
 --   Bloque 1 (RBAC/Auth):  7  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,
@@ -534,6 +549,6 @@ CREATE INDEX idx_push_subscriptions_usuario ON push_subscriptions(usuario_id);
 --   Bloque 6 (Tickets):    1  (tickets)
 --   Bloque 7 (Logs):       2  (logs_eventos, audit_log)
 --   Bloque 8 (Copilot):    2  (copilot_conversaciones, copilot_mensajes)
---   Bloque 9 (Notif.):     2  (notificaciones_disponibilidad, push_subscriptions)
---   TOTAL: 28 tablas
+--   Bloque 9 (Notif.):     3  (notificaciones_disponibilidad, push_subscriptions, notificaciones)
+--   TOTAL: 29 tablas
 -- ============================================================================

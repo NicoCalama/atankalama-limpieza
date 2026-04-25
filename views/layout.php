@@ -67,6 +67,9 @@
     </div>
 
     <?php if (isset($usuario)): ?>
+        <!-- Centro de notificaciones (popup global) -->
+        <?php include __DIR__ . '/componentes/notificaciones-popup.php'; ?>
+
         <!-- Bottom nav móvil -->
         <?php include __DIR__ . '/componentes/bottom-nav.php'; ?>
 
@@ -108,9 +111,21 @@
     <!-- App JS -->
     <script src="/assets/js/app.js"></script>
     <script>
+        // Store global de notificaciones (badge count)
+        document.addEventListener('alpine:init', function() {
+            Alpine.store('notif', { sinLeer: 0 });
+        });
+
         // Inicializar iconos Lucide después del render
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
+            <?php if (isset($usuario)): ?>
+            // Cargar conteo de no leídas para el badge
+            fetch('/api/notificaciones/sin-leer')
+                .then(function(r) { return r.json(); })
+                .then(function(j) { if (j.ok) Alpine.store('notif').sinLeer = j.data.sin_leer; })
+                .catch(function() {});
+            <?php endif; ?>
         });
         // Re-inicializar cuando Alpine actualice el DOM
         document.addEventListener('alpine:initialized', function() {

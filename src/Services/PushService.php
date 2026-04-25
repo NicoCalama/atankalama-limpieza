@@ -13,9 +13,11 @@ use Minishlink\WebPush\WebPush;
 final class PushService
 {
     private WebPush $webPush;
+    private NotificacionesService $notificaciones;
 
     public function __construct()
     {
+        $this->notificaciones = new NotificacionesService();
         $auth = [
             'VAPID' => [
                 'subject'    => Config::get('VAPID_SUBJECT', 'mailto:admin@atankalama.cl'),
@@ -54,10 +56,14 @@ final class PushService
     /**
      * Envía una notificación push a todos los dispositivos de los usuarios indicados.
      * Filtra usuarios cuyo turno ya terminó hace más de 1 hora (check-out implícito).
+     * También persiste en la tabla notificaciones (bandeja inbox).
      */
-    public function notificar(array $usuarioIds, string $titulo, string $cuerpo, string $url = '/home', array $acciones = [], bool $requireInteraction = false): void
+    public function notificar(array $usuarioIds, string $titulo, string $cuerpo, string $url = '/home', array $acciones = [], bool $requireInteraction = false, string $tipo = 'general'): void
     {
         if (empty($usuarioIds)) return;
+
+        // Persistir en bandeja de todos los destinatarios (antes del filtro de turno)
+        $this->notificaciones->crearParaVarios($usuarioIds, $tipo, $titulo, $cuerpo, $url);
 
         $usuarioIds = $this->filtrarPorTurnoActivo($usuarioIds);
         if (empty($usuarioIds)) return;
@@ -167,11 +173,12 @@ final class PushService
         $hotel = $hotelCodigo === '1_sur' ? 'Atankalama' : 'Atankalama INN';
         $this->notificar(
             $supervisoraIds,
-            '⚠️ Habitación rechazada',
+            'Habitación rechazada',
             "Hab. #{$numeroHab} ({$hotel}) fue rechazada y necesita reasignación.",
             '/auditoria',
             [],
-            true
+            true,
+            'rechazo'
         );
     }
 
@@ -179,11 +186,12 @@ final class PushService
     {
         $this->notificar(
             $supervisoraIds,
-            '🕐 Trabajadora en riesgo',
+            'Trabajadora en riesgo',
             "{$nombreTrabajador} tiene {$pendientes} hab. pendientes y puede no terminar a tiempo.",
             '/home',
             [],
-            true
+            true,
+            'riesgo'
         );
     }
 }
