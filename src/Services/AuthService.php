@@ -132,8 +132,8 @@ final class AuthService
      */
     public function resetearContrasenaTemporal(int $usuarioIdObjetivo, int $adminId, string $motivo = 'reset_admin'): string
     {
-        $existe = Database::fetchOne('SELECT id FROM usuarios WHERE id = ?', [$usuarioIdObjetivo]);
-        if ($existe === null) {
+        $usuario = Database::fetchOne('SELECT id, nombre, rut, email FROM usuarios WHERE id = ?', [$usuarioIdObjetivo]);
+        if ($usuario === null) {
             throw new AuthException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
 
@@ -153,6 +153,16 @@ final class AuthService
         });
 
         Logger::audit($adminId, 'usuario.reset_password', 'usuario', $usuarioIdObjetivo, ['motivo' => $motivo]);
+
+        if (!empty($usuario['email'])) {
+            (new EmailService())->enviarPasswordTemporal(
+                $usuario['email'],
+                $usuario['nombre'],
+                $usuario['rut'],
+                $temporal,
+                'reset_admin'
+            );
+        }
 
         return $temporal;
     }

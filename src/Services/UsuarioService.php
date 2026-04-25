@@ -123,6 +123,11 @@ final class UsuarioService
         if ($usuario === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Error al cargar usuario recién creado.', 500);
         }
+
+        if ($email !== null) {
+            (new EmailService())->enviarPasswordTemporal($email, $nombre, $rutNorm, $temporal, 'creacion');
+        }
+
         return ['usuario' => $usuario, 'password_temporal' => $temporal];
     }
 
