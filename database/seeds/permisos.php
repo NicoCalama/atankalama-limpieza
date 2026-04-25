@@ -66,6 +66,8 @@ return [
 
     ['logs.ver', 'Ver el visor de logs', 'Logs', 'global'],
 
+    ['reportes.ver', 'Ver el módulo de reportes y KPIs exportables', 'Reportes', 'global'],
+
     ['disponibilidad.notificar_supervisora', 'Marcarse disponible para más habitaciones', 'Disponibilidad', 'propio'],
 
     ['notificaciones.ver', 'Ver el centro de notificaciones', 'Notificaciones', 'propio'],

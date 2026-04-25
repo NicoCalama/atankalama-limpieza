@@ -47,6 +47,16 @@ if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos', 'ti
     ];
 }
 
+// Reportes — visible con permiso reportes.ver
+if ($usuario->tienePermiso('reportes.ver')) {
+    $items[] = [
+        'ruta' => '/reportes',
+        'icono' => 'bar-chart-3',
+        'label' => 'Reportes',
+        'activo' => str_starts_with($rutaActual, '/reportes'),
+    ];
+}
+
 // Ajustes — visible para todos
 $items[] = [
     'ruta' => '/ajustes',

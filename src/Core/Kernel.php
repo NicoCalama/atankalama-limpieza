@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Core;
 
 use Atankalama\Limpieza\Controllers\AlertasController;
+use Atankalama\Limpieza\Controllers\ReportesController;
 use Atankalama\Limpieza\Controllers\AsignacionesController;
 use Atankalama\Limpieza\Controllers\AuditoriaController;
 use Atankalama\Limpieza\Controllers\AuthController;
@@ -52,6 +53,7 @@ final class Kernel
         $router->get('/ajustes/turnos', [$paginas, 'ajustesTurnos'], [$optionalAuth]);
         $router->get('/ajustes/alertas', [$paginas, 'ajustesAlertas'], [$optionalAuth]);
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
+        $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
@@ -316,6 +318,17 @@ final class Kernel
         $router->get('/api/push/vapid-public-key', [$push, 'vapidPublicKey'], [$authCheck]);
         $router->post('/api/push/suscribir', [$push, 'suscribir'], [$authCheck]);
         $router->delete('/api/push/suscribir', [$push, 'desuscribir'], [$authCheck]);
+
+        // Reportes y KPIs
+        $reportes = new ReportesController();
+        $router->get('/api/reportes/kpis', [$reportes, 'kpis'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/exportar', [$reportes, 'exportar'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
 
         // Sistema — health check público (sin auth, para uptime monitors)
         $sistema = new SistemaController();

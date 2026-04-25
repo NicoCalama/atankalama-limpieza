@@ -249,6 +249,23 @@ final class PaginasController
         ]);
     }
 
+    public function reportes(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('reportes.ver')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('reportes', [
+            'usuario' => $request->usuario,
+            'titulo'  => 'Reportes',
+        ]);
+    }
+
     private static function redirect(string $url): Response
     {
         $response = new Response(302, '', 'text/html; charset=utf-8');

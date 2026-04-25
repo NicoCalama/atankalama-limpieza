@@ -61,6 +61,15 @@ if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos', 'ti
     ];
 }
 
+if ($usuario->tienePermiso('reportes.ver')) {
+    $items[] = [
+        'ruta' => '/reportes',
+        'icono' => 'bar-chart-3',
+        'label' => 'Reportes',
+        'activo' => str_starts_with($rutaActual, '/reportes'),
+    ];
+}
+
 if ($usuario->tienePermiso('usuarios.ver')) {
     $items[] = [
         'ruta' => '/usuarios',
