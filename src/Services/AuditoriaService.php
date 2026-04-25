@@ -18,6 +18,7 @@ final class AuditoriaService
         private readonly ChecklistService $checklist = new ChecklistService(),
         private readonly ?CloudbedsSyncService $cloudbeds = null,
         private readonly AlertasService $alertas = new AlertasService(),
+        private readonly PushService $push = new PushService(),
     ) {
     }
 
@@ -182,10 +183,12 @@ final class AuditoriaService
     private function crearAlertaRechazo(int $habitacionId, int $trabajadorId, ?string $comentario): void
     {
         $habFila = Database::fetchOne(
-            'SELECT h.numero, h.hotel_id FROM habitaciones h WHERE h.id = ?',
+            'SELECT h.numero, h.hotel_id, ho.codigo as hotel_codigo FROM habitaciones h JOIN hoteles ho ON ho.id=h.hotel_id WHERE h.id = ?',
             [$habitacionId]
         );
-        $numero = $habFila['numero'] ?? '?';
+        $numero      = $habFila['numero'] ?? '?';
+        $hotelCodigo = $habFila['hotel_codigo'] ?? '';
+
         $this->alertas->levantar(
             AlertaActiva::TIPO_HABITACION_RECHAZADA,
             "Habitación {$numero} rechazada",
@@ -194,5 +197,21 @@ final class AuditoriaService
             isset($habFila['hotel_id']) && $habFila['hotel_id'] !== null ? (int) $habFila['hotel_id'] : null,
             "habitacion:{$habitacionId}",
         );
+
+        // Push a todas las supervisoras con permiso alertas.recibir_predictivas
+        $supervisoraIds = array_column(
+            Database::fetchAll(
+                "SELECT DISTINCT u.id FROM usuarios u
+                 JOIN usuarios_roles ur ON ur.usuario_id = u.id
+                 JOIN roles r ON r.id = ur.rol_id
+                 JOIN rol_permisos rp ON rp.rol_id = r.id
+                 JOIN permisos p ON p.id = rp.permiso_id
+                 WHERE p.codigo = 'alertas.recibir_predictivas' AND u.activo = 1"
+            ),
+            'id'
+        );
+        if (!empty($supervisoraIds)) {
+            $this->push->notificarRechazo(array_map('intval', $supervisoraIds), (string) $numero, $hotelCodigo);
+        }
     }
 }

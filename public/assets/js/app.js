@@ -115,3 +115,88 @@ function escapeHtml(text) {
     div.appendChild(document.createTextNode(text));
     return div.innerHTML;
 }
+
+// ─── Push Notifications ───────────────────────────────────────────────────────
+
+var PushManager = {
+    _registration: null,
+
+    /** Verifica si el browser soporta push y si ya hay permiso */
+    soportado() {
+        return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    },
+
+    estado() {
+        if (!this.soportado()) return 'no-soportado';
+        return Notification.permission; // 'default' | 'granted' | 'denied'
+    },
+
+    /** Suscribir este dispositivo. Retorna true si ok. */
+    async suscribir() {
+        if (!this.soportado()) return false;
+
+        var permiso = await Notification.requestPermission();
+        if (permiso !== 'granted') return false;
+
+        try {
+            var reg = await navigator.serviceWorker.ready;
+            var keyResp = await apiFetch('/api/push/vapid-public-key');
+            if (!keyResp || !keyResp.ok) return false;
+
+            var publicKey = keyResp.data.publicKey;
+            var sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicKey)
+            });
+
+            var json = sub.toJSON();
+            await apiPost('/api/push/suscribir', {
+                endpoint: json.endpoint,
+                p256dh:   json.keys.p256dh,
+                auth:     json.keys.auth
+            });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    },
+
+    /** Desuscribir este dispositivo. */
+    async desuscribir() {
+        try {
+            var reg = await navigator.serviceWorker.ready;
+            var sub = await reg.pushManager.getSubscription();
+            if (sub) {
+                await apiFetch('/api/push/suscribir', {
+                    method: 'DELETE',
+                    body: JSON.stringify({ endpoint: sub.endpoint }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                await sub.unsubscribe();
+            }
+        } catch (e) {}
+    },
+
+    /** Verifica si este dispositivo ya está suscrito */
+    async estaSuscrito() {
+        if (!this.soportado()) return false;
+        try {
+            var reg = await navigator.serviceWorker.ready;
+            var sub = await reg.pushManager.getSubscription();
+            return sub !== null;
+        } catch (e) {
+            return false;
+        }
+    }
+};
+
+function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}

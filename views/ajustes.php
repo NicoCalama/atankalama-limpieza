@@ -78,5 +78,63 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
                 </a>
             <?php endforeach; ?>
         </div>
+
+        <!-- Notificaciones push -->
+        <div x-data="pushToggle()" x-init="init()" class="mt-4">
+            <template x-if="soportado">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
+                    <div class="w-11 h-11 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="bell" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notificaciones push</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"
+                           x-text="suscrito ? 'Activadas en este dispositivo' : (denegado ? 'Bloqueadas en este navegador' : 'Recibe alertas aunque la app esté cerrada')"></p>
+                    </div>
+                    <template x-if="!denegado">
+                        <button @click="toggle()" :disabled="cargando"
+                                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                                :class="suscrito ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200"
+                                  :class="suscrito ? 'translate-x-5' : 'translate-x-0'"></span>
+                        </button>
+                    </template>
+                    <template x-if="denegado">
+                        <span class="text-xs text-red-500 font-medium">Bloqueado</span>
+                    </template>
+                </div>
+            </template>
+        </div>
     </main>
 </div>
+
+<script>
+function pushToggle() {
+    return {
+        soportado: false,
+        suscrito: false,
+        denegado: false,
+        cargando: false,
+
+        async init() {
+            this.soportado = PushManager.soportado();
+            if (!this.soportado) return;
+            this.denegado  = Notification.permission === 'denied';
+            this.suscrito  = await PushManager.estaSuscrito();
+        },
+
+        async toggle() {
+            if (this.cargando) return;
+            this.cargando = true;
+            if (this.suscrito) {
+                await PushManager.desuscribir();
+                this.suscrito = false;
+            } else {
+                this.suscrito = await PushManager.suscribir();
+                this.denegado = Notification.permission === 'denied';
+            }
+            this.cargando = false;
+        }
+    };
+}
+</script>

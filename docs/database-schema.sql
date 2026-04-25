@@ -508,9 +508,22 @@ CREATE TABLE notificaciones_disponibilidad (
     UNIQUE (trabajador_id, fecha)
 );
 
+-- Suscripciones push (Web Push API — una por usuario por dispositivo)
+CREATE TABLE push_subscriptions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id  INTEGER NOT NULL,
+    endpoint    TEXT    NOT NULL,
+    p256dh      TEXT    NOT NULL, -- clave pública del cliente
+    auth        TEXT    NOT NULL, -- secret de autenticación
+    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    UNIQUE (usuario_id, endpoint)
+);
+CREATE INDEX idx_push_subscriptions_usuario ON push_subscriptions(usuario_id);
+
 -- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 27
+-- Total de tablas: 28
 --   Bloque 1 (RBAC/Auth):  7  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,
@@ -521,6 +534,6 @@ CREATE TABLE notificaciones_disponibilidad (
 --   Bloque 6 (Tickets):    1  (tickets)
 --   Bloque 7 (Logs):       2  (logs_eventos, audit_log)
 --   Bloque 8 (Copilot):    2  (copilot_conversaciones, copilot_mensajes)
---   Bloque 9 (Notif.):     1  (notificaciones_disponibilidad)
---   TOTAL: 27 tablas
+--   Bloque 9 (Notif.):     2  (notificaciones_disponibilidad, push_subscriptions)
+--   TOTAL: 28 tablas
 -- ============================================================================
