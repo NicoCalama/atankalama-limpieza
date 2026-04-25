@@ -75,6 +75,11 @@ if ($hora < 12) {
                         <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
                     </template>
                 </button>
+                <button @click="cerrarSesion()"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400"
+                        aria-label="Cerrar sesión">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
             </div>
         </div>
     </header>
@@ -526,6 +531,11 @@ function homeAdmin() {
 
         alVolverVisible() {
             if (!document.hidden) this.cargar();
+        },
+
+        async cerrarSesion() {
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+            window.location.href = '/login';
         },
 
         setHotel(valor) {

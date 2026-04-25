@@ -53,9 +53,13 @@ final class PushService
 
     /**
      * Envía una notificación push a todos los dispositivos de los usuarios indicados.
+     * Filtra usuarios cuyo turno ya terminó hace más de 1 hora (check-out implícito).
      */
     public function notificar(array $usuarioIds, string $titulo, string $cuerpo, string $url = '/home', array $acciones = [], bool $requireInteraction = false): void
     {
+        if (empty($usuarioIds)) return;
+
+        $usuarioIds = $this->filtrarPorTurnoActivo($usuarioIds);
         if (empty($usuarioIds)) return;
 
         $placeholders = implode(',', array_fill(0, count($usuarioIds), '?'));
@@ -103,6 +107,56 @@ final class PushService
         if (!empty($caidas)) {
             Logger::warning('push', 'Fallos enviando notificaciones', ['endpoints_caidos' => count($caidas)]);
         }
+    }
+
+    /**
+     * Retorna solo los IDs de usuarios cuyo turno de hoy todavía no terminó (o terminó hace menos de 1 hora).
+     * Si el usuario no tiene turno asignado hoy, se considera siempre activo (pass-through).
+     *
+     * @param list<int> $usuarioIds
+     * @return list<int>
+     */
+    private function filtrarPorTurnoActivo(array $usuarioIds): array
+    {
+        if (empty($usuarioIds)) return [];
+
+        $hoy     = date('Y-m-d');
+        $ahoraTs = time();
+
+        $placeholders = implode(',', array_fill(0, count($usuarioIds), '?'));
+        $params = array_merge($usuarioIds, [$hoy]);
+
+        // Trae el turno asignado a cada usuario para hoy
+        $filas = Database::fetchAll(
+            "SELECT ut.usuario_id, t.hora_fin
+               FROM usuarios_turnos ut
+               JOIN turnos t ON t.id = ut.turno_id
+              WHERE ut.usuario_id IN ({$placeholders})
+                AND ut.fecha = ?",
+            $params
+        );
+
+        // Indexar por usuario_id
+        $turnoFin = [];
+        foreach ($filas as $fila) {
+            $turnoFin[(int) $fila['usuario_id']] = $fila['hora_fin'];
+        }
+
+        $activos = [];
+        foreach ($usuarioIds as $id) {
+            if (!isset($turnoFin[$id])) {
+                // Sin turno asignado → enviar siempre
+                $activos[] = $id;
+                continue;
+            }
+            // hora_fin tiene formato "HH:MM" o "HH:MM:SS"
+            $finTs = strtotime($hoy . ' ' . $turnoFin[$id]);
+            if ($ahoraTs <= ($finTs + 3600)) {
+                $activos[] = $id;
+            }
+        }
+
+        return $activos;
     }
 
     /**

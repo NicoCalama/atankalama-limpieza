@@ -189,6 +189,21 @@ if ($hora < 12) {
             </div>
             <?php endif; ?>
 
+            <!-- Cerrar turno -->
+            <div class="px-4 mt-6 pb-2">
+                <button type="button"
+                        @click="cerrarSesion()"
+                        :disabled="cerrando"
+                        class="w-full min-h-[56px] inline-flex items-center justify-center gap-2.5 px-4 py-3
+                               bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800
+                               text-red-700 dark:text-red-300 rounded-xl font-semibold text-base
+                               hover:bg-red-100 dark:hover:bg-red-900/40 active:bg-red-200 transition
+                               disabled:opacity-60 disabled:cursor-not-allowed">
+                    <i data-lucide="log-out" class="w-5 h-5 flex-shrink-0"></i>
+                    <span x-text="cerrando ? 'Cerrando sesión...' : 'Terminar turno y cerrar sesión'"></span>
+                </button>
+            </div>
+
         </main>
     </template>
 </div>
@@ -201,6 +216,7 @@ function homeTrabajador() {
         error: null,
         sinConexion: !navigator.onLine,
         enviandoAviso: false,
+        cerrando: false,
         _intervalId: null,
 
         async cargar() {
@@ -260,6 +276,15 @@ function homeTrabajador() {
                 detail.habitacionId = this.data.habitacion_actual.id;
             }
             window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: detail }));
+        },
+
+        async cerrarSesion() {
+            if (this.cerrando) return;
+            this.cerrando = true;
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+            } catch (e) { /* continuar igual */ }
+            window.location.href = '/login';
         },
 
         async avisarDisponibilidad() {
