@@ -168,6 +168,23 @@ final class PaginasController
         ]);
     }
 
+    public function ajustesImportarTurnos(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('turnos.importar')) {
+            return self::redirect('/ajustes/turnos');
+        }
+        return View::conLayout('ajustes/importar-turnos', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Importar turnos',
+        ]);
+    }
+
     public function ajustesAlertas(Request $request): Response
     {
         if ($request->usuario === null) {

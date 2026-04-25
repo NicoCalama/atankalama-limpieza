@@ -88,6 +88,15 @@ if ($usuario->tienePermiso('permisos.asignar_a_rol')) {
     ];
 }
 
+if ($usuario->tienePermiso('turnos.importar')) {
+    $items[] = [
+        'ruta' => '/ajustes/importar-turnos',
+        'icono' => 'file-up',
+        'label' => 'Importar turnos',
+        'activo' => $rutaActual === '/ajustes/importar-turnos',
+    ];
+}
+
 $items[] = [
     'ruta' => '/ajustes',
     'icono' => 'settings',

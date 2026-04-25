@@ -21,6 +21,7 @@ use Atankalama\Limpieza\Controllers\PushController;
 use Atankalama\Limpieza\Controllers\SistemaController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
+use Atankalama\Limpieza\Controllers\TurnosImportController;
 use Atankalama\Limpieza\Controllers\UsuariosController;
 use Atankalama\Limpieza\Middleware\AuthCheck;
 use Atankalama\Limpieza\Middleware\OptionalAuth;
@@ -54,6 +55,7 @@ final class Kernel
         $router->get('/ajustes/turnos', [$paginas, 'ajustesTurnos'], [$optionalAuth]);
         $router->get('/ajustes/alertas', [$paginas, 'ajustesAlertas'], [$optionalAuth]);
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
+        $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
@@ -334,6 +336,17 @@ final class Kernel
         $router->get('/api/reportes/exportar', [$reportes, 'exportar'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
+        ]);
+
+        // Importación de turnos desde Breik
+        $turnosImport = new TurnosImportController();
+        $router->post('/api/turnos/importar/preview', [$turnosImport, 'preview'], [
+            $authCheck,
+            new PermissionCheck('turnos.importar'),
+        ]);
+        $router->post('/api/turnos/importar/confirmar', [$turnosImport, 'confirmar'], [
+            $authCheck,
+            new PermissionCheck('turnos.importar'),
         ]);
 
         // Sistema — health check público (sin auth, para uptime monitors)

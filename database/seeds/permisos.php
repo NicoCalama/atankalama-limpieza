@@ -43,6 +43,7 @@ return [
     ['turnos.ver', 'Ver los turnos configurados', 'Turnos', 'global'],
     ['turnos.crear_editar', 'Crear o editar definiciones de turnos', 'Turnos', 'global'],
     ['turnos.asignar_a_usuario', 'Asignar un turno a un usuario', 'Turnos', 'global'],
+    ['turnos.importar', 'Importar turnos masivamente desde CSV de Breik', 'Turnos', 'global'],
 
     ['copilot.usar_nivel_1_consultas', 'Usar el copilot para consultas', 'Copilot', 'propio'],
     ['copilot.usar_nivel_2_acciones', 'Usar el copilot para ejecutar acciones', 'Copilot', 'propio'],
