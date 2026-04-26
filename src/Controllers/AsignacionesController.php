@@ -104,6 +104,17 @@ final class AsignacionesController
         if ($usuarioId === null) {
             return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
         }
+        $solicitante = $request->usuario;
+        if ($solicitante === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+
+        $esPropia = $usuarioId === $solicitante->id;
+        $puedeVerTodas = $solicitante->tienePermiso('asignaciones.asignar_manual');
+        if (!$esPropia && !$puedeVerTodas) {
+            return Response::error('SIN_PERMISO', 'No puedes ver la cola de otro trabajador.', 403);
+        }
+
         $cola = $this->svc->colaDelTrabajador($usuarioId, is_string($fecha) ? $fecha : date('Y-m-d'));
         return Response::ok(['cola' => $cola, 'total' => count($cola)]);
     }

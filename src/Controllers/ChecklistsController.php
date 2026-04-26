@@ -52,11 +52,23 @@ final class ChecklistsController
         if ($id === null) {
             return Response::error('ID_INVALIDO', 'ejecucion_id inválido.', 400);
         }
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
         try {
-            return Response::ok($this->svc->estadoEjecucion($id));
+            $estado = $this->svc->estadoEjecucion($id);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
+
+        $esPropia = (int) ($estado['ejecucion']['usuario_id'] ?? 0) === $usuario->id;
+        $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
+        if (!$esPropia && !$puedeVerTodas) {
+            return Response::error('SIN_PERMISO', 'No puedes ver esta ejecución.', 403);
+        }
+
+        return Response::ok($estado);
     }
 
     public function marcarItem(Request $request): Response
