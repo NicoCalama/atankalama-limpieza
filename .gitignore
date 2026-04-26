@@ -13,8 +13,8 @@ database/*.db-wal
 database/*.db-shm
 
 # === Composer ===
+# composer.lock SÍ se commitea (reproducibilidad de versiones entre dev/prod)
 vendor/
-composer.lock
 composer.phar
 
 # === Node (solo para herramientas de desarrollo, NO para el frontend) ===
