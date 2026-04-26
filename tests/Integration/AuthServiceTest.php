@@ -26,7 +26,8 @@ final class AuthServiceTest extends TestCase
         $resultado = $this->auth->login('11.111.111-1', $pwd);
 
         $this->assertSame($id, $resultado['usuario']->id);
-        $this->assertSame('/home-admin', $resultado['home_target']);
+        // El home_target es siempre '/home' (ruta única); la vista interna se resuelve por rol en views/home.php.
+        $this->assertSame('/home', $resultado['home_target']);
         $this->assertNotEmpty($resultado['token']);
 
         $fila = Database::fetchOne('SELECT usuario_id FROM sesiones WHERE token = ?', [$resultado['token']]);
@@ -70,21 +71,24 @@ final class AuthServiceTest extends TestCase
     {
         [, $pwd] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
         $r = $this->auth->login('22222222-2', $pwd);
-        $this->assertSame('/home-trabajador', $r['home_target']);
+        // El home_target es siempre '/home' (ruta única); la vista interna se resuelve por rol en views/home.php.
+        $this->assertSame('/home', $r['home_target']);
     }
 
     public function testHomeTargetSupervisora(): void
     {
         [, $pwd] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Supervisora');
         $r = $this->auth->login('33333333-3', $pwd);
-        $this->assertSame('/home-supervisora', $r['home_target']);
+        // El home_target es siempre '/home' (ruta única); la vista interna se resuelve por rol en views/home.php.
+        $this->assertSame('/home', $r['home_target']);
     }
 
     public function testHomeTargetRecepcion(): void
     {
         [, $pwd] = TestDatabase::crearUsuario('44444444-4', 'Carla', 'Recepción');
         $r = $this->auth->login('44444444-4', $pwd);
-        $this->assertSame('/home-recepcion', $r['home_target']);
+        // El home_target es siempre '/home' (ruta única); la vista interna se resuelve por rol en views/home.php.
+        $this->assertSame('/home', $r['home_target']);
     }
 
     public function testValidarSesionRenuevaExpiracion(): void
