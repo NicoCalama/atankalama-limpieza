@@ -218,16 +218,35 @@ final class CopilotService
         return $base . "\n\n" . $rolPrompt;
     }
 
+    /**
+     * Personaliza el system prompt según permisos representativos del usuario.
+     *
+     * Sigue la regla de oro RBAC del proyecto: NUNCA bifurcar por nombre de rol
+     * (los roles son editables desde la UI). Se usan permisos representativos del
+     * nivel de capacidad esperado para cada perfil:
+     *
+     * - `permisos.asignar_a_rol`: solo lo poseen perfiles con control total del
+     *   sistema (típicamente Admin). Es el indicador más fuerte de capacidad
+     *   administrativa porque permite reescribir la matriz RBAC.
+     * - `asignaciones.asignar_manual`: representativo del perfil supervisora,
+     *   que reasigna habitaciones y gestiona la carga del equipo.
+     * - `auditoria.ver_bandeja`: representativo del perfil recepción, cuyo foco
+     *   es auditar habitaciones limpias.
+     * - Caso else: trabajador de limpieza (sin permisos de gestión).
+     *
+     * El orden de los chequeos va de más específico/poderoso a más general, de
+     * modo que un usuario con múltiples roles (ej. supervisora que también
+     * puede auditar) reciba el prompt del nivel más alto que le aplica.
+     */
     private function promptPorRol(Usuario $usuario): string
     {
-        $roles = $usuario->roles;
-        if (in_array('Admin', $roles, true)) {
+        if ($usuario->tienePermiso('permisos.asignar_a_rol')) {
             return 'El usuario es administrador. Tiene acceso total — KPIs, salud del sistema, gestión de usuarios.';
         }
-        if (in_array('Supervisora', $roles, true)) {
+        if ($usuario->tienePermiso('asignaciones.asignar_manual')) {
             return 'El usuario es supervisora. Puede reasignar, ver carga de equipo, atender alertas.';
         }
-        if (in_array('Recepción', $roles, true)) {
+        if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
             return 'El usuario es recepcionista. Se enfoca en auditoría de habitaciones.';
         }
         return 'El usuario es un trabajador de limpieza. Ayúdalo a consultar sus habitaciones, reportar tickets, marcarse disponible.';
