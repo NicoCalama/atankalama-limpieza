@@ -12,6 +12,8 @@ use Atankalama\Limpieza\Models\Usuario;
 
 final class AuthService
 {
+    private static bool $migracionThrottleAplicada = false;
+
     public function __construct(
         private readonly UsuarioService $usuarios = new UsuarioService(),
         private readonly PasswordService $passwords = new PasswordService(),
@@ -21,33 +23,55 @@ final class AuthService
     /**
      * Autentica por RUT + password. Devuelve el Usuario hidratado (con permisos).
      * Lanza AuthException con código si falla.
+     *
+     * Aplica rate limiting (throttle) por combinación rut|ip:
+     *   - Variables: LOGIN_THROTTLE_MAX_INTENTOS, LOGIN_THROTTLE_VENTANA_MINUTOS, LOGIN_THROTTLE_LOCKOUT_MINUTOS
+     *   - Si en los últimos VENTANA_MINUTOS hay >= MAX_INTENTOS fallidos, lanza THROTTLED (HTTP 429)
+     *   - Cualquier fallo (RUT inválido, credenciales, usuario inactivo) suma un intento
+     *   - Login exitoso limpia el contador para esa clave
      */
     public function login(string $rutInput, string $password, ?string $ip = null, ?string $userAgent = null): array
     {
-        $rut = Rut::normalizar($rutInput);
-        if (!Rut::validar($rut)) {
-            throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
-        }
+        $this->asegurarTablaIntentosLogin();
 
-        $fila = Database::fetchOne('SELECT * FROM usuarios WHERE rut = ?', [$rut]);
-        if ($fila === null) {
-            Logger::warning('auth', 'login fallido: rut no encontrado', ['rut' => $rut]);
-            throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
-        }
+        $rutNorm = Rut::normalizar($rutInput);
+        $clave = $this->claveThrottle($rutNorm, $ip);
 
-        if (((int) $fila['activo']) !== 1) {
-            Logger::warning('auth', 'login fallido: usuario inactivo', ['usuario_id' => (int) $fila['id']]);
-            throw new AuthException('USUARIO_INACTIVO', 'Tu usuario está inactivo. Contacta al admin.', 403);
-        }
+        // Pre-check: ¿está bloqueado por throttle?
+        $this->verificarThrottle($clave, $ip);
 
-        if (!$this->passwords->verificar($password, (string) $fila['password_hash'])) {
-            Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
-            throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
+        try {
+            if (!Rut::validar($rutNorm)) {
+                throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
+            }
+
+            $fila = Database::fetchOne('SELECT * FROM usuarios WHERE rut = ?', [$rutNorm]);
+            if ($fila === null) {
+                Logger::warning('auth', 'login fallido: rut no encontrado', ['rut' => $rutNorm]);
+                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
+            }
+
+            if (((int) $fila['activo']) !== 1) {
+                Logger::warning('auth', 'login fallido: usuario inactivo', ['usuario_id' => (int) $fila['id']]);
+                throw new AuthException('USUARIO_INACTIVO', 'Tu usuario está inactivo. Contacta al admin.', 403);
+            }
+
+            if (!$this->passwords->verificar($password, (string) $fila['password_hash'])) {
+                Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
+                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
+            }
+        } catch (AuthException $e) {
+            // Cualquier fallo de credenciales/inactivo/rut inválido suma al throttle
+            $this->registrarIntentoFallido($clave);
+            throw $e;
         }
 
         $usuario = $this->usuarios->hidratar($fila);
 
         $token = $this->crearSesion($usuario->id, $ip, $userAgent);
+
+        // Limpia el contador de intentos fallidos para esta clave
+        Database::execute('DELETE FROM intentos_login WHERE clave = ?', [$clave]);
 
         Database::execute(
             "UPDATE usuarios SET last_login_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
@@ -61,6 +85,99 @@ final class AuthService
             'usuario' => $usuario,
             'home_target' => $this->calcularHomeTarget($usuario),
         ];
+    }
+
+    /**
+     * Construye la clave única de throttle: "<rut>|<ip>" o "<rut>|sin_ip".
+     */
+    private function claveThrottle(string $rutNorm, ?string $ip): string
+    {
+        return $rutNorm . '|' . ($ip ?? 'sin_ip');
+    }
+
+    /**
+     * Trunca la clave para logs (no leakea el RUT completo): primeros 5 chars del RUT + ***|<ip>.
+     */
+    private function claveTruncada(string $clave): string
+    {
+        $partes = explode('|', $clave, 2);
+        $rutPrefix = substr($partes[0], 0, 5);
+        $ipParte = $partes[1] ?? 'sin_ip';
+        return $rutPrefix . '***|' . $ipParte;
+    }
+
+    /**
+     * Cuenta intentos fallidos dentro de la ventana. Si >= MAX, lanza THROTTLED.
+     */
+    private function verificarThrottle(string $clave, ?string $ip): void
+    {
+        $max = max(1, Config::getInt('LOGIN_THROTTLE_MAX_INTENTOS', 5));
+        $ventanaMin = max(1, Config::getInt('LOGIN_THROTTLE_VENTANA_MINUTOS', 15));
+
+        $desde = gmdate('Y-m-d\TH:i:s.000\Z', time() - $ventanaMin * 60);
+
+        $intentos = Database::fetchAll(
+            'SELECT creado_at FROM intentos_login WHERE clave = ? AND creado_at >= ? ORDER BY creado_at ASC',
+            [$clave, $desde]
+        );
+
+        if (count($intentos) < $max) {
+            return;
+        }
+
+        // Calcular minutos restantes hasta que el intento más antiguo de los MAX salga de la ventana.
+        // Tomamos el (count - max + 1)-ésimo intento más antiguo: cuando ese expire, count caerá bajo MAX.
+        $indiceClave = count($intentos) - $max;
+        $tsObjetivo = strtotime((string) $intentos[$indiceClave]['creado_at']);
+        $expiraEn = $tsObjetivo + $ventanaMin * 60;
+        $segundosRestantes = max(1, $expiraEn - time());
+        $minutosRestantes = (int) ceil($segundosRestantes / 60);
+
+        Logger::warning('auth', 'login throttled', [
+            'clave' => $this->claveTruncada($clave),
+            'intentos' => count($intentos),
+            'max' => $max,
+            'ventana_min' => $ventanaMin,
+            'minutos_restantes' => $minutosRestantes,
+            'ip' => $ip,
+        ]);
+
+        throw new AuthException(
+            'THROTTLED',
+            "Demasiados intentos. Reintenta en {$minutosRestantes} minutos.",
+            429
+        );
+    }
+
+    /**
+     * Inserta una fila por cada intento fallido (RUT_INVALIDO / CREDENCIALES_INVALIDAS / USUARIO_INACTIVO).
+     */
+    private function registrarIntentoFallido(string $clave): void
+    {
+        Database::execute('INSERT INTO intentos_login (clave) VALUES (?)', [$clave]);
+    }
+
+    /**
+     * Migración idempotente: crea la tabla intentos_login si no existe.
+     * Permite que dev DBs preexistentes la obtengan sin requerir re-init manual.
+     * Solo corre una vez por proceso (flag estático).
+     */
+    private function asegurarTablaIntentosLogin(): void
+    {
+        if (self::$migracionThrottleAplicada) {
+            return;
+        }
+        Database::pdo()->exec(
+            "CREATE TABLE IF NOT EXISTS intentos_login (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                clave TEXT NOT NULL,
+                creado_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            )"
+        );
+        Database::pdo()->exec(
+            'CREATE INDEX IF NOT EXISTS idx_intentos_login_clave_creado ON intentos_login(clave, creado_at)'
+        );
+        self::$migracionThrottleAplicada = true;
     }
 
     public function logout(string $token, ?int $usuarioId = null, ?string $ip = null): void

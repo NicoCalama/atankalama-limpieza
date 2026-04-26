@@ -115,6 +115,20 @@ CREATE TABLE contrasenas_temporales (
 
 CREATE INDEX idx_contrasenas_usuario ON contrasenas_temporales(usuario_id);
 
+-- Intentos de login fallidos (rate limiting / throttle de POST /api/auth/login)
+-- Cada fila representa UN intento fallido. La clave combina rut|ip para penalizar
+-- al RUT desde una IP específica sin afectar a otros usuarios o IPs distintas.
+-- Política: si en los últimos LOGIN_THROTTLE_VENTANA_MINUTOS minutos hay >=
+-- LOGIN_THROTTLE_MAX_INTENTOS filas para esa clave, el siguiente intento se
+-- rechaza con HTTP 429 (THROTTLED). Al login exitoso se borran las filas de la clave.
+CREATE TABLE intentos_login (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    clave        TEXT NOT NULL,                            -- "<rut>|<ip>" o "<rut>|sin_ip"
+    creado_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX idx_intentos_login_clave_creado ON intentos_login(clave, creado_at);
+
 -- ============================================================================
 -- BLOQUE 2 — OPERACIÓN (hoteles, habitaciones, turnos, asignaciones, checklist)
 -- ============================================================================
@@ -538,8 +552,8 @@ CREATE INDEX IF NOT EXISTS idx_notificaciones_created ON notificaciones(created_
 
 -- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 29
---   Bloque 1 (RBAC/Auth):  7  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales)
+-- Total de tablas: 30
+--   Bloque 1 (RBAC/Auth):  8  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales, intentos_login)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,
 --                              ejecuciones_checklist, ejecuciones_items)
@@ -550,5 +564,5 @@ CREATE INDEX IF NOT EXISTS idx_notificaciones_created ON notificaciones(created_
 --   Bloque 7 (Logs):       2  (logs_eventos, audit_log)
 --   Bloque 8 (Copilot):    2  (copilot_conversaciones, copilot_mensajes)
 --   Bloque 9 (Notif.):     3  (notificaciones_disponibilidad, push_subscriptions, notificaciones)
---   TOTAL: 29 tablas
+--   TOTAL: 30 tablas
 -- ============================================================================
