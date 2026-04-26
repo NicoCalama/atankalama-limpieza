@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
+use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\PasswordService;
@@ -136,6 +137,60 @@ final class UsuariosController
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
         return Response::ok(['eliminado' => true, 'usuario_id' => $id]);
+    }
+
+    /**
+     * GET /api/usuarios/{id}/datos-personales
+     *
+     * Derecho de acceso a datos personales (Ley 19.628 art. 12).
+     * Permite al propio usuario obtener un export JSON de sus datos. Un admin con
+     * `usuarios.editar` también puede consultar los datos de otro usuario (excepción
+     * regulatoria para soportar solicitudes que el titular hace por email/teléfono).
+     *
+     * Cuando lo solicita el propio usuario, los timestamps de KPI ocultos
+     * (timestamp_inicio/timestamp_fin de ejecuciones_checklist) se omiten —
+     * son tracking interno que el trabajador nunca debe ver.
+     */
+    public function exportarDatos(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
+        }
+
+        $esPropio = $id === $request->usuario->id;
+        $puedeVerOtros = $request->usuario->tienePermiso('usuarios.editar');
+
+        if (!$esPropio && !$puedeVerOtros) {
+            return Response::error(
+                'SIN_PERMISO',
+                'No tienes permiso para exportar los datos de otro usuario.',
+                403
+            );
+        }
+
+        try {
+            $export = $this->svc->exportarDatosPersonales($id, ocultaTimestampsKpi: $esPropio);
+        } catch (UsuarioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        Logger::audit(
+            $request->usuario->id,
+            'usuario.exportar_datos_personales',
+            'usuario',
+            $id,
+            ['solicitante_id' => $request->usuario->id]
+        );
+
+        return Response::ok([
+            'datos' => $export,
+            'generado_en' => date('c'),
+            'usuario_id' => $id,
+        ]);
     }
 
     private function cambiarActivo(Request $request, bool $activo): Response

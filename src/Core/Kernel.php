@@ -241,6 +241,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('usuarios.eliminar'),
         ]);
+        // Derecho de acceso a datos personales (Ley 19.628 art. 12).
+        // No usa PermissionCheck: el control vive en el controller porque permite tanto
+        // al propio usuario como a un admin con usuarios.editar consultar los datos.
+        $router->get('/api/usuarios/{id}/datos-personales', [$usuarios, 'exportarDatos'], [$authCheck]);
 
         // Turnos
         $turnos = new TurnosController();

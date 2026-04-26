@@ -296,6 +296,165 @@ final class UsuarioService
     }
 
     /**
+     * Genera el export de datos personales de un usuario (derecho de acceso, Ley 19.628 art. 12).
+     *
+     * Estructura del array retornado:
+     *   - usuario:         datos básicos de la fila usuarios (sin password_hash)
+     *   - roles:           lista de roles asignados
+     *   - sesiones:        sesiones activas (sin token, ip + user_agent truncado)
+     *   - asignaciones:    asignaciones de los últimos 90 días
+     *   - ejecuciones:     ejecuciones_checklist últimos 90 días — incluye o no
+     *                      timestamp_inicio/timestamp_fin según $ocultaTimestampsKpi
+     *   - tickets:         tickets levantados o asignados a la persona
+     *   - notificaciones:  últimas 50 notificaciones del inbox
+     *   - copilot:         conversaciones (sólo títulos y fechas, sin contenido de mensajes)
+     *   - push:            metadata de suscripciones push (endpoint truncado, sin claves)
+     *
+     * @return array<string, mixed>
+     */
+    public function exportarDatosPersonales(int $usuarioId, bool $ocultaTimestampsKpi): array
+    {
+        $usuarioFila = Database::fetchOne(
+            'SELECT id, rut, nombre, email, activo, requiere_cambio_pwd, hotel_default,
+                    tema_preferido, created_at, updated_at, last_login_at
+               FROM usuarios WHERE id = ?',
+            [$usuarioId]
+        );
+        if ($usuarioFila === null) {
+            throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
+        }
+
+        $usuario = [
+            'id' => (int) $usuarioFila['id'],
+            'rut' => (string) $usuarioFila['rut'],
+            'nombre' => (string) $usuarioFila['nombre'],
+            'email' => $usuarioFila['email'] !== null ? (string) $usuarioFila['email'] : null,
+            'activo' => ((int) $usuarioFila['activo']) === 1,
+            'requiere_cambio_pwd' => ((int) $usuarioFila['requiere_cambio_pwd']) === 1,
+            'hotel_default' => $usuarioFila['hotel_default'] !== null ? (string) $usuarioFila['hotel_default'] : null,
+            'tema_preferido' => (string) $usuarioFila['tema_preferido'],
+            'created_at' => (string) $usuarioFila['created_at'],
+            'updated_at' => (string) $usuarioFila['updated_at'],
+            'last_login_at' => $usuarioFila['last_login_at'] !== null ? (string) $usuarioFila['last_login_at'] : null,
+        ];
+
+        $roles = array_column(
+            Database::fetchAll(
+                'SELECT r.nombre
+                   FROM usuarios_roles ur
+                   JOIN roles r ON r.id = ur.rol_id
+                  WHERE ur.usuario_id = ?
+                  ORDER BY r.nombre',
+                [$usuarioId]
+            ),
+            'nombre'
+        );
+
+        // Sesiones activas (sin token; user_agent truncado a 120 chars para reducir ruido).
+        $sesionesRaw = Database::fetchAll(
+            "SELECT created_at, expires_at, ip, user_agent
+               FROM sesiones
+              WHERE usuario_id = ? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              ORDER BY created_at DESC",
+            [$usuarioId]
+        );
+        $sesiones = array_map(static function (array $s): array {
+            $ua = $s['user_agent'] !== null ? (string) $s['user_agent'] : null;
+            return [
+                'creado_at' => (string) $s['created_at'],
+                'expires_at' => (string) $s['expires_at'],
+                'ip' => $s['ip'] !== null ? (string) $s['ip'] : null,
+                'user_agent' => $ua !== null && strlen($ua) > 120 ? substr($ua, 0, 120) . '...' : $ua,
+            ];
+        }, $sesionesRaw);
+
+        // Asignaciones últimos 90 días
+        $asignaciones = Database::fetchAll(
+            "SELECT a.id, a.habitacion_id, a.fecha, a.orden_cola, a.activa, a.asignado_por, a.created_at,
+                    h.numero AS habitacion_numero, h.hotel_id
+               FROM asignaciones a
+               JOIN habitaciones h ON h.id = a.habitacion_id
+              WHERE a.usuario_id = ?
+                AND a.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+              ORDER BY a.created_at DESC",
+            [$usuarioId]
+        );
+
+        // Ejecuciones últimos 90 días — timestamp_inicio/fin SOLO si el solicitante NO es la
+        // propia persona (los KPIs ocultos son tracking interno y nunca se muestran al trabajador).
+        $columnasEjec = $ocultaTimestampsKpi
+            ? 'id, habitacion_id, asignacion_id, template_id, estado, created_at'
+            : 'id, habitacion_id, asignacion_id, template_id, estado, timestamp_inicio, timestamp_fin, created_at';
+        $ejecuciones = Database::fetchAll(
+            "SELECT {$columnasEjec}
+               FROM ejecuciones_checklist
+              WHERE usuario_id = ?
+                AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+              ORDER BY created_at DESC",
+            [$usuarioId]
+        );
+
+        // Tickets: levantados o asignados a la persona
+        $tickets = Database::fetchAll(
+            "SELECT id, habitacion_id, hotel_id, titulo, descripcion, prioridad, estado,
+                    levantado_por, asignado_a, created_at, updated_at, resuelto_at,
+                    CASE
+                        WHEN levantado_por = ? AND asignado_a = ? THEN 'levantado_y_asignado'
+                        WHEN levantado_por = ? THEN 'levantado'
+                        ELSE 'asignado'
+                    END AS relacion
+               FROM tickets
+              WHERE levantado_por = ? OR asignado_a = ?
+              ORDER BY created_at DESC",
+            [$usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId]
+        );
+
+        // Últimas 50 notificaciones del inbox
+        $notificaciones = Database::fetchAll(
+            'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
+               FROM notificaciones
+              WHERE usuario_id = ?
+              ORDER BY created_at DESC
+              LIMIT 50',
+            [$usuarioId]
+        );
+
+        // Conversaciones del copilot — solo metadata, sin contenido de mensajes
+        $copilot = Database::fetchAll(
+            'SELECT id, titulo, created_at, updated_at
+               FROM copilot_conversaciones
+              WHERE usuario_id = ?
+              ORDER BY created_at DESC',
+            [$usuarioId]
+        );
+
+        // Push subscriptions — endpoint truncado, sin claves p256dh/auth
+        $pushRaw = Database::fetchAll(
+            'SELECT endpoint, created_at FROM push_subscriptions WHERE usuario_id = ? ORDER BY created_at DESC',
+            [$usuarioId]
+        );
+        $push = array_map(static function (array $p): array {
+            $endpoint = (string) $p['endpoint'];
+            return [
+                'endpoint' => strlen($endpoint) > 60 ? substr($endpoint, 0, 60) . '...' : $endpoint,
+                'creado_en' => (string) $p['created_at'],
+            ];
+        }, $pushRaw);
+
+        return [
+            'usuario' => $usuario,
+            'roles' => $roles,
+            'sesiones' => $sesiones,
+            'asignaciones' => $asignaciones,
+            'ejecuciones' => $ejecuciones,
+            'tickets' => $tickets,
+            'notificaciones' => $notificaciones,
+            'copilot' => $copilot,
+            'push' => $push,
+        ];
+    }
+
+    /**
      * @param array{activo?:?bool, rol?:?string, busqueda?:?string} $filtros
      * @return list<array<string, mixed>>
      */

@@ -73,4 +73,6 @@ return [
     ['disponibilidad.notificar_supervisora', 'Marcarse disponible para más habitaciones', 'Disponibilidad', 'propio'],
 
     ['notificaciones.ver', 'Ver el centro de notificaciones', 'Notificaciones', 'propio'],
+
+    ['usuarios.exportar_datos_propios', 'Exportar mis propios datos personales (Ley 19.628)', 'Usuarios', 'global'],
 ];
