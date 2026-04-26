@@ -119,6 +119,36 @@ final class ChecklistService
     }
 
     /**
+     * Devuelve el id de la ejecución 'en_progreso' más reciente para una habitación
+     * y trabajador específicos, o null si no existe.
+     */
+    public function obtenerEjecucionEnProgreso(int $habitacionId, int $usuarioId): ?int
+    {
+        $fila = Database::fetchOne(
+            "SELECT id FROM ejecuciones_checklist
+              WHERE habitacion_id = ? AND usuario_id = ? AND estado = 'en_progreso'
+              ORDER BY id DESC LIMIT 1",
+            [$habitacionId, $usuarioId]
+        );
+        return $fila === null ? null : (int) $fila['id'];
+    }
+
+    /**
+     * Devuelve la última ejecución (cualquier estado) para una habitación, o null.
+     * Útil para la pantalla de auditoría que muestra el último checklist completado.
+     */
+    public function obtenerUltimaEjecucionDeHabitacion(int $habitacionId): ?EjecucionChecklist
+    {
+        $fila = Database::fetchOne(
+            'SELECT * FROM ejecuciones_checklist
+              WHERE habitacion_id = ?
+              ORDER BY id DESC LIMIT 1',
+            [$habitacionId]
+        );
+        return $fila === null ? null : EjecucionChecklist::desdeFila($fila);
+    }
+
+    /**
      * Estado detallado de una ejecución con sus items y progreso.
      *
      * @return array<string, mixed>

@@ -96,18 +96,13 @@ final class ChecklistsController
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }
 
-        $ejec = \Atankalama\Limpieza\Core\Database::fetchOne(
-            "SELECT id FROM ejecuciones_checklist
-              WHERE habitacion_id = ? AND usuario_id = ? AND estado = 'en_progreso'
-              ORDER BY id DESC LIMIT 1",
-            [$habitacionId, $request->usuario->id]
-        );
-        if ($ejec === null) {
+        $ejecId = $this->svc->obtenerEjecucionEnProgreso($habitacionId, $request->usuario->id);
+        if ($ejecId === null) {
             return Response::error('EJECUCION_NO_ENCONTRADA', 'No hay ejecución en progreso para esta habitación.', 404);
         }
 
         try {
-            $this->svc->completar((int) $ejec['id'], $request->usuario->id);
+            $this->svc->completar($ejecId, $request->usuario->id);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

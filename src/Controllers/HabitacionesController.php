@@ -6,13 +6,13 @@ namespace Atankalama\Limpieza\Controllers;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\ChecklistService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Services\HotelService;
-use Atankalama\Limpieza\Core\Database;
 
 final class HabitacionesController
 {
@@ -21,6 +21,7 @@ final class HabitacionesController
         private readonly HotelService $hoteles = new HotelService(),
         private readonly AuditoriaService $auditorias = new AuditoriaService(),
         private readonly ChecklistService $checklist = new ChecklistService(),
+        private readonly AsignacionService $asignaciones = new AsignacionService(),
     ) {
     }
 
@@ -61,11 +62,7 @@ final class HabitacionesController
         // Trabajadora: solo puede ver habitaciones que le están asignadas hoy
         if (!$puedeVerTodas && $puedeVerPropias) {
             $hoy = date('Y-m-d');
-            $asignada = \Atankalama\Limpieza\Core\Database::fetchOne(
-                'SELECT id FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
-                [$id, $usuario->id, $hoy]
-            );
-            if ($asignada === null) {
+            if (!$this->asignaciones->esHabitacionAsignadaA($id, $usuario->id, $hoy)) {
                 return Response::error('SIN_PERMISO', 'No tienes esta habitación asignada.', 403);
             }
         }
@@ -102,15 +99,10 @@ final class HabitacionesController
         $auditoria = null;
 
         if (in_array($habitacion['estado'], $estadosConEjecucion, true)) {
-            $ejecFila = Database::fetchOne(
-                "SELECT * FROM ejecuciones_checklist
-                  WHERE habitacion_id = ?
-                  ORDER BY id DESC LIMIT 1",
-                [$id]
-            );
-            if ($ejecFila !== null) {
+            $ultima = $this->checklist->obtenerUltimaEjecucionDeHabitacion($id);
+            if ($ultima !== null) {
                 try {
-                    $estado = $this->checklist->estadoEjecucion((int) $ejecFila['id']);
+                    $estado = $this->checklist->estadoEjecucion($ultima->id);
                     $ejecucion = $estado['ejecucion'];
                     $items = $estado['items'];
                 } catch (ChecklistException $e) {

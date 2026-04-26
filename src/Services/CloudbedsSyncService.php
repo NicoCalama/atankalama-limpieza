@@ -194,6 +194,48 @@ final class CloudbedsSyncService
         );
     }
 
+    /**
+     * Obtiene una fila puntual del historial por id.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function obtenerHistorial(int $syncId): ?array
+    {
+        return Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+    }
+
+    /**
+     * Lista la configuración Cloudbeds (clave, valor, descripción, updated_at).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listarConfig(): array
+    {
+        return Database::fetchAll(
+            'SELECT clave, valor, descripcion, updated_at FROM cloudbeds_config ORDER BY clave'
+        );
+    }
+
+    /**
+     * Actualiza múltiples claves de cloudbeds_config en una transacción.
+     *
+     * @param array<string, mixed> $cambios mapa clave => valor
+     */
+    public function actualizarConfig(array $cambios, ?int $actorId): void
+    {
+        if ($cambios === []) {
+            return;
+        }
+        Database::transaction(function () use ($cambios, $actorId): void {
+            foreach ($cambios as $clave => $valor) {
+                Database::execute(
+                    "UPDATE cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
+                    [(string) $valor, $actorId, (string) $clave]
+                );
+            }
+        });
+    }
+
     private function crearHistorial(string $tipo, ?int $hotelId, ?int $disparadaPor): int
     {
         Database::execute(

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
-use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\CloudbedsClient;
@@ -49,14 +48,13 @@ final class CloudbedsController
         }
 
         $syncId = $this->servicio()->sincronizar($hotelId, 'manual', $request->usuario?->id);
-        $fila = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        $fila = $this->servicio()->obtenerHistorial($syncId);
         return Response::ok(['sync_id' => $syncId, 'sync' => $fila], 202);
     }
 
     public function listarConfig(Request $request): Response
     {
-        $config = Database::fetchAll('SELECT clave, valor, descripcion, updated_at FROM cloudbeds_config ORDER BY clave');
-        return Response::ok(['config' => $config]);
+        return Response::ok(['config' => $this->servicio()->listarConfig()]);
     }
 
     public function actualizarConfig(Request $request): Response
@@ -66,14 +64,7 @@ final class CloudbedsController
             return Response::error('CAMPOS_REQUERIDOS', 'cambios es obligatorio (array clave=>valor).', 400);
         }
 
-        Database::transaction(function () use ($cambios, $request): void {
-            foreach ($cambios as $clave => $valor) {
-                Database::execute(
-                    "UPDATE cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
-                    [(string) $valor, $request->usuario?->id, (string) $clave]
-                );
-            }
-        });
+        $this->servicio()->actualizarConfig($cambios, $request->usuario?->id);
 
         return Response::ok(['mensaje' => 'Configuración actualizada.']);
     }
