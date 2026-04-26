@@ -65,10 +65,10 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
     <main class="max-w-5xl mx-auto p-4 pb-24 md:pb-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <?php foreach ($visibles as $s): ?>
-                <a href="<?= $s['ruta'] ?>"
+                <a href="<?= htmlspecialchars((string) $s['ruta'], ENT_QUOTES, 'UTF-8') ?>"
                    class="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition min-h-[80px]">
                     <div class="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                        <i data-lucide="<?= $s['icono'] ?>" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                        <i data-lucide="<?= htmlspecialchars((string) $s['icono'], ENT_QUOTES, 'UTF-8') ?>" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100"><?= htmlspecialchars($s['label']) ?></p>
