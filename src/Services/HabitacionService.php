@@ -94,16 +94,28 @@ final class HabitacionService
         }
         $this->estados->aserciarTransicion($habitacion->estado, $nuevoEstado);
 
-        Database::execute(
-            "UPDATE habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            [$nuevoEstado, $id]
-        );
-
-        Logger::info('habitaciones', 'cambio de estado', [
+        $contexto = [
             'habitacion_id' => $id,
             'desde' => $habitacion->estado,
             'hasta' => $nuevoEstado,
-        ], $usuarioId);
+        ];
+
+        try {
+            Database::execute(
+                "UPDATE habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$nuevoEstado, $id]
+            );
+        } catch (\PDOException $e) {
+            Logger::error(
+                'habitaciones',
+                'cambio de estado fallido',
+                array_merge($contexto, ['error' => $e->getMessage()]),
+                $usuarioId
+            );
+            throw $e;
+        }
+
+        Logger::info('habitaciones', 'cambio de estado', $contexto, $usuarioId);
 
         Logger::audit($usuarioId, 'habitacion.cambiar_estado', 'habitacion', $id, [
             'desde' => $habitacion->estado,

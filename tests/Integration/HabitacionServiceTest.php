@@ -103,4 +103,56 @@ final class HabitacionServiceTest extends TestCase
         $this->assertNotNull($hab);
         $this->assertSame('101', $hab->numero);
     }
+
+    /**
+     * Reproduce el caso del bug: si Database::execute lanza PDOException
+     * (p. ej. FOREIGN KEY constraint failed) durante el cambio de estado,
+     * el evento debe quedar registrado como ERROR (no como INFO) y la
+     * excepción debe propagarse.
+     */
+    public function testCambiarEstadoLoggeaErrorCuandoUpdateFalla(): void
+    {
+        $id = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
+
+        // Simulamos una FK violation con un trigger que dispara RAISE(ABORT, ...)
+        // al hacer UPDATE sobre la fila, replicando el síntoma del log original.
+        Database::pdo()->exec(
+            "CREATE TRIGGER simular_fk_fallida BEFORE UPDATE ON habitaciones
+             FOR EACH ROW WHEN OLD.id = {$id}
+             BEGIN
+                 SELECT RAISE(ABORT, 'FOREIGN KEY constraint failed');
+             END"
+        );
+
+        try {
+            try {
+                $this->svc->cambiarEstado($id, Habitacion::ESTADO_EN_PROGRESO);
+                $this->fail('Debía propagar PDOException');
+            } catch (\PDOException $e) {
+                $this->assertStringContainsString('FOREIGN KEY constraint failed', $e->getMessage());
+            }
+
+            // Verificamos que se registró un evento ERROR (no INFO) para esta operación.
+            $errorLog = Database::fetchOne(
+                "SELECT nivel, mensaje FROM logs_eventos
+                  WHERE modulo = 'habitaciones' AND nivel = 'ERROR'
+               ORDER BY id DESC LIMIT 1"
+            );
+            $this->assertNotNull($errorLog, 'Debe existir log ERROR para el fallo');
+            $this->assertSame('ERROR', $errorLog['nivel']);
+            $this->assertSame('cambio de estado fallido', $errorLog['mensaje']);
+
+            // Y que NO se registró un INFO de "cambio de estado" exitoso.
+            $infoLog = Database::fetchOne(
+                "SELECT id FROM logs_eventos
+                  WHERE modulo = 'habitaciones'
+                    AND nivel = 'INFO'
+                    AND mensaje = 'cambio de estado'"
+            );
+            $this->assertNull($infoLog, 'No debe haber log INFO de éxito si el UPDATE falló');
+        } finally {
+            // Limpiamos el trigger para no afectar otros tests del mismo proceso.
+            Database::pdo()->exec('DROP TRIGGER IF EXISTS simular_fk_fallida');
+        }
+    }
 }
