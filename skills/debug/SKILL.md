@@ -23,29 +23,51 @@ Nunca propongas "puede ser X o Y, prueba los dos" sin leer primero los logs.
 
 ### Leer los logs
 
-Los logs están en `storage/logs/` en formato **JSON Lines** (un objeto JSON por línea). Leer los últimos registros:
+Los logs **se escriben a SQLite**, no a archivos JSONL. Hay dos tablas:
+
+- `logs_eventos` — eventos técnicos (INFO, WARNING, ERROR) con módulo + contexto JSON
+- `audit_log` — acciones de usuario (login, cambios, etc.) con detalles JSON
+
+`storage/logs/fallback.log` solo se escribe cuando el INSERT a `logs_eventos` falla (ej. FK violation por `usuario_id` inexistente). Si tiene contenido reciente, hay un problema con el logging mismo.
+
+Leer los últimos registros vía PHP CLI:
 
 ```bash
-# Ver las últimas 50 entradas del log de hoy
-tail -n 50 storage/logs/app-$(date +%Y-%m-%d).log
-
-# Buscar errores en los últimos logs
-grep '"level":"ERROR"' storage/logs/app-$(date +%Y-%m-%d).log | tail -20
-
-# Buscar por módulo específico
-grep '"modulo":"auth"' storage/logs/app-$(date +%Y-%m-%d).log | tail -20
-```
-
-Cada entrada tiene la forma:
-```json
-{
-  "timestamp": "2026-04-25T14:32:10-03:00",
-  "level": "ERROR",
-  "modulo": "checklist",
-  "mensaje": "Descripción del error",
-  "contexto": { ... }
+# Ultimas 20 entradas del log
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+foreach (\$db->query('SELECT created_at, nivel, modulo, mensaje FROM logs_eventos ORDER BY id DESC LIMIT 20') as \$r) {
+    echo \"[{\$r['created_at']}] [{\$r['nivel']}] [{\$r['modulo']}] {\$r['mensaje']}\n\";
 }
+"
+
+# Solo errores
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+foreach (\$db->query(\"SELECT created_at, modulo, mensaje, contexto_json FROM logs_eventos WHERE nivel='ERROR' ORDER BY id DESC LIMIT 20\") as \$r) {
+    echo \"[{\$r['created_at']}] [{\$r['modulo']}] {\$r['mensaje']} | {\$r['contexto_json']}\n\";
+}
+"
+
+# Filtrar por módulo
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+\$stmt = \$db->prepare('SELECT created_at, nivel, mensaje FROM logs_eventos WHERE modulo = ? ORDER BY id DESC LIMIT 20');
+\$stmt->execute(['auth']);
+foreach (\$stmt as \$r) { echo \"[{\$r['created_at']}] [{\$r['nivel']}] {\$r['mensaje']}\n\"; }
+"
 ```
+
+Cada fila tiene: `id`, `created_at` (ISO 8601 UTC), `nivel`, `modulo`, `mensaje`, `contexto_json`, `usuario_id`.
+
+### Si `fallback.log` tiene entradas
+
+Indica que el logger no pudo escribir a `logs_eventos`. Causas comunes:
+- FK constraint en `logs_eventos.usuario_id` (usuario referenciado no existe)
+- `database is locked` por otro proceso
+- Permisos de escritura en el archivo `database/atankalama.db`
+
+El `db_error` adjunto en cada línea de `fallback.log` indica la causa exacta.
 
 ### Identificar el tipo de error por HTTP status
 
@@ -329,12 +351,17 @@ Si usas Gmail como SMTP, `SMTP_PASS` debe ser una **App Password** de 16 caracte
 
 **Paso 3 — Revisar logs**
 
-Los errores SMTP se logean como WARNING (no interrumpen la operación principal):
+Los errores SMTP se logean como WARNING en `logs_eventos` (no interrumpen la operación principal):
 ```bash
-grep '"modulo":"email"' storage/logs/app-$(date +%Y-%m-%d).log | tail -20
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+foreach (\$db->query(\"SELECT created_at, mensaje, contexto_json FROM logs_eventos WHERE modulo='email' ORDER BY id DESC LIMIT 20\") as \$r) {
+    echo \"[{\$r['created_at']}] {\$r['mensaje']} | {\$r['contexto_json']}\n\";
+}
+"
 ```
 
-Los errores de PHPMailer aparecen en el campo `contexto.smtp_error` de la entrada de log.
+Los errores de PHPMailer aparecen en el campo `error` del JSON de `contexto_json`.
 
 **Paso 4 — Prueba manual de envío**
 
@@ -383,7 +410,12 @@ El archivo se almacena temporalmente en sesión PHP. Si el usuario tardó mucho 
 
 Revisar logs buscando el módulo del importador:
 ```bash
-grep '"modulo":"turnos_import"' storage/logs/app-$(date +%Y-%m-%d).log | tail -30
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+foreach (\$db->query(\"SELECT created_at, nivel, mensaje, contexto_json FROM logs_eventos WHERE modulo='turnos_import' ORDER BY id DESC LIMIT 30\") as \$r) {
+    echo \"[{\$r['created_at']}] [{\$r['nivel']}] {\$r['mensaje']} | {\$r['contexto_json']}\n\";
+}
+"
 ```
 
 ---
@@ -408,22 +440,27 @@ grep "^CLOUDBEDS_API_KEY_" .env | cut -d'=' -f1
 ```
 Deben existir `CLOUDBEDS_API_KEY_INN` y `CLOUDBEDS_API_KEY_PRINCIPAL`. Nunca mezclar las keys entre propiedades.
 
-**Cola de reintentos**
+**Historial de sincronización**
 
-Si Cloudbeds falla tras 3 reintentos (1s/2s/4s), la operación se encola en `cloudbeds_sync_queue`. Verificar ítems pendientes:
+Cada operación a Cloudbeds queda registrada en `cloudbeds_sync_historial` con timestamp, payload, respuesta y resultado. Ver últimos eventos fallidos:
 ```bash
 php -r "
 \$db = new PDO('sqlite:database/atankalama.db');
-\$stmt = \$db->query('SELECT * FROM cloudbeds_sync_queue WHERE procesado = 0 ORDER BY creado_en DESC LIMIT 20');
+\$stmt = \$db->query(\"SELECT created_at, accion, exito, mensaje_error FROM cloudbeds_sync_historial WHERE exito = 0 ORDER BY id DESC LIMIT 20\");
 print_r(\$stmt->fetchAll(PDO::FETCH_ASSOC));
 "
 ```
 
 **Revisar logs de escritura a Cloudbeds**
 
-Toda operación de escritura a Cloudbeds se registra:
+Toda operación de escritura a Cloudbeds se registra en `logs_eventos`:
 ```bash
-grep '"modulo":"cloudbeds"' storage/logs/app-$(date +%Y-%m-%d).log | tail -20
+php -r "
+\$db = new PDO('sqlite:database/atankalama.db');
+foreach (\$db->query(\"SELECT created_at, nivel, mensaje, contexto_json FROM logs_eventos WHERE modulo='cloudbeds' ORDER BY id DESC LIMIT 20\") as \$r) {
+    echo \"[{\$r['created_at']}] [{\$r['nivel']}] {\$r['mensaje']} | {\$r['contexto_json']}\n\";
+}
+"
 ```
 
 ---
