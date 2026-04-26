@@ -110,6 +110,34 @@ final class UsuariosController
         return $this->cambiarActivo($request, false);
     }
 
+    public function eliminar(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
+        }
+        if ($id === $request->usuario->id) {
+            return Response::error(
+                'AUTO_ELIMINACION_NO_PERMITIDA',
+                'No puedes eliminarte a ti mismo.',
+                400
+            );
+        }
+        $motivo = $request->inputString('motivo', '');
+        if ($motivo === '') {
+            $motivo = 'derecho_cancelacion';
+        }
+        try {
+            $this->svc->eliminar($id, $request->usuario->id, $motivo);
+        } catch (UsuarioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['eliminado' => true, 'usuario_id' => $id]);
+    }
+
     private function cambiarActivo(Request $request, bool $activo): Response
     {
         if ($request->usuario === null) {

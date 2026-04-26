@@ -237,6 +237,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('usuarios.activar_desactivar'),
         ]);
+        $router->delete('/api/usuarios/{id}', [$usuarios, 'eliminar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.eliminar'),
+        ]);
 
         // Turnos
         $turnos = new TurnosController();

@@ -100,6 +100,115 @@ final class UsuarioServiceTest extends TestCase
         $this->assertSame(0, $count);
     }
 
+    public function testEliminarAnonimizaYBorraDatosPersonales(): void
+    {
+        $r = $this->svc->crear(
+            ['rut' => '22222222-2', 'nombre' => 'Juan', 'email' => 'juan@ex.com'],
+            $this->adminId,
+            $this->pwd
+        );
+        $usuarioId = $r['usuario']->id;
+
+        // Datos colaterales que deben desaparecer
+        Database::execute(
+            "INSERT INTO sesiones (usuario_id, token, expires_at) VALUES (?, 'tok-eliminar', datetime('now', '+1 day'))",
+            [$usuarioId]
+        );
+        Database::execute(
+            "INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth) VALUES (?, 'https://push.example/abc', 'k', 'a')",
+            [$usuarioId]
+        );
+        Database::execute(
+            "INSERT INTO intentos_login (clave) VALUES (?)",
+            ['22222222-2|127.0.0.1']
+        );
+        Database::execute(
+            "INSERT INTO copilot_conversaciones (usuario_id, titulo) VALUES (?, 'Test')",
+            [$usuarioId]
+        );
+        $convId = Database::lastInsertId();
+        Database::execute(
+            "INSERT INTO copilot_mensajes (conversacion_id, rol, contenido) VALUES (?, 'user', 'hola')",
+            [$convId]
+        );
+
+        $this->svc->eliminar($usuarioId, $this->adminId);
+
+        // Fila sigue existiendo (FK de audit_log/ejecuciones se preservan)
+        $u = $this->svc->buscarPorId($usuarioId);
+        $this->assertNotNull($u);
+        $this->assertSame("Usuario eliminado #{$usuarioId}", $u->nombre);
+        $this->assertStringStartsWith("eliminado-{$usuarioId}-", $u->rut);
+        $this->assertNull($u->email);
+        $this->assertFalse($u->activo);
+        $this->assertFalse($u->requiereCambioPwd);
+        $this->assertSame([], $u->roles);
+
+        // Datos personales colaterales borrados
+        $this->assertSame(
+            0,
+            (int) Database::fetchOne('SELECT COUNT(*) AS n FROM sesiones WHERE usuario_id = ?', [$usuarioId])['n']
+        );
+        $this->assertSame(
+            0,
+            (int) Database::fetchOne('SELECT COUNT(*) AS n FROM push_subscriptions WHERE usuario_id = ?', [$usuarioId])['n']
+        );
+        $this->assertSame(
+            0,
+            (int) Database::fetchOne("SELECT COUNT(*) AS n FROM intentos_login WHERE clave LIKE '22222222-2|%'")['n']
+        );
+        $this->assertSame(
+            0,
+            (int) Database::fetchOne('SELECT COUNT(*) AS n FROM copilot_conversaciones WHERE usuario_id = ?', [$usuarioId])['n']
+        );
+        $this->assertSame(
+            0,
+            (int) Database::fetchOne('SELECT COUNT(*) AS n FROM copilot_mensajes WHERE conversacion_id = ?', [$convId])['n']
+        );
+    }
+
+    public function testEliminarNoPermiteAutoEliminacion(): void
+    {
+        try {
+            $this->svc->eliminar($this->adminId, $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('AUTO_ELIMINACION_NO_PERMITIDA', $e->codigo);
+            $this->assertSame(400, $e->httpStatus);
+        }
+    }
+
+    public function testEliminarUsuarioInexistenteLanza404(): void
+    {
+        try {
+            $this->svc->eliminar(999999, $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('USUARIO_NO_ENCONTRADO', $e->codigo);
+            $this->assertSame(404, $e->httpStatus);
+        }
+    }
+
+    public function testEliminarRegistraAuditLog(): void
+    {
+        $r = $this->svc->crear(['rut' => '22222222-2', 'nombre' => 'Juan'], $this->adminId, $this->pwd);
+        $usuarioId = $r['usuario']->id;
+
+        $this->svc->eliminar($usuarioId, $this->adminId, 'pidio_baja_definitiva');
+
+        $log = Database::fetchOne(
+            "SELECT accion, entidad, entidad_id, detalles_json FROM audit_log
+              WHERE accion = 'usuario.eliminar' AND entidad_id = ?
+           ORDER BY id DESC LIMIT 1",
+            [$usuarioId]
+        );
+        $this->assertNotNull($log);
+        $this->assertSame('usuario', $log['entidad']);
+        $this->assertSame($usuarioId, (int) $log['entidad_id']);
+        $detalles = json_decode((string) $log['detalles_json'], true);
+        $this->assertSame('pidio_baja_definitiva', $detalles['motivo']);
+    }
+
     public function testListarFiltraPorBusquedaYRol(): void
     {
         $rolTrab = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Trabajador'")['id'];

@@ -31,6 +31,7 @@ return [
     ['usuarios.editar', 'Editar datos de un usuario', 'Usuarios', 'global'],
     ['usuarios.resetear_password', 'Resetear contraseña de otro usuario', 'Usuarios', 'global'],
     ['usuarios.activar_desactivar', 'Dar de baja o reactivar usuarios', 'Usuarios', 'global'],
+    ['usuarios.eliminar', 'Eliminar usuarios definitivamente (derecho de cancelación)', 'Usuarios', 'global'],
     ['usuarios.asignar_rol', 'Asignar/remover roles a un usuario', 'Usuarios', 'global'],
     ['usuarios.cambiar_propia_contrasena', 'Cambiar la propia contraseña', 'Usuarios', 'propio'],
 

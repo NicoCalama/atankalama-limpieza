@@ -202,6 +202,100 @@ final class UsuarioService
     }
 
     /**
+     * Eliminación con anonimización irreversible (derecho de cancelación, Ley 19.628 art. 12).
+     *
+     * No hacemos DELETE físico porque rompería FKs en audit_log, ejecuciones_checklist,
+     * asignaciones, etc. — todos esos registros tienen valor de compliance laboral
+     * y no pueden perderse. En su lugar reescribimos los datos personales del usuario
+     * y borramos las tablas que sí contienen PII propia o de terceros (huéspedes en
+     * el caso del copilot).
+     *
+     * Cambios en `usuarios`:
+     *   - nombre → "Usuario eliminado #N"
+     *   - rut → "eliminado-{id}-{rand6}"  (mantiene UNIQUE pero ilegible)
+     *   - email → NULL
+     *   - password_hash → string aleatorio largo (jamás verifica)
+     *   - activo → 0
+     *   - requiere_cambio_pwd → 0
+     *
+     * Datos personales borrados (cascade-safe):
+     *   - sesiones, push_subscriptions
+     *   - copilot_conversaciones (y sus mensajes vía ON DELETE CASCADE)
+     *   - intentos_login asociados al RUT original (por clave 'rut|...')
+     *
+     * Datos conservados intencionalmente:
+     *   - audit_log, ejecuciones_checklist, asignaciones (compliance laboral)
+     *   - contrasenas_temporales (se mantienen para auditoría histórica;
+     *     ya no son útiles porque el password_hash fue invalidado)
+     */
+    public function eliminar(int $usuarioId, int $solicitanteId, string $motivo = 'derecho_cancelacion'): void
+    {
+        $existente = Database::fetchOne('SELECT id, rut, nombre FROM usuarios WHERE id = ?', [$usuarioId]);
+        if ($existente === null) {
+            throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
+        }
+        if ($usuarioId === $solicitanteId) {
+            throw new UsuarioException(
+                'AUTO_ELIMINACION_NO_PERMITIDA',
+                'No puedes eliminarte a ti mismo.',
+                400
+            );
+        }
+
+        $rutOriginal = (string) $existente['rut'];
+        $randSuffix = bin2hex(random_bytes(3)); // 6 caracteres hex
+        $rutAnonimo = sprintf('eliminado-%d-%s', $usuarioId, $randSuffix);
+        $nombreAnonimo = sprintf('Usuario eliminado #%d', $usuarioId);
+        // Hash aleatorio que jamás coincide con un password_verify legítimo.
+        // bcrypt válido pero sin contraseña conocida — y aunque alguien bruteforceara,
+        // el flag activo=0 lo bloquea en el login.
+        $hashInerte = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
+
+        Database::transaction(function () use (
+            $usuarioId,
+            $rutOriginal,
+            $rutAnonimo,
+            $nombreAnonimo,
+            $hashInerte
+        ): void {
+            // 1) Borrar datos de sesión activa y push (PII propia del usuario)
+            Database::execute('DELETE FROM sesiones WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM push_subscriptions WHERE usuario_id = ?', [$usuarioId]);
+
+            // 2) Borrar intentos_login asociados al RUT original (clave 'rut|ip')
+            Database::execute('DELETE FROM intentos_login WHERE clave LIKE ?', [$rutOriginal . '|%']);
+
+            // 3) Borrar copilot (texto libre con PII potencial de huéspedes).
+            //    copilot_mensajes cae por ON DELETE CASCADE.
+            Database::execute('DELETE FROM copilot_conversaciones WHERE usuario_id = ?', [$usuarioId]);
+
+            // 4) Quitar roles (irrelevantes en un usuario eliminado)
+            Database::execute('DELETE FROM usuarios_roles WHERE usuario_id = ?', [$usuarioId]);
+
+            // 5) Anonimizar la fila en `usuarios`
+            Database::execute(
+                "UPDATE usuarios
+                    SET rut = ?,
+                        nombre = ?,
+                        email = NULL,
+                        password_hash = ?,
+                        activo = 0,
+                        requiere_cambio_pwd = 0,
+                        hotel_default = NULL,
+                        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                  WHERE id = ?",
+                [$rutAnonimo, $nombreAnonimo, $hashInerte, $usuarioId]
+            );
+        });
+
+        // El audit_log conserva el solicitante, la entidad y el motivo, pero NO el RUT
+        // original (LogSanitizer + minimización de datos: ya no es necesario para el log).
+        Logger::audit($solicitanteId, 'usuario.eliminar', 'usuario', $usuarioId, [
+            'motivo' => $motivo,
+        ]);
+    }
+
+    /**
      * @param array{activo?:?bool, rol?:?string, busqueda?:?string} $filtros
      * @return list<array<string, mixed>>
      */
