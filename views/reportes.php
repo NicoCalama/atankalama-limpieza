@@ -252,6 +252,12 @@
                 <div class="flex items-center gap-2">
                     <input type="month" x-model="mensualMes" @change="cargarMensual()"
                            class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                    <button @click="exportarMensual()" :disabled="mensualCargando || mensualExportando"
+                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Exportar mes">
+                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                        <span class="hidden sm:inline" x-text="mensualExportando ? 'Exportando...' : 'Exportar'"></span>
+                    </button>
                     <button @click="cargarMensual()" :disabled="mensualCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
@@ -323,9 +329,10 @@ function reportes() {
         subtitulo: 'Cargando...',
 
         // Resumen mensual (independiente)
-        mensualMes:      new Date().toISOString().slice(0, 7), // YYYY-MM
-        mensualData:     null,
-        mensualCargando: false,
+        mensualMes:        new Date().toISOString().slice(0, 7), // YYYY-MM
+        mensualData:       null,
+        mensualCargando:   false,
+        mensualExportando: false,
 
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
@@ -440,6 +447,31 @@ function reportes() {
                 URL.revokeObjectURL(url);
             } catch (e) { /* silencioso */ } finally {
                 this.exportando = false;
+            }
+        },
+
+        async exportarMensual() {
+            if (this.mensualExportando) return;
+            var partes = (this.mensualMes || '').split('-');
+            if (partes.length !== 2) return;
+            var anio = parseInt(partes[0], 10);
+            var mes  = parseInt(partes[1], 10);
+            if (!anio || !mes) return;
+            this.mensualExportando = true;
+            try {
+                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
+                var resp = await fetch('/api/reportes/exportar-mensual?' + params.toString());
+                if (!resp.ok) { this.mensualExportando = false; return; }
+
+                var blob = await resp.blob();
+                var url  = URL.createObjectURL(blob);
+                var a    = document.createElement('a');
+                a.href     = url;
+                a.download = 'reporte_mensual_' + this.mensualMes + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) { /* silencioso */ } finally {
+                this.mensualExportando = false;
             }
         },
 

@@ -162,6 +162,62 @@ final class ReportesService
         return $output;
     }
 
+    /**
+     * CSV del resumen mensual (habitaciones + créditos por trabajador).
+     */
+    public function exportarCsvMensual(int $anio, int $mes, string $hotel): string
+    {
+        $filas = $this->resumenMensual($anio, $mes, $hotel);
+
+        $hotelLabel = match ($hotel) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama INN',
+            default => 'Ambos hoteles',
+        };
+        $meses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+
+        $rows = [];
+        $rows[] = ['Resumen mensual de limpieza por trabajador', 'Atankalama Corp'];
+        $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+        $rows[] = [];
+        $rows[] = ['Trabajador', 'Habitaciones limpiadas', 'Créditos obtenidos', 'Créditos máximos', '% Créditos'];
+
+        $totalHab = 0;
+        $totalCre = 0;
+        $totalMax = 0;
+        foreach ($filas as $f) {
+            $hab = (int) $f['habitaciones'];
+            $cre = (int) $f['creditos'];
+            $max = (int) $f['creditos_maximos'];
+            $pct = $max > 0 ? round($cre / $max * 100, 1) : '';
+            $rows[] = [$f['nombre'], $hab, $cre, $max, $pct];
+            $totalHab += $hab;
+            $totalCre += $cre;
+            $totalMax += $max;
+        }
+
+        if (!empty($filas)) {
+            $rows[] = [];
+            $pctTotal = $totalMax > 0 ? round($totalCre / $totalMax * 100, 1) : '';
+            $rows[] = ['TOTAL', $totalHab, $totalCre, $totalMax, $pctTotal];
+        }
+
+        $output = "\xEF\xBB\xBF";
+        foreach ($rows as $row) {
+            $cols = array_map(
+                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                $row
+            );
+            $output .= implode(';', $cols) . "\r\n";
+        }
+        return $output;
+    }
+
     // ─── KPIs individuales ────────────────────────────────────────────────────
 
     /** @return array<string, mixed> */

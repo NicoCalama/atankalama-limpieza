@@ -77,6 +77,33 @@ final class ReportesController
         ]);
     }
 
+    /** GET /api/reportes/exportar-mensual?anio=2026&mes=4&hotel=ambos */
+    public function exportarMensual(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null || !$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'Sin permiso.', 403);
+        }
+
+        $anio = $request->inputInt('anio') ?? (int) date('Y');
+        $mes  = $request->inputInt('mes') ?? (int) date('n');
+        $hotel = $request->inputString('hotel', 'ambos');
+
+        if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) {
+            return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
+        }
+        if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
+            $hotel = 'ambos';
+        }
+
+        $csv = $this->service->exportarCsvMensual($anio, $mes, $hotel);
+        $filename = sprintf('reporte_mensual_%04d-%02d.csv', $anio, $mes);
+
+        return (new Response(200, $csv, 'text/csv; charset=utf-8'))
+            ->conHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
+            ->conHeader('Cache-Control', 'no-store');
+    }
+
     /** GET /api/reportes/exportar */
     public function exportar(Request $request): Response
     {
