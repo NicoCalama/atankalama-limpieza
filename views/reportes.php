@@ -8,7 +8,7 @@
 ?>
 
 <div x-data="reportes()"
-     x-init="cargar(); cargarMensual()"
+     x-init="cargar(); cargarMensual(); cargarAudit()"
      @visibilitychange.window="alVolverVisible()">
 
     <!-- Header -->
@@ -68,7 +68,7 @@
 
             <!-- Hotel + Trabajadora -->
             <div class="flex flex-wrap gap-2">
-                <select x-model="hotel" @change="cargar(); cargarMensual()"
+                <select x-model="hotel" @change="cargar(); cargarMensual(); cargarAudit()"
                         class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                     <option value="ambos">Ambos hoteles</option>
                     <option value="1_sur">Atankalama</option>
@@ -305,6 +305,70 @@
             </template>
         </section>
 
+        <!-- Resumen mensual de auditorías por auditor (Supervisora / Recepción) -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0"></i>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual de auditorías</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="month" x-model="auditMes" @change="cargarAudit()"
+                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                    <button @click="exportarAudit()" :disabled="auditCargando || auditExportando"
+                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Exportar mes">
+                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                        <span class="hidden sm:inline" x-text="auditExportando ? 'Exportando...' : 'Exportar'"></span>
+                    </button>
+                    <button @click="cargarAudit()" :disabled="auditCargando"
+                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                            aria-label="Refrescar">
+                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"
+                           :class="auditCargando ? 'animate-spin' : ''"></i>
+                    </button>
+                </div>
+            </header>
+
+            <template x-if="auditCargando && !auditData">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="auditData && auditData.length === 0">
+                <div class="p-8 text-center">
+                    <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No hay auditorías registradas en este mes.</p>
+                </div>
+            </template>
+
+            <template x-if="auditData && auditData.length > 0">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Auditor</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Total</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprobadas</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="a in auditData" :key="a.usuario_id">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="a.nombre"></td>
+                                    <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100" x-text="a.total"></td>
+                                    <td class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-semibold" x-text="a.aprobadas"></td>
+                                    <td class="px-4 py-3 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="a.aprobadas_observacion"></td>
+                                    <td class="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold" x-text="a.rechazadas"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+        </section>
+
     </main>
 </div>
 
@@ -333,6 +397,12 @@ function reportes() {
         mensualData:       null,
         mensualCargando:   false,
         mensualExportando: false,
+
+        // Resumen mensual de auditorías
+        auditMes:        new Date().toISOString().slice(0, 7),
+        auditData:       null,
+        auditCargando:   false,
+        auditExportando: false,
 
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
@@ -447,6 +517,55 @@ function reportes() {
                 URL.revokeObjectURL(url);
             } catch (e) { /* silencioso */ } finally {
                 this.exportando = false;
+            }
+        },
+
+        async cargarAudit() {
+            var partes = (this.auditMes || '').split('-');
+            if (partes.length !== 2) return;
+            var anio = parseInt(partes[0], 10);
+            var mes  = parseInt(partes[1], 10);
+            if (!anio || !mes) return;
+            this.auditCargando = true;
+            try {
+                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
+                var resp = await fetch('/api/reportes/resumen-mensual-auditores?' + params.toString());
+                var json = await resp.json();
+                if (json.ok) {
+                    this.auditData = json.data.auditores || [];
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    this.auditData = [];
+                }
+            } catch (e) {
+                this.auditData = [];
+            } finally {
+                this.auditCargando = false;
+            }
+        },
+
+        async exportarAudit() {
+            if (this.auditExportando) return;
+            var partes = (this.auditMes || '').split('-');
+            if (partes.length !== 2) return;
+            var anio = parseInt(partes[0], 10);
+            var mes  = parseInt(partes[1], 10);
+            if (!anio || !mes) return;
+            this.auditExportando = true;
+            try {
+                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
+                var resp = await fetch('/api/reportes/exportar-mensual-auditores?' + params.toString());
+                if (!resp.ok) { this.auditExportando = false; return; }
+
+                var blob = await resp.blob();
+                var url  = URL.createObjectURL(blob);
+                var a    = document.createElement('a');
+                a.href     = url;
+                a.download = 'reporte_auditorias_' + this.auditMes + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) { /* silencioso */ } finally {
+                this.auditExportando = false;
             }
         },
 

@@ -163,6 +163,92 @@ final class ReportesService
     }
 
     /**
+     * Resumen mensual de auditorías por auditor (supervisora / recepción).
+     *
+     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int}>
+     */
+    public function resumenMensualAuditores(int $anio, int $mes, string $hotel): array
+    {
+        $desde = sprintf('%04d-%02d-01', $anio, $mes);
+        $hasta = date('Y-m-t', strtotime($desde));
+        $params = [$desde, $hasta];
+        $hotelCond = $this->hotelCond($hotel, $params);
+
+        return Database::fetchAll(
+            "SELECT u.id AS usuario_id,
+                    u.nombre,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN a.veredicto='aprobado' THEN 1 ELSE 0 END) AS aprobadas,
+                    SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
+                    SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas
+               FROM auditorias a
+               JOIN usuarios u ON u.id = a.auditor_id
+               JOIN habitaciones h ON h.id = a.habitacion_id
+               JOIN hoteles ho ON ho.id = h.hotel_id
+              WHERE DATE(a.created_at) BETWEEN ? AND ?
+                    {$hotelCond}
+              GROUP BY u.id, u.nombre
+              ORDER BY u.nombre",
+            $params
+        );
+    }
+
+    /**
+     * CSV del resumen mensual de auditorías.
+     */
+    public function exportarCsvMensualAuditores(int $anio, int $mes, string $hotel): string
+    {
+        $filas = $this->resumenMensualAuditores($anio, $mes, $hotel);
+
+        $hotelLabel = match ($hotel) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama INN',
+            default => 'Ambos hoteles',
+        };
+        $meses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+
+        $rows = [];
+        $rows[] = ['Resumen mensual de auditorías por auditor', 'Atankalama Corp'];
+        $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+        $rows[] = [];
+        $rows[] = ['Auditor', 'Total auditadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas'];
+
+        $totT = $totA = $totO = $totR = 0;
+        foreach ($filas as $f) {
+            $rows[] = [
+                $f['nombre'],
+                (int) $f['total'],
+                (int) $f['aprobadas'],
+                (int) $f['aprobadas_observacion'],
+                (int) $f['rechazadas'],
+            ];
+            $totT += (int) $f['total'];
+            $totA += (int) $f['aprobadas'];
+            $totO += (int) $f['aprobadas_observacion'];
+            $totR += (int) $f['rechazadas'];
+        }
+        if (!empty($filas)) {
+            $rows[] = [];
+            $rows[] = ['TOTAL', $totT, $totA, $totO, $totR];
+        }
+
+        $output = "\xEF\xBB\xBF";
+        foreach ($rows as $row) {
+            $cols = array_map(
+                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                $row
+            );
+            $output .= implode(';', $cols) . "\r\n";
+        }
+        return $output;
+    }
+
+    /**
      * CSV del resumen mensual (habitaciones + créditos por trabajador).
      */
     public function exportarCsvMensual(int $anio, int $mes, string $hotel): string

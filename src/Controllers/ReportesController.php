@@ -77,6 +77,69 @@ final class ReportesController
         ]);
     }
 
+    /** GET /api/reportes/resumen-mensual-auditores?anio=2026&mes=4&hotel=ambos */
+    public function resumenMensualAuditores(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
+        }
+
+        [$anio, $mes, $hotel] = $this->parsearMes($request);
+        if ($anio === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
+        }
+
+        $filas = $this->service->resumenMensualAuditores($anio, $mes, $hotel);
+
+        return Response::ok([
+            'anio'  => $anio,
+            'mes'   => $mes,
+            'hotel' => $hotel,
+            'auditores' => $filas,
+        ]);
+    }
+
+    /** GET /api/reportes/exportar-mensual-auditores?anio=2026&mes=4&hotel=ambos */
+    public function exportarMensualAuditores(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null || !$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'Sin permiso.', 403);
+        }
+
+        [$anio, $mes, $hotel] = $this->parsearMes($request);
+        if ($anio === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
+        }
+
+        $csv = $this->service->exportarCsvMensualAuditores($anio, $mes, $hotel);
+        $filename = sprintf('reporte_auditorias_%04d-%02d.csv', $anio, $mes);
+
+        return (new Response(200, $csv, 'text/csv; charset=utf-8'))
+            ->conHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
+            ->conHeader('Cache-Control', 'no-store');
+    }
+
+    /** @return array{0: int|null, 1: int, 2: string} */
+    private function parsearMes(Request $request): array
+    {
+        $anio = $request->inputInt('anio') ?? (int) date('Y');
+        $mes  = $request->inputInt('mes') ?? (int) date('n');
+        $hotel = $request->inputString('hotel', 'ambos');
+
+        if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) {
+            return [null, 0, 'ambos'];
+        }
+        if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
+            $hotel = 'ambos';
+        }
+        return [$anio, $mes, $hotel];
+    }
+
     /** GET /api/reportes/exportar-mensual?anio=2026&mes=4&hotel=ambos */
     public function exportarMensual(Request $request): Response
     {
