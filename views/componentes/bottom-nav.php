@@ -27,18 +27,10 @@ if ($usuario->tieneAlgunPermiso(['habitaciones.ver_asignadas_propias', 'habitaci
     ];
 }
 
-// Alertas — solo supervisora/admin con permiso
-if ($usuario->tienePermiso('alertas.recibir_predictivas')) {
-    $items[] = [
-        'ruta' => '/alertas',
-        'icono' => 'bell-ring',
-        'label' => 'Alertas',
-        'activo' => str_starts_with($rutaActual, '/alertas'),
-    ];
-}
+// Alertas: el panel ya aparece en la home (Supervisora/Admin); no hay página dedicada en MVP.
 
-// Tickets — visible si puede ver propios o todos
-if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos', 'tickets.crear'])) {
+// Tickets — visible si puede ver propios o todos (NO solo crear — el trabajador no debe ver la lista)
+if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos'])) {
     $items[] = [
         'ruta' => '/tickets',
         'icono' => 'wrench',

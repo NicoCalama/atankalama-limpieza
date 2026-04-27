@@ -433,7 +433,7 @@ function homeSupervisora() {
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
-            { valor: '1_sur', etiqueta: 'Atankalama 1 Sur' },
+            { valor: '1_sur', etiqueta: 'Atankalama' },
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
         ],
 
@@ -631,8 +631,9 @@ function homeSupervisora() {
                 return;
             }
             if (accion === 'reasignar_hab') {
-                var habId = al.contexto && al.contexto.habitacion_id;
-                if (habId) window.location.href = '/habitaciones/' + habId;
+                // La página de Asignaciones tiene el modal de reasignación con todas las
+                // habitaciones rechazadas/sucias listas. /habitaciones/{id} muestra detalle bloqueado.
+                window.location.href = '/asignaciones';
                 return;
             }
             if (accion === 'asignar') {

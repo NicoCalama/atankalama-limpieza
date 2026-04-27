@@ -184,8 +184,8 @@ function modalUsuarioNuevo() {
         },
         hoteles: [
             { valor: '', label: 'Ninguno' },
-            { valor: '1_sur', label: '1 Sur' },
-            { valor: 'inn', label: 'Inn' },
+            { valor: '1_sur', label: 'Atankalama' },
+            { valor: 'inn', label: 'Atankalama Inn' },
         ],
 
         async abrir() {

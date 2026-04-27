@@ -267,23 +267,31 @@ require_once __DIR__ . '/componentes/avatar.php';
                 <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno hoy.</p>
             </template>
             <template x-if="data && data.trabajadores.length > 0">
-                <ul class="space-y-1.5 max-h-[60vh] overflow-y-auto">
-                    <template x-for="tr in trabajadoresOrdenados()" :key="tr.usuario.id">
-                        <li>
-                            <button @click="confirmarAsignar(tr)"
-                                    :disabled="modalAsignar.enviando"
-                                    class="w-full flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50">
-                                <span class="flex items-center gap-2 min-w-0">
-                                    <span x-html="avatarUsuario(tr.usuario)"></span>
-                                    <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></span>
-                                </span>
-                                <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                    <span x-text="tr.progreso.pendientes + tr.progreso.en_progreso"></span> pendientes
-                                </span>
-                            </button>
-                        </li>
+                <div>
+                    <input x-model="modalAsignar.busqueda" type="text"
+                           placeholder="Buscar trabajador por nombre..."
+                           class="w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                    <template x-if="trabajadoresFiltrados().length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Sin coincidencias.</p>
                     </template>
-                </ul>
+                    <ul class="space-y-1.5 max-h-[55vh] overflow-y-auto" x-show="trabajadoresFiltrados().length > 0">
+                        <template x-for="tr in trabajadoresFiltrados()" :key="tr.usuario.id">
+                            <li>
+                                <button @click="confirmarAsignar(tr)"
+                                        :disabled="modalAsignar.enviando"
+                                        class="w-full flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50">
+                                    <span class="flex items-center gap-2 min-w-0">
+                                        <span x-html="avatarUsuario(tr.usuario)"></span>
+                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></span>
+                                    </span>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                                        <span x-text="tr.progreso.pendientes + tr.progreso.en_progreso"></span> pendientes
+                                    </span>
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
             </template>
         </div>
     </div>
@@ -352,12 +360,12 @@ function asignacionesApp() {
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
-        modalAsignar: { abierto: false, enviando: false },
+        modalAsignar: { abierto: false, enviando: false, busqueda: '' },
         modalReasignar: { abierto: false, origen: null, habitacion: null, motivo: '', enviando: false },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
-            { valor: '1_sur', etiqueta: 'Atankalama 1 Sur' },
+            { valor: '1_sur', etiqueta: 'Atankalama' },
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
         ],
 
@@ -444,12 +452,12 @@ function asignacionesApp() {
         // --- Asignar múltiples ---
 
         abrirAsignar() {
-            this.modalAsignar = { abierto: true, enviando: false };
+            this.modalAsignar = { abierto: true, enviando: false, busqueda: '' };
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
         cerrarAsignar() {
-            this.modalAsignar = { abierto: false, enviando: false };
+            this.modalAsignar = { abierto: false, enviando: false, busqueda: '' };
         },
 
         trabajadoresOrdenados() {
@@ -458,6 +466,15 @@ function asignacionesApp() {
                 var cA = a.progreso.pendientes + a.progreso.en_progreso;
                 var cB = b.progreso.pendientes + b.progreso.en_progreso;
                 return cA - cB;
+            });
+        },
+
+        trabajadoresFiltrados() {
+            var lista = this.trabajadoresOrdenados();
+            var q = (this.modalAsignar.busqueda || '').trim().toLowerCase();
+            if (!q) return lista;
+            return lista.filter(function (tr) {
+                return (tr.usuario.nombre || '').toLowerCase().includes(q);
             });
         },
 

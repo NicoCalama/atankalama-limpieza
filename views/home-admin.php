@@ -468,7 +468,7 @@ function homeAdmin() {
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
-            { valor: '1_sur', etiqueta: 'Atankalama 1 Sur' },
+            { valor: '1_sur', etiqueta: 'Atankalama' },
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
         ],
 

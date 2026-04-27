@@ -43,16 +43,9 @@ if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     ];
 }
 
-if ($usuario->tienePermiso('alertas.recibir_predictivas')) {
-    $items[] = [
-        'ruta' => '/alertas',
-        'icono' => 'bell-ring',
-        'label' => 'Alertas',
-        'activo' => str_starts_with($rutaActual, '/alertas'),
-    ];
-}
+// Alertas: el panel ya aparece en la home (Supervisora/Admin); no hay página dedicada en MVP.
 
-if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos', 'tickets.crear'])) {
+if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos'])) {
     $items[] = [
         'ruta' => '/tickets',
         'icono' => 'wrench',

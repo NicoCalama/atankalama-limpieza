@@ -74,33 +74,12 @@
                     </template>
                 </div>
 
-                <!-- Título -->
-                <div>
-                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Título *</label>
-                    <input type="text" x-model="form.titulo" maxlength="80" required
-                           placeholder="Ej: Lámpara quemada"
-                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
-                </div>
-
                 <!-- Descripción -->
                 <div>
-                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Descripción *</label>
-                    <textarea x-model="form.descripcion" rows="3" maxlength="500" required
-                              placeholder="Detalle del problema..."
+                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Descripción del problema *</label>
+                    <textarea x-model="form.descripcion" rows="4" maxlength="500" required
+                              placeholder="Cuéntanos qué pasa..."
                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
-                </div>
-
-                <!-- Prioridad -->
-                <div>
-                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prioridad</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        <template x-for="p in ['baja', 'normal', 'alta', 'urgente']" :key="p">
-                            <button type="button" @click="form.prioridad = p"
-                                    :class="form.prioridad === p ? claseBotonPrioridadActiva(p) : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600'"
-                                    class="min-h-[44px] px-2 py-1 text-xs font-medium rounded-lg border transition capitalize"
-                                    x-text="p"></button>
-                        </template>
-                    </div>
                 </div>
 
                 <!-- Error inline -->
@@ -145,9 +124,7 @@ function modalTicketNuevo() {
         form: {
             hotel_id: null,
             habitacion_id: null,
-            titulo: '',
             descripcion: '',
-            prioridad: 'normal',
         },
 
         async abrir(detail) {
@@ -172,7 +149,7 @@ function modalTicketNuevo() {
         },
 
         reset() {
-            this.form = { hotel_id: null, habitacion_id: null, titulo: '', descripcion: '', prioridad: 'normal' };
+            this.form = { hotel_id: null, habitacion_id: null, descripcion: '' };
             this.error = null;
             this.enviando = false;
             this.busquedaHabitacion = '';
@@ -216,20 +193,12 @@ function modalTicketNuevo() {
 
         nombreHotelCorto(codigo) {
             if (codigo === 'inn') return 'Inn';
-            if (codigo === '1_sur') return '1 Sur';
+            if (codigo === '1_sur') return 'Atankalama';
             return codigo || '';
-        },
-
-        claseBotonPrioridadActiva(p) {
-            if (p === 'urgente') return 'bg-red-600 text-white border-red-600';
-            if (p === 'alta') return 'bg-amber-500 text-white border-amber-500';
-            if (p === 'normal') return 'bg-blue-600 text-white border-blue-600';
-            return 'bg-gray-600 text-white border-gray-600';
         },
 
         formValido() {
             return this.form.hotel_id !== null
-                && (this.form.titulo || '').trim().length > 0
                 && (this.form.descripcion || '').trim().length > 0;
         },
 
@@ -238,11 +207,14 @@ function modalTicketNuevo() {
             this.enviando = true;
             this.error = null;
             try {
+                var descripcion = (this.form.descripcion || '').trim();
+                // Título auto-generado desde la descripción (primeros 80 chars, sin saltos de línea)
+                var titulo = descripcion.replace(/\s+/g, ' ').slice(0, 80);
                 var payload = {
                     hotel_id: this.form.hotel_id,
-                    titulo: (this.form.titulo || '').trim(),
-                    descripcion: (this.form.descripcion || '').trim(),
-                    prioridad: this.form.prioridad,
+                    titulo: titulo,
+                    descripcion: descripcion,
+                    prioridad: 'normal',
                 };
                 if (this.form.habitacion_id !== null) payload.habitacion_id = this.form.habitacion_id;
                 var r = await apiPost('/api/tickets', payload);
