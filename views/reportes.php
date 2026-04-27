@@ -8,7 +8,7 @@
 ?>
 
 <div x-data="reportes()"
-     x-init="cargar()"
+     x-init="cargar(); cargarMensual()"
      @visibilitychange.window="alVolverVisible()">
 
     <!-- Header -->
@@ -68,7 +68,7 @@
 
             <!-- Hotel + Trabajadora -->
             <div class="flex flex-wrap gap-2">
-                <select x-model="hotel" @change="cargar()"
+                <select x-model="hotel" @change="cargar(); cargarMensual()"
                         class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                     <option value="ambos">Ambos hoteles</option>
                     <option value="1_sur">Atankalama</option>
@@ -242,6 +242,63 @@
             </div>
         </template>
 
+        <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual por trabajador</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="month" x-model="mensualMes" @change="cargarMensual()"
+                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                    <button @click="cargarMensual()" :disabled="mensualCargando"
+                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                            aria-label="Refrescar">
+                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"
+                           :class="mensualCargando ? 'animate-spin' : ''"></i>
+                    </button>
+                </div>
+            </header>
+
+            <template x-if="mensualCargando && !mensualData">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="mensualData && mensualData.length === 0">
+                <div class="p-8 text-center">
+                    <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No hay actividad registrada en este mes.</p>
+                </div>
+            </template>
+
+            <template x-if="mensualData && mensualData.length > 0">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitaciones</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Créditos</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="t in mensualData" :key="t.usuario_id">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="t.nombre"></td>
+                                    <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></td>
+                                    <td class="px-4 py-3 text-right">
+                                        <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.creditos"></span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400" x-text="' / ' + t.creditos_maximos"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+        </section>
+
     </main>
 </div>
 
@@ -264,6 +321,11 @@ function reportes() {
         trabajadoras: [],
 
         subtitulo: 'Cargando...',
+
+        // Resumen mensual (independiente)
+        mensualMes:      new Date().toISOString().slice(0, 7), // YYYY-MM
+        mensualData:     null,
+        mensualCargando: false,
 
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
@@ -314,6 +376,31 @@ function reportes() {
                 this.error = true;
             } finally {
                 this.cargando = false;
+            }
+        },
+
+        async cargarMensual() {
+            // mensualMes viene como 'YYYY-MM'
+            var partes = (this.mensualMes || '').split('-');
+            if (partes.length !== 2) return;
+            var anio = parseInt(partes[0], 10);
+            var mes  = parseInt(partes[1], 10);
+            if (!anio || !mes) return;
+            this.mensualCargando = true;
+            try {
+                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
+                var resp = await fetch('/api/reportes/resumen-mensual?' + params.toString());
+                var json = await resp.json();
+                if (json.ok) {
+                    this.mensualData = json.data.trabajadores || [];
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    this.mensualData = [];
+                }
+            } catch (e) {
+                this.mensualData = [];
+            } finally {
+                this.mensualCargando = false;
             }
         },
 

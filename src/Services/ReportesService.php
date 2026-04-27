@@ -41,6 +41,39 @@ final class ReportesService
         );
     }
 
+    /**
+     * Resumen mensual: cantidad de habitaciones limpiadas y créditos por trabajador.
+     *
+     * @return list<array{usuario_id:int, nombre:string, habitaciones:int, creditos:int, creditos_maximos:int}>
+     */
+    public function resumenMensual(int $anio, int $mes, string $hotel): array
+    {
+        $desde = sprintf('%04d-%02d-01', $anio, $mes);
+        $hasta = date('Y-m-t', strtotime($desde));
+        $params = [$desde, $hasta];
+        $hotelCond = $this->hotelCond($hotel, $params);
+
+        return Database::fetchAll(
+            "SELECT u.id AS usuario_id,
+                    u.nombre,
+                    COUNT(DISTINCT ec.id) AS habitaciones,
+                    SUM(CASE WHEN ei.marcado = 1 AND (ei.desmarcado_por_auditor = 0 OR ei.desmarcado_por_auditor IS NULL) THEN 1 ELSE 0 END) AS creditos,
+                    COUNT(ic.id) AS creditos_maximos
+               FROM ejecuciones_checklist ec
+               JOIN usuarios u ON u.id = ec.usuario_id
+               JOIN habitaciones h ON h.id = ec.habitacion_id
+               JOIN hoteles ho ON ho.id = h.hotel_id
+               JOIN items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
+          LEFT JOIN ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                    {$hotelCond}
+              GROUP BY u.id, u.nombre
+              ORDER BY u.nombre",
+            $params
+        );
+    }
+
     /** @return list<array<string, mixed>> */
     public function kpisPorTrabajadora(string $desde, string $hasta, string $hotel): array
     {
