@@ -22,6 +22,20 @@ final class AsignacionService
         $this->desactivarAsignacionesActivas($habitacionId);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
+        // Si la habitación venía de auditoría como rechazada, al reasignarla
+        // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza.
+        // La auditoría histórica permanece inmutable (otra ejecución_checklist).
+        $estadoActual = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$habitacionId]);
+        if ($estadoActual !== null && $estadoActual['estado'] === 'rechazada') {
+            Database::execute(
+                "UPDATE habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$habitacionId]
+            );
+            Logger::info('habitaciones', 'rechazada→sucia por reasignación', [
+                'habitacion_id' => $habitacionId, 'asignado_por' => $asignadoPor,
+            ]);
+        }
+
         Database::execute(
             'INSERT INTO asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
             [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha]
@@ -190,14 +204,15 @@ final class AsignacionService
     {
         $filtroHotel = ($hotel === 'ambos') ? null : $hotel;
 
-        // Habitaciones sucias SIN asignación activa hoy
+        // Habitaciones sucias o rechazadas SIN asignación activa hoy
+        // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
         $sqlSin = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                      FROM habitaciones h
                      JOIN hoteles ho ON ho.id = h.hotel_id
                      JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
                 LEFT JOIN asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.activa = 1
-                      AND h.estado = \'sucia\'
+                      AND h.estado IN (\'sucia\', \'rechazada\')
                       AND a.id IS NULL';
         $paramsSin = [$fecha];
         if ($filtroHotel !== null) {

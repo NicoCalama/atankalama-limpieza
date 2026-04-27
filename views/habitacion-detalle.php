@@ -133,6 +133,21 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <p class="text-sm text-indigo-900 dark:text-indigo-200">Esta habitación está esperando auditoría.</p>
                     </div>
                 </template>
+
+                <!-- Rechazada: reasignar (Supervisora/Admin) -->
+                <template x-if="habitacion.estado === 'rechazada' && puedeAsignar">
+                    <div class="mt-3 space-y-2">
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-start gap-3">
+                            <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
+                            <p class="text-sm text-red-900 dark:text-red-200">Esta habitación fue rechazada en auditoría y necesita re-limpieza.</p>
+                        </div>
+                        <a href="/asignaciones"
+                           class="w-full min-h-[48px] inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-sm">
+                            <i data-lucide="user-check" class="w-5 h-5"></i>
+                            Reasignar a un trabajador
+                        </a>
+                    </div>
+                </template>
             </div>
 
             <!-- Checklist (en_progreso o completada_pendiente_auditoria o auditada con ejecución) -->
@@ -221,6 +236,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         progreso: { marcados: 0, total: 0, porcentaje: 0, obligatorios_total: 0, obligatorios_marcados: 0, obligatorios_pendientes: 0 },
         estaAsignada: false,
         puedeVerTodas: false,
+        puedeAsignar: false,
 
         cargando: false,
         error: null,
@@ -258,6 +274,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 var yo = Alpine.store('auth');
                 if (yo && yo.cargado) {
                     this.puedeVerTodas = yo.tienePermiso('habitaciones.ver_todas');
+                    this.puedeAsignar = yo.tienePermiso('asignaciones.asignar_manual');
                 }
 
                 var r1 = await apiFetch('/api/habitaciones/' + this.habitacionId);
