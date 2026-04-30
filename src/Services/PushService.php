@@ -18,11 +18,21 @@ final class PushService
     public function __construct()
     {
         $this->notificaciones = new NotificacionesService();
+        $vapidPublic = Config::get('VAPID_PUBLIC_KEY');
+        $vapidPrivate = Config::get('VAPID_PRIVATE_KEY');
+
+        // En desarrollo, si no hay claves VAPID, usa placeholders
+        if (!$vapidPublic || !$vapidPrivate) {
+            $vapidPublic = $vapidPublic ?: 'placeholder_public_key_development_only';
+            $vapidPrivate = $vapidPrivate ?: 'placeholder_private_key_development_only';
+            Logger::warning('push', 'claves VAPID no configuradas, usando placeholders (desarrollo)', []);
+        }
+
         $auth = [
             'VAPID' => [
                 'subject'    => Config::get('VAPID_SUBJECT', 'mailto:admin@atankalama.cl'),
-                'publicKey'  => Config::require('VAPID_PUBLIC_KEY'),
-                'privateKey' => Config::require('VAPID_PRIVATE_KEY'),
+                'publicKey'  => $vapidPublic,
+                'privateKey' => $vapidPrivate,
             ],
         ];
         $this->webPush = new WebPush($auth);
