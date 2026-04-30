@@ -1,0 +1,11 @@
+Options -Indexes
+
+RewriteEngine On
+
+# Archivos estáticos y directorios pasan directo
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Todo lo demás va al front-controller
+RewriteRule ^ index.php [QSA,L]

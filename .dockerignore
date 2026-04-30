@@ -1,0 +1,14 @@
+.env
+.env.*
+vendor/
+database/*.db
+database/*.db-shm
+database/*.db-wal
+tests/
+.git/
+.gitignore
+.github/
+.DS_Store
+node_modules/
+*.md
+!docker-entrypoint.sh
