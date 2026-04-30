@@ -12,20 +12,26 @@ use Minishlink\WebPush\WebPush;
 
 final class PushService
 {
-    private WebPush $webPush;
+    private ?WebPush $webPush = null;
     private NotificacionesService $notificaciones;
 
     public function __construct()
     {
         $this->notificaciones = new NotificacionesService();
-        $vapidPublic = Config::get('VAPID_PUBLIC_KEY');
+    }
+
+    private function webPush(): ?WebPush
+    {
+        if ($this->webPush !== null) {
+            return $this->webPush;
+        }
+
+        $vapidPublic  = Config::get('VAPID_PUBLIC_KEY');
         $vapidPrivate = Config::get('VAPID_PRIVATE_KEY');
 
-        // En desarrollo, si no hay claves VAPID, usa placeholders
         if (!$vapidPublic || !$vapidPrivate) {
-            $vapidPublic = $vapidPublic ?: 'placeholder_public_key_development_only';
-            $vapidPrivate = $vapidPrivate ?: 'placeholder_private_key_development_only';
-            Logger::warning('push', 'claves VAPID no configuradas, usando placeholders (desarrollo)', []);
+            Logger::warning('push', 'claves VAPID no configuradas, notificaciones push deshabilitadas', []);
+            return null;
         }
 
         $auth = [
@@ -38,6 +44,7 @@ final class PushService
         $this->webPush = new WebPush($auth);
         $this->webPush->setReuseVAPIDHeaders(true);
         $this->webPush->setDefaultOptions(['TTL' => 3600]);
+        return $this->webPush;
     }
 
     public function suscribir(int $usuarioId, string $endpoint, string $p256dh, string $auth): void
@@ -86,6 +93,9 @@ final class PushService
 
         if (empty($suscripciones)) return;
 
+        $webPush = $this->webPush();
+        if ($webPush === null) return;
+
         $payload = json_encode([
             'title'               => $titulo,
             'body'                => $cuerpo,
@@ -104,10 +114,10 @@ final class PushService
                     'auth'   => $sub['auth'],
                 ],
             ]);
-            $this->webPush->queueNotification($subscription, $payload);
+            $webPush->queueNotification($subscription, $payload);
         }
 
-        foreach ($this->webPush->flush() as $report) {
+        foreach ($webPush->flush() as $report) {
             if (!$report->isSuccess()) {
                 $caidas[] = $report->getEndpoint();
                 // Limpiar suscripciones con endpoint inválido (410 Gone)
