@@ -158,9 +158,9 @@ function seedAdminInicial(): void
         return;
     }
 
-    $passwordService = new PasswordService();
-    $passwordTemporal = $passwordService->generarTemporal();
-    $hash = $passwordService->hash($passwordTemporal);
+    $passwordService  = new PasswordService();
+    $passwordTemporal = 'Admin2025!';
+    $hash             = $passwordService->hash($passwordTemporal);
 
     Database::execute(
         'INSERT INTO usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
