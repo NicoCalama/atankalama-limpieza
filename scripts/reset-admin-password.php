@@ -15,7 +15,7 @@ $db       = new PDO("sqlite:{$dbAbs}");
 $password = 'Admin2025!';
 $hash     = password_hash($password, PASSWORD_BCRYPT);
 
-$stmt = $db->prepare('UPDATE usuarios SET password_hash = ?, debe_cambiar_password = 1 WHERE rut = ?');
+$stmt = $db->prepare('UPDATE usuarios SET password_hash = ?, requiere_cambio_pwd = 1 WHERE rut = ?');
 $stmt->execute([$hash, '11111111-1']);
 
 if ($stmt->rowCount() === 0) {
