@@ -21,37 +21,55 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
-                        <input type="password"
-                               x-model="passwordActual"
-                               autocomplete="current-password"
-                               class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                      border border-gray-300 dark:border-gray-600 rounded-lg
-                                      text-gray-900 dark:text-gray-100
-                                      focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div class="relative">
+                            <input :type="verActual ? 'text' : 'password'"
+                                   x-model="passwordActual"
+                                   autocomplete="current-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 text-base bg-gray-50 dark:bg-gray-700
+                                          border border-gray-300 dark:border-gray-600 rounded-lg
+                                          text-gray-900 dark:text-gray-100
+                                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="button" @click="verActual = !verActual"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="verActual ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-                        <input type="password"
-                               x-model="passwordNueva"
-                               placeholder="Mínimo 8 caracteres, 1 letra y 1 número"
-                               autocomplete="new-password"
-                               class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                      border border-gray-300 dark:border-gray-600 rounded-lg
-                                      text-gray-900 dark:text-gray-100
-                                      focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div class="relative">
+                            <input :type="verNueva ? 'text' : 'password'"
+                                   x-model="passwordNueva"
+                                   placeholder="Mínimo 8 caracteres, 1 letra y 1 número"
+                                   autocomplete="new-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 text-base bg-gray-50 dark:bg-gray-700
+                                          border border-gray-300 dark:border-gray-600 rounded-lg
+                                          text-gray-900 dark:text-gray-100
+                                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="button" @click="verNueva = !verNueva"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="verNueva ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                         <p x-show="passwordNueva && !validarPwd()" class="text-xs text-amber-600 dark:text-amber-400 mt-1">
                             Mínimo 8 caracteres, al menos 1 letra y 1 número
                         </p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-                        <input type="password"
-                               x-model="passwordConfirm"
-                               autocomplete="new-password"
-                               class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                      border border-gray-300 dark:border-gray-600 rounded-lg
-                                      text-gray-900 dark:text-gray-100
-                                      focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div class="relative">
+                            <input :type="verConfirm ? 'text' : 'password'"
+                                   x-model="passwordConfirm"
+                                   autocomplete="new-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 text-base bg-gray-50 dark:bg-gray-700
+                                          border border-gray-300 dark:border-gray-600 rounded-lg
+                                          text-gray-900 dark:text-gray-100
+                                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="button" @click="verConfirm = !verConfirm"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="verConfirm ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                         <p x-show="passwordConfirm && passwordNueva !== passwordConfirm" class="text-xs text-red-600 dark:text-red-400 mt-1">
                             Las contraseñas no coinciden
                         </p>
@@ -86,6 +104,9 @@ function cambiarPwdApp() {
         passwordActual: '',
         passwordNueva: '',
         passwordConfirm: '',
+        verActual: false,
+        verNueva: false,
+        verConfirm: false,
         cargando: false,
         error: '',
 

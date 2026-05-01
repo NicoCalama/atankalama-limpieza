@@ -30,21 +30,39 @@
         <div class="p-4 space-y-4">
             <div>
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
-                <input type="password" x-model="form.actual" autocomplete="current-password"
-                       class="w-full min-h-[44px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <div class="relative">
+                    <input :type="ver.actual ? 'text' : 'password'" x-model="form.actual" autocomplete="current-password"
+                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" @click="ver.actual = !ver.actual"
+                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <i :data-lucide="ver.actual ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
 
             <div>
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-                <input type="password" x-model="form.nueva" autocomplete="new-password"
-                       class="w-full min-h-[44px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <div class="relative">
+                    <input :type="ver.nueva ? 'text' : 'password'" x-model="form.nueva" autocomplete="new-password"
+                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" @click="ver.nueva = !ver.nueva"
+                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <i :data-lucide="ver.nueva ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                    </button>
+                </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Mínimo 8 caracteres.</p>
             </div>
 
             <div>
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-                <input type="password" x-model="form.confirmar" autocomplete="new-password"
-                       class="w-full min-h-[44px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <div class="relative">
+                    <input :type="ver.confirmar ? 'text' : 'password'" x-model="form.confirmar" autocomplete="new-password"
+                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" @click="ver.confirmar = !ver.confirmar"
+                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <i :data-lucide="ver.confirmar ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
 
             <div x-show="error" x-cloak
@@ -85,9 +103,11 @@ function modalCambiarPasswordApp() {
         error: '',
         exito: false,
         form: { actual: '', nueva: '', confirmar: '' },
+        ver: { actual: false, nueva: false, confirmar: false },
 
         abrir() {
             this.form = { actual: '', nueva: '', confirmar: '' };
+            this.ver = { actual: false, nueva: false, confirmar: false };
             this.error = '';
             this.exito = false;
             this.abierto = true;
