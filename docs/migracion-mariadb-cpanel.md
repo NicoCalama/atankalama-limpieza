@@ -1,6 +1,6 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> **Estado: Fase 1 casi completa** (rama `feat/migracion-mariadb`). Tokenización (paso 6) hecha y verificada; restan los fixes en origen (paso 7) y los 3 scripts de PDO crudo (paso 8). Última actualización: 2026-06-29.
+> **Estado: Fase 1 COMPLETA** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-29.
 
 ## Estado actual y cómo retomar
 
@@ -14,13 +14,30 @@
 - **fix**: `JOIN` roto en `AuditoriaService` (`p.codigo = rp.permiso_codigo`) → suite de 184/185 a 185/185.
 - **fix(MariaDB)** (hallazgos de la revisión): tabla dinámica tokenizada en `cleanup-retention.php` (`FROM #__{$tabla}`); `Database::driver()` + guardia en `AuthService::asegurarTablaIntentosLogin()` para no ejecutar el DDL solo-SQLite de `intentos_login` fuera de SQLite (evita login caído en MariaDB).
 
-**Pendiente — retomar aquí:**
-1. ✅ ~~Tokenizar las 435 referencias~~ — hecho (linter en 21; restan solo los 3 scripts de PDO crudo de abajo).
-2. **Fixes en origen** (no auto-traducibles por el motor de dialecto): `julianday()` (HomeService, ReportesService), aritmética de fechas `datetime('now','-N días')` / concat `||` (UsuarioService, CopilotService), `ON CONFLICT` (PushService, TurnosImportService) → calcular en PHP y pasar como parámetro, o reescribir.
-3. **Los 3 scripts de PDO crudo** (el linter los marca; el token no se expande ahí): `scripts/init-db.php` (4) → reescribir para MariaDB (multi-statement + `sqlite_master`→`information_schema`); `scripts/reset-admin-password.php` (1) → migrar a `Database` o usar DSN MariaDB propio; `scripts/prepare-demo-video.php` (16) → solo-demo local, migrar a `Database` o marcar como solo-SQLite.
-4. **Baja (limpieza)**: `scripts/migrate-add-notificaciones.php` crea `notificaciones` por PDO crudo sin prefijo (dialecto solo-SQLite) → deprecar o whitelistear; la ruta canónica es `database-schema.mariadb.sql`.
+**Hecho en esta sesión (cierra Fase 1):**
 
-**Verificación:** la suite PHPUnit (SQLite) corre en **PHP 8.2 local** y queda **185/185** (543 assertions; el fallo pre-existente de `AuditoriaServiceTest` quedó corregido). OJO: la suite **NO** detecta tokens faltantes (el prefijo es inerte en SQLite) → para eso está el **linter**, complementado con una revisión independiente que cubre los huecos que el linter no ve (nombres dinámicos, DDL en runtime / PDO crudo). La correctitud del SQL MariaDB se valida en **staging** (no hay MariaDB local; opción acordada con el dueño).
+- **Paso 7 — Fixes en origen** (no auto-traducibles por el motor de dialecto). Se centralizó la lógica de dialecto en `Database` con helpers puros y testeables:
+  - `julianday(fin)-julianday(inicio)` → `Database::diffMinutosSql($ini,$fin)` (SQLite: `julianday`; MariaDB: `TIMESTAMPDIFF(SECOND, …)/60.0` normalizando el ISO). Sitios: `HomeService:275`, `ReportesService:317`.
+  - Aritmética de fechas relativa `strftime('now','-90 days')` y `'-' || ? || ' hours'` → umbral calculado en PHP (`gmdate`) y pasado como parámetro. Sitios: `UsuarioService:378/392`, `CopilotService:151`.
+  - `ON CONFLICT(...) DO UPDATE` → `Database::onConflictUpdate($conflict,$update)` (SQLite: `ON CONFLICT … excluded`; MariaDB: `ON DUPLICATE KEY UPDATE … VALUES()`). Sitios: `PushService:55`, `TurnosImportService:163`. Las UNIQUE keys ya existen en ambos esquemas.
+- **Paso 8 — Scripts de PDO crudo:**
+  - `scripts/init-db.php`: driver-aware. Selecciona schema (`database-schema.mariadb.sql` en MariaDB), check de existencia por `information_schema` (vs `sqlite_master`), aplica statement-por-statement con prefijo en MariaDB / archivo completo en SQLite, listado filtrado por prefijo, y sync RBAC vía `Database` con tokens `#__`.
+  - `scripts/reset-admin-password.php`: migrado a `Config`+`Database` (token `#__usuarios`, driver configurado).
+  - `scripts/prepare-demo-video.php` y `scripts/migrate-add-notificaciones.php`: **guard solo-SQLite** al inicio + **whitelist** en `lint-prefix-tokens.php` (son herramientas locales que no corren en MariaDB).
+
+**Hallazgos NUEVOS de esta sesión** (no estaban en el handoff previo; encontrados por barrido exhaustivo + audit adversarial con MariaDB 10.11 real en Docker):
+- **`LIMIT ?`** con prepares nativos (`ATTR_EMULATE_PREPARES=false`): riesgo de fallo en MySQL al bindear el entero como string. Corregido inline con `(int)` (seguro en ambos motores) en `NotificacionesService:48/80`, `AlertasService:158`, `CloudbedsSyncService:192`. *Nota: la verificación empírica fue ambigua (un verificador lo vio funcionar en MariaDB 10.11); el fix es defensivo y de comportamiento idéntico.*
+- **`DATE(<col_iso>)`** (13 sitios en `ReportesService`/`HomeService`): el audit **refutó empíricamente** que rompa (MariaDB parsea el ISO con `T`/`Z` y solo emite Warning 1292). Aun así se agregó la traducción `DATE(col) → SUBSTR(col,1,10)` al motor de dialecto como **mejora de robustez** (sin warnings, sin depender de la coerción laxa; `SUBSTR` ≡ `DATE` validado).
+
+**Verificación:** suite PHPUnit (SQLite) en **PHP 8.2 local** = **198/198** (560 assertions; +13 tests nuevos en `tests/Unit/DatabaseDialectTest.php` que **fijan el SQL MariaDB** de `translateDialect`/`diffMinutosSql`/`onConflictUpdate` sin necesitar un MariaDB). Linter de tokens = **0**. `init-db.php` validado end-to-end en SQLite (32 tablas) y el splitter del schema MariaDB validado offline (73 statements: 32 tablas + 41 índices, 0 malformados). La suite **NO** detecta tokens/dialecto roto (inerte en SQLite) → por eso el **linter** + los **tests de dialecto** + el **audit adversarial**. La correctitud final del SQL MariaDB se confirma en **staging** (no hay MariaDB local).
+
+**Revisión independiente (2026-06-29):** 4 lentes con contexto limpio (dialecto, seguridad, completitud, tests) + verificación adversarial → **0 bloqueantes, 0 críticos/altos**. Deuda menor anotada (no bloqueante):
+- `push_subscriptions`: el UNIQUE diverge entre motores — SQLite usa `endpoint` completo, MariaDB `endpoint(191)` (límite de índice utf8mb4). Riesgo real ínfimo (dos endpoints que difieran solo después de 191 chars); es decisión de esquema pre-existente.
+- Los helpers `diffMinutosSql`/`onConflictUpdate` interpolan nombres de columna sin escape: hoy solo reciben literales del código (documentado en sus docblocks); validar columnas sería un endurecimiento futuro.
+- El splitter de `init-db.php` asume `;` solo como terminador y comentarios de línea completa: válido para el schema MariaDB actual (sin triggers/BEGIN-END ni `;` en literales).
+- `DatabaseDialectTest` fija las cadenas SQL pero no ejecuta el SQLite generado contra un PDO real, y no cubre la variante `strftime %S` (ningún call-site la usa).
+
+> Nota de entorno: correr `phpunit` en paralelo en Windows produce errores espurios (`table permisos already exists`) por lock de WAL sobre `test.db` entre clases de test. NO es regresión (confirmado con `stash` del diff: mismos errores sin los cambios); en solitario la suite queda **198/198**.
 
 ## Contexto y decisión
 
@@ -74,8 +91,8 @@ crudo sin ORM**, así que el prefijo y el dialecto MariaDB se construyen a mano.
 4. ✅ **Motor de dialecto** `Database::applyDialect()` (traduce SQLite→MariaDB en runtime; reemplaza la idea original de reescribir cada query).
 5. ✅ `scripts/lint-prefix-tokens.php` (verificador de tokens, sin MariaDB).
 6. ✅ Tokenizadas 414 referencias en 25 archivos seguros (linter 435→21; los 21 restantes = 3 scripts de PDO crudo). Incluye fixes de revisión (`cleanup-retention` dinámico, `AuthService`/`Database::driver()`). Suite 185/185.
-7. ⬜ Fixes en origen no auto-traducibles: `julianday()`, aritmética `datetime('now','-N días')`/`||`, `ON CONFLICT`.
-8. ⬜ Reescribir/migrar los 3 scripts de PDO crudo: `scripts/init-db.php` para MariaDB (multi-statement + `information_schema`), `reset-admin-password.php` y `prepare-demo-video.php` a `Database`.
+7. ✅ Fixes en origen no auto-traducibles: `julianday()` (helper `diffMinutosSql`), aritmética `strftime('now','-N')`/`||` (umbral en PHP), `ON CONFLICT` (helper `onConflictUpdate`). Extra: `LIMIT ?` inline `(int)` y traducción `DATE(col)→SUBSTR` en el motor.
+8. ✅ Scripts de PDO crudo: `scripts/init-db.php` driver-aware (MariaDB statement-por-statement + `information_schema`), `reset-admin-password.php` vía `Database`, `prepare-demo-video.php` y `migrate-add-notificaciones.php` con guard solo-SQLite + whitelist en el linter.
 
 **Fase 2 — Empaquetado cPanel**
 - Stub `index.php`, `.htaccess`, layout `app_core/`, `.env` de prod, crons, backup `mysqldump`.

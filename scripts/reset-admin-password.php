@@ -1,24 +1,26 @@
 <?php
+
 declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$dbPath = getenv('DB_PATH') ?: 'database/atankalama.db';
-$dbAbs  = str_starts_with($dbPath, '/') ? $dbPath : __DIR__ . '/../' . $dbPath;
+use Atankalama\Limpieza\Core\Config;
+use Atankalama\Limpieza\Core\Database;
 
-if (!file_exists($dbAbs)) {
-    echo "Error: base de datos no encontrada en {$dbAbs}\n";
-    exit(1);
-}
+Config::load(dirname(__DIR__));
 
-$db       = new PDO("sqlite:{$dbAbs}");
 $password = 'Admin2025!';
 $hash     = password_hash($password, PASSWORD_BCRYPT);
 
-$stmt = $db->prepare('UPDATE usuarios SET password_hash = ?, requiere_cambio_pwd = 1 WHERE rut = ?');
-$stmt->execute([$hash, '11111111-1']);
+// Pasa por Database (token #__ + driver configurado) → funciona en SQLite y MariaDB.
+$filas = Database::execute(
+    'UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 1 WHERE rut = ?',
+    [$hash, '11111111-1']
+);
 
-if ($stmt->rowCount() === 0) {
+if ($filas === 0) {
+    // En MariaDB rowCount cuenta filas CAMBIADAS; un hash bcrypt nuevo siempre difiere del
+    // anterior, así que 0 ⇒ no existe el usuario (no un no-op por valor idéntico).
     echo "No se encontró usuario con RUT 11111111-1\n";
     exit(1);
 }

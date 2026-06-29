@@ -188,9 +188,9 @@ final class CloudbedsSyncService
     /** @return array<int, array<string, mixed>> */
     public function historial(int $limite = 50): array
     {
+        // LIMIT inline (entero ya clampeado): los prepares nativos de MySQL rechazan 'LIMIT ?'.
         return Database::fetchAll(
-            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ?',
-            [max(1, min(200, $limite))]
+            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ' . max(1, min(200, $limite))
         );
     }
 

@@ -157,10 +157,11 @@ final class TurnosImportService
                 $turnoId = $this->encontrarOCrearTurno($fila['turno_nombre'], $fila['hora_inicio'], $fila['hora_fin']);
 
                 if ($reemplazar) {
+                    $onConflict = Database::onConflictUpdate(['usuario_id', 'fecha'], ['turno_id']);
                     Database::execute(
-                        'INSERT INTO #__usuarios_turnos (usuario_id, turno_id, fecha)
+                        "INSERT INTO #__usuarios_turnos (usuario_id, turno_id, fecha)
                          VALUES (?, ?, ?)
-                         ON CONFLICT(usuario_id, fecha) DO UPDATE SET turno_id = excluded.turno_id',
+                         {$onConflict}",
                         [$fila['usuario_id'], $turnoId, $fila['fecha']]
                     );
                 } else {

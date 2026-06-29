@@ -40,13 +40,15 @@ final class NotificacionesService
     /** Devuelve las últimas notificaciones del usuario (más recientes primero). */
     public function listar(int $usuarioId, int $limite = 30): array
     {
+        // LIMIT con valor inline (entero validado): los prepares nativos de MySQL rechazan
+        // 'LIMIT ?' con binding de string. El cast (int) evita cualquier inyección.
         return Database::fetchAll(
             'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
                FROM #__notificaciones
               WHERE usuario_id = ?
               ORDER BY created_at DESC
-              LIMIT ?',
-            [$usuarioId, $limite]
+              LIMIT ' . (int) $limite,
+            [$usuarioId]
         );
     }
 
@@ -77,9 +79,9 @@ final class NotificacionesService
                     SELECT id FROM #__notificaciones
                      WHERE usuario_id = ?
                      ORDER BY created_at DESC
-                     LIMIT ?
+                     LIMIT ' . (int) self::MAX_POR_USUARIO . '
                 )',
-            [$usuarioId, $usuarioId, self::MAX_POR_USUARIO]
+            [$usuarioId, $usuarioId]
         );
     }
 }

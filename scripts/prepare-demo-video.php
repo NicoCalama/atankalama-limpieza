@@ -20,6 +20,14 @@ use Atankalama\Limpieza\Services\PasswordService;
 
 Config::load(dirname(__DIR__));
 
+// Solo-SQLite: herramienta de preparación de demo local. Usa PDO crudo con nombres de tabla
+// SIN prefijo y SQL en dialecto SQLite (no pasa por Database::applyDialect), así que no aplica
+// a MariaDB. El linter de tokens lo excluye por esto.
+if (Database::driver() !== 'sqlite') {
+    fwrite(STDERR, "Este script es solo para la BD SQLite de demo local (usa DB_CONNECTION=sqlite).\n");
+    exit(1);
+}
+
 $pdo = Database::pdo();
 $hoy = date('Y-m-d');
 $ahora = date('Y-m-d H:i:s');

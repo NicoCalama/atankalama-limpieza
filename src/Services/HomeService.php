@@ -272,7 +272,7 @@ final class HomeService
 
         // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel
         $tiempoProm = Database::fetchOne(
-            'SELECT AVG((julianday(e.timestamp_fin) - julianday(e.timestamp_inicio)) * 1440) AS prom
+            'SELECT AVG(' . Database::diffMinutosSql('e.timestamp_inicio', 'e.timestamp_fin') . ') AS prom
                FROM #__ejecuciones_checklist e
                JOIN #__habitaciones h ON h.id = e.habitacion_id
               WHERE h.hotel_id = ?

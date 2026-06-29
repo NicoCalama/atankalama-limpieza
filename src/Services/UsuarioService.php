@@ -368,6 +368,10 @@ final class UsuarioService
             ];
         }, $sesionesRaw);
 
+        // Umbral "últimos 90 días" calculado en PHP (mismo formato ISO que Database::now())
+        // para no depender de strftime('now','-N days') de SQLite → portable a MariaDB.
+        $desde90 = gmdate('Y-m-d\TH:i:s.000\Z', time() - 90 * 86400);
+
         // Asignaciones últimos 90 días
         $asignaciones = Database::fetchAll(
             "SELECT a.id, a.habitacion_id, a.fecha, a.orden_cola, a.activa, a.asignado_por, a.created_at,
@@ -375,9 +379,9 @@ final class UsuarioService
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.usuario_id = ?
-                AND a.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+                AND a.created_at >= ?
               ORDER BY a.created_at DESC",
-            [$usuarioId]
+            [$usuarioId, $desde90]
         );
 
         // Ejecuciones últimos 90 días — timestamp_inicio/fin SOLO si el solicitante NO es la
@@ -389,9 +393,9 @@ final class UsuarioService
             "SELECT {$columnasEjec}
                FROM #__ejecuciones_checklist
               WHERE usuario_id = ?
-                AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+                AND created_at >= ?
               ORDER BY created_at DESC",
-            [$usuarioId]
+            [$usuarioId, $desde90]
         );
 
         // Tickets: levantados o asignados a la persona

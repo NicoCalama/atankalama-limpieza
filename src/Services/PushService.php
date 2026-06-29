@@ -49,10 +49,11 @@ final class PushService
 
     public function suscribir(int $usuarioId, string $endpoint, string $p256dh, string $auth): void
     {
+        $onConflict = Database::onConflictUpdate(['usuario_id', 'endpoint'], ['p256dh', 'auth']);
         Database::execute(
-            'INSERT INTO #__push_subscriptions (usuario_id, endpoint, p256dh, auth)
+            "INSERT INTO #__push_subscriptions (usuario_id, endpoint, p256dh, auth)
              VALUES (?, ?, ?, ?)
-             ON CONFLICT(usuario_id, endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth',
+             {$onConflict}",
             [$usuarioId, $endpoint, $p256dh, $auth]
         );
     }

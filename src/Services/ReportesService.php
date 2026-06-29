@@ -314,7 +314,7 @@ final class ReportesService
         $u = $this->userCond($usuarioId, $params, 'ec');
 
         $fila = Database::fetchOne(
-            "SELECT ROUND(AVG((julianday(ec.timestamp_fin) - julianday(ec.timestamp_inicio)) * 24 * 60), 1) AS valor,
+            "SELECT ROUND(AVG(" . Database::diffMinutosSql('ec.timestamp_inicio', 'ec.timestamp_fin') . "), 1) AS valor,
                     COUNT(*) AS total
                FROM #__ejecuciones_checklist ec
                JOIN #__habitaciones h ON h.id = ec.habitacion_id

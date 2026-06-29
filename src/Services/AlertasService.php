@@ -155,8 +155,8 @@ final class AlertasService
             $sql .= ' WHERE tipo = ?';
             $params[] = $tipo;
         }
-        $sql .= ' ORDER BY levantada_at DESC LIMIT ?';
-        $params[] = $limit;
+        // LIMIT inline (entero validado): los prepares nativos de MySQL rechazan 'LIMIT ?'.
+        $sql .= ' ORDER BY levantada_at DESC LIMIT ' . (int) $limit;
         return Database::fetchAll($sql, $params);
     }
 

@@ -145,12 +145,15 @@ final class CopilotService
         }
 
         // Buscar conversación reciente
+        // Umbral "hace N horas" calculado en PHP (formato ISO de Database::now()) para no
+        // depender de strftime('now','-N hours')/concat '||' de SQLite → portable a MariaDB.
+        $umbralReciente = gmdate('Y-m-d\TH:i:s.000\Z', time() - self::CONVERSATION_TIMEOUT_HOURS * 3600);
         $reciente = Database::fetchOne(
             "SELECT id FROM #__copilot_conversaciones
               WHERE usuario_id = ?
-                AND updated_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' hours')
+                AND updated_at > ?
               ORDER BY updated_at DESC LIMIT 1",
-            [$usuario->id, self::CONVERSATION_TIMEOUT_HOURS]
+            [$usuario->id, $umbralReciente]
         );
         if ($reciente !== null) {
             return (int) $reciente['id'];

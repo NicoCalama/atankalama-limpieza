@@ -9,35 +9,73 @@ use Atankalama\Limpieza\Core\Database;
 
 Config::load(dirname(__DIR__));
 
-$schemaFile = dirname(__DIR__) . '/docs/database-schema.sql';
+$driver  = Database::driver();
+$esMaria = $driver === 'mysql' || $driver === 'mariadb';
+
+// Schema según motor: el de MariaDB trae tokens #__ (Database::applyPrefix los expande a
+// DB_PREFIX, p.ej. 'limpieza_'); el de SQLite usa nombres planos (DB_PREFIX vacío en local).
+$schemaFile = $esMaria
+    ? dirname(__DIR__) . '/docs/database-schema.mariadb.sql'
+    : dirname(__DIR__) . '/docs/database-schema.sql';
+
 if (!is_file($schemaFile)) {
     fwrite(STDERR, "No se encontró el schema: {$schemaFile}\n");
     exit(1);
 }
 
-$dbPath = Config::basePath() . DIRECTORY_SEPARATOR . Config::get('DB_PATH', 'database/atankalama.db');
-
 $recrear = in_array('--fresh', $argv, true);
-if ($recrear && is_file($dbPath)) {
-    Database::reset();
-    unlink($dbPath);
-    echo "Base de datos anterior eliminada: {$dbPath}\n";
+if ($recrear) {
+    if ($esMaria) {
+        // En la BD compartida de cPanel NO auto-borramos tablas: demasiado peligroso
+        // (conviven con maisterchef_*). Si hace falta, borra las limpieza_* a mano.
+        fwrite(STDERR, "--fresh no está soportado en MariaDB (BD compartida). Borra las tablas limpieza_* manualmente si lo necesitas.\n");
+        exit(1);
+    }
+    $dbPath = Config::basePath() . DIRECTORY_SEPARATOR . Config::get('DB_PATH', 'database/atankalama.db');
+    if (is_file($dbPath)) {
+        Database::reset();
+        unlink($dbPath);
+        echo "Base de datos anterior eliminada: {$dbPath}\n";
+    }
 }
 
 $pdo = Database::pdo();
-$sql = file_get_contents($schemaFile);
-if ($sql === false) {
-    fwrite(STDERR, "No se pudo leer el schema\n");
-    exit(1);
-}
 
-$schemaYaAplicado = $pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='permisos'")->fetchColumn();
+// ¿Ya está aplicado el schema? Se chequea la tabla permisos (ya prefijada según el motor).
+$tablaPermisos = Database::tabla('permisos');
+if ($esMaria) {
+    $stmt = $pdo->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?');
+} else {
+    $stmt = $pdo->prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?");
+}
+$stmt->execute([$tablaPermisos]);
+$schemaYaAplicado = (bool) $stmt->fetchColumn();
+
 if ($schemaYaAplicado) {
     echo "Schema ya aplicado previamente — omito CREATE TABLE.\n";
-    echo "(usa --fresh para borrar y recrear desde cero)\n";
+    if (!$esMaria) {
+        echo "(usa --fresh para borrar y recrear desde cero)\n";
+    }
 } else {
+    $sqlRaw = file_get_contents($schemaFile);
+    if ($sqlRaw === false) {
+        fwrite(STDERR, "No se pudo leer el schema\n");
+        exit(1);
+    }
+    // Expande el token de prefijo (#__ -> DB_PREFIX) antes de aplicar el schema.
+    $sqlRaw = Database::applyPrefix($sqlRaw);
     try {
-        $pdo->exec($sql);
+        if ($esMaria) {
+            // MariaDB: statement por statement (mejores errores; el multi-statement de MySQL
+            // puede enmascarar fallos). El schema MariaDB es DDL limpio, sin PRAGMA.
+            foreach (dividirEnStatements($sqlRaw) as $statement) {
+                $pdo->exec($statement);
+            }
+        } else {
+            // SQLite: ejecuta el archivo completo de una vez — maneja multi-statement, PRAGMA y
+            // comentarios nativamente. Es el comportamiento probado del init original.
+            $pdo->exec($sqlRaw);
+        }
         echo "Schema aplicado correctamente.\n";
     } catch (\PDOException $e) {
         fwrite(STDERR, "Error aplicando schema: " . $e->getMessage() . "\n");
@@ -45,23 +83,34 @@ if ($schemaYaAplicado) {
     }
 }
 
-$tablas = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")->fetchAll(\PDO::FETCH_COLUMN);
-echo "Tablas creadas (" . count($tablas) . "):\n";
+// Listado de tablas de esta app (en MariaDB se filtra por prefijo para no listar las de
+// otras apps que comparten la base, p.ej. maisterchef_*).
+if ($esMaria) {
+    $todas = $pdo->query('SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name')
+        ->fetchAll(\PDO::FETCH_COLUMN);
+    $prefijo = Database::prefix();
+    $tablas = array_values(array_filter($todas, static fn ($t): bool => str_starts_with((string) $t, $prefijo)));
+} else {
+    $tablas = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")->fetchAll(\PDO::FETCH_COLUMN);
+}
+echo "Tablas (" . count($tablas) . "):\n";
 foreach ($tablas as $tabla) {
     echo "  - {$tabla}\n";
 }
 
-// Sincronización RBAC idempotente: agrega permisos nuevos del catálogo y
-// reasegura __ALL__ para Admin. Se ejecuta en cada deploy para que cambios
-// en database/seeds/permisos.php se apliquen sin requerir un re-seed manual.
+// Sincronización RBAC idempotente: agrega permisos nuevos del catálogo y reasegura los
+// permisos por rol. Se ejecuta en cada deploy para aplicar cambios en database/seeds/
+// sin requerir un re-seed manual. Pasa por Database (token #__ + dialecto portable).
 echo "\nSincronizando catálogo RBAC...\n";
 $seedDir = dirname(__DIR__) . '/database/seeds';
 $catalogoPermisos = require $seedDir . '/permisos.php';
-$stmtIns = $pdo->prepare('INSERT OR IGNORE INTO permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)');
 $nuevos = 0;
 foreach ($catalogoPermisos as [$codigo, $descripcion, $categoria, $scope]) {
-    $stmtIns->execute([$codigo, $descripcion, $categoria, $scope]);
-    if ($stmtIns->rowCount() > 0) {
+    $stmt = Database::query(
+        'INSERT OR IGNORE INTO #__permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)',
+        [$codigo, $descripcion, $categoria, $scope]
+    );
+    if ($stmt->rowCount() > 0) {
         $nuevos++;
     }
 }
@@ -69,18 +118,41 @@ echo "  permisos: " . count($catalogoPermisos) . " en catálogo, {$nuevos} nuevo
 
 // Re-asegurar permisos por rol según database/seeds/roles.php
 $catalogoRoles = require $seedDir . '/roles.php';
-$codigosTodos = $pdo->query('SELECT codigo FROM permisos')->fetchAll(\PDO::FETCH_COLUMN);
+$codigosTodos = array_column(Database::fetchAll('SELECT codigo FROM #__permisos'), 'codigo');
 foreach ($catalogoRoles as $rol) {
-    $rolId = (int) $pdo->query("SELECT id FROM roles WHERE nombre = " . $pdo->quote($rol['nombre']))->fetchColumn();
+    $rolId = (int) Database::fetchColumn('SELECT id FROM #__roles WHERE nombre = ?', [$rol['nombre']]);
     if ($rolId === 0) {
         continue; // El rol aún no existe (el seed inicial no se corrió). seed.php se encargará.
     }
     $permisosRol = $rol['permisos'] === '__ALL__' ? $codigosTodos : $rol['permisos'];
-    $stmtRol = $pdo->prepare('INSERT OR IGNORE INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)');
     foreach ($permisosRol as $cod) {
-        $stmtRol->execute([$rolId, $cod]);
+        Database::query(
+            'INSERT OR IGNORE INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
+            [$rolId, $cod]
+        );
     }
 }
 echo "  roles: " . count($catalogoRoles) . " sincronizados\n";
 
 echo "\nSi es la primera vez, ejecuta también `php scripts/seed.php` para cargar datos iniciales.\n";
+
+/**
+ * Divide un script SQL (DDL de MariaDB) en statements ejecutables por separado. Quita las
+ * líneas de comentario (-- ...) ANTES de partir en ';' para no cortar dentro de un comentario
+ * ni ejecutar chunks de solo comentario. Asume que ';' solo aparece como terminador de
+ * statement (cierto en el schema MariaDB del proyecto: los CHECK(... IN ('a','b')) usan comas).
+ *
+ * @return list<string>
+ */
+function dividirEnStatements(string $sql): array
+{
+    $sql = (string) preg_replace('/^\s*--.*$/m', '', $sql);
+    $statements = [];
+    foreach (explode(';', $sql) as $chunk) {
+        $stmt = trim($chunk);
+        if ($stmt !== '') {
+            $statements[] = $stmt;
+        }
+    }
+    return $statements;
+}
