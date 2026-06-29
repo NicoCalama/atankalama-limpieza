@@ -1,6 +1,22 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> Estado: **Fase 1 en progreso** (iniciada 2026-06-28). Rama git: `feat/migracion-mariadb`.
+> **Estado: Fase 1 en progreso** (rama `feat/migracion-mariadb`, commits `f6a4813`..`1974a7a`). Última actualización: 2026-06-29.
+
+## Estado actual y cómo retomar
+
+**Hecho y commiteado (verificado, el camino SQLite/local queda 100% intacto):**
+- Capa de datos driver-aware (`DB_CONNECTION=sqlite|mariadb`) + prefijo por token `#__` + `Database::now()`.
+- Plantillas `.env` con la config MariaDB (`DB_PREFIX=limpieza_`, `cat6852_australia`).
+- `docs/database-schema.mariadb.sql` (32 tablas, dialecto MySQL, tokens `#__`) — **verificado adversarialmente** (paridad + validez MariaDB 10.11 + tokens); fix `endpoint(191)`.
+- **Motor de dialecto** `Database::applyDialect()`: traduce SQLite→MariaDB en runtime SOLO si el driver es mysql/mariadb (`strftime('now')`, `date('now')`, `INSERT OR IGNORE/REPLACE`, `GROUP_CONCAT`). Las queries se escriben una sola vez (dialecto SQLite) y corren en ambos motores; en SQLite es passthrough.
+- `scripts/lint-prefix-tokens.php`: verificador (sin MariaDB) de referencias de tabla sin `#__`.
+
+**Pendiente — retomar aquí:**
+1. **Tokenizar las 435 referencias** de tabla en 27 archivos (`#__` antes de cada tabla en posición `FROM/JOIN/INTO/UPDATE`). Correr `php scripts/lint-prefix-tokens.php` para la lista; objetivo: que dé **0**. Recomendado: Workflow por archivo, con el **linter + la suite** como gates tras cada lote.
+2. **Fixes en origen** (no auto-traducibles por el motor de dialecto): `julianday()` (HomeService, ReportesService), aritmética de fechas `datetime('now','-N días')` / concat `||` (UsuarioService, CopilotService), `ON CONFLICT` (PushService, TurnosImportService) → calcular en PHP y pasar como parámetro, o reescribir.
+3. `scripts/init-db.php` para MariaDB (aplicar esquema multi-statement + `sqlite_master`→`information_schema`). **Trampa**: `scripts/reset-admin-password.php` abre su PROPIO PDO `sqlite:` (no usa `Database`) → migrarlo a `Database` o NO tokenizarlo a ciegas (el token `#__` no se reemplazaría).
+
+**Verificación:** la suite PHPUnit (SQLite) corre en **PHP 8.2 local** (184/185). OJO: la suite **NO** detecta tokens faltantes (el prefijo es inerte en SQLite) → para eso está el **linter**. La correctitud del SQL MariaDB se valida en **staging** (no hay MariaDB local; opción acordada con el dueño). Hay 1 test pre-existente fallando (`AuditoriaServiceTest::testRechazado...`, `no such column: p.id` en `AuditoriaService.php:203`) **ajeno a la migración**.
 
 ## Contexto y decisión
 
@@ -47,16 +63,15 @@ crudo sin ORM**, así que el prefijo y el dialecto MariaDB se construyen a mano.
 
 ## Plan por fases
 
-**Fase 1 — Capa de datos portable (en progreso)**
-1. `src/Core/Database.php`: conexión según `DB_CONNECTION` (sqlite|mariadb) + reemplazo de
-   token `#__` por `DB_PREFIX` + helper `now()`.
-2. `.env.example` / `.env.production.example`: variables MariaDB + `DB_PREFIX`.
-3. Esquema MariaDB (`docs/database-schema.mariadb.sql`) con token `#__` y dialecto MySQL.
-4. Sweep de queries en ~14 servicios: tokenizar nombres de tabla, reemplazar `strftime`/
-   `julianday`, `INSERT OR IGNORE`→`INSERT IGNORE`, `ON CONFLICT`→`ON DUPLICATE KEY`,
-   `GROUP_CONCAT(expr, sep)`→`GROUP_CONCAT(expr SEPARATOR sep)`.
-5. `scripts/init-db.php`: aplicar esquema multi-statement + detectar tablas vía
-   `information_schema` (no `sqlite_master`).
+**Fase 1 — Capa de datos portable** *(ver "Estado actual" arriba para el detalle)*
+1. ✅ `src/Core/Database.php`: conexión por `DB_CONNECTION` (sqlite|mariadb) + token `#__`→`DB_PREFIX` + `Database::now()`.
+2. ✅ `.env.example` / `.env.production.example`: variables MariaDB + `DB_PREFIX`.
+3. ✅ `docs/database-schema.mariadb.sql` (32 tablas, dialecto MySQL, tokens `#__`) — verificado.
+4. ✅ **Motor de dialecto** `Database::applyDialect()` (traduce SQLite→MariaDB en runtime; reemplaza la idea original de reescribir cada query).
+5. ✅ `scripts/lint-prefix-tokens.php` (verificador de tokens, sin MariaDB).
+6. ⬜ Tokenizar las 435 referencias de tabla en 27 archivos (linter = 0 + suite verde).
+7. ⬜ Fixes en origen no auto-traducibles: `julianday()`, aritmética `datetime('now','-N días')`/`||`, `ON CONFLICT`.
+8. ⬜ `scripts/init-db.php` para MariaDB (multi-statement + `information_schema`) y migrar `reset-admin-password.php` a `Database`.
 
 **Fase 2 — Empaquetado cPanel**
 - Stub `index.php`, `.htaccess`, layout `app_core/`, `.env` de prod, crons, backup `mysqldump`.
