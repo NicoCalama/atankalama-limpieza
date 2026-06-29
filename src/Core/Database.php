@@ -88,6 +88,42 @@ final class Database
         return str_replace(self::PREFIX_TOKEN, self::prefix(), $sql);
     }
 
+    /**
+     * Aplica el prefijo de tabla Y traduce el SQL (escrito en dialecto SQLite) al
+     * motor activo. En SQLite es passthrough (salvo el prefijo); en MariaDB/MySQL
+     * traduce las construcciones SQLite no portables. Las queries de los Services se
+     * escriben UNA vez (dialecto SQLite) y corren en ambos motores.
+     *
+     * Traduce (solo mysql/mariadb):
+     *   strftime('%Y-%m-%dT%H:%M:%fZ','now') -> CONCAT(REPLACE(UTC_TIMESTAMP(3),' ','T'),'Z')
+     *   date('now')                           -> UTC_DATE()
+     *   INSERT OR IGNORE                      -> INSERT IGNORE
+     *   INSERT OR REPLACE                     -> REPLACE
+     *   GROUP_CONCAT(x, 'sep')                -> GROUP_CONCAT(x SEPARATOR 'sep')
+     *
+     * NO cubre (se resuelven calculando en PHP y pasando el valor como parametro,
+     * por ser ambiguos para traducir): julianday(), aritmetica datetime('now',
+     * '-N days') y el concat '||'. Tampoco ON CONFLICT (se reescribe en el origen).
+     */
+    public static function applyDialect(string $sql): string
+    {
+        $sql = self::applyPrefix($sql);
+
+        $driver = strtolower((string) Config::get('DB_CONNECTION', 'sqlite'));
+        if ($driver !== 'mysql' && $driver !== 'mariadb') {
+            return $sql;
+        }
+
+        $isoUtc = "CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')";
+        $sql = preg_replace("/strftime\\(\\s*'%Y-%m-%dT%H:%M:%[fS]Z'\\s*,\\s*'now'\\s*\\)/i", $isoUtc, $sql);
+        $sql = preg_replace("/\\bdate\\(\\s*'now'\\s*\\)/i", 'UTC_DATE()', $sql);
+        $sql = preg_replace("/\\bINSERT\\s+OR\\s+IGNORE\\b/i", 'INSERT IGNORE', $sql);
+        $sql = preg_replace("/\\bINSERT\\s+OR\\s+REPLACE\\b/i", 'REPLACE', $sql);
+        $sql = preg_replace("/GROUP_CONCAT\\(\\s*([^,()]+?)\\s*,\\s*('[^']*')\\s*\\)/i", 'GROUP_CONCAT($1 SEPARATOR $2)', $sql);
+
+        return $sql;
+    }
+
     /** Nombre de tabla ya prefijado (para construir SQL dinámico). */
     public static function tabla(string $nombre): string
     {
@@ -108,7 +144,7 @@ final class Database
 
     public static function query(string $sql, array $params = []): PDOStatement
     {
-        $stmt = self::pdo()->prepare(self::applyPrefix($sql));
+        $stmt = self::pdo()->prepare(self::applyDialect($sql));
         $stmt->execute($params);
         return $stmt;
     }
