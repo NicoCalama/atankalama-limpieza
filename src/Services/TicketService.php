@@ -35,26 +35,26 @@ final class TicketService
         if (!in_array($prioridad, Ticket::PRIORIDADES_VALIDAS, true)) {
             throw new TicketException('PRIORIDAD_INVALIDA', "Prioridad inválida: {$prioridad}.", 400);
         }
-        $hotel = Database::fetchOne('SELECT id FROM hoteles WHERE id = ?', [$hotelId]);
+        $hotel = Database::fetchOne('SELECT id FROM #__hoteles WHERE id = ?', [$hotelId]);
         if ($hotel === null) {
             throw new TicketException('HOTEL_NO_ENCONTRADO', 'Hotel no encontrado.', 404);
         }
         if ($habitacionId !== null) {
-            $hab = Database::fetchOne('SELECT id FROM habitaciones WHERE id = ? AND hotel_id = ?', [$habitacionId, $hotelId]);
+            $hab = Database::fetchOne('SELECT id FROM #__habitaciones WHERE id = ? AND hotel_id = ?', [$habitacionId, $hotelId]);
             if ($hab === null) {
                 throw new TicketException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada en este hotel.', 404);
             }
         }
 
         Database::execute(
-            'INSERT INTO tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, levantado_por) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, levantado_por) VALUES (?, ?, ?, ?, ?, ?)',
             [$habitacionId, $hotelId, $titulo, $descripcion, $prioridad, $levantadoPor]
         );
         $id = Database::lastInsertId();
 
-        $usuarioFila = Database::fetchOne('SELECT nombre FROM usuarios WHERE id = ?', [$levantadoPor]);
+        $usuarioFila = Database::fetchOne('SELECT nombre FROM #__usuarios WHERE id = ?', [$levantadoPor]);
         $habFila = $habitacionId !== null
-            ? Database::fetchOne('SELECT numero FROM habitaciones WHERE id = ?', [$habitacionId])
+            ? Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId])
             : null;
         $contextoHab = $habFila !== null ? "habitación {$habFila['numero']}" : 'el sistema';
         $this->alertas->levantar(
@@ -75,7 +75,7 @@ final class TicketService
 
     public function obtener(int $id): ?Ticket
     {
-        $fila = Database::fetchOne('SELECT * FROM tickets WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__tickets WHERE id = ?', [$id]);
         return $fila === null ? null : Ticket::desdeFila($fila);
     }
 
@@ -95,10 +95,10 @@ final class TicketService
     public function listar(array $filtros = []): array
     {
         $sql = 'SELECT t.*, h.codigo AS hotel_codigo, hab.numero AS habitacion_numero, u.nombre AS levantado_por_nombre
-                  FROM tickets t
-                  JOIN hoteles h ON h.id = t.hotel_id
-             LEFT JOIN habitaciones hab ON hab.id = t.habitacion_id
-                  JOIN usuarios u ON u.id = t.levantado_por
+                  FROM #__tickets t
+                  JOIN #__hoteles h ON h.id = t.hotel_id
+             LEFT JOIN #__habitaciones hab ON hab.id = t.habitacion_id
+                  JOIN #__usuarios u ON u.id = t.levantado_por
                  WHERE 1=1';
         $params = [];
         $hotel = $filtros['hotel'] ?? null;
@@ -126,12 +126,12 @@ final class TicketService
         if ($ticket->estado === Ticket::ESTADO_CERRADO) {
             throw new TicketException('TICKET_CERRADO', 'No se puede modificar un ticket cerrado.', 409);
         }
-        $u = Database::fetchOne('SELECT id FROM usuarios WHERE id = ? AND activo = 1', [$usuarioId]);
+        $u = Database::fetchOne('SELECT id FROM #__usuarios WHERE id = ? AND activo = 1', [$usuarioId]);
         if ($u === null) {
             throw new TicketException('USUARIO_NO_ENCONTRADO', 'Usuario destino no encontrado o inactivo.', 404);
         }
         Database::execute(
-            "UPDATE tickets SET asignado_a = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "UPDATE #__tickets SET asignado_a = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             [$usuarioId, $ticketId]
         );
         Logger::audit($asignadoPor, 'ticket.asignar', 'ticket', $ticketId, ['asignado_a' => $usuarioId]);
@@ -157,7 +157,7 @@ final class TicketService
         }
 
         Database::execute(
-            "UPDATE tickets
+            "UPDATE #__tickets
                 SET estado = ?,
                     resuelto_at = ?,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

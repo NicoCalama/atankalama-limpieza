@@ -20,6 +20,12 @@ final class Database
 
     private static ?PDO $pdo = null;
 
+    /** Driver de BD activo, normalizado: 'sqlite' | 'mysql' | 'mariadb'. */
+    public static function driver(): string
+    {
+        return strtolower((string) Config::get('DB_CONNECTION', 'sqlite'));
+    }
+
     public static function pdo(): PDO
     {
         if (self::$pdo === null) {
@@ -29,7 +35,7 @@ final class Database
                 PDO::ATTR_EMULATE_PREPARES => false,
             ];
 
-            $driver = strtolower((string) Config::get('DB_CONNECTION', 'sqlite'));
+            $driver = self::driver();
 
             self::$pdo = match ($driver) {
                 'mysql', 'mariadb' => self::connectMysql($options),
@@ -109,7 +115,7 @@ final class Database
     {
         $sql = self::applyPrefix($sql);
 
-        $driver = strtolower((string) Config::get('DB_CONNECTION', 'sqlite'));
+        $driver = self::driver();
         if ($driver !== 'mysql' && $driver !== 'mariadb') {
             return $sql;
         }

@@ -1,6 +1,6 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> **Estado: Fase 1 en progreso** (rama `feat/migracion-mariadb`, commits `f6a4813`..`1974a7a`). Última actualización: 2026-06-29.
+> **Estado: Fase 1 casi completa** (rama `feat/migracion-mariadb`). Tokenización (paso 6) hecha y verificada; restan los fixes en origen (paso 7) y los 3 scripts de PDO crudo (paso 8). Última actualización: 2026-06-29.
 
 ## Estado actual y cómo retomar
 
@@ -10,13 +10,17 @@
 - `docs/database-schema.mariadb.sql` (32 tablas, dialecto MySQL, tokens `#__`) — **verificado adversarialmente** (paridad + validez MariaDB 10.11 + tokens); fix `endpoint(191)`.
 - **Motor de dialecto** `Database::applyDialect()`: traduce SQLite→MariaDB en runtime SOLO si el driver es mysql/mariadb (`strftime('now')`, `date('now')`, `INSERT OR IGNORE/REPLACE`, `GROUP_CONCAT`). Las queries se escriben una sola vez (dialecto SQLite) y corren en ambos motores; en SQLite es passthrough.
 - `scripts/lint-prefix-tokens.php`: verificador (sin MariaDB) de referencias de tabla sin `#__`.
+- **Tokenización (paso 6)**: 414 referencias en 25 archivos seguros (services, seeds, `TestDatabase`, `Logger`) con `#__`, vía Workflow + revisión independiente. Linter **435→21** (los 21 restantes son los 3 scripts de PDO crudo). Suite **185/185**.
+- **fix**: `JOIN` roto en `AuditoriaService` (`p.codigo = rp.permiso_codigo`) → suite de 184/185 a 185/185.
+- **fix(MariaDB)** (hallazgos de la revisión): tabla dinámica tokenizada en `cleanup-retention.php` (`FROM #__{$tabla}`); `Database::driver()` + guardia en `AuthService::asegurarTablaIntentosLogin()` para no ejecutar el DDL solo-SQLite de `intentos_login` fuera de SQLite (evita login caído en MariaDB).
 
 **Pendiente — retomar aquí:**
-1. **Tokenizar las 435 referencias** de tabla en 27 archivos (`#__` antes de cada tabla en posición `FROM/JOIN/INTO/UPDATE`). Correr `php scripts/lint-prefix-tokens.php` para la lista; objetivo: que dé **0**. Recomendado: Workflow por archivo, con el **linter + la suite** como gates tras cada lote.
+1. ✅ ~~Tokenizar las 435 referencias~~ — hecho (linter en 21; restan solo los 3 scripts de PDO crudo de abajo).
 2. **Fixes en origen** (no auto-traducibles por el motor de dialecto): `julianday()` (HomeService, ReportesService), aritmética de fechas `datetime('now','-N días')` / concat `||` (UsuarioService, CopilotService), `ON CONFLICT` (PushService, TurnosImportService) → calcular en PHP y pasar como parámetro, o reescribir.
-3. `scripts/init-db.php` para MariaDB (aplicar esquema multi-statement + `sqlite_master`→`information_schema`). **Trampa**: `scripts/reset-admin-password.php` abre su PROPIO PDO `sqlite:` (no usa `Database`) → migrarlo a `Database` o NO tokenizarlo a ciegas (el token `#__` no se reemplazaría).
+3. **Los 3 scripts de PDO crudo** (el linter los marca; el token no se expande ahí): `scripts/init-db.php` (4) → reescribir para MariaDB (multi-statement + `sqlite_master`→`information_schema`); `scripts/reset-admin-password.php` (1) → migrar a `Database` o usar DSN MariaDB propio; `scripts/prepare-demo-video.php` (16) → solo-demo local, migrar a `Database` o marcar como solo-SQLite.
+4. **Baja (limpieza)**: `scripts/migrate-add-notificaciones.php` crea `notificaciones` por PDO crudo sin prefijo (dialecto solo-SQLite) → deprecar o whitelistear; la ruta canónica es `database-schema.mariadb.sql`.
 
-**Verificación:** la suite PHPUnit (SQLite) corre en **PHP 8.2 local** (184/185). OJO: la suite **NO** detecta tokens faltantes (el prefijo es inerte en SQLite) → para eso está el **linter**. La correctitud del SQL MariaDB se valida en **staging** (no hay MariaDB local; opción acordada con el dueño). Hay 1 test pre-existente fallando (`AuditoriaServiceTest::testRechazado...`, `no such column: p.id` en `AuditoriaService.php:203`) **ajeno a la migración**.
+**Verificación:** la suite PHPUnit (SQLite) corre en **PHP 8.2 local** y queda **185/185** (543 assertions; el fallo pre-existente de `AuditoriaServiceTest` quedó corregido). OJO: la suite **NO** detecta tokens faltantes (el prefijo es inerte en SQLite) → para eso está el **linter**, complementado con una revisión independiente que cubre los huecos que el linter no ve (nombres dinámicos, DDL en runtime / PDO crudo). La correctitud del SQL MariaDB se valida en **staging** (no hay MariaDB local; opción acordada con el dueño).
 
 ## Contexto y decisión
 
@@ -69,9 +73,9 @@ crudo sin ORM**, así que el prefijo y el dialecto MariaDB se construyen a mano.
 3. ✅ `docs/database-schema.mariadb.sql` (32 tablas, dialecto MySQL, tokens `#__`) — verificado.
 4. ✅ **Motor de dialecto** `Database::applyDialect()` (traduce SQLite→MariaDB en runtime; reemplaza la idea original de reescribir cada query).
 5. ✅ `scripts/lint-prefix-tokens.php` (verificador de tokens, sin MariaDB).
-6. ⬜ Tokenizar las 435 referencias de tabla en 27 archivos (linter = 0 + suite verde).
+6. ✅ Tokenizadas 414 referencias en 25 archivos seguros (linter 435→21; los 21 restantes = 3 scripts de PDO crudo). Incluye fixes de revisión (`cleanup-retention` dinámico, `AuthService`/`Database::driver()`). Suite 185/185.
 7. ⬜ Fixes en origen no auto-traducibles: `julianday()`, aritmética `datetime('now','-N días')`/`||`, `ON CONFLICT`.
-8. ⬜ `scripts/init-db.php` para MariaDB (multi-statement + `information_schema`) y migrar `reset-admin-password.php` a `Database`.
+8. ⬜ Reescribir/migrar los 3 scripts de PDO crudo: `scripts/init-db.php` para MariaDB (multi-statement + `information_schema`), `reset-admin-password.php` y `prepare-demo-video.php` a `Database`.
 
 **Fase 2 — Empaquetado cPanel**
 - Stub `index.php`, `.htaccess`, layout `app_core/`, `.env` de prod, crons, backup `mysqldump`.

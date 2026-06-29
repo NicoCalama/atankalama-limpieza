@@ -25,10 +25,10 @@ final class AsignacionService
         // Si la habitación venía de auditoría como rechazada, al reasignarla
         // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza.
         // La auditoría histórica permanece inmutable (otra ejecución_checklist).
-        $estadoActual = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$habitacionId]);
+        $estadoActual = Database::fetchOne('SELECT estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
         if ($estadoActual !== null && $estadoActual['estado'] === 'rechazada') {
             Database::execute(
-                "UPDATE habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$habitacionId]
             );
             Logger::info('habitaciones', 'rechazada→sucia por reasignación', [
@@ -37,7 +37,7 @@ final class AsignacionService
         }
 
         Database::execute(
-            'INSERT INTO asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
+            'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
             [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha]
         );
         $id = Database::lastInsertId();
@@ -49,7 +49,7 @@ final class AsignacionService
         $asignacion = $this->obtener($id)
             ?? throw new AsignacionException('ASIGNACION_NO_CREADA', 'Error al crear asignación.', 500);
 
-        $hab = Database::fetchOne('SELECT numero FROM habitaciones WHERE id = ?', [$habitacionId]);
+        $hab = Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId]);
         if ($hab !== null) {
             $this->notificaciones->crear(
                 $usuarioId,
@@ -90,9 +90,9 @@ final class AsignacionService
         $filtroHotel = ($hotelCodigo === 'ambos') ? null : $hotelCodigo;
 
         $sqlHab = 'SELECT h.id
-                     FROM habitaciones h
-                     JOIN hoteles ho ON ho.id = h.hotel_id
-                LEFT JOIN asignaciones a
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                LEFT JOIN #__asignaciones a
                        ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.estado = ?
                       AND h.activa = 1
@@ -107,8 +107,8 @@ final class AsignacionService
 
         // Trabajadores con turno ese día. Filtrar por hotel_default compatible.
         $sqlUsr = 'SELECT u.id
-                     FROM usuarios u
-                     JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+                     FROM #__usuarios u
+                     JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                     WHERE ut.fecha = ?
                       AND u.activo = 1';
         $paramsUsr = [$fecha];
@@ -162,7 +162,7 @@ final class AsignacionService
     {
         foreach ($ordenHabitaciones as $idx => $habitacionId) {
             Database::execute(
-                'UPDATE asignaciones SET orden_cola = ? WHERE usuario_id = ? AND fecha = ? AND habitacion_id = ? AND activa = 1',
+                'UPDATE #__asignaciones SET orden_cola = ? WHERE usuario_id = ? AND fecha = ? AND habitacion_id = ? AND activa = 1',
                 [$idx + 1, $usuarioId, $fecha, $habitacionId]
             );
         }
@@ -173,14 +173,14 @@ final class AsignacionService
 
     public function obtener(int $id): ?Asignacion
     {
-        $fila = Database::fetchOne('SELECT * FROM asignaciones WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__asignaciones WHERE id = ?', [$id]);
         return $fila === null ? null : Asignacion::desdeFila($fila);
     }
 
     public function obtenerActivaDeHabitacion(int $habitacionId): ?Asignacion
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM asignaciones WHERE habitacion_id = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
             [$habitacionId]
         );
         return $fila === null ? null : Asignacion::desdeFila($fila);
@@ -207,10 +207,10 @@ final class AsignacionService
         // Habitaciones sucias o rechazadas SIN asignación activa hoy
         // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
         $sqlSin = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                     FROM habitaciones h
-                     JOIN hoteles ho ON ho.id = h.hotel_id
-                     JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                LEFT JOIN asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.activa = 1
                       AND h.estado IN (\'sucia\', \'rechazada\')
                       AND a.id IS NULL';
@@ -224,8 +224,8 @@ final class AsignacionService
 
         // Trabajadores con turno hoy (filtrados por hotel si aplica)
         $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
-                    FROM usuarios u
-                    JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+                    FROM #__usuarios u
+                    JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                    WHERE ut.fecha = ?
                      AND u.activo = 1';
         $paramsTr = [$fecha];
@@ -296,10 +296,10 @@ final class AsignacionService
     {
         return Database::fetchAll(
             'SELECT a.*, h.numero, h.estado, ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
               ORDER BY a.orden_cola, a.id',
             [$usuarioId, $fecha]
@@ -309,7 +309,7 @@ final class AsignacionService
     public function esHabitacionAsignadaA(int $habitacionId, int $usuarioId, string $fecha): bool
     {
         $fila = Database::fetchOne(
-            'SELECT 1 FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            'SELECT 1 FROM #__asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
             [$habitacionId, $usuarioId, $fecha]
         );
         return $fila !== null;
@@ -317,13 +317,13 @@ final class AsignacionService
 
     private function desactivarAsignacionesActivas(int $habitacionId): void
     {
-        Database::execute('UPDATE asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
+        Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
     }
 
     private function siguienteOrdenCola(int $usuarioId, string $fecha): int
     {
         $fila = Database::fetchOne(
-            'SELECT COALESCE(MAX(orden_cola), 0) + 1 AS siguiente FROM asignaciones WHERE usuario_id = ? AND fecha = ? AND activa = 1',
+            'SELECT COALESCE(MAX(orden_cola), 0) + 1 AS siguiente FROM #__asignaciones WHERE usuario_id = ? AND fecha = ? AND activa = 1',
             [$usuarioId, $fecha]
         );
         return (int) ($fila['siguiente'] ?? 1);

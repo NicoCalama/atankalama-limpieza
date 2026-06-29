@@ -121,7 +121,7 @@ final class CopilotService
 
         // Actualizar updated_at de la conversación
         Database::execute(
-            "UPDATE copilot_conversaciones SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "UPDATE #__copilot_conversaciones SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             [$conversacionId]
         );
 
@@ -136,7 +136,7 @@ final class CopilotService
     {
         if ($conversacionId !== null) {
             $existe = Database::fetchOne(
-                'SELECT id FROM copilot_conversaciones WHERE id = ? AND usuario_id = ?',
+                'SELECT id FROM #__copilot_conversaciones WHERE id = ? AND usuario_id = ?',
                 [$conversacionId, $usuario->id]
             );
             if ($existe !== null) {
@@ -146,7 +146,7 @@ final class CopilotService
 
         // Buscar conversación reciente
         $reciente = Database::fetchOne(
-            "SELECT id FROM copilot_conversaciones
+            "SELECT id FROM #__copilot_conversaciones
               WHERE usuario_id = ?
                 AND updated_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ? || ' hours')
               ORDER BY updated_at DESC LIMIT 1",
@@ -159,7 +159,7 @@ final class CopilotService
         // Crear nueva
         $titulo = mb_substr(trim($primerMensaje), 0, 60);
         Database::execute(
-            'INSERT INTO copilot_conversaciones (usuario_id, titulo) VALUES (?, ?)',
+            'INSERT INTO #__copilot_conversaciones (usuario_id, titulo) VALUES (?, ?)',
             [$usuario->id, $titulo]
         );
         return Database::lastInsertId();
@@ -176,7 +176,7 @@ final class CopilotService
     ): void {
         $payloadJson = $toolPayload !== null ? json_encode($toolPayload, JSON_UNESCAPED_UNICODE) : null;
         Database::execute(
-            'INSERT INTO copilot_mensajes (conversacion_id, rol, contenido, tool_name, tool_payload_json, tokens_input, tokens_output) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__copilot_mensajes (conversacion_id, rol, contenido, tool_name, tool_payload_json, tokens_input, tokens_output) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$conversacionId, $rol, $contenido, $toolName, $payloadJson, $tokensIn > 0 ? $tokensIn : null, $tokensOut > 0 ? $tokensOut : null]
         );
     }
@@ -190,7 +190,7 @@ final class CopilotService
     private function cargarHistorial(int $conversacionId): array
     {
         $filas = Database::fetchAll(
-            "SELECT rol, contenido FROM copilot_mensajes
+            "SELECT rol, contenido FROM #__copilot_mensajes
               WHERE conversacion_id = ? AND tool_name IS NULL AND contenido <> ''
               ORDER BY id",
             [$conversacionId]
@@ -258,7 +258,7 @@ final class CopilotService
     public function listarConversaciones(int $usuarioId): array
     {
         return Database::fetchAll(
-            'SELECT id, titulo, created_at, updated_at FROM copilot_conversaciones WHERE usuario_id = ? ORDER BY updated_at DESC',
+            'SELECT id, titulo, created_at, updated_at FROM #__copilot_conversaciones WHERE usuario_id = ? ORDER BY updated_at DESC',
             [$usuarioId]
         );
     }
@@ -268,8 +268,8 @@ final class CopilotService
     {
         return Database::fetchAll(
             'SELECT c.id, c.usuario_id, u.nombre AS usuario_nombre, c.titulo, c.created_at, c.updated_at
-               FROM copilot_conversaciones c
-               JOIN usuarios u ON u.id = c.usuario_id
+               FROM #__copilot_conversaciones c
+               JOIN #__usuarios u ON u.id = c.usuario_id
               ORDER BY c.updated_at DESC'
         );
     }
@@ -279,7 +279,7 @@ final class CopilotService
      */
     public function obtenerConversacion(int $id, int $usuarioId, bool $esAdmin = false): ?array
     {
-        $conv = Database::fetchOne('SELECT * FROM copilot_conversaciones WHERE id = ?', [$id]);
+        $conv = Database::fetchOne('SELECT * FROM #__copilot_conversaciones WHERE id = ?', [$id]);
         if ($conv === null) {
             return null;
         }
@@ -288,7 +288,7 @@ final class CopilotService
         }
         $mensajes = Database::fetchAll(
             'SELECT id, rol, contenido, tool_name, tool_payload_json, tokens_input, tokens_output, created_at
-               FROM copilot_mensajes WHERE conversacion_id = ? ORDER BY id',
+               FROM #__copilot_mensajes WHERE conversacion_id = ? ORDER BY id',
             [$id]
         );
         return ['conversacion' => $conv, 'mensajes' => $mensajes];
@@ -296,11 +296,11 @@ final class CopilotService
 
     public function borrarConversacion(int $id, int $usuarioId): bool
     {
-        $conv = Database::fetchOne('SELECT usuario_id FROM copilot_conversaciones WHERE id = ?', [$id]);
+        $conv = Database::fetchOne('SELECT usuario_id FROM #__copilot_conversaciones WHERE id = ?', [$id]);
         if ($conv === null || (int) $conv['usuario_id'] !== $usuarioId) {
             return false;
         }
-        Database::execute('DELETE FROM copilot_conversaciones WHERE id = ?', [$id]);
+        Database::execute('DELETE FROM #__copilot_conversaciones WHERE id = ?', [$id]);
         return true;
     }
 }

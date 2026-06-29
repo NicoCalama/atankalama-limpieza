@@ -45,7 +45,7 @@ final class AuthService
                 throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
             }
 
-            $fila = Database::fetchOne('SELECT * FROM usuarios WHERE rut = ?', [$rutNorm]);
+            $fila = Database::fetchOne('SELECT * FROM #__usuarios WHERE rut = ?', [$rutNorm]);
             if ($fila === null) {
                 Logger::warning('auth', 'login fallido: rut no encontrado', ['rut' => $rutNorm]);
                 throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
@@ -71,10 +71,10 @@ final class AuthService
         $token = $this->crearSesion($usuario->id, $ip, $userAgent);
 
         // Limpia el contador de intentos fallidos para esta clave
-        Database::execute('DELETE FROM intentos_login WHERE clave = ?', [$clave]);
+        Database::execute('DELETE FROM #__intentos_login WHERE clave = ?', [$clave]);
 
         Database::execute(
-            "UPDATE usuarios SET last_login_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "UPDATE #__usuarios SET last_login_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             [$usuario->id]
         );
 
@@ -117,7 +117,7 @@ final class AuthService
         $desde = gmdate('Y-m-d\TH:i:s.000\Z', time() - $ventanaMin * 60);
 
         $intentos = Database::fetchAll(
-            'SELECT creado_at FROM intentos_login WHERE clave = ? AND creado_at >= ? ORDER BY creado_at ASC',
+            'SELECT creado_at FROM #__intentos_login WHERE clave = ? AND creado_at >= ? ORDER BY creado_at ASC',
             [$clave, $desde]
         );
 
@@ -154,7 +154,7 @@ final class AuthService
      */
     private function registrarIntentoFallido(string $clave): void
     {
-        Database::execute('INSERT INTO intentos_login (clave) VALUES (?)', [$clave]);
+        Database::execute('INSERT INTO #__intentos_login (clave) VALUES (?)', [$clave]);
     }
 
     /**
@@ -165,6 +165,13 @@ final class AuthService
     private function asegurarTablaIntentosLogin(): void
     {
         if (self::$migracionThrottleAplicada) {
+            return;
+        }
+        // Red de seguridad SOLO para BDs SQLite de desarrollo creadas antes de que
+        // intentos_login entrara al esquema. En MariaDB la tabla la crea el esquema/
+        // init-db (con prefijo) y además este DDL es dialecto SQLite, así que se omite.
+        if (Database::driver() !== 'sqlite') {
+            self::$migracionThrottleAplicada = true;
             return;
         }
         Database::pdo()->exec(
@@ -182,7 +189,7 @@ final class AuthService
 
     public function logout(string $token, ?int $usuarioId = null, ?string $ip = null): void
     {
-        Database::execute('DELETE FROM sesiones WHERE token = ?', [$token]);
+        Database::execute('DELETE FROM #__sesiones WHERE token = ?', [$token]);
         if ($usuarioId !== null) {
             Logger::audit($usuarioId, 'auth.logout', 'usuario', $usuarioId, [], 'ui', $ip);
         }
@@ -194,18 +201,18 @@ final class AuthService
      */
     public function validarSesion(string $token): ?Usuario
     {
-        $sesion = Database::fetchOne('SELECT * FROM sesiones WHERE token = ?', [$token]);
+        $sesion = Database::fetchOne('SELECT * FROM #__sesiones WHERE token = ?', [$token]);
         if ($sesion === null) {
             return null;
         }
 
         if (strtotime((string) $sesion['expires_at']) < time()) {
-            Database::execute('DELETE FROM sesiones WHERE token = ?', [$token]);
+            Database::execute('DELETE FROM #__sesiones WHERE token = ?', [$token]);
             return null;
         }
 
         $nuevoExpires = $this->calcularExpiracion();
-        Database::execute('UPDATE sesiones SET expires_at = ? WHERE token = ?', [$nuevoExpires, $token]);
+        Database::execute('UPDATE #__sesiones SET expires_at = ? WHERE token = ?', [$nuevoExpires, $token]);
 
         return $this->usuarios->buscarPorId((int) $sesion['usuario_id']);
     }
@@ -220,7 +227,7 @@ final class AuthService
             throw new AuthException('PWD_DEBIL', 'La contraseña debe tener al menos 8 caracteres con letras y números.', 400);
         }
 
-        $fila = Database::fetchOne('SELECT password_hash FROM usuarios WHERE id = ?', [$usuarioId]);
+        $fila = Database::fetchOne('SELECT password_hash FROM #__usuarios WHERE id = ?', [$usuarioId]);
         if ($fila === null) {
             throw new AuthException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
@@ -231,11 +238,11 @@ final class AuthService
 
         Database::transaction(function () use ($usuarioId, $nueva): void {
             Database::execute(
-                "UPDATE usuarios SET password_hash = ?, requiere_cambio_pwd = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$this->passwords->hash($nueva), $usuarioId]
             );
             Database::execute(
-                "UPDATE contrasenas_temporales SET usada = 1, usada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE usuario_id = ? AND usada = 0",
+                "UPDATE #__contrasenas_temporales SET usada = 1, usada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE usuario_id = ? AND usada = 0",
                 [$usuarioId]
             );
         });
@@ -249,7 +256,7 @@ final class AuthService
      */
     public function resetearContrasenaTemporal(int $usuarioIdObjetivo, int $adminId, string $motivo = 'reset_admin'): string
     {
-        $usuario = Database::fetchOne('SELECT id, nombre, rut, email FROM usuarios WHERE id = ?', [$usuarioIdObjetivo]);
+        $usuario = Database::fetchOne('SELECT id, nombre, rut, email FROM #__usuarios WHERE id = ?', [$usuarioIdObjetivo]);
         if ($usuario === null) {
             throw new AuthException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
@@ -259,14 +266,14 @@ final class AuthService
 
         Database::transaction(function () use ($usuarioIdObjetivo, $adminId, $motivo, $hash): void {
             Database::execute(
-                "UPDATE usuarios SET password_hash = ?, requiere_cambio_pwd = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$hash, $usuarioIdObjetivo]
             );
             Database::execute(
-                'INSERT INTO contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, ?, ?)',
+                'INSERT INTO #__contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, ?, ?)',
                 [$usuarioIdObjetivo, $adminId, $motivo]
             );
-            Database::execute('DELETE FROM sesiones WHERE usuario_id = ?', [$usuarioIdObjetivo]);
+            Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioIdObjetivo]);
         });
 
         Logger::audit($adminId, 'usuario.reset_password', 'usuario', $usuarioIdObjetivo, ['motivo' => $motivo]);
@@ -295,7 +302,7 @@ final class AuthService
         $expires = $this->calcularExpiracion();
 
         Database::execute(
-            'INSERT INTO sesiones (token, usuario_id, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__sesiones (token, usuario_id, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?)',
             [$token, $usuarioId, $ip, $userAgent, $expires]
         );
 

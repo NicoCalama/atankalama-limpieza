@@ -38,8 +38,8 @@ final class AlertasPredictivasService
 
         $trabajadores = Database::fetchAll(
             'SELECT ut.usuario_id, ut.turno_id, t.hora_inicio, t.hora_fin
-               FROM usuarios_turnos ut
-               JOIN turnos t ON t.id = ut.turno_id
+               FROM #__usuarios_turnos ut
+               JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ut.fecha = ?',
             [$fecha]
         );
@@ -150,8 +150,8 @@ final class AlertasPredictivasService
     {
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS n
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
                 AND h.estado IN ('sucia', 'en_progreso', 'rechazada')",
             [$usuarioId, $fecha]
@@ -167,7 +167,7 @@ final class AlertasPredictivasService
     {
         $filas = Database::fetchAll(
             "SELECT timestamp_inicio, timestamp_fin
-               FROM ejecuciones_checklist
+               FROM #__ejecuciones_checklist
               WHERE usuario_id = ?
                 AND estado IN ('completada', 'auditada')
                 AND timestamp_fin IS NOT NULL
@@ -218,13 +218,13 @@ final class AlertasPredictivasService
 
     private function obtenerNombre(int $usuarioId): string
     {
-        $fila = Database::fetchOne('SELECT nombre FROM usuarios WHERE id = ?', [$usuarioId]);
+        $fila = Database::fetchOne('SELECT nombre FROM #__usuarios WHERE id = ?', [$usuarioId]);
         return (string) ($fila['nombre'] ?? "Usuario {$usuarioId}");
     }
 
     private function hotelDelTrabajador(int $usuarioId): ?int
     {
-        $fila = Database::fetchOne('SELECT hotel_default FROM usuarios WHERE id = ?', [$usuarioId]);
+        $fila = Database::fetchOne('SELECT hotel_default FROM #__usuarios WHERE id = ?', [$usuarioId]);
         if ($fila === null) {
             return null;
         }
@@ -232,7 +232,7 @@ final class AlertasPredictivasService
         if ($codigo === null || $codigo === 'ambos') {
             return null;
         }
-        $h = Database::fetchOne('SELECT id FROM hoteles WHERE codigo = ?', [$codigo]);
+        $h = Database::fetchOne('SELECT id FROM #__hoteles WHERE codigo = ?', [$codigo]);
         return $h === null ? null : (int) $h['id'];
     }
 
@@ -240,7 +240,7 @@ final class AlertasPredictivasService
     {
         $needle = '"_dedupe":"' . $dedupeKey . '"';
         $fila = Database::fetchOne(
-            'SELECT * FROM alertas_activas WHERE tipo = ? AND contexto_json LIKE ? LIMIT 1',
+            'SELECT * FROM #__alertas_activas WHERE tipo = ? AND contexto_json LIKE ? LIMIT 1',
             [$tipo, '%' . $needle . '%']
         );
         return $fila === null ? null : AlertaActiva::desdeFila($fila);

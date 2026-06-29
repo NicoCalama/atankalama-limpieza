@@ -25,8 +25,8 @@ final class ChecklistService
     {
         return Database::fetchAll(
             'SELECT ct.*, th.nombre AS tipo_nombre
-               FROM checklists_template ct
-               JOIN tipos_habitacion th ON th.id = ct.tipo_habitacion_id
+               FROM #__checklists_template ct
+               JOIN #__tipos_habitacion th ON th.id = ct.tipo_habitacion_id
               WHERE ct.activo = 1
               ORDER BY th.nombre'
         );
@@ -40,7 +40,7 @@ final class ChecklistService
             $where .= ' AND activo = 1';
         }
         return Database::fetchAll(
-            "SELECT * FROM items_checklist WHERE $where ORDER BY orden, id",
+            "SELECT * FROM #__items_checklist WHERE $where ORDER BY orden, id",
             [$templateId]
         );
     }
@@ -48,7 +48,7 @@ final class ChecklistService
     public function templateParaTipo(int $tipoHabitacionId): ?int
     {
         $fila = Database::fetchOne(
-            'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
+            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
             [$tipoHabitacionId]
         );
         return $fila === null ? null : (int) $fila['id'];
@@ -76,7 +76,7 @@ final class ChecklistService
         }
 
         $existente = Database::fetchOne(
-            "SELECT * FROM ejecuciones_checklist
+            "SELECT * FROM #__ejecuciones_checklist
               WHERE habitacion_id = ? AND asignacion_id = ? AND estado = 'en_progreso'
               ORDER BY id DESC LIMIT 1",
             [$habitacionId, $asignacion->id]
@@ -99,7 +99,7 @@ final class ChecklistService
         }
 
         Database::execute(
-            'INSERT INTO ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado) VALUES (?, ?, ?, ?, ?)',
             [$habitacionId, $asignacion->id, $usuarioId, $templateId, EjecucionChecklist::ESTADO_EN_PROGRESO]
         );
         $id = Database::lastInsertId();
@@ -108,13 +108,13 @@ final class ChecklistService
             'habitacion_id' => $habitacionId, 'template_id' => $templateId,
         ]);
 
-        $fila = Database::fetchOne('SELECT * FROM ejecuciones_checklist WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$id]);
         return EjecucionChecklist::desdeFila($fila);
     }
 
     public function obtenerEjecucion(int $id): ?EjecucionChecklist
     {
-        $fila = Database::fetchOne('SELECT * FROM ejecuciones_checklist WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$id]);
         return $fila === null ? null : EjecucionChecklist::desdeFila($fila);
     }
 
@@ -125,7 +125,7 @@ final class ChecklistService
     public function obtenerEjecucionEnProgreso(int $habitacionId, int $usuarioId): ?int
     {
         $fila = Database::fetchOne(
-            "SELECT id FROM ejecuciones_checklist
+            "SELECT id FROM #__ejecuciones_checklist
               WHERE habitacion_id = ? AND usuario_id = ? AND estado = 'en_progreso'
               ORDER BY id DESC LIMIT 1",
             [$habitacionId, $usuarioId]
@@ -140,7 +140,7 @@ final class ChecklistService
     public function obtenerUltimaEjecucionDeHabitacion(int $habitacionId): ?EjecucionChecklist
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM ejecuciones_checklist
+            'SELECT * FROM #__ejecuciones_checklist
               WHERE habitacion_id = ?
               ORDER BY id DESC LIMIT 1',
             [$habitacionId]
@@ -164,8 +164,8 @@ final class ChecklistService
             "SELECT ic.id, ic.orden, ic.descripcion, ic.obligatorio,
                     COALESCE(ei.marcado, 0) AS marcado,
                     COALESCE(ei.desmarcado_por_auditor, 0) AS desmarcado_por_auditor
-               FROM items_checklist ic
-          LEFT JOIN ejecuciones_items ei
+               FROM #__items_checklist ic
+          LEFT JOIN #__ejecuciones_items ei
                  ON ei.item_id = ic.id AND ei.ejecucion_id = ?
               WHERE ic.template_id = ? AND ic.activo = 1
               ORDER BY ic.orden, ic.id",
@@ -200,7 +200,7 @@ final class ChecklistService
         }
 
         $item = Database::fetchOne(
-            'SELECT id FROM items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
+            'SELECT id FROM #__items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
             [$itemId, $ejec->templateId]
         );
         if ($item === null) {
@@ -208,17 +208,17 @@ final class ChecklistService
         }
 
         $existente = Database::fetchOne(
-            'SELECT id FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            'SELECT id FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
             [$ejecucionId, $itemId]
         );
         if ($existente === null) {
             Database::execute(
-                'INSERT INTO ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, ?)',
+                'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, ?)',
                 [$ejecucionId, $itemId, $marcado ? 1 : 0]
             );
         } else {
             Database::execute(
-                "UPDATE ejecuciones_items SET marcado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__ejecuciones_items SET marcado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$marcado ? 1 : 0, (int) $existente['id']]
             );
         }
@@ -256,7 +256,7 @@ final class ChecklistService
         }
 
         Database::execute(
-            "UPDATE ejecuciones_checklist
+            "UPDATE #__ejecuciones_checklist
                 SET estado = 'completada',
                     timestamp_fin = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE id = ?",
@@ -278,8 +278,8 @@ final class ChecklistService
             $svc = $this->predictivas ?? new AlertasPredictivasService();
             $turno = Database::fetchOne(
                 'SELECT t.hora_fin
-                   FROM usuarios_turnos ut
-                   JOIN turnos t ON t.id = ut.turno_id
+                   FROM #__usuarios_turnos ut
+                   JOIN #__turnos t ON t.id = ut.turno_id
                   WHERE ut.usuario_id = ? AND ut.fecha = date(\'now\')
                   ORDER BY ut.id DESC LIMIT 1',
                 [$usuarioId]
@@ -303,8 +303,8 @@ final class ChecklistService
                 SUM(CASE WHEN ic.activo = 1 AND COALESCE(ei.marcado, 0) = 1 THEN 1 ELSE 0 END) AS marcados,
                 SUM(CASE WHEN ic.activo = 1 AND ic.obligatorio = 1 THEN 1 ELSE 0 END) AS obligatorios_total,
                 SUM(CASE WHEN ic.activo = 1 AND ic.obligatorio = 1 AND COALESCE(ei.marcado, 0) = 1 THEN 1 ELSE 0 END) AS obligatorios_marcados
-               FROM items_checklist ic
-          LEFT JOIN ejecuciones_items ei
+               FROM #__items_checklist ic
+          LEFT JOIN #__ejecuciones_items ei
                  ON ei.item_id = ic.id AND ei.ejecucion_id = ?
               WHERE ic.template_id = ?",
             [$ejecucionId, $templateId]
@@ -335,7 +335,7 @@ final class ChecklistService
         }
         $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
         $validos = Database::fetchAll(
-            "SELECT id FROM items_checklist WHERE template_id = ? AND id IN ($placeholders)",
+            "SELECT id FROM #__items_checklist WHERE template_id = ? AND id IN ($placeholders)",
             array_merge([$templateId], $itemIds)
         );
         $validosIds = array_map(static fn(array $f) => (int) $f['id'], $validos);
@@ -345,17 +345,17 @@ final class ChecklistService
 
         foreach ($itemIds as $itemId) {
             $ex = Database::fetchOne(
-                'SELECT id FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+                'SELECT id FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
                 [$ejecucionId, $itemId]
             );
             if ($ex === null) {
                 Database::execute(
-                    'INSERT INTO ejecuciones_items (ejecucion_id, item_id, marcado, desmarcado_por_auditor) VALUES (?, ?, 0, 1)',
+                    'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, desmarcado_por_auditor) VALUES (?, ?, 0, 1)',
                     [$ejecucionId, $itemId]
                 );
             } else {
                 Database::execute(
-                    "UPDATE ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    "UPDATE #__ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                     [(int) $ex['id']]
                 );
             }

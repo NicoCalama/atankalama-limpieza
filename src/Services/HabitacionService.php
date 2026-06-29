@@ -41,9 +41,9 @@ final class HabitacionService
         }
 
         $sql = 'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                  FROM habitaciones h
-                  JOIN hoteles ho ON ho.id = h.hotel_id
-                  JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                  FROM #__habitaciones h
+                  JOIN #__hoteles ho ON ho.id = h.hotel_id
+                  JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
                  WHERE ' . implode(' AND ', $where) . '
               ORDER BY ho.codigo, h.numero';
 
@@ -52,7 +52,7 @@ final class HabitacionService
 
     public function obtener(int $id): ?Habitacion
     {
-        $fila = Database::fetchOne('SELECT * FROM habitaciones WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__habitaciones WHERE id = ?', [$id]);
         return $fila === null ? null : Habitacion::desdeFila($fila);
     }
 
@@ -65,9 +65,9 @@ final class HabitacionService
     {
         return Database::fetchOne(
             'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-               FROM habitaciones h
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+               FROM #__habitaciones h
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE h.id = ?',
             [$id]
         );
@@ -76,7 +76,7 @@ final class HabitacionService
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM habitaciones WHERE hotel_id = ? AND cloudbeds_room_id = ?',
+            'SELECT * FROM #__habitaciones WHERE hotel_id = ? AND cloudbeds_room_id = ?',
             [$hotelId, $cloudbedsRoomId]
         );
         return $fila === null ? null : Habitacion::desdeFila($fila);
@@ -102,7 +102,7 @@ final class HabitacionService
 
         try {
             Database::execute(
-                "UPDATE habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$nuevoEstado, $id]
             );
         } catch (\PDOException $e) {
@@ -144,18 +144,18 @@ final class HabitacionService
             return $existente;
         }
         $porNumero = Database::fetchOne(
-            'SELECT * FROM habitaciones WHERE hotel_id = ? AND numero = ?',
+            'SELECT * FROM #__habitaciones WHERE hotel_id = ? AND numero = ?',
             [$hotelId, $numero]
         );
         if ($porNumero !== null) {
             Database::execute(
-                "UPDATE habitaciones SET cloudbeds_room_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET cloudbeds_room_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$cloudbedsRoomId, (int) $porNumero['id']]
             );
             return $this->obtener((int) $porNumero['id']);
         }
         Database::execute(
-            'INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)',
             [$hotelId, $numero, $tipoHabitacionId, $cloudbedsRoomId, Habitacion::ESTADO_SUCIA]
         );
         return $this->obtener(Database::lastInsertId());

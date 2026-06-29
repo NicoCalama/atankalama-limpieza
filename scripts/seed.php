@@ -27,7 +27,7 @@ echo "\nSeeders completados.\n";
 function seedPermisos(string $seedDir): void
 {
     $permisos = require $seedDir . '/permisos.php';
-    $sql = 'INSERT OR IGNORE INTO permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)';
+    $sql = 'INSERT OR IGNORE INTO #__permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)';
     foreach ($permisos as [$codigo, $descripcion, $categoria, $scope]) {
         Database::execute($sql, [$codigo, $descripcion, $categoria, $scope]);
     }
@@ -37,15 +37,15 @@ function seedPermisos(string $seedDir): void
 function seedRoles(string $seedDir): void
 {
     $roles = require $seedDir . '/roles.php';
-    $todosLosPermisos = Database::fetchAll('SELECT codigo FROM permisos');
+    $todosLosPermisos = Database::fetchAll('SELECT codigo FROM #__permisos');
     $codigosTodos = array_column($todosLosPermisos, 'codigo');
 
     foreach ($roles as $rol) {
-        $existente = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', [$rol['nombre']]);
+        $existente = Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', [$rol['nombre']]);
 
         if ($existente === null) {
             Database::execute(
-                'INSERT INTO roles (nombre, descripcion, es_sistema) VALUES (?, ?, ?)',
+                'INSERT INTO #__roles (nombre, descripcion, es_sistema) VALUES (?, ?, ?)',
                 [$rol['nombre'], $rol['descripcion'], $rol['es_sistema']]
             );
             $rolId = Database::lastInsertId();
@@ -58,7 +58,7 @@ function seedRoles(string $seedDir): void
         $permisos = $rol['permisos'] === '__ALL__' ? $codigosTodos : $rol['permisos'];
         foreach ($permisos as $codigo) {
             Database::execute(
-                'INSERT OR IGNORE INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
+                'INSERT OR IGNORE INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
                 [$rolId, $codigo]
             );
         }
@@ -72,7 +72,7 @@ function seedCatalogos(string $seedDir): void
 
     foreach ($c['hoteles'] as $hotel) {
         Database::execute(
-            'INSERT OR IGNORE INTO hoteles (codigo, nombre, cloudbeds_property_id) VALUES (?, ?, ?)',
+            'INSERT OR IGNORE INTO #__hoteles (codigo, nombre, cloudbeds_property_id) VALUES (?, ?, ?)',
             [$hotel['codigo'], $hotel['nombre'], $hotel['cloudbeds_property_id']]
         );
     }
@@ -80,7 +80,7 @@ function seedCatalogos(string $seedDir): void
 
     foreach ($c['turnos'] as $turno) {
         Database::execute(
-            'INSERT OR IGNORE INTO turnos (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)',
+            'INSERT OR IGNORE INTO #__turnos (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)',
             [$turno['nombre'], $turno['hora_inicio'], $turno['hora_fin']]
         );
     }
@@ -88,7 +88,7 @@ function seedCatalogos(string $seedDir): void
 
     foreach ($c['tipos_habitacion'] as $tipo) {
         Database::execute(
-            'INSERT OR IGNORE INTO tipos_habitacion (nombre, descripcion) VALUES (?, ?)',
+            'INSERT OR IGNORE INTO #__tipos_habitacion (nombre, descripcion) VALUES (?, ?)',
             [$tipo['nombre'], $tipo['descripcion']]
         );
     }
@@ -96,7 +96,7 @@ function seedCatalogos(string $seedDir): void
 
     foreach ($c['alertas_config'] as $cfg) {
         Database::execute(
-            'INSERT OR IGNORE INTO alertas_config (clave, valor, descripcion) VALUES (?, ?, ?)',
+            'INSERT OR IGNORE INTO #__alertas_config (clave, valor, descripcion) VALUES (?, ?, ?)',
             [$cfg['clave'], $cfg['valor'], $cfg['descripcion']]
         );
     }
@@ -104,7 +104,7 @@ function seedCatalogos(string $seedDir): void
 
     foreach ($c['cloudbeds_config'] as $cfg) {
         Database::execute(
-            'INSERT OR IGNORE INTO cloudbeds_config (clave, valor, descripcion) VALUES (?, ?, ?)',
+            'INSERT OR IGNORE INTO #__cloudbeds_config (clave, valor, descripcion) VALUES (?, ?, ?)',
             [$cfg['clave'], $cfg['valor'], $cfg['descripcion']]
         );
     }
@@ -116,13 +116,13 @@ function seedChecklistTemplates(string $seedDir): void
     $checklists = require $seedDir . '/checklists.php';
     $items = $checklists['template_default_items'];
 
-    $tipos = Database::fetchAll('SELECT id, nombre FROM tipos_habitacion ORDER BY id');
+    $tipos = Database::fetchAll('SELECT id, nombre FROM #__tipos_habitacion ORDER BY id');
     $creados = 0;
     $reusados = 0;
 
     foreach ($tipos as $tipo) {
         $existente = Database::fetchOne(
-            'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
+            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
             [$tipo['id']]
         );
 
@@ -132,14 +132,14 @@ function seedChecklistTemplates(string $seedDir): void
         }
 
         Database::execute(
-            'INSERT INTO checklists_template (tipo_habitacion_id, nombre) VALUES (?, ?)',
+            'INSERT INTO #__checklists_template (tipo_habitacion_id, nombre) VALUES (?, ?)',
             [$tipo['id'], 'Checklist estándar — ' . $tipo['nombre']]
         );
         $templateId = Database::lastInsertId();
 
         foreach ($items as $item) {
             Database::execute(
-                'INSERT INTO items_checklist (template_id, orden, descripcion, obligatorio) VALUES (?, ?, ?, ?)',
+                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio) VALUES (?, ?, ?, ?)',
                 [$templateId, $item['orden'], $item['descripcion'], $item['obligatorio']]
             );
         }
@@ -152,7 +152,7 @@ function seedChecklistTemplates(string $seedDir): void
 function seedAdminInicial(): void
 {
     $rutAdmin = '11111111-1';
-    $existe = Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', [$rutAdmin]);
+    $existe = Database::fetchOne('SELECT id FROM #__usuarios WHERE rut = ?', [$rutAdmin]);
     if ($existe !== null) {
         echo "  admin inicial ya existía (rut={$rutAdmin}, id={$existe['id']})\n";
         return;
@@ -163,19 +163,19 @@ function seedAdminInicial(): void
     $hash             = $passwordService->hash($passwordTemporal);
 
     Database::execute(
-        'INSERT INTO usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
+        'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
         [$rutAdmin, 'Nicolás Campos', 'nicolas@atankalama.cl', $hash, 'ambos']
     );
     $usuarioId = Database::lastInsertId();
 
-    $rolAdmin = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Admin']);
+    $rolAdmin = Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', ['Admin']);
     Database::execute(
-        'INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
+        'INSERT INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
         [$usuarioId, (int) $rolAdmin['id']]
     );
 
     Database::execute(
-        'INSERT INTO contrasenas_temporales (usuario_id, motivo) VALUES (?, ?)',
+        'INSERT INTO #__contrasenas_temporales (usuario_id, motivo) VALUES (?, ?)',
         [$usuarioId, 'creacion']
     );
 

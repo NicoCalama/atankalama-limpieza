@@ -70,17 +70,17 @@ if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === realpa
 function resetearDatosDemo(): void
 {
     // Orden importa por FK
-    Database::execute('DELETE FROM tickets');
-    Database::execute('DELETE FROM auditorias');
-    Database::execute('DELETE FROM ejecuciones_items');
-    Database::execute('DELETE FROM ejecuciones_checklist');
-    Database::execute('DELETE FROM asignaciones');
-    Database::execute('DELETE FROM usuarios_turnos');
-    Database::execute('DELETE FROM habitaciones');
+    Database::execute('DELETE FROM #__tickets');
+    Database::execute('DELETE FROM #__auditorias');
+    Database::execute('DELETE FROM #__ejecuciones_items');
+    Database::execute('DELETE FROM #__ejecuciones_checklist');
+    Database::execute('DELETE FROM #__asignaciones');
+    Database::execute('DELETE FROM #__usuarios_turnos');
+    Database::execute('DELETE FROM #__habitaciones');
     // Usuarios: conservar admin original (rut 11111111-1)
-    Database::execute("DELETE FROM usuarios_roles WHERE usuario_id IN (SELECT id FROM usuarios WHERE rut <> '11111111-1')");
-    Database::execute("DELETE FROM contrasenas_temporales WHERE usuario_id IN (SELECT id FROM usuarios WHERE rut <> '11111111-1')");
-    Database::execute("DELETE FROM usuarios WHERE rut <> '11111111-1'");
+    Database::execute("DELETE FROM #__usuarios_roles WHERE usuario_id IN (SELECT id FROM #__usuarios WHERE rut <> '11111111-1')");
+    Database::execute("DELETE FROM #__contrasenas_temporales WHERE usuario_id IN (SELECT id FROM #__usuarios WHERE rut <> '11111111-1')");
+    Database::execute("DELETE FROM #__usuarios WHERE rut <> '11111111-1'");
 }
 
 // -----------------------------------------------------------------------------
@@ -116,9 +116,9 @@ function seedUsuariosDemo(string $hashDemo, callable $log): array
         ['Andrea Silva Peña',           'andrea.silva@atankalama.cl',      '17345678', 'inn'],
     ];
 
-    $rolTrabajador = (int) Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Trabajador'])['id'];
-    $rolSupervisora = (int) Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Supervisora'])['id'];
-    $rolRecepcion = (int) Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Recepción'])['id'];
+    $rolTrabajador = (int) Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', ['Trabajador'])['id'];
+    $rolSupervisora = (int) Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', ['Supervisora'])['id'];
+    $rolRecepcion = (int) Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', ['Recepción'])['id'];
 
     $idsT = insertarUsuarios($trabajadoras, $hashDemo, $rolTrabajador);
     $idsS = insertarUsuarios($supervisoras, $hashDemo, $rolSupervisora);
@@ -140,20 +140,20 @@ function insertarUsuarios(array $datos, string $hashDemo, int $rolId): array
         $dv = Rut::calcularDigitoVerificador($rutBody);
         $rut = $rutBody . '-' . $dv;
 
-        $existente = Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', [$rut]);
+        $existente = Database::fetchOne('SELECT id FROM #__usuarios WHERE rut = ?', [$rut]);
         if ($existente !== null) {
             $ids[] = (int) $existente['id'];
             continue;
         }
 
         Database::execute(
-            'INSERT INTO usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 0, 1, ?)',
+            'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 0, 1, ?)',
             [$rut, $nombre, $email, $hashDemo, $hotelDefault]
         );
         $id = Database::lastInsertId();
 
         Database::execute(
-            'INSERT OR IGNORE INTO usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
+            'INSERT OR IGNORE INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
             [$id, $rolId]
         );
 
@@ -173,12 +173,12 @@ function insertarUsuarios(array $datos, string $hashDemo, int $rolId): array
 function seedHabitacionesDemo(callable $log): array
 {
     $hoteles = [];
-    foreach (Database::fetchAll('SELECT id, codigo FROM hoteles') as $h) {
+    foreach (Database::fetchAll('SELECT id, codigo FROM #__hoteles') as $h) {
         $hoteles[$h['codigo']] = (int) $h['id'];
     }
 
     $tipos = [];
-    foreach (Database::fetchAll('SELECT id, nombre FROM tipos_habitacion') as $t) {
+    foreach (Database::fetchAll('SELECT id, nombre FROM #__tipos_habitacion') as $t) {
         $tipos[$t['nombre']] = (int) $t['id'];
     }
 
@@ -216,14 +216,14 @@ function seedHabitacionesDemo(callable $log): array
         $tipoId = $tipos[$tipoNombre];
 
         $existente = Database::fetchOne(
-            'SELECT id FROM habitaciones WHERE hotel_id = ? AND numero = ?',
+            'SELECT id FROM #__habitaciones WHERE hotel_id = ? AND numero = ?',
             [$hotelId, $numero]
         );
         if ($existente !== null) {
             $id = (int) $existente['id'];
         } else {
             Database::execute(
-                "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, ?, ?, 'sucia')",
+                "INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, ?, ?, 'sucia')",
                 [$hotelId, $numero, $tipoId]
             );
             $id = Database::lastInsertId();
@@ -246,8 +246,8 @@ function seedHabitacionesDemo(callable $log): array
  */
 function seedTurnosDemo(array $usuarios, callable $log): void
 {
-    $turnoManana = (int) Database::fetchOne('SELECT id FROM turnos WHERE nombre = ?', ['mañana'])['id'];
-    $turnoTarde = (int) Database::fetchOne('SELECT id FROM turnos WHERE nombre = ?', ['tarde'])['id'];
+    $turnoManana = (int) Database::fetchOne('SELECT id FROM #__turnos WHERE nombre = ?', ['mañana'])['id'];
+    $turnoTarde = (int) Database::fetchOne('SELECT id FROM #__turnos WHERE nombre = ?', ['tarde'])['id'];
 
     $hoy = new DateTimeImmutable('today');
     // Lunes de esta semana (o hoy si es lunes). En PHP N=1=Lun, 7=Dom.
@@ -262,7 +262,7 @@ function seedTurnosDemo(array $usuarios, callable $log): void
         foreach ($usuarios['trabajadoras'] as $i => $uid) {
             $turnoId = (($i + $d) % 2 === 0) ? $turnoManana : $turnoTarde;
             $ins = Database::execute(
-                'INSERT OR IGNORE INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
+                'INSERT OR IGNORE INTO #__usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
                 [$uid, $turnoId, $fecha]
             );
             $total += $ins;
@@ -270,7 +270,7 @@ function seedTurnosDemo(array $usuarios, callable $log): void
         // Supervisoras siempre mañana
         foreach ($usuarios['supervisoras'] as $uid) {
             $ins = Database::execute(
-                'INSERT OR IGNORE INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
+                'INSERT OR IGNORE INTO #__usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
                 [$uid, $turnoManana, $fecha]
             );
             $total += $ins;
@@ -278,7 +278,7 @@ function seedTurnosDemo(array $usuarios, callable $log): void
         // Recepción siempre mañana
         foreach ($usuarios['recepcion'] as $uid) {
             $ins = Database::execute(
-                'INSERT OR IGNORE INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
+                'INSERT OR IGNORE INTO #__usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
                 [$uid, $turnoManana, $fecha]
             );
             $total += $ins;
@@ -312,20 +312,20 @@ function seedAsignacionesDemo(array $usuarios, array $habitaciones, callable $lo
         $ordenCola = intdiv($idx, count($trabajadoras));
 
         $existente = Database::fetchOne(
-            'SELECT id FROM asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
+            'SELECT id FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
             [$roomId, $hoy]
         );
         if ($existente !== null) {
             $asignacionId = (int) $existente['id'];
         } else {
             Database::execute(
-                'INSERT INTO asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
+                'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
                 [$roomId, $workerId, $supervisoraId, $ordenCola, $hoy]
             );
             $asignacionId = Database::lastInsertId();
         }
 
-        $tipo = Database::fetchOne('SELECT tipo_habitacion_id FROM habitaciones WHERE id = ?', [$roomId]);
+        $tipo = Database::fetchOne('SELECT tipo_habitacion_id FROM #__habitaciones WHERE id = ?', [$roomId]);
         $asignacionesCreadas[] = [
             'id' => $asignacionId,
             'habitacion_id' => $roomId,
@@ -360,12 +360,12 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
     for ($i = 0; $i < 5 && $i < count($asignaciones); $i++) {
         $a = $asignaciones[$i];
         $templateId = (int) Database::fetchOne(
-            'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
+            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
             [$a['tipo_habitacion_id']]
         )['id'];
 
         $existente = Database::fetchOne(
-            'SELECT id FROM ejecuciones_checklist WHERE asignacion_id = ?',
+            'SELECT id FROM #__ejecuciones_checklist WHERE asignacion_id = ?',
             [$a['id']]
         );
         if ($existente !== null) {
@@ -376,23 +376,23 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
             $fin = $inicio->modify('+' . (45 + $i * 3) . ' minutes');
 
             Database::execute(
-                "INSERT INTO ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_inicio, timestamp_fin) VALUES (?, ?, ?, ?, 'completada', ?, ?)",
+                "INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_inicio, timestamp_fin) VALUES (?, ?, ?, ?, 'completada', ?, ?)",
                 [$a['habitacion_id'], $a['id'], $a['usuario_id'], $templateId, $inicio->format('Y-m-d\TH:i:s.v\Z'), $fin->format('Y-m-d\TH:i:s.v\Z')]
             );
             $ejecId = Database::lastInsertId();
 
             // Marcar todos los items
-            $items = Database::fetchAll('SELECT id FROM items_checklist WHERE template_id = ? ORDER BY orden', [$templateId]);
+            $items = Database::fetchAll('SELECT id FROM #__items_checklist WHERE template_id = ? ORDER BY orden', [$templateId]);
             foreach ($items as $item) {
                 Database::execute(
-                    'INSERT OR IGNORE INTO ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, 1)',
+                    'INSERT OR IGNORE INTO #__ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, 1)',
                     [$ejecId, $item['id']]
                 );
             }
 
             // Habitación → completada_pendiente_auditoria (luego auditorías la avanzan)
             Database::execute(
-                "UPDATE habitaciones SET estado = 'completada_pendiente_auditoria' WHERE id = ?",
+                "UPDATE #__habitaciones SET estado = 'completada_pendiente_auditoria' WHERE id = ?",
                 [$a['habitacion_id']]
             );
         }
@@ -409,12 +409,12 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
     for ($i = 5; $i < 7 && $i < count($asignaciones); $i++) {
         $a = $asignaciones[$i];
         $templateId = (int) Database::fetchOne(
-            'SELECT id FROM checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
+            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
             [$a['tipo_habitacion_id']]
         )['id'];
 
         $existente = Database::fetchOne(
-            'SELECT id FROM ejecuciones_checklist WHERE asignacion_id = ?',
+            'SELECT id FROM #__ejecuciones_checklist WHERE asignacion_id = ?',
             [$a['id']]
         );
         if ($existente !== null) {
@@ -424,22 +424,22 @@ function seedEjecucionesDemo(array $asignaciones, callable $log): array
 
         $inicio = (new DateTimeImmutable('now'))->modify('-25 minutes');
         Database::execute(
-            "INSERT INTO ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_inicio) VALUES (?, ?, ?, ?, 'en_progreso', ?)",
+            "INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_inicio) VALUES (?, ?, ?, ?, 'en_progreso', ?)",
             [$a['habitacion_id'], $a['id'], $a['usuario_id'], $templateId, $inicio->format('Y-m-d\TH:i:s.v\Z')]
         );
         $ejecId = Database::lastInsertId();
 
         // Marcar solo primeros 4 items
-        $items = Database::fetchAll('SELECT id FROM items_checklist WHERE template_id = ? ORDER BY orden LIMIT 4', [$templateId]);
+        $items = Database::fetchAll('SELECT id FROM #__items_checklist WHERE template_id = ? ORDER BY orden LIMIT 4', [$templateId]);
         foreach ($items as $item) {
             Database::execute(
-                'INSERT OR IGNORE INTO ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, 1)',
+                'INSERT OR IGNORE INTO #__ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, 1)',
                 [$ejecId, $item['id']]
             );
         }
 
         Database::execute(
-            "UPDATE habitaciones SET estado = 'en_progreso' WHERE id = ?",
+            "UPDATE #__habitaciones SET estado = 'en_progreso' WHERE id = ?",
             [$a['habitacion_id']]
         );
 
@@ -477,18 +477,18 @@ function seedAuditoriasDemo(array $usuarios, array $ejecuciones, callable $log):
     foreach ($veredictos as $idx => [$veredicto, $comentario, $tipo]) {
         $ejec = $completadas[$idx];
 
-        $existente = Database::fetchOne('SELECT id FROM auditorias WHERE ejecucion_id = ?', [$ejec['id']]);
+        $existente = Database::fetchOne('SELECT id FROM #__auditorias WHERE ejecucion_id = ?', [$ejec['id']]);
         if ($existente !== null) continue;
 
         $itemsDesmarcadosJson = null;
         if ($tipo === 'espejo') {
             $itemDesmarcado = Database::fetchOne(
-                'SELECT ei.item_id FROM ejecuciones_items ei WHERE ei.ejecucion_id = ? LIMIT 1',
+                'SELECT ei.item_id FROM #__ejecuciones_items ei WHERE ei.ejecucion_id = ? LIMIT 1',
                 [$ejec['id']]
             );
             if ($itemDesmarcado !== null) {
                 Database::execute(
-                    'UPDATE ejecuciones_items SET desmarcado_por_auditor = 1 WHERE ejecucion_id = ? AND item_id = ?',
+                    'UPDATE #__ejecuciones_items SET desmarcado_por_auditor = 1 WHERE ejecucion_id = ? AND item_id = ?',
                     [$ejec['id'], $itemDesmarcado['item_id']]
                 );
                 $itemsDesmarcadosJson = json_encode([(int) $itemDesmarcado['item_id']]);
@@ -496,7 +496,7 @@ function seedAuditoriasDemo(array $usuarios, array $ejecuciones, callable $log):
         }
 
         Database::execute(
-            'INSERT INTO auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
             [$ejec['id'], $ejec['habitacion_id'], $auditor, $veredicto, $comentario, $itemsDesmarcadosJson]
         );
 
@@ -506,8 +506,8 @@ function seedAuditoriasDemo(array $usuarios, array $ejecuciones, callable $log):
             'aprobado_con_observacion' => 'aprobada_con_observacion',
             'rechazado' => 'rechazada',
         };
-        Database::execute('UPDATE habitaciones SET estado = ? WHERE id = ?', [$estadoHab, $ejec['habitacion_id']]);
-        Database::execute("UPDATE ejecuciones_checklist SET estado = 'auditada' WHERE id = ?", [$ejec['id']]);
+        Database::execute('UPDATE #__habitaciones SET estado = ? WHERE id = ?', [$estadoHab, $ejec['habitacion_id']]);
+        Database::execute("UPDATE #__ejecuciones_checklist SET estado = 'auditada' WHERE id = ?", [$ejec['id']]);
     }
 
     $log("  auditorias: 3 creadas (1 aprobado, 1 observación, 1 rechazado); 2 completadas quedan pendientes\n");
@@ -527,7 +527,7 @@ function seedTicketsDemo(array $usuarios, array $habitaciones, callable $log): v
     $recepcion = $usuarios['recepcion'];
     $rooms = $habitaciones['todas'];
     $hotelPorRoom = [];
-    foreach (Database::fetchAll('SELECT id, hotel_id FROM habitaciones') as $r) {
+    foreach (Database::fetchAll('SELECT id, hotel_id FROM #__habitaciones') as $r) {
         $hotelPorRoom[(int) $r['id']] = (int) $r['hotel_id'];
     }
 
@@ -586,7 +586,7 @@ function seedTicketsDemo(array $usuarios, array $habitaciones, callable $log): v
             : 2;
 
         $existente = Database::fetchOne(
-            'SELECT id FROM tickets WHERE titulo = ? AND levantado_por = ?',
+            'SELECT id FROM #__tickets WHERE titulo = ? AND levantado_por = ?',
             [$t['titulo'], $t['levantado_por']]
         );
         if ($existente !== null) continue;
@@ -596,7 +596,7 @@ function seedTicketsDemo(array $usuarios, array $habitaciones, callable $log): v
             : null;
 
         Database::execute(
-            'INSERT INTO tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, estado, levantado_por, asignado_a, resuelto_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, estado, levantado_por, asignado_a, resuelto_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$t['habitacion_id'], $hotelId, $t['titulo'], $t['descripcion'], $t['prioridad'], $t['estado'], $t['levantado_por'], $t['asignado_a'], $resueltoAt]
         );
         $creados++;

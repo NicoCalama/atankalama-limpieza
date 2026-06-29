@@ -123,7 +123,7 @@ final class CloudbedsSyncService
         ];
 
         Database::execute(
-            "INSERT INTO cloudbeds_sync_historial (tipo, hotel_id, payload_request) VALUES ('escritura_estado', ?, ?)",
+            "INSERT INTO #__cloudbeds_sync_historial (tipo, hotel_id, payload_request) VALUES ('escritura_estado', ?, ?)",
             [$hotel->id, json_encode(LogSanitizer::sanitize($payload), JSON_UNESCAPED_UNICODE)]
         );
         $histId = Database::lastInsertId();
@@ -132,7 +132,7 @@ final class CloudbedsSyncService
             $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'Clean');
             $exito = $resp->esExito();
             Database::execute(
-                "UPDATE cloudbeds_sync_historial
+                "UPDATE #__cloudbeds_sync_historial
                     SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                         resultado = ?,
                         habitaciones_sincronizadas = ?,
@@ -160,7 +160,7 @@ final class CloudbedsSyncService
             return $exito;
         } catch (CloudbedsException $e) {
             Database::execute(
-                "UPDATE cloudbeds_sync_historial
+                "UPDATE #__cloudbeds_sync_historial
                     SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                         resultado = 'error',
                         errores_count = 1,
@@ -181,7 +181,7 @@ final class CloudbedsSyncService
     public function estadoActual(): ?array
     {
         return Database::fetchOne(
-            'SELECT * FROM cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT 1'
+            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT 1'
         );
     }
 
@@ -189,7 +189,7 @@ final class CloudbedsSyncService
     public function historial(int $limite = 50): array
     {
         return Database::fetchAll(
-            'SELECT * FROM cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ?',
+            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ?',
             [max(1, min(200, $limite))]
         );
     }
@@ -201,7 +201,7 @@ final class CloudbedsSyncService
      */
     public function obtenerHistorial(int $syncId): ?array
     {
-        return Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        return Database::fetchOne('SELECT * FROM #__cloudbeds_sync_historial WHERE id = ?', [$syncId]);
     }
 
     /**
@@ -212,7 +212,7 @@ final class CloudbedsSyncService
     public function listarConfig(): array
     {
         return Database::fetchAll(
-            'SELECT clave, valor, descripcion, updated_at FROM cloudbeds_config ORDER BY clave'
+            'SELECT clave, valor, descripcion, updated_at FROM #__cloudbeds_config ORDER BY clave'
         );
     }
 
@@ -229,7 +229,7 @@ final class CloudbedsSyncService
         Database::transaction(function () use ($cambios, $actorId): void {
             foreach ($cambios as $clave => $valor) {
                 Database::execute(
-                    "UPDATE cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
+                    "UPDATE #__cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
                     [(string) $valor, $actorId, (string) $clave]
                 );
             }
@@ -239,7 +239,7 @@ final class CloudbedsSyncService
     private function crearHistorial(string $tipo, ?int $hotelId, ?int $disparadaPor): int
     {
         Database::execute(
-            'INSERT INTO cloudbeds_sync_historial (tipo, hotel_id, disparada_por) VALUES (?, ?, ?)',
+            'INSERT INTO #__cloudbeds_sync_historial (tipo, hotel_id, disparada_por) VALUES (?, ?, ?)',
             [$tipo, $hotelId, $disparadaPor]
         );
         return Database::lastInsertId();
@@ -249,7 +249,7 @@ final class CloudbedsSyncService
     private function cerrarHistorial(int $id, string $resultado, int $actualizadas, int $errores, array $detalle): void
     {
         Database::execute(
-            "UPDATE cloudbeds_sync_historial
+            "UPDATE #__cloudbeds_sync_historial
                 SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                     resultado = ?,
                     habitaciones_sincronizadas = ?,

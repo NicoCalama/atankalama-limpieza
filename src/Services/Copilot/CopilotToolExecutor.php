@@ -82,9 +82,9 @@ final class CopilotToolExecutor
     {
         $asignaciones = Database::fetchAll(
             "SELECT a.id, a.habitacion_id, h.numero, h.estado, ho.nombre AS hotel
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE a.usuario_id = ? AND a.fecha = date('now') AND a.completada = 0
               ORDER BY a.orden",
             [$usuario->id]
@@ -133,11 +133,11 @@ final class CopilotToolExecutor
         $turnos = $this->turnos->turnosDelDia($fecha);
 
         $completadas = (int) Database::fetchOne(
-            "SELECT COUNT(*) AS n FROM asignaciones WHERE fecha = ? AND completada = 1",
+            "SELECT COUNT(*) AS n FROM #__asignaciones WHERE fecha = ? AND completada = 1",
             [$fecha]
         )['n'];
         $pendientes = (int) Database::fetchOne(
-            "SELECT COUNT(*) AS n FROM asignaciones WHERE fecha = ? AND completada = 0",
+            "SELECT COUNT(*) AS n FROM #__asignaciones WHERE fecha = ? AND completada = 0",
             [$fecha]
         )['n'];
 

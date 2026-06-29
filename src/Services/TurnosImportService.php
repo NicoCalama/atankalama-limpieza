@@ -94,7 +94,7 @@ final class TurnosImportService
             }
 
             $existente = Database::fetchOne(
-                'SELECT id FROM usuarios_turnos WHERE usuario_id = ? AND fecha = ?',
+                'SELECT id FROM #__usuarios_turnos WHERE usuario_id = ? AND fecha = ?',
                 [$usuarioId, $fecha]
             );
 
@@ -116,7 +116,7 @@ final class TurnosImportService
         $usuariosDisplay = [];
         if ($idsEncontrados) {
             $ph   = implode(',', array_fill(0, count($idsEncontrados), '?'));
-            $rows = Database::fetchAll("SELECT id, nombre, rut FROM usuarios WHERE id IN ($ph)", $idsEncontrados);
+            $rows = Database::fetchAll("SELECT id, nombre, rut FROM #__usuarios WHERE id IN ($ph)", $idsEncontrados);
             foreach ($rows as $row) {
                 $nTurnos = count(array_filter($filasImportar, fn($f) => $f['usuario_id'] === (int) $row['id']));
                 $usuariosDisplay[] = ['id' => (int) $row['id'], 'nombre' => $row['nombre'], 'rut' => $row['rut'], 'turnos' => $nTurnos];
@@ -158,14 +158,14 @@ final class TurnosImportService
 
                 if ($reemplazar) {
                     Database::execute(
-                        'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha)
+                        'INSERT INTO #__usuarios_turnos (usuario_id, turno_id, fecha)
                          VALUES (?, ?, ?)
                          ON CONFLICT(usuario_id, fecha) DO UPDATE SET turno_id = excluded.turno_id',
                         [$fila['usuario_id'], $turnoId, $fila['fecha']]
                     );
                 } else {
                     Database::execute(
-                        'INSERT OR IGNORE INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
+                        'INSERT OR IGNORE INTO #__usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
                         [$fila['usuario_id'], $turnoId, $fila['fecha']]
                     );
                 }
@@ -190,7 +190,7 @@ final class TurnosImportService
 
     private function mapearRuts(): array
     {
-        $filas = Database::fetchAll('SELECT id, rut FROM usuarios WHERE activo = 1');
+        $filas = Database::fetchAll('SELECT id, rut FROM #__usuarios WHERE activo = 1');
         $mapa  = [];
         foreach ($filas as $fila) {
             $mapa[strtoupper($fila['rut'])] = (int) $fila['id'];
@@ -200,7 +200,7 @@ final class TurnosImportService
 
     private function indexarTurnosPorHoras(): array
     {
-        $turnos = Database::fetchAll('SELECT hora_inicio, hora_fin FROM turnos');
+        $turnos = Database::fetchAll('SELECT hora_inicio, hora_fin FROM #__turnos');
         $mapa   = [];
         foreach ($turnos as $t) {
             $mapa[$t['hora_inicio'] . '-' . $t['hora_fin']] = true;
@@ -211,17 +211,17 @@ final class TurnosImportService
     private function encontrarOCrearTurno(string $nombre, string $horaInicio, string $horaFin): int
     {
         $turno = Database::fetchOne(
-            'SELECT id FROM turnos WHERE hora_inicio = ? AND hora_fin = ?',
+            'SELECT id FROM #__turnos WHERE hora_inicio = ? AND hora_fin = ?',
             [$horaInicio, $horaFin]
         );
         if ($turno) return (int) $turno['id'];
 
         // Avoid UNIQUE conflict on nombre if same name, different hours
-        $existe = Database::fetchOne('SELECT id FROM turnos WHERE nombre = ?', [$nombre]);
+        $existe = Database::fetchOne('SELECT id FROM #__turnos WHERE nombre = ?', [$nombre]);
         $nombreFinal = $existe ? "$nombre ({$horaInicio}-{$horaFin})" : $nombre;
 
         Database::execute(
-            'INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)',
+            'INSERT INTO #__turnos (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)',
             [$nombreFinal, $horaInicio, $horaFin]
         );
 

@@ -52,7 +52,7 @@ final class AuditoriaService
         }
 
         $ejecFila = Database::fetchOne(
-            "SELECT * FROM ejecuciones_checklist
+            "SELECT * FROM #__ejecuciones_checklist
               WHERE habitacion_id = ? AND estado = 'completada'
               ORDER BY id DESC LIMIT 1",
             [$habitacionId]
@@ -66,7 +66,7 @@ final class AuditoriaService
         }
         $ejecucion = EjecucionChecklist::desdeFila($ejecFila);
 
-        $existente = Database::fetchOne('SELECT id FROM auditorias WHERE ejecucion_id = ?', [$ejecucion->id]);
+        $existente = Database::fetchOne('SELECT id FROM #__auditorias WHERE ejecucion_id = ?', [$ejecucion->id]);
         if ($existente !== null) {
             throw new AuditoriaException('AUDITORIA_YA_EXISTE', 'Esta habitación ya fue auditada.', 409);
         }
@@ -99,13 +99,13 @@ final class AuditoriaService
         $itemsJson = $itemsDesmarcados === [] ? null : json_encode(array_values($itemsDesmarcados));
 
         Database::execute(
-            'INSERT INTO auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
             [$ejecucion->id, $habitacionId, $auditorId, $veredicto, $comentario, $itemsJson]
         );
         $auditoriaId = Database::lastInsertId();
 
         Database::execute(
-            "UPDATE ejecuciones_checklist SET estado = 'auditada' WHERE id = ?",
+            "UPDATE #__ejecuciones_checklist SET estado = 'auditada' WHERE id = ?",
             [$ejecucion->id]
         );
 
@@ -142,19 +142,19 @@ final class AuditoriaService
             'items_desmarcados' => $itemsDesmarcados,
         ]);
 
-        return Auditoria::desdeFila(Database::fetchOne('SELECT * FROM auditorias WHERE id = ?', [$auditoriaId]));
+        return Auditoria::desdeFila(Database::fetchOne('SELECT * FROM #__auditorias WHERE id = ?', [$auditoriaId]));
     }
 
     public function obtener(int $id): ?Auditoria
     {
-        $fila = Database::fetchOne('SELECT * FROM auditorias WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__auditorias WHERE id = ?', [$id]);
         return $fila === null ? null : Auditoria::desdeFila($fila);
     }
 
     public function obtenerDeHabitacion(int $habitacionId): ?Auditoria
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM auditorias WHERE habitacion_id = ? ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM #__auditorias WHERE habitacion_id = ? ORDER BY id DESC LIMIT 1',
             [$habitacionId]
         );
         return $fila === null ? null : Auditoria::desdeFila($fila);
@@ -164,10 +164,10 @@ final class AuditoriaService
     public function bandejaPendientes(?string $hotelCodigo = null): array
     {
         $sql = "SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre, ec.id AS ejecucion_id, ec.usuario_id AS trabajador_id
-                  FROM habitaciones h
-                  JOIN hoteles ho ON ho.id = h.hotel_id
-                  JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
-             LEFT JOIN ejecuciones_checklist ec
+                  FROM #__habitaciones h
+                  JOIN #__hoteles ho ON ho.id = h.hotel_id
+                  JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+             LEFT JOIN #__ejecuciones_checklist ec
                     ON ec.habitacion_id = h.id AND ec.estado = 'completada'
                  WHERE h.estado = 'completada_pendiente_auditoria'
                    AND h.activa = 1";
@@ -183,7 +183,7 @@ final class AuditoriaService
     private function crearAlertaRechazo(int $habitacionId, int $trabajadorId, ?string $comentario): void
     {
         $habFila = Database::fetchOne(
-            'SELECT h.numero, h.hotel_id, ho.codigo as hotel_codigo FROM habitaciones h JOIN hoteles ho ON ho.id=h.hotel_id WHERE h.id = ?',
+            'SELECT h.numero, h.hotel_id, ho.codigo as hotel_codigo FROM #__habitaciones h JOIN #__hoteles ho ON ho.id=h.hotel_id WHERE h.id = ?',
             [$habitacionId]
         );
         $numero      = $habFila['numero'] ?? '?';
@@ -201,11 +201,11 @@ final class AuditoriaService
         // Push a todas las supervisoras con permiso alertas.recibir_predictivas
         $supervisoraIds = array_column(
             Database::fetchAll(
-                "SELECT DISTINCT u.id FROM usuarios u
-                 JOIN usuarios_roles ur ON ur.usuario_id = u.id
-                 JOIN roles r ON r.id = ur.rol_id
-                 JOIN rol_permisos rp ON rp.rol_id = r.id
-                 JOIN permisos p ON p.id = rp.permiso_id
+                "SELECT DISTINCT u.id FROM #__usuarios u
+                 JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+                 JOIN #__roles r ON r.id = ur.rol_id
+                 JOIN #__rol_permisos rp ON rp.rol_id = r.id
+                 JOIN #__permisos p ON p.codigo = rp.permiso_codigo
                  WHERE p.codigo = 'alertas.recibir_predictivas' AND u.activo = 1"
             ),
             'id'

@@ -50,13 +50,13 @@ final class AlertasService
         $json = $contextoConKey === [] ? null : json_encode($contextoConKey, JSON_UNESCAPED_UNICODE);
 
         Database::execute(
-            'INSERT INTO alertas_activas (tipo, prioridad, titulo, descripcion, contexto_json, hotel_id) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__alertas_activas (tipo, prioridad, titulo, descripcion, contexto_json, hotel_id) VALUES (?, ?, ?, ?, ?, ?)',
             [$tipo, $prioridad, $titulo, $descripcion, $json, $hotelId]
         );
         $id = Database::lastInsertId();
 
         Database::execute(
-            'INSERT INTO bitacora_alertas (tipo, prioridad, titulo, descripcion, contexto_json, hotel_id, levantada_at) VALUES (?, ?, ?, ?, ?, ?, strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\'))',
+            'INSERT INTO #__bitacora_alertas (tipo, prioridad, titulo, descripcion, contexto_json, hotel_id, levantada_at) VALUES (?, ?, ?, ?, ?, ?, strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\'))',
             [$tipo, $prioridad, $titulo, $descripcion, $json, $hotelId]
         );
 
@@ -64,7 +64,7 @@ final class AlertasService
             'id' => $id, 'tipo' => $tipo, 'prioridad' => $prioridad, 'hotel_id' => $hotelId,
         ]);
 
-        $fila = Database::fetchOne('SELECT * FROM alertas_activas WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$id]);
         return AlertaActiva::desdeFila($fila);
     }
 
@@ -77,19 +77,19 @@ final class AlertasService
         ], true)) {
             throw new AlertasException('RESOLUCION_INVALIDA', "Resolución inválida: {$resolucion}.", 400);
         }
-        $alerta = Database::fetchOne('SELECT * FROM alertas_activas WHERE id = ?', [$alertaId]);
+        $alerta = Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$alertaId]);
         if ($alerta === null) {
             return;
         }
-        Database::execute('DELETE FROM alertas_activas WHERE id = ?', [$alertaId]);
+        Database::execute('DELETE FROM #__alertas_activas WHERE id = ?', [$alertaId]);
         Database::execute(
-            "UPDATE bitacora_alertas
+            "UPDATE #__bitacora_alertas
                 SET resuelta_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                     resolucion = ?,
                     resuelta_por = ?,
                     accion_tomada = ?
               WHERE tipo = ? AND levantada_at = (
-                  SELECT MAX(levantada_at) FROM bitacora_alertas
+                  SELECT MAX(levantada_at) FROM #__bitacora_alertas
                    WHERE tipo = ? AND resuelta_at IS NULL
               )",
             [$resolucion, $usuarioId, $accion, $alerta['tipo'], $alerta['tipo']]
@@ -114,10 +114,10 @@ final class AlertasService
     /** @return list<AlertaActiva> */
     public function listarActivas(?string $hotelCodigo = null, ?int $limit = null): array
     {
-        $sql = 'SELECT a.* FROM alertas_activas a';
+        $sql = 'SELECT a.* FROM #__alertas_activas a';
         $params = [];
         if ($hotelCodigo !== null && $hotelCodigo !== 'ambos') {
-            $sql .= ' LEFT JOIN hoteles h ON h.id = a.hotel_id WHERE (h.codigo = ? OR a.hotel_id IS NULL)';
+            $sql .= ' LEFT JOIN #__hoteles h ON h.id = a.hotel_id WHERE (h.codigo = ? OR a.hotel_id IS NULL)';
             $params[] = $hotelCodigo;
         }
         $sql .= ' ORDER BY a.prioridad ASC, a.created_at DESC';
@@ -142,14 +142,14 @@ final class AlertasService
 
     public function obtener(int $id): ?AlertaActiva
     {
-        $fila = Database::fetchOne('SELECT * FROM alertas_activas WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$id]);
         return $fila === null ? null : AlertaActiva::desdeFila($fila);
     }
 
     /** @return list<array<string, mixed>> */
     public function listarBitacora(?string $tipo = null, int $limit = 100): array
     {
-        $sql = 'SELECT * FROM bitacora_alertas';
+        $sql = 'SELECT * FROM #__bitacora_alertas';
         $params = [];
         if ($tipo !== null) {
             $sql .= ' WHERE tipo = ?';
@@ -164,7 +164,7 @@ final class AlertasService
 
     public function obtenerConfig(string $clave): string
     {
-        $fila = Database::fetchOne('SELECT valor FROM alertas_config WHERE clave = ?', [$clave]);
+        $fila = Database::fetchOne('SELECT valor FROM #__alertas_config WHERE clave = ?', [$clave]);
         if ($fila !== null) {
             return (string) $fila['valor'];
         }
@@ -179,7 +179,7 @@ final class AlertasService
     /** @return array<string, string> */
     public function listarConfig(): array
     {
-        $filas = Database::fetchAll('SELECT clave, valor FROM alertas_config');
+        $filas = Database::fetchAll('SELECT clave, valor FROM #__alertas_config');
         $persistidas = [];
         foreach ($filas as $f) {
             $persistidas[(string) $f['clave']] = (string) $f['valor'];
@@ -189,15 +189,15 @@ final class AlertasService
 
     public function actualizarConfig(string $clave, string $valor, int $usuarioId): void
     {
-        $existente = Database::fetchOne('SELECT clave FROM alertas_config WHERE clave = ?', [$clave]);
+        $existente = Database::fetchOne('SELECT clave FROM #__alertas_config WHERE clave = ?', [$clave]);
         if ($existente === null) {
             Database::execute(
-                'INSERT INTO alertas_config (clave, valor, updated_by) VALUES (?, ?, ?)',
+                'INSERT INTO #__alertas_config (clave, valor, updated_by) VALUES (?, ?, ?)',
                 [$clave, $valor, $usuarioId]
             );
         } else {
             Database::execute(
-                "UPDATE alertas_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
+                "UPDATE #__alertas_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
                 [$valor, $usuarioId, $clave]
             );
         }
@@ -210,7 +210,7 @@ final class AlertasService
     {
         $needle = '"_dedupe":"' . $dedupeKey . '"';
         $fila = Database::fetchOne(
-            'SELECT * FROM alertas_activas WHERE tipo = ? AND contexto_json LIKE ? LIMIT 1',
+            'SELECT * FROM #__alertas_activas WHERE tipo = ? AND contexto_json LIKE ? LIMIT 1',
             [$tipo, '%' . $needle . '%']
         );
         return $fila === null ? null : AlertaActiva::desdeFila($fila);

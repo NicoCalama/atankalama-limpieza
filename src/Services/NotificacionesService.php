@@ -18,7 +18,7 @@ final class NotificacionesService
         string $url = '/home',
     ): void {
         Database::execute(
-            'INSERT INTO notificaciones (usuario_id, tipo, titulo, cuerpo, url) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__notificaciones (usuario_id, tipo, titulo, cuerpo, url) VALUES (?, ?, ?, ?, ?)',
             [$usuarioId, $tipo, $titulo, $cuerpo, $url]
         );
         $this->limpiarAntiguas($usuarioId);
@@ -42,7 +42,7 @@ final class NotificacionesService
     {
         return Database::fetchAll(
             'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
-               FROM notificaciones
+               FROM #__notificaciones
               WHERE usuario_id = ?
               ORDER BY created_at DESC
               LIMIT ?',
@@ -53,7 +53,7 @@ final class NotificacionesService
     public function sinLeer(int $usuarioId): int
     {
         $fila = Database::fetchOne(
-            'SELECT COUNT(*) AS total FROM notificaciones WHERE usuario_id = ? AND leida = 0',
+            'SELECT COUNT(*) AS total FROM #__notificaciones WHERE usuario_id = ? AND leida = 0',
             [$usuarioId]
         );
         return (int) ($fila['total'] ?? 0);
@@ -62,7 +62,7 @@ final class NotificacionesService
     public function marcarTodasLeidas(int $usuarioId): void
     {
         Database::execute(
-            'UPDATE notificaciones SET leida = 1 WHERE usuario_id = ? AND leida = 0',
+            'UPDATE #__notificaciones SET leida = 1 WHERE usuario_id = ? AND leida = 0',
             [$usuarioId]
         );
     }
@@ -71,10 +71,10 @@ final class NotificacionesService
     private function limpiarAntiguas(int $usuarioId): void
     {
         Database::execute(
-            'DELETE FROM notificaciones
+            'DELETE FROM #__notificaciones
               WHERE usuario_id = ?
                 AND id NOT IN (
-                    SELECT id FROM notificaciones
+                    SELECT id FROM #__notificaciones
                      WHERE usuario_id = ?
                      ORDER BY created_at DESC
                      LIMIT ?

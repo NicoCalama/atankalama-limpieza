@@ -30,10 +30,10 @@ final class ReportesService
 
         return Database::fetchAll(
             "SELECT DISTINCT ec.usuario_id AS usuario_id, u.nombre
-               FROM ejecuciones_checklist ec
-               JOIN usuarios u ON u.id = ec.usuario_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$hotelCond}
               ORDER BY u.nombre",
@@ -59,12 +59,12 @@ final class ReportesService
                     COUNT(DISTINCT ec.id) AS habitaciones,
                     SUM(CASE WHEN ei.marcado = 1 AND (ei.desmarcado_por_auditor = 0 OR ei.desmarcado_por_auditor IS NULL) THEN 1 ELSE 0 END) AS creditos,
                     COUNT(ic.id) AS creditos_maximos
-               FROM ejecuciones_checklist ec
-               JOIN usuarios u ON u.id = ec.usuario_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
-          LEFT JOIN ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
+          LEFT JOIN #__ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$hotelCond}
@@ -181,10 +181,10 @@ final class ReportesService
                     SUM(CASE WHEN a.veredicto='aprobado' THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
                     SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas
-               FROM auditorias a
-               JOIN usuarios u ON u.id = a.auditor_id
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__auditorias a
+               JOIN #__usuarios u ON u.id = a.auditor_id
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
@@ -316,9 +316,9 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT ROUND(AVG((julianday(ec.timestamp_fin) - julianday(ec.timestamp_inicio)) * 24 * 60), 1) AS valor,
                     COUNT(*) AS total
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_fin IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
@@ -354,10 +354,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas
-               FROM auditorias a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN ejecuciones_checklist ec ON ec.id = a.ejecucion_id
+               FROM #__auditorias a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$h}{$u}",
             $params
@@ -395,10 +395,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN ec.estado IN ('completada', 'auditada') THEN 1 ELSE 0 END) AS completadas
-               FROM asignaciones asg
-               JOIN habitaciones h ON h.id = asg.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-          LEFT JOIN ejecuciones_checklist ec ON ec.asignacion_id = asg.id
+               FROM #__asignaciones asg
+               JOIN #__habitaciones h ON h.id = asg.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__ejecuciones_checklist ec ON ec.asignacion_id = asg.id
               WHERE asg.fecha BETWEEN ? AND ?
                 AND asg.activa = 1
                     {$h}{$u}",
@@ -435,11 +435,11 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(ic.id)                                                         AS total_items,
                     SUM(CASE WHEN ei.marcado = 1 AND (ei.desmarcado_por_auditor = 0 OR ei.desmarcado_por_auditor IS NULL) THEN 1 ELSE 0 END) AS creditos
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
-          LEFT JOIN ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
+          LEFT JOIN #__ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$h}{$u}",
@@ -478,10 +478,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_con_observacion') THEN 1 ELSE 0 END) AS aprobadas
-               FROM auditorias a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN ejecuciones_checklist ec ON ec.id = a.ejecucion_id
+               FROM #__auditorias a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$h}{$u}",
             $params
@@ -516,9 +516,9 @@ final class ReportesService
             "SELECT COUNT(ec.id)                       AS completadas,
                     COUNT(DISTINCT ec.usuario_id)       AS trabajadoras,
                     COUNT(DISTINCT DATE(ec.timestamp_inicio)) AS dias
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$h}{$u}",
@@ -554,10 +554,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT SUM(CASE WHEN ei.marcado = 1 THEN 1 ELSE 0 END)                AS marcados,
                     SUM(CASE WHEN ei.desmarcado_por_auditor = 1 THEN 1 ELSE 0 END) AS desmarcados
-               FROM ejecuciones_items ei
-               JOIN ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_items ei
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$h}{$u}",
