@@ -38,6 +38,23 @@ final class UsuarioServiceTest extends TestCase
         $this->assertContains('Trabajador', $r['usuario']->roles);
     }
 
+    public function testCrearConRolInexistenteLanzaYNoCreaUsuario(): void
+    {
+        try {
+            $this->svc->crear(
+                ['rut' => '22222222-2', 'nombre' => 'Juan', 'roles' => [999999]],
+                $this->adminId,
+                $this->pwd
+            );
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('ROL_NO_ENCONTRADO', $e->codigo);
+        }
+        // La validación corre antes de tocar la BD: el usuario no debe haberse creado.
+        $existe = Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', ['22222222-2']);
+        $this->assertNull($existe);
+    }
+
     public function testRutDuplicadoLanza(): void
     {
         $this->svc->crear(['rut' => '22222222-2', 'nombre' => 'Juan'], $this->adminId, $this->pwd);

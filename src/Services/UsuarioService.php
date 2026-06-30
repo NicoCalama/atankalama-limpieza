@@ -93,11 +93,28 @@ final class UsuarioService
             throw new UsuarioException('RUT_DUPLICADO', 'Ya existe un usuario con ese RUT.', 409);
         }
 
+        // Validamos los roles ANTES de tocar la BD. El payload trae IDs de rol; un ID
+        // inexistente (o un 0 producido por castear mal un nombre) debe fallar ruidosamente
+        // —igual que RbacService::asignarRolAUsuario— en vez de descartarse en silencio.
+        // `roles` sigue siendo opcional: una lista vacía crea el usuario sin roles.
+        $rolesRaw = $datos['roles'] ?? [];
+        if (!is_array($rolesRaw)) {
+            $rolesRaw = [];
+        }
+        $rolesIds = [];
+        foreach ($rolesRaw as $rolRaw) {
+            $rolId = (int) $rolRaw;
+            if ($rolId <= 0 || Database::fetchOne('SELECT id FROM #__roles WHERE id = ?', [$rolId]) === null) {
+                throw new UsuarioException('ROL_NO_ENCONTRADO', 'Uno de los roles indicados no existe.', 404);
+            }
+            $rolesIds[] = $rolId;
+        }
+
         $temporal = $passwords->generarTemporal();
         $hash = $passwords->hash($temporal);
 
         $usuarioId = 0;
-        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $datos, $creadoPor): void {
+        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $rolesIds, $creadoPor): void {
             Database::execute(
                 'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
                 [$rutNorm, $nombre, $email, $hash, $hotelDefault]
@@ -107,14 +124,11 @@ final class UsuarioService
                 'INSERT INTO #__contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, ?, ?)',
                 [$usuarioId, $creadoPor, 'creacion']
             );
-            $roles = $datos['roles'] ?? [];
-            if (is_array($roles)) {
-                foreach ($roles as $rolId) {
-                    Database::execute(
-                        'INSERT OR IGNORE INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
-                        [$usuarioId, (int) $rolId]
-                    );
-                }
+            foreach ($rolesIds as $rolId) {
+                Database::execute(
+                    'INSERT OR IGNORE INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
+                    [$usuarioId, $rolId]
+                );
             }
         });
 

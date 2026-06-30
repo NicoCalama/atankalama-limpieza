@@ -122,9 +122,42 @@ activar/desactivar usuario, reset password, exportar reportes, guardar matriz RB
 forzar sync Cloudbeds — además del drag-reorder de asignaciones y el toggle día/noche
 (mi detector no lo ubicó; confirmar manualmente).
 
+## Resultados de los clics dirigidos — RBAC + Usuarios (Playwright, 2026-06-30)
+
+Recorrido como **Admin** contra Docker `:8090`. **0 errores de consola JS** (solo el 404
+de `favicon.ico`, inofensivo).
+
+**A. Matriz RBAC (`/ajustes/rbac`):** ✅
+- Toggle de un permiso (`reportes.ver` en rol *Recepción*) → aparece el banner
+  "1 cambio sin guardar" con el checkbox resaltado.
+- "Guardar cambios" → `PUT /api/roles/3` → 200 OK; toast de éxito.
+- **Persistencia confirmada tras refresco completo de la página** (la matriz recarga
+  del servidor y el permiso quedó marcado).
+- Revertido (toggle off + guardar) → matriz queda como estaba (**net cero**).
+
+**B. Usuarios — activar/desactivar (`/usuarios`):** ✅
+- Sobre un usuario descartable creado para la prueba ("ZZ Test Descartable", id 17).
+- "Desactivar usuario" → `confirm()` correcto → `POST /api/usuarios/17/desactivar` →
+  200 OK → `activo=false`.
+- "Activar usuario" → `POST /api/usuarios/17/activar` → 200 OK → `activo=true` (**net cero**).
+
+**C. Usuarios — resetear contraseña:** ✅
+- "Resetear contraseña" → `confirm()` → `POST /api/auth/reset-temporal` → 200 OK →
+  el panel muestra la contraseña temporal nueva + botón copiar
+  (screenshot `test-reset-password-descartable.png`).
+
+**Limpieza:** el usuario descartable se eliminó vía `DELETE /api/usuarios/17` (soft-delete
+anonimizante → "Usuario eliminado #17", inactivo, fuera de los listados).
+
+**Crear usuario (`POST /api/usuarios`):** ✅ el alta funciona (201 + contraseña temporal),
+**pero ver el bug en la tabla de hallazgos — el rol seleccionado no se persiste.**
+
 ## Registro de hallazgos
 
 | Pantalla | Botón/acción | Rol | Qué pasó | Severidad |
 |---|---|---|---|---|
 | /tickets | "Nuevo ticket" | admin | OK — es botón con ícono "+" (no texto); abre modal por evento | Nota (no defecto) |
 | (toggle día/noche) | tema | todos | No confirmado por automatización — verificar a ojo | Pendiente manual |
+| /usuarios | "Crear usuario" (modal Nuevo usuario) | admin | **BUG (CORREGIDO):** el usuario se creaba **sin el rol seleccionado**. El modal enviaba `roles` como **nombres** (`["Trabajador"]`); el backend (`UsuarioService::crear`) hace `(int) $rolId` esperando **IDs** → `(int)"Trabajador"` = 0 → `INSERT IGNORE` lo descartaba → "Sin roles asignados". **Fix (frontend):** `modal-usuario-nuevo.php` ahora mapea los nombres seleccionados a sus IDs antes de enviar. **Endurecimiento (backend):** `UsuarioService::crear` ahora valida que cada ID de rol exista (`ROL_NO_ENCONTRADO` 404) antes de tocar la BD, en vez de descartar en silencio — `roles` sigue opcional. **Verificado en MariaDB:** alta con rol válido → `roles: ["Trabajador"]` persistido (201); rol inexistente → 404 sin crear nada. Test `testCrearConRolInexistenteLanzaYNoCreaUsuario`; suite 201/201. | **Alta → Corregido + endurecido** |
+| /ajustes/rbac | toggle permiso + "Guardar cambios" | admin | OK — `PUT /api/roles/{id}` 200, persiste tras refresco | Verificado |
+| /usuarios | activar / desactivar / reset password | admin | OK — 200 en los 3 endpoints, feedback y `confirm()` correctos | Verificado |
