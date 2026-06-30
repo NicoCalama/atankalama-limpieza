@@ -47,7 +47,7 @@ Cuando debas tomar una decisión que no esté especificada en `docs/`, **no la a
 - **Mobile-first siempre:** escribe los estilos base para 375px y agrega `sm:`, `md:`, `lg:` para escalar
 - **Botones mínimo 44px de alto:** `min-h-[44px]` o equivalente
 - **Bottom tab bar en móvil**, sidebar en desktop (`md:` y arriba)
-- **FAB del copilot IA** siempre visible — `fixed bottom-20 right-4` o similar
+- **FAB del copilot IA** visible solo con el flag `COPILOT_HABILITADO=true` (default off, se reactiva al conectar Claude API) **y** el permiso del usuario — `fixed bottom-20 right-4` o similar
 - **Modo día/noche** con clase `dark:` de Tailwind, persistido en localStorage
 
 ## Arquitectura clave — RBAC Dinámico

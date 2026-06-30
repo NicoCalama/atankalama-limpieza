@@ -42,6 +42,12 @@ Las capacidades del copilot para cada usuario se derivan **dinámicamente** de s
 
 **Sin `copilot.usar_nivel_1_consultas`**: el FAB no se muestra.
 
+**Flag global `COPILOT_HABILITADO`** (default `false`): oculta el FAB en TODA la UI,
+independientemente del permiso. Permite trabajar y capacitar al equipo en la app sin el
+copilot hasta conectar Claude API. El backend (endpoints) sigue gateado por permiso. Se
+reactiva poniendo `COPILOT_HABILITADO=true` en el `.env` (la condición real en
+`views/layout.php` es `COPILOT_HABILITADO=true` **y** el permiso del usuario).
+
 ---
 
 ## 4. Definición de tools

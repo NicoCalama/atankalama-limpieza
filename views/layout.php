@@ -74,7 +74,8 @@
         <?php include __DIR__ . '/componentes/bottom-nav.php'; ?>
 
         <!-- FAB Copilot -->
-        <?php if ($usuario->tienePermiso('copilot.usar_nivel_1_consultas')): ?>
+        <?php // Oculto vía flag mientras el equipo aprende la app; se reactiva con COPILOT_HABILITADO=true al conectar Claude API. ?>
+        <?php if (\Atankalama\Limpieza\Core\Config::getBool('COPILOT_HABILITADO', false) && $usuario->tienePermiso('copilot.usar_nivel_1_consultas')): ?>
             <?php include __DIR__ . '/componentes/fab-copilot.php'; ?>
         <?php endif; ?>
 
