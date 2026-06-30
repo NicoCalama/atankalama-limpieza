@@ -18,12 +18,14 @@ Antes de tocar cualquier módulo, lee:
 
 ## Modo de trabajo
 
-Este proyecto opera en **autonomía híbrida**:
+Este proyecto opera en **supervisión total**: **propón cada cambio y espera la aprobación del usuario antes de aplicarlo, por mínimo que sea.** No hay módulos "en autonomía" — ni un ajuste trivial, ni un rename, ni un comentario se aplican sin un OK explícito.
 
-- **Autonomía total** para módulos backend mecánicos: schema, modelos, CRUD, RBAC dinámico, integración Cloudbeds, middleware, alertas predictivas, tests. Codifica módulos completos, commitea, sigue.
-- **Supervisión por módulo** para UI: Login, Home (4 versiones por rol), checklist, copilot IA, ajustes (matriz RBAC), auditoría, alertas predictivas. Propone archivos, espera aprobación antes de aceptar.
+- **Antes de cada edición**, di qué archivo vas a tocar y por qué, y espera confirmación. Esto está reforzado por un *gate de permisos* en `.claude/settings.local.json` (`permissions.ask`) que obliga a aceptar/rechazar cada `Edit`/`Write`/`MultiEdit`: el control es doble, por criterio y por candado.
+- **No commitees por tu cuenta.** Cuando un bloque esté listo, propón el commit (con su mensaje) y espera el OK; nunca encadenes commits sin aprobación.
+- **No avances al siguiente módulo** sin que el usuario lo indique.
+- Esto aplica a **todo por igual**: backend mecánico (schema, modelos, CRUD, RBAC, integración Cloudbeds, middleware, tests) y UI.
 
-Cuando estés en modo autonomía total y debas tomar una decisión que no esté especificada en `docs/`, sigue los **Defaults razonables** (más abajo) y deja un comentario `// DECISIÓN AUTÓNOMA: <descripción>` en el código para revisión posterior.
+Cuando debas tomar una decisión que no esté especificada en `docs/`, **no la asumas en silencio**: propón la opción siguiendo los **Defaults razonables** (más abajo) y espera confirmación antes de codificarla.
 
 ## Stack obligatorio
 
@@ -188,9 +190,9 @@ Ver la skill `php-conventions` para más detalle.
 - **Hora:** zona horaria `America/Santiago`
 - **Idioma:** español chileno. Textos cortos, claros, sin formalismos excesivos pero respetuosos.
 
-Cuando uses un default razonable, deja un comentario:
+Cuando el usuario apruebe un default razonable, deja constancia con un comentario:
 ```php
-// DECISIÓN AUTÓNOMA: usé spinner azul porque docs/checklist.md no especifica estado de carga
+// DEFAULT APLICADO (aprobado por el usuario): spinner azul porque docs/checklist.md no especifica estado de carga
 ```
 
 ## Comandos útiles del proyecto
@@ -238,7 +240,7 @@ Un commit por módulo o sub-módulo lógico terminado. NO commitees código a me
 
 ## Testing
 
-Para los módulos en autonomía total, escribe tests unitarios mínimos:
+Para los módulos backend, escribe tests unitarios mínimos:
 - Validación de RUT (incluye casos con K)
 - Hash y verificación de contraseñas
 - Generación de contraseñas temporales (sin caracteres ambiguos)
@@ -247,15 +249,15 @@ Para los módulos en autonomía total, escribe tests unitarios mínimos:
 - Sistema de permisos dinámicos (`tienePermiso()`)
 - Cliente Cloudbeds (con respuestas mockeadas)
 
-Los módulos UI (con supervisión) no requieren tests automatizados en el MVP.
+Los módulos UI no requieren tests automatizados en el MVP.
 
 ## Cuando termines un módulo
 
 1. Asegúrate de que el código corre sin errores (`php -S localhost:8000 -t public/`)
 2. Si es módulo backend: corre los tests
-3. Haz commit con mensaje descriptivo
-4. Si encontraste decisiones autónomas significativas, menciónalas en el cuerpo del commit
-5. Continúa con el siguiente módulo del orden definido en `claude-code-setup.md` sección 10
+3. **Propón** el commit (con mensaje descriptivo) y espera el OK del usuario antes de ejecutarlo
+4. Si hubo defaults razonables o decisiones de diseño, inclúyelas en el cuerpo del commit propuesto
+5. **No continúes** con el siguiente módulo (orden en `claude-code-setup.md` sección 10) hasta que el usuario lo apruebe
 
 ## Cuando algo no funciona
 
