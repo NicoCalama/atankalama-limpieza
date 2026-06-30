@@ -119,8 +119,9 @@ pierde. Útil como primer barrido antes del recorrido manual.
 **NO cubierto por el barrido automático (verificar a ojo / clic dirigido):**
 botones destructivos o de escritura — auditoría (3 botones), "Habitación terminada",
 activar/desactivar usuario, reset password, exportar reportes, guardar matriz RBAC,
-forzar sync Cloudbeds — además del drag-reorder de asignaciones y el toggle día/noche
-(mi detector no lo ubicó; confirmar manualmente).
+forzar sync Cloudbeds — además del drag-reorder de asignaciones (confirmar
+manualmente). *El toggle día/noche quedó resuelto: ahora es un botón fijo en el
+header de todas las pantallas — ver la tabla de hallazgos.*
 
 ## Resultados de los clics dirigidos — RBAC + Usuarios (Playwright, 2026-06-30)
 
@@ -157,7 +158,7 @@ anonimizante → "Usuario eliminado #17", inactivo, fuera de los listados).
 | Pantalla | Botón/acción | Rol | Qué pasó | Severidad |
 |---|---|---|---|---|
 | /tickets | "Nuevo ticket" | admin | OK — es botón con ícono "+" (no texto); abre modal por evento | Nota (no defecto) |
-| (toggle día/noche) | tema | todos | No confirmado por automatización — verificar a ojo | Pendiente manual |
+| (toggle día/noche) | tema | todos | **RESUELTO (commit `0781a6c`):** el detector no lo ubicaba porque vivía **solo** en Ajustes → Mi cuenta (engorroso). Se agregó un **botón día/noche al extremo derecho del header en las 18 pantallas** (componente `views/componentes/boton-tema.php` + `window.toggleTema()` en `app.js`; ícono luna/sol por CSS). Verificado con Playwright (clic real): alterna la clase `dark`, persiste en `localStorage('tema')` y sobrevive a la recarga. De paso se corrigió el **Service Worker** que servía `app.js` rancio (Cache First sin revalidar → el botón "no hacía nada" en clientes instalados): `CACHE_VERSION` a v2, precache/revalidación con `cache:'reload'` y `cacheFirst` ahora hace stale-while-revalidate real. | **Verificado + mejorado** |
 | /usuarios | "Crear usuario" (modal Nuevo usuario) | admin | **BUG (CORREGIDO):** el usuario se creaba **sin el rol seleccionado**. El modal enviaba `roles` como **nombres** (`["Trabajador"]`); el backend (`UsuarioService::crear`) hace `(int) $rolId` esperando **IDs** → `(int)"Trabajador"` = 0 → `INSERT IGNORE` lo descartaba → "Sin roles asignados". **Fix (frontend):** `modal-usuario-nuevo.php` ahora mapea los nombres seleccionados a sus IDs antes de enviar. **Endurecimiento (backend):** `UsuarioService::crear` ahora valida que cada ID de rol exista (`ROL_NO_ENCONTRADO` 404) antes de tocar la BD, en vez de descartar en silencio — `roles` sigue opcional. **Verificado en MariaDB:** alta con rol válido → `roles: ["Trabajador"]` persistido (201); rol inexistente → 404 sin crear nada. Test `testCrearConRolInexistenteLanzaYNoCreaUsuario`; suite 201/201. | **Alta → Corregido + endurecido** |
 | /ajustes/rbac | toggle permiso + "Guardar cambios" | admin | OK — `PUT /api/roles/{id}` 200, persiste tras refresco | Verificado |
 | /usuarios | activar / desactivar / reset password | admin | OK — 200 en los 3 endpoints, feedback y `confirm()` correctos | Verificado |
