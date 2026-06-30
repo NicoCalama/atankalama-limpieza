@@ -1,0 +1,54 @@
+# docker-compose.yml — SOLO para testeo local de la migración a MariaDB.
+#
+# NO es un artefacto de producción: en cPanel el PHP y MariaDB los provee el
+# host (ver docs/migracion-mariadb-cpanel.md). Esto solo levanta, en local, un
+# PHP 8.4 + MariaDB 10.11 equivalentes para validar el dialecto y el esquema
+# `limpieza_*` antes del deploy.
+#
+# Uso:
+#   docker compose up -d --build
+#   docker compose exec app php scripts/seed.php
+#   docker compose exec app php scripts/seed-demo-data.php
+#   # app en http://localhost:8090 ; MariaDB en localhost:3307
+#   docker compose down -v        # borra también el volumen de datos
+#
+# El env del contenedor sale de .env.docker (montado como /var/www/html/.env);
+# no toca el .env local de SQLite ni database/atankalama.db.
+
+services:
+  db:
+    image: mariadb:10.11
+    container_name: atankalama_db
+    environment:
+      # Imita el setup cPanel: una sola BD compartida + un usuario con acceso a ella.
+      MARIADB_DATABASE: cat6852_australia
+      MARIADB_ROOT_PASSWORD: root_local_test
+      MARIADB_USER: limpieza_app
+      MARIADB_PASSWORD: limpieza_local_test
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"   # host:container — 3307 para no chocar con un MySQL local
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    container_name: atankalama_app
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # El entrypoint corre init-db.php contra MariaDB usando este .env.
+      - ./.env.docker:/var/www/html/.env:ro
+    ports:
+      - "8090:80"
+
+volumes:
+  mariadb_data:
