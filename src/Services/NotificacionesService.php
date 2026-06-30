@@ -72,14 +72,20 @@ final class NotificacionesService
     /** Conserva solo las últimas MAX_POR_USUARIO para no inflar la BD. */
     private function limpiarAntiguas(int $usuarioId): void
     {
+        // El subquery se envuelve en una tabla derivada (SELECT ... FROM (SELECT ... LIMIT N) AS t)
+        // porque MariaDB/MySQL no soportan LIMIT directo dentro de IN/NOT IN (error 1235) ni leer
+        // la tabla destino del DELETE en un subquery plano (error 1093). La tabla derivada materializa
+        // el resultado y evita ambos; en SQLite es igualmente válido. Portable entre los dos motores.
         Database::execute(
             'DELETE FROM #__notificaciones
               WHERE usuario_id = ?
                 AND id NOT IN (
-                    SELECT id FROM #__notificaciones
-                     WHERE usuario_id = ?
-                     ORDER BY created_at DESC
-                     LIMIT ' . (int) self::MAX_POR_USUARIO . '
+                    SELECT id FROM (
+                        SELECT id FROM #__notificaciones
+                         WHERE usuario_id = ?
+                         ORDER BY created_at DESC
+                         LIMIT ' . (int) self::MAX_POR_USUARIO . '
+                    ) AS conservadas
                 )',
             [$usuarioId, $usuarioId]
         );

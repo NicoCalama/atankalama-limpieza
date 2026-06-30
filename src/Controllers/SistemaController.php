@@ -52,7 +52,18 @@ final class SistemaController
      */
     private function verificarEnv(): array
     {
-        $requeridas = ['APP_NAME', 'APP_ENV', 'DB_PATH', 'SESSION_SECRET'];
+        $requeridas = ['APP_NAME', 'APP_ENV', 'SESSION_SECRET'];
+
+        // Las variables de BD dependen del driver: SQLite usa un archivo (DB_PATH),
+        // MariaDB/MySQL usan host + base + usuario. Tras la migración, exigir DB_PATH
+        // en MariaDB daba un falso negativo (503) aunque la BD respondiera bien.
+        $conexion = strtolower((string) Config::get('DB_CONNECTION', 'sqlite'));
+        if ($conexion === 'sqlite') {
+            $requeridas[] = 'DB_PATH';
+        } else {
+            array_push($requeridas, 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME');
+        }
+
         $faltantes = [];
         foreach ($requeridas as $clave) {
             if (Config::get($clave) === null || Config::get($clave) === '') {
