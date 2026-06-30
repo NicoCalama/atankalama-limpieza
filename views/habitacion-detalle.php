@@ -34,7 +34,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <span>Habitación</span>
                 </template>
             </h1>
-            <div class="w-11"></div>
+            <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
     </header>
 

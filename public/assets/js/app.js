@@ -8,6 +8,20 @@
  * - Helper 'copilotInput': Alpine component para el input del copilot FAB
  */
 
+// --- Toggle global de tema (día/noche), independiente de Alpine ---
+// Lo usa el botón de la barra superior (views/componentes/boton-tema.php).
+// Alterna la clase `dark` del <html> y persiste la preferencia en localStorage.
+// Se define al cargar app.js (no dentro de alpine:init) para que esté disponible
+// aunque Alpine aún no haya arrancado.
+window.toggleTema = function () {
+    var oscuro = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('tema', oscuro ? 'dark' : 'light');
+    // Mantener en sync el store Alpine si ya existe (vistas que lo consulten).
+    if (window.Alpine && Alpine.store && Alpine.store('tema')) {
+        Alpine.store('tema').oscuro = oscuro;
+    }
+};
+
 // --- Store: Tema (día/noche) ---
 document.addEventListener('alpine:init', function () {
 

@@ -59,6 +59,7 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Ajustes</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400"><?= count($visibles) ?> <?= count($visibles) === 1 ? 'sección disponible' : 'secciones disponibles' ?></p>
             </div>
+            <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
     </header>
 

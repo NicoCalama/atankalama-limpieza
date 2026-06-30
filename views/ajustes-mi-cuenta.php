@@ -21,6 +21,7 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Mi cuenta</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400 truncate"><?= htmlspecialchars($usuario->nombre) ?></p>
             </div>
+            <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
     </header>
 

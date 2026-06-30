@@ -25,14 +25,17 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                     <p class="text-xs text-gray-500 dark:text-gray-400" x-text="tab === 'catalogo' ? 'Catálogo de turnos' : 'Asignación semanal'"></p>
                 </div>
             </div>
-            <?php if ($puedeEditarCatalogo): ?>
-                <button type="button" x-show="tab === 'catalogo'"
-                        @click="window.dispatchEvent(new CustomEvent('abrir-modal-turno-editor', {detail:{turno:null}}))"
-                        class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Nuevo turno</span>
-                </button>
-            <?php endif; ?>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <?php if ($puedeEditarCatalogo): ?>
+                    <button type="button" x-show="tab === 'catalogo'"
+                            @click="window.dispatchEvent(new CustomEvent('abrir-modal-turno-editor', {detail:{turno:null}}))"
+                            class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Nuevo turno</span>
+                    </button>
+                <?php endif; ?>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
         <!-- Tabs -->
         <div class="max-w-6xl mx-auto mt-3 flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-3">

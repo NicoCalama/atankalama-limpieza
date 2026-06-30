@@ -56,12 +56,15 @@ require_once __DIR__ . '/componentes/avatar.php';
                     </div>
                 </div>
             </div>
-            <button @click="cargar()" :disabled="cargando"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-                    aria-label="Refrescar">
-                <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                   :class="cargando ? 'animate-spin' : ''"></i>
-            </button>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button @click="cargar()" :disabled="cargando"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                        aria-label="Refrescar">
+                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                       :class="cargando ? 'animate-spin' : ''"></i>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 

@@ -24,13 +24,16 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400" x-text="subtitulo"></p>
                 </div>
             </div>
-            <button @click="exportar()"
-                    :disabled="cargando || exportando"
-                    class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
-                           text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
-                <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
-                <span class="hidden sm:inline" x-text="exportando ? 'Exportando...' : 'Exportar Excel'"></span>
-            </button>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button @click="exportar()"
+                        :disabled="cargando || exportando"
+                        class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+                               text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                    <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                    <span class="hidden sm:inline" x-text="exportando ? 'Exportando...' : 'Exportar Excel'"></span>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 

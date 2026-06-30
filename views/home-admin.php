@@ -82,6 +82,7 @@ if ($hora < 12) {
                         aria-label="Cerrar sesión">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
                 </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
     </header>

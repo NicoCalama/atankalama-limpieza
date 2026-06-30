@@ -42,6 +42,7 @@ $usuarioActualId = $usuario->id;
                         aria-label="Refrescar">
                     <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400" :class="cargando ? 'animate-spin' : ''"></i>
                 </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
     </header>

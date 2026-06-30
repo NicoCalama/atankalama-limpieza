@@ -7,7 +7,7 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
@@ -21,7 +21,16 @@ const STATIC_ASSETS = [
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_STATIC).then(function(cache) {
-            return cache.addAll(STATIC_ASSETS);
+            // cache: 'reload' evita que el navegador sirva una copia rancia desde su
+            // HTTP cache al precachear; el SW guarda siempre la última versión real
+            // (sin esto, un app.js viejo en el HTTP cache se quedaría pegado).
+            return Promise.all(STATIC_ASSETS.map(function(url) {
+                return fetch(new Request(url, { cache: 'reload' })).then(function(response) {
+                    if (response && response.ok) {
+                        return cache.put(url, response);
+                    }
+                });
+            }));
         }).then(function() {
             return self.skipWaiting();
         })
@@ -70,17 +79,30 @@ self.addEventListener('fetch', function(event) {
     event.respondWith(networkFirstWithOfflineFallback(event.request));
 });
 
-// ─── Estrategia: Cache First ──────────────────────────────────────────────
+// ─── Estrategia: Cache First + revalidación en background ─────────────────
+// (stale-while-revalidate): sirve el cache al instante pero dispara un fetch en
+// paralelo que refresca el cache para la PRÓXIMA carga. Así un asset que cambia
+// (p. ej. app.js tras un deploy) deja de quedar congelado indefinidamente; se
+// actualiza solo en la siguiente visita sin necesidad de subir CACHE_VERSION.
 async function cacheFirst(request, cacheName) {
     var cached = await caches.match(request);
+
+    var fetchPromise = fetch(new Request(request.url, { cache: 'reload' })).then(function(response) {
+        if (response && response.ok) {
+            caches.open(cacheName).then(function(cache) {
+                cache.put(request, response.clone());
+            });
+        }
+        return response;
+    }).catch(function() {
+        return null;
+    });
+
+    // Si hay copia cacheada, respondé con ella ya (la revalidación sigue en background).
     if (cached) return cached;
 
-    var response = await fetch(request);
-    if (response.ok) {
-        var cache = await caches.open(cacheName);
-        cache.put(request, response.clone());
-    }
-    return response;
+    // Primera vez (cache miss): esperá la red.
+    return fetchPromise;
 }
 
 // ─── Estrategia: Network First con fallback ───────────────────────────────
