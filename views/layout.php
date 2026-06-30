@@ -61,7 +61,7 @@
         <?php include __DIR__ . '/componentes/sidebar.php'; ?>
     <?php endif; ?>
 
-    <div class="<?= isset($usuario) ? 'md:ml-64' : '' ?>">
+    <div id="app-content" class="<?= isset($usuario) ? 'md:ml-64' : '' ?>">
         <!-- Contenido de la página -->
         <?= $__contenido ?>
     </div>
@@ -142,11 +142,27 @@
 
         // ─── Banner de instalación PWA ────────────────────────────────────
         var _pwaPrompt = null;
+
+        // Mostrar/ocultar el banner togglea también 'pwa-banner-open' en <body>, que
+        // reserva espacio al pie del contenido para que el banner flotante (fixed) no
+        // tape los botones de acción al final de pantallas cortas (p. ej. "Habitación
+        // terminada" o los veredictos de auditoría). Ver el <style> debajo del banner.
+        function mostrarBannerPwa() {
+            var banner = document.getElementById('pwa-install-banner');
+            if (banner) banner.classList.remove('hidden');
+            document.body.classList.add('pwa-banner-open');
+        }
+
+        function ocultarBannerPwa() {
+            var banner = document.getElementById('pwa-install-banner');
+            if (banner) banner.classList.add('hidden');
+            document.body.classList.remove('pwa-banner-open');
+        }
+
         window.addEventListener('beforeinstallprompt', function(e) {
             e.preventDefault();
             _pwaPrompt = e;
-            var banner = document.getElementById('pwa-install-banner');
-            if (banner) banner.classList.remove('hidden');
+            mostrarBannerPwa();
         });
 
         function instalarPWA() {
@@ -154,18 +170,21 @@
             _pwaPrompt.prompt();
             _pwaPrompt.userChoice.then(function() {
                 _pwaPrompt = null;
-                var banner = document.getElementById('pwa-install-banner');
-                if (banner) banner.classList.add('hidden');
+                ocultarBannerPwa();
             });
         }
 
-        window.addEventListener('appinstalled', function() {
-            var banner = document.getElementById('pwa-install-banner');
-            if (banner) banner.classList.add('hidden');
-        });
+        window.addEventListener('appinstalled', ocultarBannerPwa);
     </script>
 
     <!-- Banner de instalación PWA (visible solo cuando el browser lo permite) -->
+    <style>
+        /* Mientras el banner de instalación PWA está visible reservamos espacio al pie
+           del contenido para que no tape los botones de acción al final de la página
+           (el banner es position:fixed). Solo aplica con la clase puesta por el JS. */
+        body.pwa-banner-open #app-content { padding-bottom: 11rem; }
+        @media (min-width: 768px) { body.pwa-banner-open #app-content { padding-bottom: 7rem; } }
+    </style>
     <div id="pwa-install-banner"
          class="hidden fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-80 z-50
                 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
@@ -182,7 +201,7 @@
                     class="min-h-[36px] px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
                 Instalar
             </button>
-            <button onclick="document.getElementById('pwa-install-banner').classList.add('hidden')"
+            <button onclick="ocultarBannerPwa()"
                     class="min-h-[36px] min-w-[36px] flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
