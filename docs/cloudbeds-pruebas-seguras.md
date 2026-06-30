@@ -22,6 +22,7 @@ un bug es una habitación con el estado de limpieza equivocado — recepción lo
 1. **Solo lecturas (riesgo cero de escritura).** Llamar únicamente a los dos `GET`.
    Valida credenciales, `propertyID`, red/auth/parseo y mapeo de habitaciones sin
    poder modificar nada. Cubre ~80-90% del "¿funciona la conexión?".
+   Implementado en `scripts/cloudbeds-read-test.php`.
 2. **Modo simulación (`CLOUDBEDS_DRY_RUN`).** Flag que hace que
    `actualizarEstadoHabitacion()` **loggee el payload exacto que enviaría, sin
    enviarlo**. Permite correr el flujo completo y verificar la escritura (roomID,
@@ -49,6 +50,7 @@ un bug es una habitación con el estado de limpieza equivocado — recepción lo
 2. Poner **API key + propertyID reales en un `.env` local** (no commiteado; salen de
    1Password, nunca al repo).
 3. **Test de lecturas** contra la propiedad real (capa 1) → confirma conexión sin tocar nada.
+   Correr `php scripts/cloudbeds-read-test.php` (o `--hotel=<codigo>` para una sola).
 4. **Flujo completo en dry-run** → revisar los payloads logueados.
 5. En paralelo, **pedir la cuenta de prueba** a Cloudbeds.
 6. Con (4) impecable y/o sobre la cuenta de prueba, **habilitar una escritura real**

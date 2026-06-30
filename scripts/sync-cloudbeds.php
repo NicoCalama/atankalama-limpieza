@@ -37,7 +37,7 @@ if (is_string($hotelCodigo) && $hotelCodigo !== '') {
     echo "Sincronizando todos los hoteles activos...\n";
 }
 
-$sync = new CloudbedsSyncService(new CloudbedsClient());
+$sync = new CloudbedsSyncService(CloudbedsClient::desdeConfig());
 $syncId = $sync->sincronizar($hotelId, 'auto_cron', null);
 
 echo "Sync completada. sync_historial.id = {$syncId}\n";

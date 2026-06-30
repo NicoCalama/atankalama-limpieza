@@ -129,4 +129,45 @@ final class CloudbedsClientTest extends TestCase
         $this->assertFalse($resp->esExito());
         $this->assertCount(1, $t->peticiones);
     }
+
+    public function testUsaClavePorPropiedadSegunPropertyId(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['data' => []]);
+        $t->encolarOk(200, ['data' => []]);
+
+        $client = new CloudbedsClient(
+            transport: $t,
+            baseUrl: 'https://api.cloudbeds.test/api/v1.1',
+            apiKey: 'fallback',
+            backoffs: [0, 0, 0],
+            dormir: static fn(int $s) => null,
+            apiKeysPorPropiedad: ['209761' => 'key_inn', '209760' => 'key_principal'],
+        );
+
+        $client->obtenerHabitaciones('209761');
+        $client->obtenerHabitaciones('209760');
+
+        $this->assertSame('Bearer key_inn', $t->peticiones[0]['headers']['Authorization']);
+        $this->assertSame('Bearer key_principal', $t->peticiones[1]['headers']['Authorization']);
+    }
+
+    public function testCaeEnClaveUnicaSiLaPropiedadNoEstaEnElMapa(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['data' => []]);
+
+        $client = new CloudbedsClient(
+            transport: $t,
+            baseUrl: 'https://api.cloudbeds.test/api/v1.1',
+            apiKey: 'fallback',
+            backoffs: [0, 0, 0],
+            dormir: static fn(int $s) => null,
+            apiKeysPorPropiedad: ['209761' => 'key_inn'],
+        );
+
+        $client->obtenerHabitaciones('999');
+
+        $this->assertSame('Bearer fallback', $t->peticiones[0]['headers']['Authorization']);
+    }
 }

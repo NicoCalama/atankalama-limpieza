@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 return [
     'hoteles' => [
-        ['codigo' => '1_sur', 'nombre' => 'Atankalama', 'cloudbeds_property_id' => null],
-        ['codigo' => 'inn', 'nombre' => 'Atankalama INN', 'cloudbeds_property_id' => null],
+        // property_id de Cloudbeds (identificador público, no es secreto). La API key
+        // de cada propiedad vive en .env (CLOUDBEDS_API_KEY_PRINCIPAL / _INN).
+        ['codigo' => '1_sur', 'nombre' => 'Atankalama', 'cloudbeds_property_id' => '209760'],
+        ['codigo' => 'inn', 'nombre' => 'Atankalama INN', 'cloudbeds_property_id' => '209761'],
     ],
     'turnos' => [
         ['nombre' => 'mañana', 'hora_inicio' => '08:00', 'hora_fin' => '16:00'],

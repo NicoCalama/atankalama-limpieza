@@ -22,21 +22,31 @@ Cloudbeds es la **fuente de verdad** para el estado comercial de la habitación.
 ### 2.1 Variables de entorno (`.env`)
 
 ```
-CLOUDBEDS_API_BASE_URL=https://api.cloudbeds.com/api/v1.1
-CLOUDBEDS_API_KEY=<secret>
-CLOUDBEDS_PROPERTY_ID_1SUR=<id>
-CLOUDBEDS_PROPERTY_ID_INN=<id>
+CLOUDBEDS_BASE_URL=https://api.cloudbeds.com/api/v1.1
+
+# Una API key + propertyID por propiedad (no commitear valores reales):
+CLOUDBEDS_API_KEY_PRINCIPAL=<secret>   # Atankalama (1 Sur 858)
+CLOUDBEDS_PROPERTY_ID_PRINCIPAL=209760
+CLOUDBEDS_API_KEY_INN=<secret>         # Atankalama INN (Chorrillos 558)
+CLOUDBEDS_PROPERTY_ID_INN=209761
 ```
+
+> **Importante:** la base URL es **`/api/v1.1`** (no `/api/v1`, que devuelve 404).
 
 - **Nunca** hardcodear.
 - **Nunca** commitear `.env` (solo `.env.example` con placeholders).
-- **Nunca** loggear el valor de `CLOUDBEDS_API_KEY`, ni en errores, ni en sanitización, ni en debugging.
+- **Nunca** loggear el valor de ninguna `CLOUDBEDS_API_KEY_*`, ni en errores, ni en sanitización, ni en debugging.
+- Cada propiedad tiene su **propia** API key. Nunca mezclar la key de una propiedad con el `propertyID` de la otra.
 - Rotación: manual desde el panel de Cloudbeds. Cuando se rote, actualizar `.env` en producción y reiniciar PHP-FPM.
 
 ### 2.2 Acceso en código
 
+El `CloudbedsClient` resuelve la key correcta según el `propertyID`. Construirlo siempre
+con el factory, que arma el mapa `propertyID => apiKey` desde el `.env`:
+
 ```php
-$apiKey = $_ENV['CLOUDBEDS_API_KEY'] ?? throw new \RuntimeException('Credencial Cloudbeds no configurada');
+$client = CloudbedsClient::desdeConfig();
+$habitaciones = $client->obtenerHabitaciones('209761'); // usa CLOUDBEDS_API_KEY_INN
 ```
 
 ---

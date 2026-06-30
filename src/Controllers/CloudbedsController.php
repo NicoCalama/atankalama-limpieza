@@ -20,7 +20,7 @@ final class CloudbedsController
 
     private function servicio(): CloudbedsSyncService
     {
-        return $this->sync ?? new CloudbedsSyncService(new CloudbedsClient());
+        return $this->sync ?? new CloudbedsSyncService(CloudbedsClient::desdeConfig());
     }
 
     public function estado(Request $request): Response

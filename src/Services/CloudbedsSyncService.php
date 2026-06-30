@@ -171,7 +171,7 @@ final class CloudbedsSyncService
             $this->crearAlertaP0(
                 'cloudbeds_sync_failed',
                 'Credencial Cloudbeds inválida',
-                'Revisar CLOUDBEDS_API_KEY en Ajustes / .env.'
+                'Revisar las credenciales Cloudbeds por propiedad (.env) en Ajustes.'
             );
             return false;
         }
