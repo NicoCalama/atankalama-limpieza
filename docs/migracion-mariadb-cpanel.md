@@ -1,6 +1,6 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> **Estado: Fase 1 COMPLETA** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-29.
+> **Estado: Fase 1 COMPLETA y VALIDADA EN DOCKER** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. **Validada end-to-end contra MariaDB 10.11 real** en Docker local (PHP 8.4, ver `docker-compose.yml` + `docs/plan-test-visual-botones.md`): `init-db.php` crea las 32 tablas `limpieza_*`, seeds OK y smoke autenticado (login, reportes, home, `LIMIT ?`) en HTTP 200 sin errores ni warnings SQL — esto cierra el caveat de "se confirma en staging" de más abajo. Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-30.
 
 ## Estado actual y cómo retomar
 
