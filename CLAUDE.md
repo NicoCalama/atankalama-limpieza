@@ -18,12 +18,13 @@ Antes de tocar cualquier módulo, lee:
 
 ## Modo de trabajo
 
-Este proyecto opera en **supervisión total**: **propón cada cambio y espera la aprobación del usuario antes de aplicarlo, por mínimo que sea.** No hay módulos "en autonomía" — ni un ajuste trivial, ni un rename, ni un comentario se aplican sin un OK explícito.
+Este proyecto opera con el **modelo de trabajo de Maisterchef**: aprobás el plan, ejecuto de corrido, y pregunto solo cuando hay duda, cambio de alcance o desvío. No hay candado por-edición.
 
-- **Antes de cada edición**, di qué archivo vas a tocar y por qué, y espera confirmación. Esto está reforzado por un *gate de permisos* en `.claude/settings.local.json` (`permissions.ask`) que obliga a aceptar/rechazar cada `Edit`/`Write`/`MultiEdit`: el control es doble, por criterio y por candado.
-- **No commitees por tu cuenta.** Cuando un bloque esté listo, propón el commit (con su mensaje) y espera el OK; nunca encadenes commits sin aprobación.
-- **No avances al siguiente módulo** sin que el usuario lo indique.
-- Esto aplica a **todo por igual**: backend mecánico (schema, modelos, CRUD, RBAC, integración Cloudbeds, middleware, tests) y UI.
+- **Gate de planificación:** ante un pedido no trivial, primero propongo el plan y espero tu OK; recién ahí ejecuto. Para pedidos triviales y claros, ejecuto directo.
+- **Una vez aprobado el plan, ejecuto de corrido** (editar, correr, verificar) sin pedir permiso por cada archivo.
+- **Control de alcance:** construyo solo lo pedido. Si se me ocurre agregar algo "porque parece útil", freno y pregunto.
+- **Ante la duda o un desvío del plan:** pregunto antes de asumir, y si me desvío lo documento primero. Nunca salto una regla en silencio.
+- **Commits:** cuando un bloque esté listo, propongo el commit (con su mensaje). **Pero si vos me pediste explícitamente el commit, lo ejecuto sin volver a pedir permiso** (igual que en Maisterchef). Nunca encadeno commits no pedidos sin aprobación.
 
 Cuando debas tomar una decisión que no esté especificada en `docs/`, **no la asumas en silencio**: propón la opción siguiendo los **Defaults razonables** (más abajo) y espera confirmación antes de codificarla.
 
@@ -255,8 +256,8 @@ Los módulos UI no requieren tests automatizados en el MVP.
 
 1. Asegúrate de que el código corre sin errores (`php -S localhost:8000 -t public/`)
 2. Si es módulo backend: corre los tests
-3. **Propón** el commit (con mensaje descriptivo) y espera el OK del usuario antes de ejecutarlo
-4. Si hubo defaults razonables o decisiones de diseño, inclúyelas en el cuerpo del commit propuesto
+3. **Propón** el commit (con mensaje descriptivo). Si el usuario ya te lo pidió, ejecútalo sin volver a preguntar
+4. Si hubo defaults razonables o decisiones de diseño, inclúyelas en el cuerpo del commit
 5. **No continúes** con el siguiente módulo (orden en `claude-code-setup.md` sección 10) hasta que el usuario lo apruebe
 
 ## Cuando algo no funciona
