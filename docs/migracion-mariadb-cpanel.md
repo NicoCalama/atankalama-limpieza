@@ -1,6 +1,6 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> **Estado: Fase 1 COMPLETA y VALIDADA EN DOCKER** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. **Validada end-to-end contra MariaDB 10.11 real** en Docker local (PHP 8.4, ver `docker-compose.yml` + `docs/plan-test-visual-botones.md`): `init-db.php` crea las 32 tablas `limpieza_*`, seeds OK y smoke autenticado (login, reportes, home, `LIMIT ?`) en HTTP 200 sin errores ni warnings SQL — esto cierra el caveat de "se confirma en staging" de más abajo. Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-30.
+> **Estado: Fase 1 COMPLETA y VALIDADA EN DOCKER** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. **Validada end-to-end contra MariaDB 10.11 real** en Docker local (PHP 8.4, ver `docker-compose.yml` + `docs/plan-test-visual-botones.md`): `init-db.php` crea las 32 tablas `limpieza_*`, seeds OK y smoke autenticado (login, reportes, home, `LIMIT ?`) en HTTP 200 sin errores ni warnings SQL — esto cierra el caveat de "se confirma en staging" de más abajo. **Las rutas de escritura y la UI real también quedaron validadas contra MariaDB** (2ª sesión del 2026-06-30, 3 bugs corregidos — ver sección "Validación de escritura + UI" más abajo). Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-30.
 
 ## Estado actual y cómo retomar
 
@@ -38,6 +38,21 @@
 - `DatabaseDialectTest` fija las cadenas SQL pero no ejecuta el SQLite generado contra un PDO real, y no cubre la variante `strftime %S` (ningún call-site la usa).
 
 > Nota de entorno: correr `phpunit` en paralelo en Windows produce errores espurios (`table permisos already exists`) por lock de WAL sobre `test.db` entre clases de test. NO es regresión (confirmado con `stash` del diff: mismos errores sin los cambios); en solitario la suite queda **198/198**.
+
+## Validación de escritura + UI contra MariaDB (2026-06-30, 2ª sesión)
+
+Tras la validación de **lectura** (arriba), esta sesión ejerció las **rutas de escritura** y la **UI real** contra MariaDB 10.11 en Docker, cerrando en lo local el caveat de "se confirma en staging": el dialecto de escritura ahora está probado. **3 bugs encontrados y corregidos** (commits en `feat/migracion-mariadb`):
+
+1. **`fix` health-check driver-aware** (`SistemaController::verificarEnv`): `/api/health` exigía `DB_PATH` (variable solo-SQLite) → devolvía 503 en MariaDB pese a BD sana (un monitor de uptime leería la app como caída). Ahora elige las vars requeridas según `DB_CONNECTION` (`DB_PATH` en sqlite; `DB_HOST`/`DB_DATABASE`/`DB_USERNAME` en mariadb/mysql). *(Encontrado por el smoke de lectura.)*
+2. **`fix` 1235/1093 en poda de notificaciones** (`NotificacionesService::limpiarAntiguas`): `id NOT IN (SELECT … ORDER BY … LIMIT N)` — MariaDB lo rechaza (error 1235: `LIMIT` en subquery `IN`; y 1093: leer la tabla destino del `DELETE`). Disparaba **500 al rechazar una auditoría**. Fix: envolver el subquery en una **tabla derivada** (`SELECT id FROM (… LIMIT N) AS conservadas`), portable en SQLite y MariaDB. *(Encontrado por el smoke de escritura — es justo el tipo de bug MariaDB-only que el linter y la suite SQLite NO detectan: materializó localmente el riesgo del caveat de staging.)*
+3. **`fix` banner PWA tapando botones** (`views/layout.php`): el banner "Instalar app" (`fixed bottom-20`) se superponía a los botones de acción al pie ("Habitación terminada", veredictos de auditoría) en navegadores que muestran el prompt de instalación (Chrome/Edge), bloqueando el clic. Ahora reserva `padding-bottom` en `#app-content` solo mientras el banner está visible. *(Encontrado por clics dirigidos en la UI.)*
+
+**Cobertura ejercida (toda verde tras los fixes):**
+- **Smoke de escritura (API→MariaDB):** crear usuario/ticket/turno; cadena `iniciar → marcar 10 ítems (persistencia tap-a-tap) → completar` (ejercita `strftime`/`date('now')` traducidos por el dialecto); auditoría con los 3 veredictos (aprobado / aprobado_con_observación con `items_desmarcados` / rechazado); **409 de inmutabilidad** post-auditoría; reportes + export CSV (GROUP BY + funciones de fecha).
+- **UI real (Playwright; admin, supervisora, trabajadora):** flujo completo de la trabajadora (checklist con persistencia verificada tras recarga, desbloqueo de "Habitación terminada", modal de confirmación); auditoría con los 3 botones y "aprobar con observación" (desmarcar ítem + comentario) escribiendo a MariaDB; vista solo-lectura post-auditoría (badge "Auditada", sin botones); toggle día/noche con persistencia en `localStorage`; FAB del copilot ausente (flag `COPILOT_HABILITADO=false`).
+- **Regresión:** suite PHPUnit (SQLite / PHP 8.4) **198/198** sin cambios.
+
+> Con esto, la Fase 1 queda validada también en **escritura** y **UI**, no solo lectura. El único pendiente de entorno real es **cPanel (Fase 2)**. Pendientes menores anotados: clics dirigidos sobre matriz RBAC y activar/desactivar+reset de usuarios (backend ya cubierto por el smoke), y el flag `CLOUDBEDS_DRY_RUN` (paso 1 de `cloudbeds-pruebas-seguras.md`).
 
 ## Contexto y decisión
 
