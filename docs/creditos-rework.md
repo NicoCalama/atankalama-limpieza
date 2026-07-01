@@ -1,7 +1,17 @@
 # Créditos por ítem y re-limpieza parcial (rework)
 
-**Estado:** DISEÑO APROBADO (4 decisiones confirmadas por Nicolás) — **implementación pendiente**.
+**Estado:** ✅ IMPLEMENTADO (01/07/2026) — 5 fases completas, verificado end-to-end.
 **Fecha:** 2026-07-01
+
+> **Implementación (commits sobre `f79858b`…):** `5b29351` schema+migración `marcado_por`;
+> `f79858b` el rechazo desmarca ítems; `c72df12` la re-limpieza hereda el estado parcial;
+> `f9b12bb` créditos por `marcado_por`. Suite 221/221. Verificado por UI: modal de rechazo
+> con selección de ítems, re-limpieza con heredados de solo-lectura, y reparto de créditos
+> (Ana 7 / Berta 2 en una pieza de 9 obligatorios). Migración a correr en prod:
+> `php scripts/migrate-add-marcado-por.php`.
+>
+> **Nota de matiz vs. §4.1:** el desmarcado del auditor **conserva** `marcado_por` (no lo
+> pone en NULL) para que el ítem fallido cuente en el denominador de quien lo marcó mal.
 
 Documenta el rediseño del flujo **rechazo → re-limpieza → créditos** para que los créditos midan la limpieza *realmente correcta* y se repartan por persona según lo que cada uno limpió.
 
