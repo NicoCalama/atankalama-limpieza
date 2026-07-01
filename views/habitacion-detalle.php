@@ -162,7 +162,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                    :class="puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default'">
                                 <input type="checkbox"
                                        :checked="item.marcado == 1"
-                                       :disabled="!puedeEditar || item._guardando"
+                                       :disabled="!puedeEditar || item._guardando || esHeredado(item)"
                                        @change="toggleItem(item, $event.target.checked)"
                                        class="mt-1 w-6 h-6 rounded border-2 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-60 flex-shrink-0">
                                 <div class="flex-1 min-w-0">
@@ -176,6 +176,11 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                         <template x-if="item.desmarcado_por_auditor == 1">
                                             <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                                                 <i data-lucide="alert-triangle" class="w-3 h-3"></i> Auditor desmarcó
+                                            </span>
+                                        </template>
+                                        <template x-if="esHeredado(item)">
+                                            <span class="inline-flex items-center gap-1 text-xs text-teal-700 dark:text-teal-400">
+                                                <i data-lucide="check" class="w-3 h-3"></i> Ya limpiado
                                             </span>
                                         </template>
                                         <template x-if="item._error">
@@ -350,8 +355,13 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        esHeredado(item) {
+            // Ítem ya limpiado por otro trabajador en un intento previo (re-limpieza): solo lectura.
+            return item.marcado == 1 && item.marcado_por && Number(item.marcado_por) !== Number(this.usuarioId);
+        },
+
         toggleItem(item, nuevoValor) {
-            if (!this.puedeEditar) return;
+            if (!this.puedeEditar || this.esHeredado(item)) return;
             // Optimistic update
             var previo = item.marcado == 1;
             item.marcado = nuevoValor ? 1 : 0;

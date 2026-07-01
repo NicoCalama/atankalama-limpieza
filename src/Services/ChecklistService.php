@@ -104,8 +104,13 @@ final class ChecklistService
         );
         $id = Database::lastInsertId();
 
+        // Re-limpieza: hereda los ítems que quedaron bien del intento anterior si esta pieza
+        // venía de un rechazo. Así el nuevo trabajador solo completa lo desmarcado y cada ítem
+        // conserva a nombre de quién lo hizo (reparto de créditos). Ver docs/creditos-rework.md.
+        $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId);
+
         Logger::audit($usuarioId, 'checklist.iniciar', 'ejecucion_checklist', $id, [
-            'habitacion_id' => $habitacionId, 'template_id' => $templateId,
+            'habitacion_id' => $habitacionId, 'template_id' => $templateId, 'items_heredados' => $heredados,
         ]);
 
         $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$id]);
@@ -163,7 +168,8 @@ final class ChecklistService
         $items = Database::fetchAll(
             "SELECT ic.id, ic.orden, ic.descripcion, ic.obligatorio,
                     COALESCE(ei.marcado, 0) AS marcado,
-                    COALESCE(ei.desmarcado_por_auditor, 0) AS desmarcado_por_auditor
+                    COALESCE(ei.desmarcado_por_auditor, 0) AS desmarcado_por_auditor,
+                    ei.marcado_por
                FROM #__items_checklist ic
           LEFT JOIN #__ejecuciones_items ei
                  ON ei.item_id = ic.id AND ei.ejecucion_id = ?
@@ -365,5 +371,40 @@ final class ChecklistService
                 );
             }
         }
+    }
+
+    /**
+     * Si el último veredicto de la habitación fue un rechazo, copia a la nueva ejecución los
+     * ítems que quedaron marcados (los que el auditor NO desmarcó) del intento anterior, con su
+     * marcado_por original. Así el nuevo trabajador solo completa lo desmarcado y cada ítem
+     * conserva a nombre de quién lo hizo (reparto de créditos). Devuelve cuántos ítems heredó.
+     *
+     * Se detecta por el último veredicto (no por el estado): al reasignar, la pieza ya pasó de
+     * 'rechazada' a 'sucia'. Tras una aprobación (ciclo nuevo) no hereda.
+     */
+    private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId): int
+    {
+        $anterior = Database::fetchOne(
+            "SELECT ec.id, a.veredicto
+               FROM #__ejecuciones_checklist ec
+               JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.habitacion_id = ? AND ec.estado = 'auditada'
+              ORDER BY ec.id DESC LIMIT 1",
+            [$habitacionId]
+        );
+        if ($anterior === null || $anterior['veredicto'] !== 'rechazado') {
+            return 0;
+        }
+
+        // Copia los ítems marcados del intento rechazado (que siguen activos en el template),
+        // preservando marcado_por. Los desmarcados por el auditor NO se copian: quedan pendientes.
+        return Database::execute(
+            'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, marcado_por)
+             SELECT ?, ei.item_id, 1, ei.marcado_por
+               FROM #__ejecuciones_items ei
+               JOIN #__items_checklist ic ON ic.id = ei.item_id
+              WHERE ei.ejecucion_id = ? AND ei.marcado = 1 AND ic.template_id = ? AND ic.activo = 1',
+            [$nuevaEjecucionId, (int) $anterior['id'], $templateId]
+        );
     }
 }

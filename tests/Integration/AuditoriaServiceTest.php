@@ -243,6 +243,58 @@ final class AuditoriaServiceTest extends TestCase
         $this->assertStringContainsString((string) $this->itemFallidoId, (string) $json['items_desmarcados_json']);
     }
 
+    public function testRelimpiezaHeredaItemsBuenosConAtribucion(): void
+    {
+        $checklist = new ChecklistService();
+        $ejec1 = $checklist->obtenerEjecucion($this->ejecucionId);
+        $obligatorios = array_values(array_filter(
+            $checklist->itemsDelTemplate($ejec1->templateId),
+            static fn(array $it) => (int) $it['obligatorio'] === 1
+        ));
+        $totalOblig = count($obligatorios);
+        $falla1 = (int) $obligatorios[0]['id'];
+        $falla2 = (int) $obligatorios[1]['id'];
+
+        // Ana (trabajadorId) completó ejec #1 en el setUp. Se rechazan 2 ítems.
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltaron dos ítems, rehacer.',
+            [$falla1, $falla2]
+        );
+
+        // Reasignar a Berta e iniciar la re-limpieza.
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
+
+        // La nueva ejecución hereda los obligatorios buenos (total - 2), a nombre de Ana.
+        $heredados = Database::fetchAll(
+            'SELECT item_id, marcado, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ?',
+            [$ejec2->id]
+        );
+        $this->assertCount($totalOblig - 2, $heredados);
+        foreach ($heredados as $h) {
+            $this->assertSame(1, (int) $h['marcado']);
+            $this->assertSame($this->trabajadorId, (int) $h['marcado_por']); // Ana
+        }
+        $idsHeredados = array_map(static fn(array $h) => (int) $h['item_id'], $heredados);
+        $this->assertNotContains($falla1, $idsHeredados);
+        $this->assertNotContains($falla2, $idsHeredados);
+
+        // Berta completa los 2 fallidos → quedan a su nombre.
+        $checklist->marcarItem($ejec2->id, $falla1, true, $berta);
+        $checklist->marcarItem($ejec2->id, $falla2, true, $berta);
+        foreach ([$falla1, $falla2] as $itemId) {
+            $fila = Database::fetchOne(
+                'SELECT marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+                [$ejec2->id, $itemId]
+            );
+            $this->assertSame($berta, (int) $fila['marcado_por']);
+        }
+    }
+
     public function testInmutabilidadRechaza409(): void
     {
         $this->svc->emitirVeredicto($this->habitacionId, $this->auditorId, Auditoria::VEREDICTO_APROBADO);
