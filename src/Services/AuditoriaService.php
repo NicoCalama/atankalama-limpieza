@@ -160,6 +160,20 @@ final class AuditoriaService
         return $fila === null ? null : Auditoria::desdeFila($fila);
     }
 
+    /**
+     * Auditoría de una ejecución puntual (UNIQUE ejecucion_id → a lo sumo una).
+     * Necesario para no confundir la auditoría de una ejecución vieja con una re-limpieza
+     * pendiente: una habitación rechazada y re-limpiada tiene una ejecución nueva sin auditar.
+     */
+    public function obtenerDeEjecucion(int $ejecucionId): ?Auditoria
+    {
+        $fila = Database::fetchOne(
+            'SELECT * FROM #__auditorias WHERE ejecucion_id = ? LIMIT 1',
+            [$ejecucionId]
+        );
+        return $fila === null ? null : Auditoria::desdeFila($fila);
+    }
+
     /** @return list<array<string, mixed>> */
     public function bandejaPendientes(?string $hotelCodigo = null): array
     {

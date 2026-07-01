@@ -108,10 +108,13 @@ final class HabitacionesController
                 } catch (ChecklistException $e) {
                     // Silencioso: si falta data, devolvemos sólo habitación.
                 }
-            }
-            $aud = $this->auditorias->obtenerDeHabitacion($id);
-            if ($aud !== null) {
-                $auditoria = $aud->toArray();
+                // La auditoría debe corresponder a ESTA ejecución, no a la última de la
+                // habitación: una pieza rechazada y re-limpiada tiene una ejecución nueva
+                // sin auditar, y usar la auditoría vieja ocultaría los botones de veredicto.
+                $aud = $this->auditorias->obtenerDeEjecucion($ultima->id);
+                if ($aud !== null) {
+                    $auditoria = $aud->toArray();
+                }
             }
         }
 

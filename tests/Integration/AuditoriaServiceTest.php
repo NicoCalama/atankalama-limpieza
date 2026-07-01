@@ -60,6 +60,38 @@ final class AuditoriaServiceTest extends TestCase
         $this->svc = new AuditoriaService();
     }
 
+    public function testObtenerDeEjecucionDistingueRelimpiezaPendiente(): void
+    {
+        // Escenario del bug: se rechaza la ejecución #1, se reasigna y re-limpia (ejecución #2
+        // pendiente). obtenerDeEjecucion debe scoping por ejecución: null para la #2 (sin auditar),
+        // aunque obtenerDeHabitacion siga devolviendo el rechazo de la #1. Sin esto, la pantalla
+        // de auditoría ocultaría los botones de veredicto de la re-limpieza.
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó limpiar el baño a fondo.'
+        );
+
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
+
+        $checklist = new ChecklistService();
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $trabajador2, $this->fecha);
+        foreach ($checklist->itemsDelTemplate($ejec2->templateId) as $item) {
+            if ((int) $item['obligatorio'] === 1) {
+                $checklist->marcarItem($ejec2->id, (int) $item['id'], true, $trabajador2);
+            }
+        }
+        $checklist->completar($ejec2->id, $trabajador2);
+
+        // La ejecución vieja tiene su rechazo; la nueva (pendiente) no tiene auditoría.
+        $this->assertSame('rechazado', $this->svc->obtenerDeEjecucion($this->ejecucionId)?->veredicto);
+        $this->assertNull($this->svc->obtenerDeEjecucion($ejec2->id));
+        // obtenerDeHabitacion sí devolvería el rechazo viejo (el comportamiento que causaba el bug).
+        $this->assertSame('rechazado', $this->svc->obtenerDeHabitacion($this->habitacionId)?->veredicto);
+    }
+
     public function testAprobadoCambiaEstadoYMarcaEjecucionAuditada(): void
     {
         $auditoria = $this->svc->emitirVeredicto(
