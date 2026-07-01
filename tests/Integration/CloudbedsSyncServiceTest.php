@@ -42,10 +42,12 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testSincronizarMarcaChecOutComoSucia(): void
     {
+        // Shape real de getHousekeepingStatus: success + data plano con roomCondition.
         $this->transport->encolarOk(200, [
+            'success' => true,
             'data' => [
-                ['roomID' => 'CB_R101', 'cleaningStatus' => 'Dirty'],
-                ['roomID' => 'CB_R102', 'cleaningStatus' => 'Dirty'],
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty'],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'dirty'],
             ],
         ]);
 
@@ -60,6 +62,25 @@ final class CloudbedsSyncServiceTest extends TestCase
         $hist = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
         $this->assertSame('exito', $hist['resultado']);
         $this->assertSame(1, (int) $hist['habitaciones_sincronizadas']);
+    }
+
+    public function testSincronizarConRespuestaSinSuccessGeneraError(): void
+    {
+        // Regresión del bug del endpoint equivocado: un 404 (o cualquier respuesta
+        // sin success=true) debe contar como error y levantar la alerta P0, no
+        // reportar "éxito / 0 registros" en silencio. json() sobre el HTML de 404
+        // devuelve [] (sin 'success').
+        $this->transport->encolarOk(200, []);
+
+        $syncId = $this->sync->sincronizar(null, 'manual');
+
+        $hist = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        $this->assertSame('error', $hist['resultado']);
+        $this->assertSame(0, (int) $hist['habitaciones_sincronizadas']);
+
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'");
+        $this->assertNotNull($alerta);
+        $this->assertSame(0, (int) $alerta['prioridad']);
     }
 
     public function testSincronizarSinCloudbedsPropertyIdGeneraError(): void
@@ -129,7 +150,7 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testEstadoActualYHistorial(): void
     {
-        $this->transport->encolarOk(200, ['data' => []]);
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]);
         $this->sync->sincronizar(null, 'manual');
 
         $actual = $this->sync->estadoActual();

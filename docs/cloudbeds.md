@@ -57,11 +57,11 @@ Wrapper en `src/Services/CloudbedsClient.php`. Métodos:
 
 | Método PHP | Endpoint Cloudbeds | Uso |
 |---|---|---|
-| `getRooms(int $propertyId): array` | `GET /getRooms` | Listar habitaciones con estado |
-| `getRoomStatuses(int $propertyId, string $date): array` | `GET /getRoomsStatus` | Estados de limpieza del día |
-| `updateRoomStatus(int $propertyId, string $roomId, string $estado): void` | `POST /postHousekeepingStatus` | Cambiar a Clean/Dirty |
+| `obtenerHabitaciones(string $propertyId): array` | `GET /getRooms` | Listar habitaciones (paginado: `count`/`total`) |
+| `obtenerEstadosHabitaciones(string $propertyId, ?string $fecha = null): array` | `GET /getHousekeepingStatus` | Estados de limpieza (data plano: `roomID` + `roomCondition`) |
+| `actualizarEstadoHabitacion(string $propertyId, string $roomId, string $estadoCloudbeds): HttpResponse` | `POST /postHousekeepingStatus` | Cambiar a Clean/Dirty |
 
-Nota: los endpoints exactos deben validarse contra la documentación actual de Cloudbeds API v1.1 al momento de codificar. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
+Nota: endpoints validados contra la API v1.1 real el 30/06/2026. **`getRoomsStatus` NO existe (devuelve 404)** — el endpoint correcto para leer estados de limpieza es `getHousekeepingStatus`. `getRooms` está **paginado** (`count`/`total`); trae 20 por página aunque la propiedad tenga más. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
 
 ---
 
@@ -88,7 +88,7 @@ Nota: los endpoints exactos deben validarse contra la documentación actual de C
 ```
 1. Insertar fila en cloudbeds_sync_historial con tipo=auto_cron|manual, resultado=en_progreso.
 2. Por cada hotel configurado:
-   a. GET /getRoomStatuses → lista con roomId + cleaningStatus.
+   a. GET /getHousekeepingStatus → lista plana con roomID + roomCondition.
    b. Por cada habitación:
       - Matchear por cloudbeds_room_id.
       - Si cleaningStatus=Dirty y estado actual en app es (aprobada | aprobada_con_observacion | rechazada):

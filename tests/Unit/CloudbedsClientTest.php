@@ -44,6 +44,18 @@ final class CloudbedsClientTest extends TestCase
         $this->assertSame('Bearer test_key', $t->peticiones[0]['headers']['Authorization']);
     }
 
+    public function testObtenerEstadosLlamaGetHousekeepingStatus(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['success' => true, 'data' => []]);
+
+        $client = $this->crear($t);
+        $client->obtenerEstadosHabitaciones('209760');
+
+        // Endpoint real de v1.1; /getRoomsStatus devolvía 404.
+        $this->assertStringContainsString('/getHousekeepingStatus?propertyID=209760', $t->peticiones[0]['url']);
+    }
+
     public function testReintentaHasta3VecesEn5xx(): void
     {
         $t = new FakeHttpTransport();
@@ -116,6 +128,43 @@ final class CloudbedsClientTest extends TestCase
         $this->assertTrue($resp->esExito());
         $this->assertSame('POST', $t->peticiones[0]['metodo']);
         $this->assertSame(['propertyID' => '42', 'roomID' => 'R101', 'roomCondition' => 'Clean'], $t->peticiones[0]['cuerpo']);
+    }
+
+    public function testDryRunNoEnviaLaEscrituraYRetorna200(): void
+    {
+        $t = new FakeHttpTransport(); // sin respuestas encoladas: si tocara la red, fallaría distinto
+        $client = new CloudbedsClient(
+            transport: $t,
+            baseUrl: 'https://api.cloudbeds.test/api/v1.1',
+            apiKey: '', // en dry-run ni siquiera necesita credencial
+            dormir: static fn(int $s) => null,
+            dryRun: true,
+        );
+
+        $resp = $client->actualizarEstadoHabitacion('42', 'R101', 'Clean');
+
+        $this->assertTrue($resp->esExito());
+        $this->assertCount(0, $t->peticiones, 'dry-run no debe realizar ninguna petición HTTP');
+        $this->assertTrue($resp->json()['dry_run'] ?? false);
+    }
+
+    public function testDryRunNoAfectaLasLecturas(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['data' => ['rooms' => []]]);
+
+        $client = new CloudbedsClient(
+            transport: $t,
+            baseUrl: 'https://api.cloudbeds.test/api/v1.1',
+            apiKey: 'test_key',
+            dormir: static fn(int $s) => null,
+            dryRun: true,
+        );
+
+        $client->obtenerHabitaciones('42');
+
+        $this->assertCount(1, $t->peticiones, 'las lecturas deben ejecutarse normalmente aun en dry-run');
+        $this->assertStringContainsString('/getRooms?propertyID=42', $t->peticiones[0]['url']);
     }
 
     public function testNoReintenta4xxNoReintentable(): void

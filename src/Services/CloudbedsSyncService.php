@@ -55,7 +55,15 @@ final class CloudbedsSyncService
 
             try {
                 $estados = $this->client->obtenerEstadosHabitaciones($hotel->cloudbedsPropertyId);
-                $rooms = $estados['data'] ?? $estados['rooms'] ?? $estados;
+                // Sin success=true la lectura no sirvió (endpoint 404, credencial, error de
+                // Cloudbeds). Contarlo como error en vez de reportar "éxito / 0 registros"
+                // en silencio — que fue exactamente lo que ocultó el endpoint equivocado.
+                if (($estados['success'] ?? null) !== true) {
+                    $errores++;
+                    $detalle[] = ['hotel' => $hotel->codigo, 'error' => 'respuesta de getHousekeepingStatus sin success=true'];
+                    continue;
+                }
+                $rooms = $estados['data'] ?? $estados['rooms'] ?? [];
                 if (!is_array($rooms)) {
                     continue;
                 }

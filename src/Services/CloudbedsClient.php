@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Helpers\LogSanitizer;
 use Atankalama\Limpieza\Services\Http\CurlTransport;
 use Atankalama\Limpieza\Services\Http\HttpResponse;
 use Atankalama\Limpieza\Services\Http\HttpTransport;
@@ -37,6 +38,13 @@ final class CloudbedsClient
 
     private readonly int $timeout;
 
+    /**
+     * Modo simulación: si es true, actualizarEstadoHabitacion() loguea el payload
+     * que enviaría y devuelve un 200 sintético SIN tocar la red. Las lecturas no
+     * se ven afectadas (ya son de riesgo cero). Ver docs/cloudbeds-pruebas-seguras.md.
+     */
+    private readonly bool $dryRun;
+
     /** @var int[] */
     private array $backoffsSegundos;
 
@@ -55,11 +63,13 @@ final class CloudbedsClient
         ?array $backoffs = null,
         ?callable $dormir = null,
         array $apiKeysPorPropiedad = [],
+        ?bool $dryRun = null,
     ) {
         $this->baseUrl = rtrim($baseUrl ?? (string) Config::get('CLOUDBEDS_BASE_URL', self::BASE_URL_DEFAULT), '/');
         $this->apiKey = $apiKey ?? (string) Config::get('CLOUDBEDS_API_KEY', '');
         $this->apiKeysPorPropiedad = $apiKeysPorPropiedad;
         $this->timeout = $timeout ?? Config::getInt('CLOUDBEDS_TIMEOUT_SECONDS', 10);
+        $this->dryRun = $dryRun ?? Config::getBool('CLOUDBEDS_DRY_RUN', false);
         $this->backoffsSegundos = $backoffs ?? self::BACKOFFS_DEFAULT;
         $this->dormir = $dormir ?? static function (int $s): void {
             if ($s > 0) {
@@ -96,6 +106,12 @@ final class CloudbedsClient
     }
 
     /**
+     * Estado de limpieza (housekeeping) de todas las habitaciones de una propiedad.
+     *
+     * Endpoint real de Cloudbeds v1.1: getHousekeepingStatus (NO getRoomsStatus, que
+     * devuelve 404). Responde { success: true, data: [ { roomID, roomCondition, ... } ] }
+     * con `data` como array plano por habitación.
+     *
      * @return array<string, mixed>
      */
     public function obtenerEstadosHabitaciones(string $propertyId, ?string $fecha = null): array
@@ -104,13 +120,17 @@ final class CloudbedsClient
         if ($fecha !== null) {
             $query .= '&date=' . urlencode($fecha);
         }
-        $response = $this->ejecutarConReintentos('GET', '/getRoomsStatus?' . $query, $this->claveParaPropiedad($propertyId));
+        $response = $this->ejecutarConReintentos('GET', '/getHousekeepingStatus?' . $query, $this->claveParaPropiedad($propertyId));
         return $response->json();
     }
 
     /**
      * Actualiza el estado de limpieza de una habitación en Cloudbeds.
      * Retorna el HttpResponse final; lanza CloudbedsException solo en 401 inmediato.
+     *
+     * En modo dry-run (CLOUDBEDS_DRY_RUN) NO envía la petición: loguea el payload
+     * exacto que enviaría y devuelve un 200 sintético, para validar el flujo de
+     * escritura completo sin tocar Cloudbeds. Ver docs/cloudbeds-pruebas-seguras.md.
      */
     public function actualizarEstadoHabitacion(string $propertyId, string $roomId, string $estadoCloudbeds): HttpResponse
     {
@@ -119,6 +139,15 @@ final class CloudbedsClient
             'roomID' => $roomId,
             'roomCondition' => $estadoCloudbeds,
         ];
+
+        if ($this->dryRun) {
+            Logger::info('cloudbeds', 'DRY-RUN: escritura simulada, no se envió a Cloudbeds', [
+                'endpoint' => 'POST /postHousekeepingStatus',
+                'payload' => LogSanitizer::sanitize($cuerpo),
+            ]);
+            return new HttpResponse(200, (string) json_encode(['success' => true, 'dry_run' => true], JSON_UNESCAPED_UNICODE));
+        }
+
         return $this->ejecutarConReintentos('POST', '/postHousekeepingStatus', $this->claveParaPropiedad($propertyId), $cuerpo);
     }
 

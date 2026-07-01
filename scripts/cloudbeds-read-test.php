@@ -7,7 +7,7 @@ declare(strict_types=1);
  * seguro — ver docs/cloudbeds-pruebas-seguras.md).
  *
  * Por cada propiedad activa con cloudbeds_property_id llama únicamente a los dos
- * GET de lectura (getRooms y getRoomsStatus). NO escribe nada en Cloudbeds ni en
+ * GET de lectura (getRooms y getHousekeepingStatus). NO escribe nada en Cloudbeds ni en
  * la base de datos. Valida credenciales, propertyID, base URL, red/auth/parseo y
  * el mapeo de habitaciones sin poder modificar nada.
  *
@@ -81,8 +81,13 @@ foreach ($hoteles as $hotel) {
 
         // 2) Estados de limpieza (el GET que usa el cron de sincronización).
         $estados = $client->obtenerEstadosHabitaciones($propertyId);
+        if (($estados['success'] ?? false) !== true) {
+            $fallos++;
+            echo "  getHousekeepingStatus: la respuesta no trae success=true (revisar endpoint o credencial).\n";
+            continue;
+        }
         $filas = $estados['data'] ?? $estados['rooms'] ?? [];
-        echo '  getRoomsStatus: OK — ' . (is_array($filas) ? count($filas) : 0) . " registros.\n";
+        echo '  getHousekeepingStatus: OK — ' . (is_array($filas) ? count($filas) : 0) . " registros.\n";
     } catch (\Throwable $e) {
         $fallos++;
         echo '  ERROR ' . $e->getMessage() . "\n";

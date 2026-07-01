@@ -314,7 +314,7 @@ DDL completo SQLite. 26 tablas en 8 bloques.
 | Sección | Contenido |
 |---------|-----------|
 | §2 Credenciales .env | CLOUDBEDS_API_KEY, rotación, nunca loggear |
-| §3 Endpoints Cloudbeds | getRooms, getRoomStatuses, postHousekeepingStatus |
+| §3 Endpoints Cloudbeds | getRooms, getHousekeepingStatus, postHousekeepingStatus |
 | §4 Sync entrante | Cron 2x/día (07:00/15:00) + manual |
 | §5 Sync saliente | Cola reintentos 1s/2s/4s, alerta P0 al fallar |
 | §5.2 401 inválida | No reintenta, alerta P0 inmediata |

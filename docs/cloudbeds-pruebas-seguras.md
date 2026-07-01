@@ -11,7 +11,7 @@ La app hace **solo 3 llamadas** a Cloudbeds (ver `src/Services/CloudbedsClient.p
 | Llamada | Tipo | Riesgo |
 |---|---|---|
 | `GET /getRooms` (`obtenerHabitaciones`) | Lectura | Ninguno — no puede alterar nada |
-| `GET /getRoomsStatus` (`obtenerEstadosHabitaciones`) | Lectura | Ninguno |
+| `GET /getHousekeepingStatus` (`obtenerEstadosHabitaciones`) | Lectura | Ninguno |
 | `POST /postHousekeepingStatus` (`actualizarEstadoHabitacion`) | Escritura | Solo cambia el **flag de limpieza** (clean/dirty) de una pieza. Reversible desde recepción. |
 
 **No toca** reservas, tarifas, disponibilidad, huéspedes ni pagos. El peor caso de
@@ -26,7 +26,8 @@ un bug es una habitación con el estado de limpieza equivocado — recepción lo
 2. **Modo simulación (`CLOUDBEDS_DRY_RUN`).** Flag que hace que
    `actualizarEstadoHabitacion()` **loggee el payload exacto que enviaría, sin
    enviarlo**. Permite correr el flujo completo y verificar la escritura (roomID,
-   propertyID, estado) antes de disparar una real. *(Pendiente de implementar.)*
+   propertyID, estado) antes de disparar una real. *(Implementado el 30/06/2026;
+   default `false` en `.env.example`. Las lecturas no se ven afectadas.)*
 3. **Cuenta de prueba / sandbox de Cloudbeds.** Cloudbeds da cuentas con datos
    ficticios. Se piden a `integrations@cloudbeds.com` o vía "Request your sandbox".
    El `.env` de testing apunta a esa propiedad → hasta las escrituras reales caen
@@ -46,15 +47,29 @@ un bug es una habitación con el estado de limpieza equivocado — recepción lo
 
 ## Plan recomendado (paso a paso)
 
-1. **Implementar `CLOUDBEDS_DRY_RUN`** (capa 2) — cambio chico en `CloudbedsClient`.
-2. Poner **API key + propertyID reales en un `.env` local** (no commiteado; salen de
-   1Password, nunca al repo).
-3. **Test de lecturas** contra la propiedad real (capa 1) → confirma conexión sin tocar nada.
-   Correr `php scripts/cloudbeds-read-test.php` (o `--hotel=<codigo>` para una sola).
-4. **Flujo completo en dry-run** → revisar los payloads logueados.
+1. ✅ **Implementar `CLOUDBEDS_DRY_RUN`** (capa 2) — hecho el 30/06/2026.
+2. ✅ **API key + propertyID reales en `.env` local** — hecho (3ª sesión del 30/06).
+3. ✅ **Test de lecturas** contra la propiedad real (capa 1) — hecho. Corre limpio en
+   ambas propiedades (`php scripts/cloudbeds-read-test.php`).
+4. **Flujo completo en dry-run** → revisar los payloads logueados. *(Listo para correr:
+   poner `CLOUDBEDS_DRY_RUN=true` y ejercitar aprobar-auditoría → ver el log `cloudbeds`
+   con "DRY-RUN: escritura simulada".)*
 5. En paralelo, **pedir la cuenta de prueba** a Cloudbeds.
 6. Con (4) impecable y/o sobre la cuenta de prueba, **habilitar una escritura real**
    (o en prod, sobre una sola pieza desechable).
+
+## Hallazgos de la validación de lectura (30/06/2026)
+
+- **`getRoomsStatus` no existe (404).** El endpoint real para leer estados de
+  limpieza es **`getHousekeepingStatus`**. Corregido en `obtenerEstadosHabitaciones()`.
+  El cliente enmascaraba el 404 (`json()` sobre HTML → `[]`), así que el sync entrante
+  reportaba "éxito / 0 registros" en silencio. Endurecido: el sync ahora exige
+  `success=true` o cuenta error + alerta P0.
+- **`getRooms` está paginado** (`count=20`, `total=99` en la propiedad 209760): la app
+  solo conoce 20 de las ~99 habitaciones reales. Las 20 sembradas SÍ están en
+  housekeeping (el sync las cubre bien), pero el inventario está incompleto.
+  **Pendiente aparte:** paginar `obtenerHabitaciones()` y re-sembrar el inventario
+  completo antes del deploy si se quiere cubrir todas las piezas.
 
 ## Notas de implementación
 
