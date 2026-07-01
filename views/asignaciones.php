@@ -240,7 +240,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <div class="max-w-5xl mx-auto flex items-center justify-between gap-3">
             <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    <span x-text="seleccionadas.length"></span> habitación<span x-show="seleccionadas.length !== 1">es</span> seleccionada<span x-show="seleccionadas.length !== 1">s</span>
+                    <span x-text="seleccionadas.length"></span> <span x-text="seleccionadas.length === 1 ? 'habitación' : 'habitaciones'"></span> seleccionada<span x-show="seleccionadas.length !== 1">s</span>
                 </p>
                 <button @click="limpiarSeleccion()" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">Limpiar</button>
             </div>
@@ -259,7 +259,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
             <div class="flex items-start justify-between mb-3">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asignar <span x-text="seleccionadas.length"></span> habitación<span x-show="seleccionadas.length !== 1">es</span></h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asignar <span x-text="seleccionadas.length"></span> <span x-text="seleccionadas.length === 1 ? 'habitación' : 'habitaciones'"></span></h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Ordenado por menor carga.</p>
                 </div>
                 <button @click="cerrarAsignar()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
