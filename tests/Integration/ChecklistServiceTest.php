@@ -84,6 +84,31 @@ final class ChecklistServiceTest extends TestCase
         $this->assertSame(10, $progreso['porcentaje']);
     }
 
+    public function testMarcarItemGuardaMarcadoPor(): void
+    {
+        $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+        $items = $this->svc->itemsDelTemplate($ejec->templateId);
+        $primero = (int) $items[0]['id'];
+
+        // Al marcar, el ítem queda a nombre del trabajador.
+        $this->svc->marcarItem($ejec->id, $primero, true, $this->usuarioId);
+        $fila = Database::fetchOne(
+            'SELECT marcado, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            [$ejec->id, $primero]
+        );
+        $this->assertSame(1, (int) $fila['marcado']);
+        $this->assertSame($this->usuarioId, (int) $fila['marcado_por']);
+
+        // Al desmarcar, se libera la atribución.
+        $this->svc->marcarItem($ejec->id, $primero, false, $this->usuarioId);
+        $fila = Database::fetchOne(
+            'SELECT marcado, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            [$ejec->id, $primero]
+        );
+        $this->assertSame(0, (int) $fila['marcado']);
+        $this->assertNull($fila['marcado_por']);
+    }
+
     public function testMarcarItemDeOtroUsuarioLanza(): void
     {
         $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);

@@ -211,15 +211,18 @@ final class ChecklistService
             'SELECT id FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
             [$ejecucionId, $itemId]
         );
+        // marcado_por = quién dejó el ítem marcado (null al desmarcar). Clave para repartir
+        // créditos en re-limpieza: cada ítem queda a nombre de quien lo completó.
+        $marcadoPor = $marcado ? $usuarioId : null;
         if ($existente === null) {
             Database::execute(
-                'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado) VALUES (?, ?, ?)',
-                [$ejecucionId, $itemId, $marcado ? 1 : 0]
+                'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, marcado_por) VALUES (?, ?, ?, ?)',
+                [$ejecucionId, $itemId, $marcado ? 1 : 0, $marcadoPor]
             );
         } else {
             Database::execute(
-                "UPDATE #__ejecuciones_items SET marcado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                [$marcado ? 1 : 0, (int) $existente['id']]
+                "UPDATE #__ejecuciones_items SET marcado = ?, marcado_por = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$marcado ? 1 : 0, $marcadoPor, (int) $existente['id']]
             );
         }
 
@@ -354,8 +357,10 @@ final class ChecklistService
                     [$ejecucionId, $itemId]
                 );
             } else {
+                // marcado_por = NULL: al desmarcar, el ítem deja de estar a nombre de quien lo
+                // hizo mal → queda libre para que en la re-limpieza lo atribuya quien lo rehaga.
                 Database::execute(
-                    "UPDATE #__ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    "UPDATE #__ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, marcado_por = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                     [(int) $ex['id']]
                 );
             }

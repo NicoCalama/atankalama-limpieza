@@ -274,10 +274,12 @@ CREATE TABLE ejecuciones_items (
     item_id             INTEGER NOT NULL,
     marcado             INTEGER NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
     desmarcado_por_auditor  INTEGER NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    marcado_por         INTEGER,   -- quién marcó el ítem: reparte créditos en re-limpieza (ver docs/creditos-rework.md)
     updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (ejecucion_id, item_id),
     FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES items_checklist(id) ON DELETE RESTRICT
+    FOREIGN KEY (item_id) REFERENCES items_checklist(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);

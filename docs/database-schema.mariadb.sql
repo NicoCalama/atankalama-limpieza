@@ -246,10 +246,12 @@ CREATE TABLE #__ejecuciones_items (
     item_id             INT NOT NULL,
     marcado             TINYINT NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
     desmarcado_por_auditor  TINYINT NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    marcado_por         INT NULL,   -- quién marcó el ítem: reparte créditos en re-limpieza (ver docs/creditos-rework.md)
     updated_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE (ejecucion_id, item_id),
     FOREIGN KEY (ejecucion_id) REFERENCES #__ejecuciones_checklist(id) ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES #__items_checklist(id) ON DELETE RESTRICT
+    FOREIGN KEY (item_id) REFERENCES #__items_checklist(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_ejecuciones_items_ejecucion ON #__ejecuciones_items(ejecucion_id);
