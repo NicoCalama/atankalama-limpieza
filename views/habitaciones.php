@@ -123,11 +123,12 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in habitaciones" :key="hab.id">
                     <a :href="'/habitaciones/' + hab.id"
-                       class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-blue-500 transition shadow-sm flex flex-col gap-2"
-                       :class="estadoAuditado(hab.estado) ? 'opacity-60' : ''">
+                       class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 p-4 hover:shadow-md transition shadow-sm flex flex-col gap-2"
+                       :class="[colorHotel(hab.hotel_codigo), estadoAuditado(hab.estado) ? 'opacity-60' : '']">
                         <div class="flex items-start justify-between">
                             <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                            <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
+                            <span class="text-xs uppercase tracking-wide font-semibold"
+                                  :class="etiquetaHotel(hab.hotel_codigo)"
                                   x-text="hotelCorto(hab.hotel_codigo)"></span>
                         </div>
                         <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || hab.tipo"></p>
@@ -225,6 +226,22 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
             if (codigo === '1_sur') return 'Atankalama';
             if (codigo === 'inn') return 'Atankalama INN';
             return codigo || '';
+        },
+
+        // Acento por hotel para distinguir las tarjetas de un vistazo (borde izquierdo + tinte).
+        // DEFAULT APLICADO (aprobado por Nicolás): teal = Atankalama (1_sur), violeta = Atankalama INN.
+        // Elegidos para NO chocar con los colores de estado (amarillo/azul/índigo/verde/rojo).
+        colorHotel(codigo) {
+            if (codigo === '1_sur') return 'bg-teal-50 dark:bg-teal-900/15 border-l-teal-500 dark:border-l-teal-400';
+            if (codigo === 'inn') return 'bg-violet-50 dark:bg-violet-900/15 border-l-violet-500 dark:border-l-violet-400';
+            return 'bg-white dark:bg-gray-800 border-l-gray-200 dark:border-l-gray-700';
+        },
+
+        // Color del texto de la etiqueta del hotel, a juego con el acento de la tarjeta.
+        etiquetaHotel(codigo) {
+            if (codigo === '1_sur') return 'text-teal-700 dark:text-teal-300';
+            if (codigo === 'inn') return 'text-violet-700 dark:text-violet-300';
+            return 'text-gray-500 dark:text-gray-400';
         },
 
         estadoAuditado(estado) {
