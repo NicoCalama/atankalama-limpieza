@@ -16,7 +16,7 @@ final class FakeHttpTransport implements HttpTransport
     /** @var list<HttpResponse> */
     private array $respuestas = [];
 
-    /** @var list<array{metodo:string, url:string, headers:array<string, string>, cuerpo:array<string, mixed>|null}> */
+    /** @var list<array{metodo:string, url:string, headers:array<string, string>, cuerpo:array<string, mixed>|null, content_type:string}> */
     public array $peticiones = [];
 
     public function encolar(HttpResponse $respuesta): void
@@ -40,8 +40,9 @@ final class FakeHttpTransport implements HttpTransport
         array $headers = [],
         ?array $cuerpoJson = null,
         int $timeoutSegundos = 10,
+        string $contentType = 'application/json',
     ): HttpResponse {
-        $this->peticiones[] = ['metodo' => $metodo, 'url' => $url, 'headers' => $headers, 'cuerpo' => $cuerpoJson];
+        $this->peticiones[] = ['metodo' => $metodo, 'url' => $url, 'headers' => $headers, 'cuerpo' => $cuerpoJson, 'content_type' => $contentType];
 
         if (empty($this->respuestas)) {
             return new HttpResponse(0, '', 'sin respuesta programada');

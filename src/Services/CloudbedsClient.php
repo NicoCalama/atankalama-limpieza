@@ -235,7 +235,15 @@ final class CloudbedsClient
             return new HttpResponse(200, (string) json_encode(['success' => true, 'dry_run' => true], JSON_UNESCAPED_UNICODE));
         }
 
-        return $this->ejecutarConReintentos('POST', '/postHousekeepingStatus', $this->claveParaPropiedad($propertyId), $cuerpo);
+        // Cloudbeds API v1.1 espera form-urlencoded en /postHousekeepingStatus; enviarlo como
+        // JSON hace que la API responda 200 con {"success": false, "message": "Parameter roomID is required"}.
+        return $this->ejecutarConReintentos(
+            'POST',
+            '/postHousekeepingStatus',
+            $this->claveParaPropiedad($propertyId),
+            $cuerpo,
+            'application/x-www-form-urlencoded',
+        );
     }
 
     /**
@@ -253,8 +261,13 @@ final class CloudbedsClient
     /**
      * @param array<string, mixed>|null $cuerpo
      */
-    private function ejecutarConReintentos(string $metodo, string $path, string $apiKey, ?array $cuerpo = null): HttpResponse
-    {
+    private function ejecutarConReintentos(
+        string $metodo,
+        string $path,
+        string $apiKey,
+        ?array $cuerpo = null,
+        string $contentType = 'application/json',
+    ): HttpResponse {
         if ($apiKey === '') {
             throw new CloudbedsException('CREDENCIAL_AUSENTE', 'No hay credencial Cloudbeds configurada para la propiedad.');
         }
@@ -266,7 +279,7 @@ final class CloudbedsClient
         $ultima = null;
 
         for ($i = 0; $i < $intentos; $i++) {
-            $resp = $this->transport->request($metodo, $url, $headers, $cuerpo, $this->timeout);
+            $resp = $this->transport->request($metodo, $url, $headers, $cuerpo, $this->timeout, $contentType);
             $ultima = $resp;
 
             if ($resp->esExito()) {

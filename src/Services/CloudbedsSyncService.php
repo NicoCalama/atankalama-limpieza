@@ -124,10 +124,12 @@ final class CloudbedsSyncService
             return false;
         }
 
+        // Cloudbeds espera el valor en minúscula ('clean'/'dirty'), igual que lo devuelve
+        // getHousekeepingStatus. 'Clean' (mayúscula) es rechazado con "roomCondition has not a valid value".
         $payload = [
             'propertyID' => $hotel->cloudbedsPropertyId,
             'roomID' => $habitacion->cloudbedsRoomId,
-            'roomCondition' => 'Clean',
+            'roomCondition' => 'clean',
         ];
 
         Database::execute(
@@ -137,8 +139,15 @@ final class CloudbedsSyncService
         $histId = Database::lastInsertId();
 
         try {
-            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'Clean');
-            $exito = $resp->esExito();
+            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'clean');
+            // Cloudbeds responde HTTP 200 incluso cuando rechaza la escritura (p.ej.
+            // {"success": false, "message": "..."}). No basta con esExito(): hay que exigir
+            // success !== false en el cuerpo, si no una escritura fallida se registraría como éxito.
+            $cuerpoResp = $resp->json();
+            $mensajeCloudbeds = isset($cuerpoResp['message']) && is_string($cuerpoResp['message'])
+                ? $cuerpoResp['message']
+                : null;
+            $exito = $resp->esExito() && ($cuerpoResp['success'] ?? false) !== false;
             Database::execute(
                 "UPDATE #__cloudbeds_sync_historial
                     SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
@@ -153,7 +162,7 @@ final class CloudbedsSyncService
                     $exito ? 1 : 0,
                     $exito ? 0 : 1,
                     json_encode(['status' => $resp->status, 'cuerpo' => substr($resp->cuerpo, 0, 500)], JSON_UNESCAPED_UNICODE),
-                    $exito ? null : ('status=' . $resp->status . ' errorRed=' . ($resp->errorRed ?? '-')),
+                    $exito ? null : ('status=' . $resp->status . ' success=false' . ($mensajeCloudbeds !== null ? ' msg=' . $mensajeCloudbeds : '') . ($resp->errorRed !== null ? ' errorRed=' . $resp->errorRed : '')),
                     $histId,
                 ]
             );
@@ -162,7 +171,7 @@ final class CloudbedsSyncService
                 $this->crearAlertaP0(
                     'cloudbeds_sync_failed',
                     "Error escribiendo habitación {$habitacion->numero} a Cloudbeds",
-                    "Status: {$resp->status}. Revisar logs."
+                    'Status: ' . $resp->status . ($mensajeCloudbeds !== null ? ". Cloudbeds: {$mensajeCloudbeds}" : '') . '. Revisar logs.'
                 );
             }
             return $exito;

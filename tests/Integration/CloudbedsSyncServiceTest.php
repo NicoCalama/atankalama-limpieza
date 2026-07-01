@@ -113,6 +113,43 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertNull(Database::fetchOne("SELECT 1 FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'"));
     }
 
+    public function testEscrituraConSuccessFalseSeRegistraComoErrorYAlertaP0(): void
+    {
+        // Regresión: Cloudbeds responde HTTP 200 pero con {"success": false} cuando rechaza
+        // la escritura. No debe registrarse como éxito ni enmascararse.
+        $this->transport->encolarOk(200, ['success' => false, 'message' => 'Parameter roomID is required']);
+
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $ok = $this->sync->escribirEstadoClean($hab);
+
+        $this->assertFalse($ok);
+        $hist = Database::fetchOne("SELECT * FROM cloudbeds_sync_historial WHERE tipo = 'escritura_estado'");
+        $this->assertSame('error', $hist['resultado']);
+        $this->assertStringContainsString('Parameter roomID is required', (string) $hist['error_mensaje']);
+
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'");
+        $this->assertNotNull($alerta);
+        $this->assertSame(0, (int) $alerta['prioridad']);
+    }
+
+    public function testEscrituraUsaFormUrlencoded(): void
+    {
+        // Cloudbeds API v1.1 exige form-urlencoded en los POST (no JSON).
+        $this->transport->encolarOk(200, ['success' => true]);
+
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $this->sync->escribirEstadoClean($hab);
+
+        $ultima = end($this->transport->peticiones);
+        $this->assertSame('POST', $ultima['metodo']);
+        $this->assertStringContainsString('/postHousekeepingStatus', $ultima['url']);
+        $this->assertSame('application/x-www-form-urlencoded', $ultima['content_type']);
+    }
+
     public function testEscribirEstadoCleanConFalloGeneraAlertaP0(): void
     {
         // 1 intento + 3 reintentos = 4 fallos
@@ -136,7 +173,7 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testPayloadDeEscrituraSanitizaTokenEnLogs(): void
     {
-        $this->transport->encolarOk(200);
+        $this->transport->encolarOk(200, ['success' => true]);
 
         $hab = (new HabitacionService())->obtener(
             (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
