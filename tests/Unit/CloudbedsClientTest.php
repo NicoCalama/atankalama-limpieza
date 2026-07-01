@@ -44,6 +44,53 @@ final class CloudbedsClientTest extends TestCase
         $this->assertSame('Bearer test_key', $t->peticiones[0]['headers']['Authorization']);
     }
 
+    public function testObtenerHabitacionesPaginaHastaCompletarTotal(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['success' => true, 'total' => 3, 'count' => 2, 'data' => [['propertyID' => '42', 'rooms' => [['roomID' => 'A'], ['roomID' => 'B']]]]]);
+        $t->encolarOk(200, ['success' => true, 'total' => 3, 'count' => 1, 'data' => [['propertyID' => '42', 'rooms' => [['roomID' => 'C']]]]]);
+
+        $client = $this->crear($t);
+        $data = $client->obtenerHabitaciones('42');
+
+        // Dos páginas: pageNumber 1 y luego 2.
+        $this->assertCount(2, $t->peticiones);
+        $this->assertStringContainsString('pageNumber=1', $t->peticiones[0]['url']);
+        $this->assertStringContainsString('pageNumber=2', $t->peticiones[1]['url']);
+
+        // Habitaciones acumuladas de ambas páginas, en orden.
+        $rooms = $data['data'][0]['rooms'];
+        $this->assertSame(['A', 'B', 'C'], array_map(static fn(array $r) => $r['roomID'], $rooms));
+        $this->assertSame(3, $data['count']);
+        $this->assertSame(3, $data['total']);
+    }
+
+    public function testObtenerHabitacionesUnaPaginaCuandoTotalCabe(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['success' => true, 'total' => 2, 'count' => 2, 'data' => [['propertyID' => '42', 'rooms' => [['roomID' => 'A'], ['roomID' => 'B']]]]]);
+
+        $client = $this->crear($t);
+        $data = $client->obtenerHabitaciones('42');
+
+        $this->assertCount(1, $t->peticiones, 'no debe pedir una segunda página si total ya está cubierto');
+        $this->assertCount(2, $data['data'][0]['rooms']);
+    }
+
+    public function testObtenerHabitacionesCortaEnPaginaVaciaAntesDeTotal(): void
+    {
+        // total inflado (10) pero la 2ª página viene vacía: debe cortar, no iterar hasta el tope.
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['success' => true, 'total' => 10, 'count' => 2, 'data' => [['propertyID' => '42', 'rooms' => [['roomID' => 'A'], ['roomID' => 'B']]]]]);
+        $t->encolarOk(200, ['success' => true, 'total' => 10, 'count' => 0, 'data' => [['propertyID' => '42', 'rooms' => []]]]);
+
+        $client = $this->crear($t);
+        $data = $client->obtenerHabitaciones('42');
+
+        $this->assertCount(2, $t->peticiones, 'se detiene tras la página vacía');
+        $this->assertCount(2, $data['data'][0]['rooms']);
+    }
+
     public function testObtenerEstadosLlamaGetHousekeepingStatus(): void
     {
         $t = new FakeHttpTransport();

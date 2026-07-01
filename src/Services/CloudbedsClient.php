@@ -30,6 +30,12 @@ final class CloudbedsClient
      */
     private const SUFIJOS_PROPIEDAD = ['INN', 'PRINCIPAL'];
 
+    /** Tamaño de página para getRooms (paginado). Cloudbeds admite hasta 100. */
+    private const HABITACIONES_PAGE_SIZE = 100;
+
+    /** Tope de páginas anti-loop (100 * 50 = 5000 habitaciones). */
+    private const HABITACIONES_MAX_PAGINAS = 50;
+
     private readonly string $baseUrl;
     private readonly string $apiKey;
 
@@ -97,12 +103,93 @@ final class CloudbedsClient
     }
 
     /**
-     * @return array<string, mixed>  Payload del cuerpo JSON
+     * Inventario de habitaciones de una propiedad (GET /getRooms).
+     *
+     * getRooms está PAGINADO: cada respuesta trae `count` (de esta página) y `total`
+     * (de la propiedad). Este método itera pageNumber/pageSize hasta juntar `total`
+     * habitaciones y devuelve el shape agregado
+     * { success, data: [ { propertyID, rooms: [TODAS] } ], count, total }.
+     *
+     * Retrocompatibilidad: si la primera respuesta no trae `total` numérico (respuestas
+     * de test/error), devuelve esa respuesta tal cual, sin paginar.
+     *
+     * @return array<string, mixed>  Payload del cuerpo JSON (agregado si paginó)
      */
     public function obtenerHabitaciones(string $propertyId): array
     {
-        $response = $this->ejecutarConReintentos('GET', '/getRooms?propertyID=' . urlencode($propertyId), $this->claveParaPropiedad($propertyId));
-        return $response->json();
+        $apiKey = $this->claveParaPropiedad($propertyId);
+        $primera = $this->obtenerPaginaHabitaciones($propertyId, $apiKey, 1);
+
+        $total = $primera['total'] ?? null;
+        if (!is_numeric($total)) {
+            // Sin metadata de paginación: comportamiento legado (una sola llamada).
+            return $primera;
+        }
+        $total = (int) $total;
+
+        $rooms = $this->extraerRooms($primera);
+        $pagina = 1;
+        while (count($rooms) < $total && $pagina < self::HABITACIONES_MAX_PAGINAS) {
+            $pagina++;
+            $nuevas = $this->extraerRooms($this->obtenerPaginaHabitaciones($propertyId, $apiKey, $pagina));
+            if ($nuevas === []) {
+                // Página vacía antes de alcanzar `total`: corta para no colgar el loop.
+                Logger::warning('cloudbeds', 'getRooms devolvió página vacía antes de total', [
+                    'propertyID' => $propertyId,
+                    'pagina' => $pagina,
+                    'acumuladas' => count($rooms),
+                    'total' => $total,
+                ]);
+                break;
+            }
+            foreach ($nuevas as $room) {
+                $rooms[] = $room;
+            }
+        }
+
+        return [
+            'success' => true,
+            'data' => [
+                ['propertyID' => $propertyId, 'rooms' => $rooms],
+            ],
+            'count' => count($rooms),
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * Una página de getRooms (pageNumber 1-based, pageSize fijo).
+     *
+     * @return array<string, mixed>
+     */
+    private function obtenerPaginaHabitaciones(string $propertyId, string $apiKey, int $pageNumber): array
+    {
+        $query = 'propertyID=' . urlencode($propertyId)
+            . '&pageNumber=' . $pageNumber
+            . '&pageSize=' . self::HABITACIONES_PAGE_SIZE;
+        return $this->ejecutarConReintentos('GET', '/getRooms?' . $query, $apiKey)->json();
+    }
+
+    /**
+     * Aplana las habitaciones de todos los grupos de `data`.
+     *
+     * @param array<string, mixed> $payload
+     * @return list<array<string, mixed>>
+     */
+    private function extraerRooms(array $payload): array
+    {
+        $rooms = [];
+        foreach (($payload['data'] ?? []) as $grupo) {
+            if (!is_array($grupo)) {
+                continue;
+            }
+            foreach (($grupo['rooms'] ?? []) as $room) {
+                if (is_array($room)) {
+                    $rooms[] = $room;
+                }
+            }
+        }
+        return $rooms;
     }
 
     /**

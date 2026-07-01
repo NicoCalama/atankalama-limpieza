@@ -65,11 +65,13 @@ un bug es una habitación con el estado de limpieza equivocado — recepción lo
   El cliente enmascaraba el 404 (`json()` sobre HTML → `[]`), así que el sync entrante
   reportaba "éxito / 0 registros" en silencio. Endurecido: el sync ahora exige
   `success=true` o cuenta error + alerta P0.
-- **`getRooms` está paginado** (`count=20`, `total=99` en la propiedad 209760): la app
-  solo conoce 20 de las ~99 habitaciones reales. Las 20 sembradas SÍ están en
-  housekeeping (el sync las cubre bien), pero el inventario está incompleto.
-  **Pendiente aparte:** paginar `obtenerHabitaciones()` y re-sembrar el inventario
-  completo antes del deploy si se quiere cubrir todas las piezas.
+- **`getRooms` está paginado** (`count=20`, `total=99` en 209760): la app solo conocía
+  20 de las **99 reales** (1_sur) / 57 (inn), todas `isPrivate=true` y no virtuales.
+  **`obtenerHabitaciones()` ya pagina** (itera `pageNumber`/`pageSize` hasta `total`);
+  el read-test reporta 99/99 y 57/57. **Pendiente aparte — import de inventario:** la app
+  sigue con inventario demo (20 piezas ficticias, `cloudbeds_room_id=NULL`); traer las 156
+  reales necesita un pipeline nuevo con decisiones de producto → ver
+  `docs/cloudbeds-import-inventario.md`.
 
 ## Notas de implementación
 

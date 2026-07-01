@@ -74,7 +74,13 @@ foreach ($hoteles as $hotel) {
                 $rooms[] = $room;
             }
         }
-        echo '  getRooms: OK — ' . count($rooms) . " habitaciones.\n";
+        // obtenerHabitaciones ahora pagina: count(rooms) debe igualar total.
+        $total = (int) ($json['total'] ?? count($rooms));
+        $incompleto = count($rooms) < $total ? '  ⚠ INCOMPLETO (revisar paginación)' : '';
+        echo '  getRooms: OK — ' . count($rooms) . " de {$total} habitaciones.{$incompleto}\n";
+        if ($incompleto !== '') {
+            $fallos++;
+        }
         foreach (array_slice($rooms, 0, 3) as $room) {
             echo '    - ' . ($room['roomID'] ?? '?') . '  ' . ($room['roomName'] ?? '?') . "\n";
         }
