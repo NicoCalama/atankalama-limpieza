@@ -363,10 +363,11 @@ final class ChecklistService
                     [$ejecucionId, $itemId]
                 );
             } else {
-                // marcado_por = NULL: al desmarcar, el ítem deja de estar a nombre de quien lo
-                // hizo mal → queda libre para que en la re-limpieza lo atribuya quien lo rehaga.
+                // Se conserva marcado_por: el ítem fallido sigue atribuido a quien lo marcó mal,
+                // para que cuente como intento fallido en SU denominador de créditos (castiga el %).
+                // No se hereda a la re-limpieza (marcado=0); quien lo rehaga crea su propia fila.
                 Database::execute(
-                    "UPDATE #__ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, marcado_por = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    "UPDATE #__ejecuciones_items SET marcado = 0, desmarcado_por_auditor = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                     [(int) $ex['id']]
                 );
             }

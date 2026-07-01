@@ -226,14 +226,15 @@ final class AuditoriaServiceTest extends TestCase
             [$this->itemFallidoId]
         );
 
-        // El ítem fallido queda desmarcado y sin atribución (libre para la re-limpieza).
+        // El ítem fallido queda desmarcado pero conserva a su autor (cuenta como intento
+        // fallido en el denominador de créditos de quien lo marcó mal).
         $fila = Database::fetchOne(
             'SELECT marcado, desmarcado_por_auditor, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
             [$this->ejecucionId, $this->itemFallidoId]
         );
         $this->assertSame(0, (int) $fila['marcado']);
         $this->assertSame(1, (int) $fila['desmarcado_por_auditor']);
-        $this->assertNull($fila['marcado_por']);
+        $this->assertSame($this->trabajadorId, (int) $fila['marcado_por']);
 
         // Se guarda el JSON de ítems desmarcados en la auditoría.
         $json = Database::fetchOne(
