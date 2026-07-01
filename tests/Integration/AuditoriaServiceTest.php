@@ -21,6 +21,7 @@ final class AuditoriaServiceTest extends TestCase
     private int $trabajadorId;
     private int $auditorId;
     private int $ejecucionId;
+    private int $itemFallidoId;
     private string $fecha = '2026-04-14';
 
     protected function setUp(): void
@@ -56,6 +57,7 @@ final class AuditoriaServiceTest extends TestCase
         }
         $checklist->completar($ejec->id, $this->trabajadorId);
         $this->ejecucionId = $ejec->id;
+        $this->itemFallidoId = (int) $items[0]['id']; // un obligatorio, para los rechazos (exigen ≥1 ítem fallido)
 
         $this->svc = new AuditoriaService();
     }
@@ -70,7 +72,8 @@ final class AuditoriaServiceTest extends TestCase
             $this->habitacionId,
             $this->auditorId,
             Auditoria::VEREDICTO_RECHAZADO,
-            'Faltó limpiar el baño a fondo.'
+            'Faltó limpiar el baño a fondo.',
+            [$this->itemFallidoId]
         );
 
         [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
@@ -98,7 +101,8 @@ final class AuditoriaServiceTest extends TestCase
             $this->habitacionId,
             $this->auditorId,
             Auditoria::VEREDICTO_RECHAZADO,
-            'Faltó limpiar el baño a fondo.'
+            'Faltó limpiar el baño a fondo.',
+            [$this->itemFallidoId]
         );
         // El rechazo levanta la alerta P1.
         $this->assertNotNull(
@@ -182,7 +186,8 @@ final class AuditoriaServiceTest extends TestCase
             $this->habitacionId,
             $this->auditorId,
             Auditoria::VEREDICTO_RECHAZADO,
-            'Baño sin limpiar. Requiere re-limpieza.'
+            'Baño sin limpiar. Requiere re-limpieza.',
+            [$this->itemFallidoId]
         );
 
         $hab = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$this->habitacionId]);
@@ -193,6 +198,49 @@ final class AuditoriaServiceTest extends TestCase
         );
         $this->assertNotNull($alerta);
         $this->assertSame(1, (int) $alerta['prioridad']);
+    }
+
+    public function testRechazoSinItemsFallidosLanza(): void
+    {
+        try {
+            $this->svc->emitirVeredicto(
+                $this->habitacionId,
+                $this->auditorId,
+                Auditoria::VEREDICTO_RECHAZADO,
+                'Comentario de rechazo válido pero sin ítems.'
+            );
+            $this->fail('Debía exigir al menos un ítem fallido');
+        } catch (AuditoriaException $e) {
+            $this->assertSame('ITEMS_FALLIDOS_REQUERIDOS', $e->codigo);
+            $this->assertSame(400, $e->httpStatus);
+        }
+    }
+
+    public function testRechazoDesmarcaLosItemsFallidos(): void
+    {
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó el baño a fondo, rehacer.',
+            [$this->itemFallidoId]
+        );
+
+        // El ítem fallido queda desmarcado y sin atribución (libre para la re-limpieza).
+        $fila = Database::fetchOne(
+            'SELECT marcado, desmarcado_por_auditor, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            [$this->ejecucionId, $this->itemFallidoId]
+        );
+        $this->assertSame(0, (int) $fila['marcado']);
+        $this->assertSame(1, (int) $fila['desmarcado_por_auditor']);
+        $this->assertNull($fila['marcado_por']);
+
+        // Se guarda el JSON de ítems desmarcados en la auditoría.
+        $json = Database::fetchOne(
+            'SELECT items_desmarcados_json FROM auditorias WHERE ejecucion_id = ?',
+            [$this->ejecucionId]
+        );
+        $this->assertStringContainsString((string) $this->itemFallidoId, (string) $json['items_desmarcados_json']);
     }
 
     public function testInmutabilidadRechaza409(): void

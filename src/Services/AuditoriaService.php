@@ -86,14 +86,29 @@ final class AuditoriaService
             }
         }
 
-        if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsDesmarcados !== []) {
-            $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
-        } elseif ($veredicto !== Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsDesmarcados !== []) {
+        // Ítems desmarcados: los aceptan la observación (opcional) y el rechazo (obligatorio ≥1,
+        // definen qué se re-limpia). El aprobado limpio no admite ninguno. Ver docs/creditos-rework.md.
+        $admiteDesmarcados = in_array($veredicto, [
+            Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
+            Auditoria::VEREDICTO_RECHAZADO,
+        ], true);
+
+        if (!$admiteDesmarcados && $itemsDesmarcados !== []) {
             throw new AuditoriaException(
                 'ITEMS_DESMARCADOS_NO_APLICABLE',
-                'Solo aprobado_con_observacion acepta items_desmarcados.',
+                'Solo la observación y el rechazo aceptan items_desmarcados.',
                 400
             );
+        }
+        if ($veredicto === Auditoria::VEREDICTO_RECHAZADO && $itemsDesmarcados === []) {
+            throw new AuditoriaException(
+                'ITEMS_FALLIDOS_REQUERIDOS',
+                'El rechazo debe marcar al menos un ítem fallido (lo que hay que rehacer).',
+                400
+            );
+        }
+        if ($admiteDesmarcados && $itemsDesmarcados !== []) {
+            $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
         }
 
         $itemsJson = $itemsDesmarcados === [] ? null : json_encode(array_values($itemsDesmarcados));
