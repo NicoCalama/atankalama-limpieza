@@ -9,19 +9,34 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Models\Auditoria;
 use Atankalama\Limpieza\Services\AuditoriaException;
 use Atankalama\Limpieza\Services\AuditoriaService;
+use Atankalama\Limpieza\Services\CloudbedsClient;
+use Atankalama\Limpieza\Services\CloudbedsSyncService;
 
 final class AuditoriaController
 {
     public function __construct(
-        private readonly AuditoriaService $svc = new AuditoriaService(),
+        private ?AuditoriaService $svc = null,
     ) {
+    }
+
+    /**
+     * Service con el cliente Cloudbeds real inyectado, para que al aprobar
+     * (aprobado / aprobado_con_observacion) se empuje el estado Clean a Cloudbeds.
+     * Sin esta inyección el push saliente nunca se dispara por HTTP. El flag
+     * CLOUDBEDS_DRY_RUN hace segura esa escritura. Lazy, como CloudbedsController::servicio().
+     */
+    private function servicio(): AuditoriaService
+    {
+        return $this->svc ??= new AuditoriaService(
+            cloudbeds: new CloudbedsSyncService(CloudbedsClient::desdeConfig()),
+        );
     }
 
     public function bandeja(Request $request): Response
     {
         $hotel = $request->query['hotel'] ?? 'ambos';
         $hotel = is_string($hotel) ? $hotel : 'ambos';
-        $pendientes = $this->svc->bandejaPendientes($hotel);
+        $pendientes = $this->servicio()->bandejaPendientes($hotel);
         return Response::ok(['pendientes' => $pendientes, 'total' => count($pendientes)]);
     }
 
@@ -52,7 +67,7 @@ final class AuditoriaController
         $itemsIds = is_array($items) ? array_values(array_map('intval', $items)) : [];
 
         try {
-            $auditoria = $this->svc->emitirVeredicto(
+            $auditoria = $this->servicio()->emitirVeredicto(
                 $habitacionId,
                 $request->usuario->id,
                 $veredicto,
@@ -72,7 +87,7 @@ final class AuditoriaController
         if ($id === null) {
             return Response::error('ID_INVALIDO', 'auditoria_id inválido.', 400);
         }
-        $auditoria = $this->svc->obtener($id);
+        $auditoria = $this->servicio()->obtener($id);
         if ($auditoria === null) {
             return Response::error('AUDITORIA_NO_ENCONTRADA', 'Auditoría no encontrada.', 404);
         }
