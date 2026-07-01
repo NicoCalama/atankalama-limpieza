@@ -92,6 +92,28 @@ final class AuditoriaServiceTest extends TestCase
         $this->assertSame('rechazado', $this->svc->obtenerDeHabitacion($this->habitacionId)?->veredicto);
     }
 
+    public function testAlertaDeRechazoSeResuelveAlReasignar(): void
+    {
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó limpiar el baño a fondo.'
+        );
+        // El rechazo levanta la alerta P1.
+        $this->assertNotNull(
+            Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_rechazada'")
+        );
+
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
+
+        // Al reasignar (rechazada→sucia) la alerta se resuelve y ya no queda activa.
+        $this->assertNull(
+            Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_rechazada'")
+        );
+    }
+
     public function testAprobadoCambiaEstadoYMarcaEjecucionAuditada(): void
     {
         $auditoria = $this->svc->emitirVeredicto(

@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Asignacion;
 use Atankalama\Limpieza\Models\Habitacion;
 
@@ -13,6 +14,7 @@ final class AsignacionService
 {
     public function __construct(
         private readonly NotificacionesService $notificaciones = new NotificacionesService(),
+        private readonly AlertasService $alertas = new AlertasService(),
     ) {
     }
 
@@ -34,6 +36,12 @@ final class AsignacionService
             Logger::info('habitaciones', 'rechazada→sucia por reasignación', [
                 'habitacion_id' => $habitacionId, 'asignado_por' => $asignadoPor,
             ]);
+            // La alerta P1 de rechazo ya cumplió su propósito (la supervisora reasignó):
+            // se resuelve para que no quede colgada tras re-limpiar y re-aprobar.
+            $this->alertas->resolverPorDedupe(
+                AlertaActiva::TIPO_HABITACION_RECHAZADA,
+                "habitacion:{$habitacionId}"
+            );
         }
 
         Database::execute(
