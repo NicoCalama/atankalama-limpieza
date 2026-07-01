@@ -205,10 +205,11 @@ php -S localhost:8000 -t public/
 # Crear/recrear la base de datos desde migraciones + seeds
 php scripts/init-db.php
 
-# Cargar datos de demo (para mostrar el MVP)
-php scripts/seed-demo-data.php
+# Importar el inventario real de habitaciones desde Cloudbeds (idempotente)
+php scripts/import-inventario-cloudbeds.php --dry-run   # muestra el plan, no escribe
+php scripts/import-inventario-cloudbeds.php             # aplica
 
-# Sincronizar manualmente con Cloudbeds (normalmente es cron)
+# Sincronizar manualmente los estados de limpieza con Cloudbeds (normalmente es cron)
 php scripts/sync-cloudbeds.php
 
 # Rescate de emergencia: resetear password del admin

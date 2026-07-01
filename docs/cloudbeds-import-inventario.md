@@ -1,7 +1,25 @@
-# Plan — Importar el inventario real de habitaciones desde Cloudbeds
+# Import del inventario real de habitaciones desde Cloudbeds
 
-> **Estado:** PLAN (no implementado). Requiere decisiones de Nicolás antes de codificar.
-> Creado: 30/06/2026. Depende de la paginación de `getRooms` (ya hecha, commit posterior a `afeb3fb`).
+> **Estado:** IMPLEMENTADO (30/06/2026). Script `scripts/import-inventario-cloudbeds.php` +
+> `src/Services/InventarioImportService.php` + `tests/Integration/InventarioImportServiceTest.php`.
+>
+> **Decisiones tomadas por Nicolás:**
+> - **#1 → El import reemplaza todo el seed demo.** Se eliminó `scripts/seed-demo-data.php`
+>   (y `prepare-demo-video.php` + `SeedDemoDataTest`). Dev y prod arrancan con inventario real.
+> - **#2 → `numero` = prefijo numérico del `roomName`** (`101-BOT2 M` → `101`). Verificado
+>   contra los datos reales: **0 colisiones** (99 prefijos únicos en 1_sur, 57 en INN). Si algún
+>   día colisionan, el import los reporta y salta (no viola el `UNIQUE(hotel_id, numero)`).
+> - **#3 → Tipos mapeados por `maxGuests` a un set chico** (`Singular` / `Doble/Matrimonial` /
+>   `Suite/Familiar`, redefinido en `catalogos.php`). Dato real: no hay piezas de 1 huésped, así
+>   que `Singular` hoy queda en 0 piezas.
+> - **#4 → NO era bloqueante.** `seed.php` crea un checklist template default por cada tipo, así
+>   que las piezas son usables desde el arranque; la supervisora personaliza por UI después.
+> - **#5 → `roomBlocked` se importa con `activa=0`** (conserva el mapeo y el histórico). Hoy: 2 piezas.
+> - **#6 → Upsert idempotente, corrida on-demand.** Match por `(hotel_id, cloudbeds_room_id)` en
+>   código (portable SQLite/MariaDB). Las piezas cuyo room_id desaparece de Cloudbeds → `activa=0`,
+>   nunca se borran. No hay cron todavía (decisión aparte).
+>
+> El resto de este documento es el plan original que motivó la implementación.
 
 ## El problema
 
@@ -100,5 +118,10 @@ Ninguna se puede asumir; cada una cambia el diseño:
 
 ## Siguiente paso
 
-Nicolás decide #1–#6 (arrancando por #1, #2 y #3, que son las que definen el resto).
-Con eso se codifica el script + tests en una tarea aparte.
+~~Nicolás decide #1–#6~~ → **Resuelto e implementado** (ver bloque de estado arriba).
+
+Pendiente operativo (no de código):
+- Correr el import real en baja ocupación: `php scripts/import-inventario-cloudbeds.php --dry-run`
+  para revisar el plan, y luego sin `--dry-run` para aplicarlo.
+- La supervisora personaliza los checklist templates por tipo desde la UI si el default no alcanza.
+- Evaluar si el import pasa a cron periódico (hoy es on-demand).

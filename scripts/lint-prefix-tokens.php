@@ -50,7 +50,7 @@ foreach ($dirs as $d) {
         $path = $file->getPathname();
         // Scripts solo-SQLite (PDO crudo, dialecto SQLite, sin prefijo): no corren contra
         // MariaDB, así que el token #__ no aplica. Tienen un guard de driver al inicio.
-        $soloSqlite = ['lint-prefix-tokens.php', 'prepare-demo-video.php', 'migrate-add-notificaciones.php'];
+        $soloSqlite = ['lint-prefix-tokens.php', 'migrate-add-notificaciones.php'];
         if (in_array(basename($path), $soloSqlite, true)) {
             continue;
         }

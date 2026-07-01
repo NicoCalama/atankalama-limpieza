@@ -8,7 +8,7 @@
 # Uso:
 #   docker compose up -d --build
 #   docker compose exec app php scripts/seed.php
-#   docker compose exec app php scripts/seed-demo-data.php
+#   docker compose exec app php scripts/import-inventario-cloudbeds.php --dry-run
 #   # app en http://localhost:8090 ; MariaDB en localhost:3307
 #   docker compose down -v        # borra también el volumen de datos
 #

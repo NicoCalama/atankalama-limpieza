@@ -13,11 +13,17 @@ return [
         ['nombre' => 'mañana', 'hora_inicio' => '08:00', 'hora_fin' => '16:00'],
         ['nombre' => 'tarde', 'hora_inicio' => '14:00', 'hora_fin' => '22:00'],
     ],
+    // Tipos de LIMPIEZA (no de venta): se mapean desde Cloudbeds por maxGuests en el
+    // import de inventario (ver InventarioImportService). El protocolo de limpieza no
+    // cambia por sub-tipo comercial, así que colapsamos los ~16 roomTypeName de Cloudbeds
+    // a este set chico. Cada tipo obtiene su checklist template default en seed.php.
+    //   maxGuests=1 -> Singular | =2 -> Doble/Matrimonial | =3-4 -> Suite/Familiar
+    // (El inventario real actual no tiene piezas de 1 huésped: 'Singular' queda disponible
+    //  para el futuro pero hoy no se le asigna ninguna habitación.)
     'tipos_habitacion' => [
-        ['nombre' => 'Singular', 'descripcion' => 'Habitación individual'],
-        ['nombre' => 'Doble', 'descripcion' => 'Habitación doble estándar'],
-        ['nombre' => 'Matrimonial', 'descripcion' => 'Habitación matrimonial'],
-        ['nombre' => 'Suite', 'descripcion' => 'Suite'],
+        ['nombre' => 'Singular', 'descripcion' => 'Individual — 1 huésped'],
+        ['nombre' => 'Doble/Matrimonial', 'descripcion' => 'Doble o matrimonial — 2 huéspedes'],
+        ['nombre' => 'Suite/Familiar', 'descripcion' => 'Suite, triple o familiar — 3 a 4 huéspedes'],
     ],
     'alertas_config' => [
         ['clave' => 'margen_seguridad_minutos', 'valor' => '15', 'descripcion' => 'Margen del algoritmo predictivo'],
