@@ -207,6 +207,7 @@ CREATE TABLE asignaciones (
     asignado_por    INTEGER,                            -- NULL = auto (round-robin), else = supervisora
     orden_cola      INTEGER NOT NULL DEFAULT 0,         -- posición en la cola del trabajador
     fecha           TEXT NOT NULL,                      -- 'YYYY-MM-DD' del turno
+    franja          TEXT CHECK (franja IN ('mañana', 'tarde', 'noche')),  -- ventana de la limpieza (día/noche); NULL = sin etiqueta. Ver docs/limpiezas-multiples-dia.md
     activa          INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),  -- 0 si se reasignó
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,

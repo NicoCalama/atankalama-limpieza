@@ -185,6 +185,7 @@ CREATE TABLE #__asignaciones (
     asignado_por    INT,
     orden_cola      INT NOT NULL DEFAULT 0,
     fecha           VARCHAR(10) NOT NULL,
+    franja          VARCHAR(10) CHECK (franja IN ('mañana', 'tarde', 'noche')),  -- ventana de la limpieza (día/noche); NULL = sin etiqueta. Ver docs/limpiezas-multiples-dia.md
     activa          TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,

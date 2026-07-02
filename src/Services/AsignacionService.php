@@ -18,9 +18,10 @@ final class AsignacionService
     ) {
     }
 
-    public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null): Asignacion
+    public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): Asignacion
     {
         $this->validarFecha($fecha);
+        $franja = $this->validarFranja($franja);
         $this->desactivarAsignacionesActivas($habitacionId);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
@@ -54,8 +55,8 @@ final class AsignacionService
         }
 
         Database::execute(
-            'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
-            [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha]
+            'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, franja, activa) VALUES (?, ?, ?, ?, ?, ?, 1)',
+            [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha, $franja]
         );
         $id = Database::lastInsertId();
 
@@ -86,11 +87,11 @@ final class AsignacionService
      * @param list<int> $habitacionIds
      * @return list<Asignacion>
      */
-    public function asignarMultiple(array $habitacionIds, int $usuarioId, string $fecha, ?int $asignadoPor = null): array
+    public function asignarMultiple(array $habitacionIds, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): array
     {
         $creadas = [];
         foreach ($habitacionIds as $habitacionId) {
-            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor);
+            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja);
         }
         return $creadas;
     }
@@ -215,6 +216,7 @@ final class AsignacionService
      *     fecha: string,
      *     hotel: string,
      *     sin_asignar: array<int, array<string, mixed>>,
+     *     re_limpiar: array<int, array<string, mixed>>,
      *     trabajadores: list<array<string, mixed>>
      * }
      */
@@ -240,6 +242,29 @@ final class AsignacionService
         }
         $sqlSin .= ' ORDER BY ho.codigo, h.numero';
         $sinAsignar = Database::fetchAll($sqlSin, $paramsSin);
+
+        // Piezas ya limpias HOY (aprobadas) sin asignación activa: candidatas a una 2ª limpieza en
+        // otra ventana (día/noche). Al pedirles limpieza, asignarManual las resetea a 'sucia' y la
+        // nueva limpieza arranca de cero. Ver docs/limpiezas-multiples-dia.md
+        // Piezas ASIGNADAS hoy que ya quedaron limpias: se scoping por la asignación activa de la
+        // fecha (su fecha es local, a diferencia de created_at que va en UTC). Una pieza recién
+        // limpiada conserva su asignación (completada) activa; al pedir otra limpieza, asignarManual
+        // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
+        $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                    WHERE h.activa = 1
+                      AND h.es_espacio_comun = 0
+                      AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\')
+                      AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
+        $paramsRe = [$fecha];
+        if ($filtroHotel !== null) {
+            $sqlRe .= ' AND ho.codigo = ?';
+            $paramsRe[] = $filtroHotel;
+        }
+        $sqlRe .= ' ORDER BY ho.codigo, h.numero';
+        $reLimpiar = Database::fetchAll($sqlRe, $paramsRe);
 
         // Trabajadores con turno hoy (filtrados por hotel si aplica)
         $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
@@ -302,6 +327,7 @@ final class AsignacionService
             'fecha' => $fecha,
             'hotel' => $hotel,
             'sin_asignar' => $sinAsignar,
+            're_limpiar' => $reLimpiar,
             'trabajadores' => $trabajadoresVista,
         ];
     }
@@ -353,5 +379,17 @@ final class AsignacionService
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
             throw new AsignacionException('FECHA_INVALIDA', 'La fecha debe tener formato YYYY-MM-DD.', 400);
         }
+    }
+
+    /** Normaliza y valida la franja (ventana de limpieza). NULL/'' = sin etiqueta. */
+    private function validarFranja(?string $franja): ?string
+    {
+        if ($franja === null || $franja === '') {
+            return null;
+        }
+        if (!in_array($franja, Asignacion::FRANJAS, true)) {
+            throw new AsignacionException('FRANJA_INVALIDA', 'La franja debe ser mañana, tarde o noche.', 400);
+        }
+        return $franja;
     }
 }

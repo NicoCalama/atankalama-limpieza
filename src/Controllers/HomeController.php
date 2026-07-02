@@ -450,6 +450,7 @@ final class HomeController
             'tipo' => $item['tipo_nombre'],
             'estado' => $estadoDisplay,
             'hotel_codigo' => $item['hotel_codigo'],
+            'franja' => $item['franja'] ?? null,  // ventana de la limpieza (día/noche), si aplica
         ];
     }
 

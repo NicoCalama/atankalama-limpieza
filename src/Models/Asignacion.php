@@ -6,6 +6,9 @@ namespace Atankalama\Limpieza\Models;
 
 final class Asignacion
 {
+    /** Ventanas de limpieza para varias limpiezas por día. Ver docs/limpiezas-multiples-dia.md */
+    public const FRANJAS = ['mañana', 'tarde', 'noche'];
+
     public function __construct(
         public readonly int $id,
         public readonly int $habitacionId,
@@ -14,6 +17,7 @@ final class Asignacion
         public readonly int $ordenCola,
         public readonly string $fecha,
         public readonly bool $activa,
+        public readonly ?string $franja = null,
     ) {
     }
 
@@ -28,6 +32,7 @@ final class Asignacion
             ordenCola: (int) $fila['orden_cola'],
             fecha: (string) $fila['fecha'],
             activa: ((int) $fila['activa']) === 1,
+            franja: isset($fila['franja']) && $fila['franja'] !== null ? (string) $fila['franja'] : null,
         );
     }
 
@@ -41,6 +46,7 @@ final class Asignacion
             'orden_cola' => $this->ordenCola,
             'fecha' => $this->fecha,
             'activa' => $this->activa,
+            'franja' => $this->franja,
         ];
     }
 }

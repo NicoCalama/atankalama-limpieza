@@ -21,6 +21,10 @@ final class AsignacionesController
         $habitacionIds = $request->input('habitacion_ids');
         $usuarioId = $request->inputInt('usuario_id');
         $fecha = $request->inputString('fecha');
+        // Franja opcional (mañana/tarde/noche): distingue la limpieza de día vs noche cuando una
+        // pieza se limpia varias veces el mismo día. Ver docs/limpiezas-multiples-dia.md
+        $franja = $request->inputString('franja', '');
+        $franja = $franja !== '' ? $franja : null;
 
         if (!is_array($habitacionIds) || $habitacionIds === [] || $usuarioId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_ids, usuario_id y fecha son requeridos.', 400);
@@ -28,7 +32,7 @@ final class AsignacionesController
         $ids = array_values(array_map('intval', $habitacionIds));
 
         try {
-            $creadas = $this->svc->asignarMultiple($ids, $usuarioId, $fecha, $request->usuario?->id);
+            $creadas = $this->svc->asignarMultiple($ids, $usuarioId, $fecha, $request->usuario?->id, $franja);
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
