@@ -45,6 +45,13 @@ document.addEventListener('alpine:init', function () {
         permisos: [],
         cargado: false,
 
+        // Alpine llama init() al registrar el store: cargamos la sesión/permisos en cada carga de
+        // página para que los gates de UI (x-if="$store.auth.tienePermiso(...)") funcionen. Sin esto
+        // el store queda vacío y los botones por permiso nunca aparecen.
+        init() {
+            this.cargar();
+        },
+
         tienePermiso(codigo) {
             return this.permisos.indexOf(codigo) !== -1;
         },
