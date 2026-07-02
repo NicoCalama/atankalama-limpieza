@@ -27,6 +27,47 @@ final class CloudbedsSyncService
     ) {
     }
 
+    /** Default de cadencia del sync automático (minutos) si la config no existe. */
+    private const SYNC_INTERVALO_DEFAULT = 30;
+
+    /**
+     * Cadencia configurada del sync automático, en minutos. Lee cloudbeds_config
+     * ('sync_intervalo_minutos'); si la clave no existe o no es numérica, usa el default (30).
+     * Editable vía PUT /api/cloudbeds/config. Ver docs/cloudbeds.md §4.1.
+     */
+    public function intervaloSyncMinutos(): int
+    {
+        $fila = Database::fetchOne(
+            "SELECT valor FROM #__cloudbeds_config WHERE clave = 'sync_intervalo_minutos'"
+        );
+        $valor = $fila !== null && is_numeric($fila['valor']) ? (int) $fila['valor'] : self::SYNC_INTERVALO_DEFAULT;
+        return max(1, $valor);
+    }
+
+    /**
+     * ¿Le toca correr al sync automático? El cron invoca el script seguido (p. ej. cada 10 min) y
+     * este throttle decide según la última sync ENTRANTE que sirvió (exito/parcial): si pasaron
+     * menos de N minutos desde que se inició, se omite. Las syncs con error NO throttlean (así el
+     * siguiente tick del cron reintenta). Permite cambiar la cadencia desde Ajustes sin tocar crontab.
+     */
+    public function debeCorrerSyncAutomatica(?int $intervaloMinutos = null): bool
+    {
+        $intervalo = $intervaloMinutos ?? $this->intervaloSyncMinutos();
+        $ultima = Database::fetchOne(
+            "SELECT iniciada_at FROM #__cloudbeds_sync_historial
+              WHERE tipo IN ('auto_cron', 'manual') AND resultado IN ('exito', 'parcial')
+              ORDER BY id DESC LIMIT 1"
+        );
+        if ($ultima === null) {
+            return true;
+        }
+        $ts = strtotime((string) $ultima['iniciada_at']);
+        if ($ts === false) {
+            return true;
+        }
+        return (time() - $ts) >= $intervalo * 60;
+    }
+
     /**
      * Sincroniza los estados de habitaciones desde Cloudbeds.
      *

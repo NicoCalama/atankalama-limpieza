@@ -212,6 +212,59 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertStringContainsString('roomID', $hist['payload_request']);
     }
 
+    // ----- Throttle del sync automático (Gap C — ver docs/cloudbeds.md §4.1) -----
+
+    public function testDebeCorrerSinHistorialPrevio(): void
+    {
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testThrottleOmiteTrasSyncReciente(): void
+    {
+        // Una sync exitosa recién iniciada: con intervalo 30 se omite; con intervalo 0 corre igual.
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]);
+        $this->sync->sincronizar(null, 'auto_cron');
+
+        $this->assertFalse($this->sync->debeCorrerSyncAutomatica(30));
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(0));
+    }
+
+    public function testSyncConErrorNoThrottlea(): void
+    {
+        // Si la última sync falló, el siguiente tick del cron debe reintentar (no throttlear).
+        $this->transport->encolarOk(200, []); // sin success=true → error
+        $this->sync->sincronizar(null, 'auto_cron');
+
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testEscrituraDeEstadoNoThrottleaElSyncEntrante(): void
+    {
+        // Las filas tipo 'escritura_estado' no cuentan para el throttle del sync entrante.
+        $this->transport->encolarOk(200, ['success' => true]);
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $this->sync->escribirEstadoClean($hab);
+
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testIntervaloLeeConfigConDefault(): void
+    {
+        // Sin clave → default 30.
+        $this->assertSame(30, $this->sync->intervaloSyncMinutos());
+
+        Database::execute("INSERT INTO cloudbeds_config (clave, valor) VALUES ('sync_intervalo_minutos', '15')");
+        $this->assertSame(15, $this->sync->intervaloSyncMinutos());
+
+        // Valor no numérico → default; valor menor a 1 → clamp a 1.
+        Database::execute("UPDATE cloudbeds_config SET valor = 'abc' WHERE clave = 'sync_intervalo_minutos'");
+        $this->assertSame(30, $this->sync->intervaloSyncMinutos());
+        Database::execute("UPDATE cloudbeds_config SET valor = '0' WHERE clave = 'sync_intervalo_minutos'");
+        $this->assertSame(1, $this->sync->intervaloSyncMinutos());
+    }
+
     public function testEstadoActualYHistorial(): void
     {
         $this->transport->encolarOk(200, ['success' => true, 'data' => []]);

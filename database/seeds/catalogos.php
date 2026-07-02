@@ -36,8 +36,9 @@ return [
         ['clave' => 'tiempo_fallback_nueva_habitacion', 'valor' => '30', 'descripcion' => 'Fallback cuando no hay histórico'],
     ],
     'cloudbeds_config' => [
-        ['clave' => 'sync_schedule_morning', 'valor' => '07:00', 'descripcion' => 'Hora del cron matutino'],
-        ['clave' => 'sync_schedule_afternoon', 'valor' => '15:00', 'descripcion' => 'Hora del cron tarde'],
+        // El cron tickea seguido (p. ej. cada 10 min) y el script se auto-regula con este intervalo:
+        // la cadencia se cambia desde la app sin tocar crontab. Ver docs/cloudbeds.md §4.1.
+        ['clave' => 'sync_intervalo_minutos', 'valor' => '30', 'descripcion' => 'Cadencia del sync automático (minutos)'],
         ['clave' => 'reintentos_max', 'valor' => '3', 'descripcion' => 'Número de reintentos'],
         ['clave' => 'timeout_segundos', 'valor' => '10', 'descripcion' => 'Timeout por request'],
     ],

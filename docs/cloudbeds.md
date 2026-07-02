@@ -94,12 +94,21 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
 
 ## 4. Sincronización entrante (Cloudbeds → app)
 
-### 4.1 Cron automático
+### 4.1 Cron automático (auto-regulado)
 
-- **Frecuencia:** 2 veces al día (configurable desde Ajustes).
-- **Default:** 07:00 y 15:00 hora Chile.
-- Script: `scripts/sync-cloudbeds.php`.
-- Configurado en crontab (no en MVP self-hosted, dejar instrucciones en README).
+- **Modelo:** el crontab invoca el script con un **tick corto** (cada 10 min) y el script se
+  **auto-regula**: consulta la última sync entrante que sirvió (`exito`/`parcial`) y solo corre si
+  pasaron ≥ `sync_intervalo_minutos` (default **30**, editable vía `PUT /api/cloudbeds/config`).
+  Así la cadencia se cambia desde la app **sin tocar el crontab**. Las syncs con `error` no
+  throttlean: el siguiente tick reintenta.
+- **Crontab recomendado (cPanel):** `*/10 * * * * php /ruta/al/proyecto/scripts/sync-cloudbeds.php`
+- **Flags:** `--force` salta el throttle; `--hotel=<codigo>` sincroniza una sola propiedad.
+- Con el intervalo default (30 min) son ~96 requests/día a Cloudbeds (2 GET por corrida) —
+  irrelevante para sus rate limits. La frecuencia importa doble desde que el sync también refresca
+  la **ocupación** (frontdeskStatus/arrival) — ver `docs/ocupacion-y-sabanas.md`.
+- *(Histórico: hasta el 02/07/2026 el modelo era 2 corridas/día en horas fijas
+  `sync_schedule_morning`/`sync_schedule_afternoon`; esas claves fueron reemplazadas por
+  `sync_intervalo_minutos`.)*
 
 ### 4.2 Sync manual
 
@@ -177,8 +186,7 @@ Tabla `cloudbeds_config` almacena settings editables:
 
 | Clave | Valor ejemplo | Descripción |
 |---|---|---|
-| `sync_schedule_morning` | `07:00` | Hora del cron matutino |
-| `sync_schedule_afternoon` | `15:00` | Hora del cron tarde |
+| `sync_intervalo_minutos` | `30` | Cadencia del sync automático (el script se auto-regula; ver §4.1) |
 | `reintentos_max` | `3` | Número de reintentos al escribir |
 | `timeout_segundos` | `10` | Timeout por request |
 
