@@ -190,7 +190,7 @@ final class HomeService
     {
         // Habitaciones activas agrupadas por estado actual
         $habs = Database::fetchAll(
-            'SELECT estado, COUNT(*) AS c FROM #__habitaciones WHERE activa = 1 AND hotel_id = ? GROUP BY estado',
+            'SELECT estado, COUNT(*) AS c FROM #__habitaciones WHERE activa = 1 AND es_espacio_comun = 0 AND hotel_id = ? GROUP BY estado',
             [$hotelId]
         );
         $porEstado = [
@@ -218,7 +218,7 @@ final class HomeService
             "SELECT COUNT(*) AS c
                FROM #__habitaciones h
           LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
-              WHERE h.activa = 1 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
+              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
             [$fecha, $hotelId]
         )['c'] ?? 0);
 
@@ -276,6 +276,7 @@ final class HomeService
                FROM #__ejecuciones_checklist e
                JOIN #__habitaciones h ON h.id = e.habitacion_id
               WHERE h.hotel_id = ?
+                AND h.es_espacio_comun = 0
                 AND e.timestamp_fin IS NOT NULL
                 AND DATE(e.timestamp_fin) = ?',
             [$hotelId, $fecha]
@@ -354,7 +355,7 @@ final class HomeService
             'SELECT COUNT(*) AS c
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
-              WHERE h.hotel_id = ? AND a.fecha = ? AND a.activa = 1',
+              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND a.fecha = ? AND a.activa = 1',
             [$hotelId, $fecha]
         )['c'] ?? 0);
         $completadas = (int) $metricas['habitaciones']['limpias']

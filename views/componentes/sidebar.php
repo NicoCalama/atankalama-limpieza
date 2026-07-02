@@ -34,6 +34,15 @@ if ($usuario->tienePermiso('asignaciones.asignar_manual')) {
     ];
 }
 
+if ($usuario->tienePermiso('espacios.ver')) {
+    $items[] = [
+        'ruta' => '/espacios',
+        'icono' => 'building-2',
+        'label' => 'Áreas comunes',
+        'activo' => str_starts_with($rutaActual, '/espacios'),
+    ];
+}
+
 if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     $items[] = [
         'ruta' => '/auditoria',

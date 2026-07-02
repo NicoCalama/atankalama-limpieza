@@ -199,7 +199,8 @@ final class AuditoriaService
              LEFT JOIN #__ejecuciones_checklist ec
                     ON ec.habitacion_id = h.id AND ec.estado = 'completada'
                  WHERE h.estado = 'completada_pendiente_auditoria'
-                   AND h.activa = 1";
+                   AND h.activa = 1
+                   AND h.es_espacio_comun = 0";
         $params = [];
         if ($hotelCodigo !== null && $hotelCodigo !== 'ambos') {
             $sql .= ' AND ho.codigo = ?';

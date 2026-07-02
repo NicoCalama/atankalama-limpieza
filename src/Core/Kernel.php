@@ -13,6 +13,7 @@ use Atankalama\Limpieza\Controllers\AuthController;
 use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
+use Atankalama\Limpieza\Controllers\EspaciosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\PaginasController;
@@ -48,6 +49,7 @@ final class Kernel
         $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
+        $router->get('/espacios', [$paginas, 'espacios'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
         $router->get('/usuarios', [$paginas, 'usuarios'], [$optionalAuth]);
         $router->get('/ajustes', [$paginas, 'ajustes'], [$optionalAuth]);
@@ -180,6 +182,33 @@ final class Kernel
         $router->get('/api/asignaciones/vista', [$asignaciones, 'vista'], [
             $authCheck,
             new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+
+        // Espacios (áreas comunes) — ver docs/areas-comunes.md
+        $espacios = new EspaciosController();
+        $router->get('/api/espacios', [$espacios, 'listar'], [
+            $authCheck,
+            new PermissionCheck('espacios.ver'),
+        ]);
+        $router->get('/api/espacios/{id}', [$espacios, 'obtener'], [
+            $authCheck,
+            new PermissionCheck('espacios.ver'),
+        ]);
+        $router->post('/api/espacios', [$espacios, 'crear'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->put('/api/espacios/{id}', [$espacios, 'editar'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->delete('/api/espacios/{id}', [$espacios, 'archivar'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->post('/api/espacios/{id}/pedir-limpieza', [$espacios, 'pedirLimpieza'], [
+            $authCheck,
+            new PermissionCheck('espacios.pedir_limpieza'),
         ]);
 
         // Auditoría

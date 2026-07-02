@@ -624,11 +624,14 @@ final class ReportesService
 
     private function hotelCond(string $hotel, array &$params): string
     {
+        // Excluye áreas comunes de todos los KPIs de piezas: cada query que usa este helper joinea
+        // #__habitaciones con alias 'h'. Un solo punto para no contaminar tasas. Ver docs/areas-comunes.md
+        $cond = ' AND h.es_espacio_comun = 0';
         if ($hotel !== 'ambos') {
             $params[] = $hotel;
-            return ' AND ho.codigo = ?';
+            $cond .= ' AND ho.codigo = ?';
         }
-        return '';
+        return $cond;
     }
 
     private function userCond(?int $usuarioId, array &$params, string $alias = 'ec'): string

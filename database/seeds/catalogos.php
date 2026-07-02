@@ -24,6 +24,10 @@ return [
         ['nombre' => 'Singular', 'descripcion' => 'Individual — 1 huésped'],
         ['nombre' => 'Doble/Matrimonial', 'descripcion' => 'Doble o matrimonial — 2 huéspedes'],
         ['nombre' => 'Suite/Familiar', 'descripcion' => 'Suite, triple o familiar — 3 a 4 huéspedes'],
+        // Tipo técnico para áreas comunes (piscina, pasillos, patio, bodega…). No viene de Cloudbeds;
+        // rellena el FK NOT NULL de las filas-espacio. Su checklist es propio de cada espacio, no de
+        // este tipo (por eso seed.php NO le crea template estándar). Ver docs/areas-comunes.md
+        ['nombre' => 'Área común', 'descripcion' => 'Espacio que no es habitación de huésped (piscina, pasillo, patio…)'],
     ],
     'alertas_config' => [
         ['clave' => 'margen_seguridad_minutos', 'valor' => '15', 'descripcion' => 'Margen del algoritmo predictivo'],

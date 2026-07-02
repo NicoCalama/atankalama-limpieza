@@ -24,7 +24,9 @@ final class HabitacionService
      */
     public function listar(?string $hotel = 'ambos', ?string $estado = null): array
     {
-        $where = ['h.activa = 1'];
+        // es_espacio_comun = 0: el listado de habitaciones es solo piezas de huésped; las áreas
+        // comunes tienen su propia pantalla (EspacioService). Ver docs/areas-comunes.md
+        $where = ['h.activa = 1', 'h.es_espacio_comun = 0'];
         $params = [];
 
         if ($hotel !== null && $hotel !== 'ambos') {
@@ -130,6 +132,7 @@ final class HabitacionService
             cloudbedsRoomId: $habitacion->cloudbedsRoomId,
             estado: $nuevoEstado,
             activa: $habitacion->activa,
+            esEspacioComun: $habitacion->esEspacioComun,
         );
     }
 

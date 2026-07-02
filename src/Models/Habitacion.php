@@ -30,6 +30,7 @@ final class Habitacion
         public readonly ?string $cloudbedsRoomId,
         public readonly string $estado,
         public readonly bool $activa,
+        public readonly bool $esEspacioComun = false,
     ) {
     }
 
@@ -44,6 +45,7 @@ final class Habitacion
             cloudbedsRoomId: $fila['cloudbeds_room_id'] !== null ? (string) $fila['cloudbeds_room_id'] : null,
             estado: (string) $fila['estado'],
             activa: ((int) $fila['activa']) === 1,
+            esEspacioComun: ((int) ($fila['es_espacio_comun'] ?? 0)) === 1,
         );
     }
 
@@ -57,6 +59,7 @@ final class Habitacion
             'cloudbeds_room_id' => $this->cloudbedsRoomId,
             'estado' => $this->estado,
             'activa' => $this->activa,
+            'es_espacio_comun' => $this->esEspacioComun,
         ];
     }
 

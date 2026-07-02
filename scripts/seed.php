@@ -121,6 +121,12 @@ function seedChecklistTemplates(string $seedDir): void
     $reusados = 0;
 
     foreach ($tipos as $tipo) {
+        // El tipo "Área común" no lleva template estándar: cada espacio define su propio checklist
+        // desde la pantalla de áreas comunes (habitacion_id != NULL). Ver docs/areas-comunes.md
+        if ($tipo['nombre'] === 'Área común') {
+            continue;
+        }
+
         $existente = Database::fetchOne(
             'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1',
             [$tipo['id']]

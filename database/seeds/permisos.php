@@ -16,6 +16,10 @@ return [
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
     ['asignaciones.reordenar_cola_trabajador', 'Reordenar la cola de un trabajador', 'Asignaciones', 'global'],
 
+    ['espacios.ver', 'Ver el listado de áreas comunes', 'Espacios', 'global'],
+    ['espacios.crear_editar', 'Crear/editar áreas comunes y su checklist', 'Espacios', 'global'],
+    ['espacios.pedir_limpieza', 'Solicitar la limpieza de un área común a un trabajador', 'Espacios', 'global'],
+
     ['auditoria.ver_bandeja', 'Ver la bandeja de habitaciones pendientes de auditar', 'Auditoría', 'global'],
     ['auditoria.aprobar', 'Dar veredicto aprobada', 'Auditoría', 'global'],
     ['auditoria.aprobar_con_observacion', 'Dar veredicto aprobada con observación', 'Auditoría', 'global'],

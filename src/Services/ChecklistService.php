@@ -23,11 +23,13 @@ final class ChecklistService
     /** @return list<array<string, mixed>> */
     public function listarTemplates(): array
     {
+        // Solo templates de tipo (piezas de huésped). Los de espacio (habitacion_id != NULL)
+        // se editan desde la pantalla de áreas comunes, no acá. Ver docs/areas-comunes.md
         return Database::fetchAll(
             'SELECT ct.*, th.nombre AS tipo_nombre
                FROM #__checklists_template ct
                JOIN #__tipos_habitacion th ON th.id = ct.tipo_habitacion_id
-              WHERE ct.activo = 1
+              WHERE ct.activo = 1 AND ct.habitacion_id IS NULL
               ORDER BY th.nombre'
         );
     }
@@ -47,11 +49,28 @@ final class ChecklistService
 
     public function templateParaTipo(int $tipoHabitacionId): ?int
     {
+        // habitacion_id IS NULL: solo templates "de tipo" (piezas), no los propios de un espacio.
         $fila = Database::fetchOne(
-            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
+            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND habitacion_id IS NULL AND activo = 1 ORDER BY id LIMIT 1',
             [$tipoHabitacionId]
         );
         return $fila === null ? null : (int) $fila['id'];
+    }
+
+    /**
+     * Resuelve el template de una habitación: primero el propio del espacio (área común), y si no
+     * tiene, cae al template de su tipo (pieza de huésped). Ver docs/areas-comunes.md
+     */
+    public function templateParaHabitacion(Habitacion $habitacion): ?int
+    {
+        $fila = Database::fetchOne(
+            'SELECT id FROM #__checklists_template WHERE habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
+            [$habitacion->id]
+        );
+        if ($fila !== null) {
+            return (int) $fila['id'];
+        }
+        return $this->templateParaTipo($habitacion->tipoHabitacionId);
     }
 
     // ----- Ejecución -----
@@ -89,9 +108,9 @@ final class ChecklistService
             throw new ChecklistException('ESTADO_INVALIDO_PARA_INICIAR', 'La habitación no está en un estado que permita iniciar.', 409);
         }
 
-        $templateId = $this->templateParaTipo($habitacion->tipoHabitacionId);
+        $templateId = $this->templateParaHabitacion($habitacion);
         if ($templateId === null) {
-            throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'No hay checklist template para este tipo de habitación.', 500);
+            throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'No hay checklist template para esta habitación.', 500);
         }
 
         if ($habitacion->estado === Habitacion::ESTADO_SUCIA || $habitacion->estado === Habitacion::ESTADO_RECHAZADA) {
@@ -272,15 +291,17 @@ final class ChecklistService
             [$ejecucionId]
         );
 
-        $this->habitaciones->cambiarEstado(
-            $ejec->habitacionId,
-            Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
-            $usuarioId,
-            'ui'
-        );
+        // Áreas comunes no pasan por auditoría: se auto-cierran (en_progreso → aprobada = "listo").
+        // Las piezas de huésped quedan pendientes de auditoría. Ver docs/areas-comunes.md
+        $habitacion = $this->habitaciones->obtener($ejec->habitacionId);
+        $esEspacio = $habitacion !== null && $habitacion->esEspacioComun;
+        $estadoDestino = $esEspacio
+            ? Habitacion::ESTADO_APROBADA
+            : Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA;
+        $this->habitaciones->cambiarEstado($ejec->habitacionId, $estadoDestino, $usuarioId, 'ui');
 
         Logger::audit($usuarioId, 'checklist.completar', 'ejecucion_checklist', $ejecucionId, [
-            'habitacion_id' => $ejec->habitacionId,
+            'habitacion_id' => $ejec->habitacionId, 'es_espacio_comun' => $esEspacio,
         ]);
 
         try {

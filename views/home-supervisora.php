@@ -204,11 +204,18 @@ if ($hora < 12) {
                         <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                         Estado del equipo
                     </h2>
-                    <template x-if="data.permisos.asignaciones_asignar_manual">
-                        <a href="/asignaciones" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
-                            Asignaciones <i data-lucide="arrow-right" class="w-3 h-3"></i>
-                        </a>
-                    </template>
+                    <div class="flex items-center gap-3 flex-shrink-0">
+                        <template x-if="$store.auth && $store.auth.tienePermiso('espacios.ver')">
+                            <a href="/espacios" class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
+                                Áreas comunes <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                            </a>
+                        </template>
+                        <template x-if="data.permisos.asignaciones_asignar_manual">
+                            <a href="/asignaciones" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                                Asignaciones <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                            </a>
+                        </template>
+                    </div>
                 </div>
 
                 <!-- Progreso global -->

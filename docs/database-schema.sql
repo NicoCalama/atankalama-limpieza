@@ -164,6 +164,7 @@ CREATE TABLE habitaciones (
         'aprobada', 'aprobada_con_observacion', 'rechazada'
     )),
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
     created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (hotel_id, numero),
@@ -221,12 +222,16 @@ CREATE INDEX idx_asignaciones_activa ON asignaciones(activa);
 CREATE TABLE checklists_template (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     tipo_habitacion_id    INTEGER NOT NULL,
+    habitacion_id         INTEGER,                             -- si != NULL, template propio de un espacio (área común); las piezas de huésped lo dejan NULL y se resuelven por tipo. Ver docs/areas-comunes.md
     nombre                TEXT NOT NULL,
     activo                INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT
+    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT,
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_checklists_template_habitacion ON checklists_template(habitacion_id);
 
 -- Items del template (orden, descripción, obligatoriedad)
 CREATE TABLE items_checklist (

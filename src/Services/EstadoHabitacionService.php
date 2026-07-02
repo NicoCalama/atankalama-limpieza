@@ -15,8 +15,9 @@ final class EstadoHabitacionService
      * Reglas (ver docs/habitaciones.md §3):
      * - sucia → en_progreso
      * - en_progreso → completada_pendiente_auditoria | sucia (reset excepcional por supervisora)
+     *              → aprobada (auto-cierre de áreas comunes, que no pasan por auditoría; ver docs/areas-comunes.md)
      * - completada_pendiente_auditoria → aprobada | aprobada_con_observacion | rechazada
-     * - rechazada / aprobada* → sucia (solo por sync Cloudbeds en nuevo ciclo)
+     * - rechazada / aprobada* → sucia (sync Cloudbeds en nuevo ciclo, o re-pedir limpieza de un espacio)
      */
     private const TRANSICIONES = [
         Habitacion::ESTADO_SUCIA => [
@@ -25,6 +26,7 @@ final class EstadoHabitacionService
         Habitacion::ESTADO_EN_PROGRESO => [
             Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
             Habitacion::ESTADO_SUCIA,
+            Habitacion::ESTADO_APROBADA,
         ],
         Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA => [
             Habitacion::ESTADO_APROBADA,

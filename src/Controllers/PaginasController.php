@@ -106,6 +106,23 @@ final class PaginasController
         ]);
     }
 
+    public function espacios(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('espacios.ver')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('espacios', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Áreas comunes',
+        ]);
+    }
+
     public function ajustesRbac(Request $request): Response
     {
         if ($request->usuario === null) {

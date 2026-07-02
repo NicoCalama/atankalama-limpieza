@@ -145,6 +145,7 @@ CREATE TABLE #__habitaciones (
         'aprobada', 'aprobada_con_observacion', 'rechazada'
     )),
     activa                  TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    es_espacio_comun        TINYINT NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
     created_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE (hotel_id, numero),
@@ -198,12 +199,16 @@ CREATE INDEX idx_asignaciones_activa ON #__asignaciones(activa);
 CREATE TABLE #__checklists_template (
     id                    INT AUTO_INCREMENT PRIMARY KEY,
     tipo_habitacion_id    INT NOT NULL,
+    habitacion_id         INT,                                 -- si != NULL, template propio de un espacio (área común); las piezas de huésped lo dejan NULL y se resuelven por tipo. Ver docs/areas-comunes.md
     nombre                VARCHAR(150) NOT NULL,
     activo                TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at            VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at            VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
-    FOREIGN KEY (tipo_habitacion_id) REFERENCES #__tipos_habitacion(id) ON DELETE RESTRICT
+    FOREIGN KEY (tipo_habitacion_id) REFERENCES #__tipos_habitacion(id) ON DELETE RESTRICT,
+    FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_checklists_template_habitacion ON #__checklists_template(habitacion_id);
 
 CREATE TABLE #__items_checklist (
     id                  INT AUTO_INCREMENT PRIMARY KEY,

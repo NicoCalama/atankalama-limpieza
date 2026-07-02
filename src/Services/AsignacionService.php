@@ -24,24 +24,33 @@ final class AsignacionService
         $this->desactivarAsignacionesActivas($habitacionId);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
-        // Si la habitación venía de auditoría como rechazada, al reasignarla
-        // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza.
-        // La auditoría histórica permanece inmutable (otra ejecución_checklist).
+        // Si la habitación estaba en un estado terminal (rechazada / aprobada*), al (re)asignarla
+        // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza. Esta es la primitiva
+        // de "re-abrir on-demand": la usa la reasignación tras rechazo, el re-pedir limpieza de un
+        // espacio (área común) y —a futuro— la 2ª limpieza del día (feature F). La auditoría
+        // histórica permanece inmutable (queda ligada a su ejecución_checklist).
         $estadoActual = Database::fetchOne('SELECT estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
-        if ($estadoActual !== null && $estadoActual['estado'] === 'rechazada') {
+        $estadoTerminal = $estadoActual !== null && in_array($estadoActual['estado'], [
+            Habitacion::ESTADO_RECHAZADA,
+            Habitacion::ESTADO_APROBADA,
+            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+        ], true);
+        if ($estadoTerminal) {
             Database::execute(
                 "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$habitacionId]
             );
-            Logger::info('habitaciones', 'rechazada→sucia por reasignación', [
-                'habitacion_id' => $habitacionId, 'asignado_por' => $asignadoPor,
+            Logger::info('habitaciones', 'terminal→sucia por (re)asignación', [
+                'habitacion_id' => $habitacionId, 'desde' => $estadoActual['estado'], 'asignado_por' => $asignadoPor,
             ]);
-            // La alerta P1 de rechazo ya cumplió su propósito (la supervisora reasignó):
+            // Si venía de un rechazo, la alerta P1 ya cumplió su propósito (la supervisora reasignó):
             // se resuelve para que no quede colgada tras re-limpiar y re-aprobar.
-            $this->alertas->resolverPorDedupe(
-                AlertaActiva::TIPO_HABITACION_RECHAZADA,
-                "habitacion:{$habitacionId}"
-            );
+            if ($estadoActual['estado'] === Habitacion::ESTADO_RECHAZADA) {
+                $this->alertas->resolverPorDedupe(
+                    AlertaActiva::TIPO_HABITACION_RECHAZADA,
+                    "habitacion:{$habitacionId}"
+                );
+            }
         }
 
         Database::execute(
@@ -104,6 +113,7 @@ final class AsignacionService
                        ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.estado = ?
                       AND h.activa = 1
+                      AND h.es_espacio_comun = 0
                       AND a.id IS NULL';
         $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA];
         if ($filtroHotel !== null) {
@@ -220,6 +230,7 @@ final class AsignacionService
                      JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
                 LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.activa = 1
+                      AND h.es_espacio_comun = 0
                       AND h.estado IN (\'sucia\', \'rechazada\')
                       AND a.id IS NULL';
         $paramsSin = [$fecha];
