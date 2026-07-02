@@ -87,8 +87,8 @@ final class TestDatabase
             $templateId = Database::lastInsertId();
             foreach ($items as $item) {
                 Database::execute(
-                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, activo) VALUES (?, ?, ?, ?, 1)',
-                    [$templateId, (int) $item['orden'], (string) $item['descripcion'], (int) $item['obligatorio']]
+                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, es_cambio_sabanas, activo) VALUES (?, ?, ?, ?, ?, 1)',
+                    [$templateId, (int) $item['orden'], (string) $item['descripcion'], (int) $item['obligatorio'], (int) ($item['es_cambio_sabanas'] ?? 0)]
                 );
             }
         }

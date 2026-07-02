@@ -185,7 +185,7 @@ final class ChecklistService
         }
 
         $items = Database::fetchAll(
-            "SELECT ic.id, ic.orden, ic.descripcion, ic.obligatorio,
+            "SELECT ic.id, ic.orden, ic.descripcion, ic.obligatorio, ic.es_cambio_sabanas,
                     COALESCE(ei.marcado, 0) AS marcado,
                     COALESCE(ei.desmarcado_por_auditor, 0) AS desmarcado_por_auditor,
                     ei.marcado_por

@@ -124,6 +124,7 @@ CREATE TABLE #__hoteles (
     nombre       VARCHAR(150) NOT NULL,
     cloudbeds_property_id  VARCHAR(100),
     activo       TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    sabanas_cada_n_dias  INT NOT NULL DEFAULT 4,  -- cada cuántas noches avisar cambio de sábanas en stayover. Ver docs/ocupacion-y-sabanas.md
     created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -146,6 +147,12 @@ CREATE TABLE #__habitaciones (
     )),
     activa                  TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        TINYINT NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
+    -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
+    cb_frontdesk_status     VARCHAR(20) CHECK (cb_frontdesk_status IN ('check-in', 'check-out', 'stayover', 'turnover', 'unused')),
+    cb_ocupada              TINYINT CHECK (cb_ocupada IN (0, 1)),
+    cb_arrival_date         VARCHAR(10),                          -- entrada del huésped actual (YYYY-MM-DD)
+    cb_departure_date       VARCHAR(10),                          -- salida prevista (YYYY-MM-DD)
+    cb_ocupacion_sync_at    VARCHAR(30),                          -- cuándo se refrescó la ocupación
     created_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE (hotel_id, numero),
@@ -217,6 +224,7 @@ CREATE TABLE #__items_checklist (
     orden               INT NOT NULL,
     descripcion         TEXT NOT NULL,
     obligatorio         TINYINT NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
+    es_cambio_sabanas   TINYINT NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
     activo              TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (template_id) REFERENCES #__checklists_template(id) ON DELETE CASCADE

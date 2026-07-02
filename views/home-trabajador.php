@@ -150,11 +150,16 @@ if ($hora < 12) {
                                     <div class="mb-4">
                                         <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
                                         <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
-                                        <div class="mt-2 flex items-center gap-2">
+                                        <div class="mt-2 flex items-center gap-2 flex-wrap">
                                             <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
                                             <template x-if="data.habitacion_actual.franja">
                                                 <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
                                                       x-text="data.habitacion_actual.franja"></span>
+                                            </template>
+                                            <template x-if="data.habitacion_actual.toca_sabanas">
+                                                <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
+                                                    <i data-lucide="bed-double" class="w-3.5 h-3.5"></i> Cambio de sábanas
+                                                </span>
                                             </template>
                                         </div>
                                     </div>
@@ -179,6 +184,9 @@ if ($hora < 12) {
                                             <span class="text-base text-gray-600 dark:text-gray-400 flex-1 ml-4" x-text="hab.tipo"></span>
                                             <template x-if="hab.franja">
                                                 <span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize mr-2" x-text="hab.franja"></span>
+                                            </template>
+                                            <template x-if="hab.toca_sabanas">
+                                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 mr-2">Sábanas</span>
                                             </template>
                                             <span x-html="badgeEstado(hab.estado)"></span>
                                         </a>

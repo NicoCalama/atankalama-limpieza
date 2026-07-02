@@ -173,6 +173,11 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                         <template x-if="item.obligatorio == 0">
                                             <span class="text-xs text-gray-500 dark:text-gray-400">Opcional</span>
                                         </template>
+                                        <template x-if="item.es_cambio_sabanas == 1">
+                                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                                <i data-lucide="bed-double" class="w-3 h-3"></i> Sábanas
+                                            </span>
+                                        </template>
                                         <template x-if="item.desmarcado_por_auditor == 1">
                                             <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                                                 <i data-lucide="alert-triangle" class="w-3 h-3"></i> Auditor desmarcó

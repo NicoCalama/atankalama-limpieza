@@ -12,6 +12,7 @@ final class HabitacionService
 {
     public function __construct(
         private readonly EstadoHabitacionService $estados = new EstadoHabitacionService(),
+        private readonly SabanasService $sabanas = new SabanasService(),
     ) {
     }
 
@@ -42,14 +43,16 @@ final class HabitacionService
             $params[] = $estado;
         }
 
-        $sql = 'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+        $sql = 'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre,
+                       ho.sabanas_cada_n_dias
                   FROM #__habitaciones h
                   JOIN #__hoteles ho ON ho.id = h.hotel_id
                   JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
                  WHERE ' . implode(' AND ', $where) . '
               ORDER BY ho.codigo, h.numero';
 
-        return Database::fetchAll($sql, $params);
+        $filas = Database::fetchAll($sql, $params);
+        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
     }
 
     public function obtener(int $id): ?Habitacion
@@ -72,6 +75,34 @@ final class HabitacionService
                JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE h.id = ?',
             [$id]
+        );
+    }
+
+    /**
+     * Guarda la ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto para
+     * priorizar y para la regla de sábanas; NO cambia el 'estado' de limpieza. Ver docs/ocupacion-y-sabanas.md
+     *
+     * @param string|null $frontdeskStatus check-in|check-out|stayover|turnover|unused (o null si desconocido)
+     */
+    public function actualizarOcupacionCloudbeds(
+        int $id,
+        ?string $frontdeskStatus,
+        ?bool $ocupada,
+        ?string $arrivalDate,
+        ?string $departureDate,
+    ): void {
+        Database::execute(
+            "UPDATE #__habitaciones
+                SET cb_frontdesk_status = ?, cb_ocupada = ?, cb_arrival_date = ?, cb_departure_date = ?,
+                    cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              WHERE id = ?",
+            [
+                $frontdeskStatus,
+                $ocupada === null ? null : ($ocupada ? 1 : 0),
+                $arrivalDate,
+                $departureDate,
+                $id,
+            ]
         );
     }
 

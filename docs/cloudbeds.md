@@ -63,6 +63,33 @@ Wrapper en `src/Services/CloudbedsClient.php`. Métodos:
 
 Nota: endpoints validados contra la API v1.1 real el 30/06/2026. **`getRoomsStatus` NO existe (devuelve 404)** — el endpoint correcto para leer estados de limpieza es `getHousekeepingStatus`. `getRooms` está **paginado** (`count`/`total`); trae 20 por página aunque la propiedad tenga más. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
 
+### 3.1 Campos de `getHousekeepingStatus` (verificado en v1.1 — 02/07/2026)
+
+La respuesta trae `data` como **array plano** de habitaciones. Hoy el sync solo usa `roomID` +
+`roomCondition`, pero **cada fila trae mucho más** — la base de los features de ocupación, sábanas y
+multi-limpieza automática (ver `docs/ocupacion-y-sabanas.md`):
+
+| Campo | Valores | Uso |
+|---|---|---|
+| `roomID` | string | match con `habitaciones.cloudbeds_room_id` |
+| `roomCondition` | `clean` / `dirty` | estado de limpieza (lo único que usamos hoy) |
+| `roomOccupied` | bool | ocupada ahora |
+| `roomBlocked` | bool | fuera de servicio |
+| **`frontdeskStatus`** | `check-in` / `check-out` / `stayover` / `turnover` / `unused` | **ocupación del día** (llega / sigue / se va / día-noche) |
+| **`arrivalDate`** | `YYYY-MM-DD` o `-` | entrada del huésped actual → noches de estadía (sábanas) |
+| **`departureDate`** | `YYYY-MM-DD` o `-` | salida prevista |
+| `doNotDisturb`, `refusedService`, `vacantPickup` | bool | flags operativos |
+| `housekeeperID`, `housekeeper` | | housekeeper asignado en Cloudbeds |
+| `roomTypeID`, `roomTypeName`, `roomName`, `id`, `date` | | metadatos |
+
+**Semántica confirmada con datos reales:** `stayover` → `arrivalDate` = entrada original (pasada);
+`check-out` → `departureDate` = hoy; `turnover` / `check-in` → `arrivalDate` = hoy (huésped entrante).
+Los estados los **calcula Cloudbeds** desde el calendario de reservas; las reglas de cadencia de
+sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nuestro).
+
+**OJO `count`/`total`:** la API reporta un `count`/`total` mayor que las filas reales de habitación
+(p. ej. 119 vs 99). Matchear siempre por `roomID`, no confiar en el conteo.
+
 ---
 
 ## 4. Sincronización entrante (Cloudbeds → app)

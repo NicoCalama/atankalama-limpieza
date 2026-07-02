@@ -140,6 +140,7 @@ CREATE TABLE hoteles (
     nombre       TEXT NOT NULL,
     cloudbeds_property_id  TEXT,                    -- ID del hotel en Cloudbeds
     activo       INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    sabanas_cada_n_dias  INTEGER NOT NULL DEFAULT 4,  -- cada cuántas noches avisar cambio de sábanas en stayover. Ver docs/ocupacion-y-sabanas.md
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -165,6 +166,12 @@ CREATE TABLE habitaciones (
     )),
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
+    -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
+    cb_frontdesk_status     TEXT CHECK (cb_frontdesk_status IN ('check-in', 'check-out', 'stayover', 'turnover', 'unused')),
+    cb_ocupada              INTEGER CHECK (cb_ocupada IN (0, 1)),
+    cb_arrival_date         TEXT,                             -- entrada del huésped actual (YYYY-MM-DD)
+    cb_departure_date       TEXT,                             -- salida prevista (YYYY-MM-DD)
+    cb_ocupacion_sync_at    TEXT,                             -- cuándo se refrescó la ocupación
     created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (hotel_id, numero),
@@ -241,6 +248,7 @@ CREATE TABLE items_checklist (
     orden               INTEGER NOT NULL,
     descripcion         TEXT NOT NULL,
     obligatorio         INTEGER NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
+    es_cambio_sabanas   INTEGER NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
     activo              INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (template_id) REFERENCES checklists_template(id) ON DELETE CASCADE

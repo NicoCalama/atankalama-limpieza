@@ -145,8 +145,8 @@ function seedChecklistTemplates(string $seedDir): void
 
         foreach ($items as $item) {
             Database::execute(
-                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio) VALUES (?, ?, ?, ?)',
-                [$templateId, $item['orden'], $item['descripcion'], $item['obligatorio']]
+                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, es_cambio_sabanas) VALUES (?, ?, ?, ?, ?)',
+                [$templateId, $item['orden'], $item['descripcion'], $item['obligatorio'], $item['es_cambio_sabanas'] ?? 0]
             );
         }
         $creados++;

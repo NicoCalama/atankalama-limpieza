@@ -451,6 +451,7 @@ final class HomeController
             'estado' => $estadoDisplay,
             'hotel_codigo' => $item['hotel_codigo'],
             'franja' => $item['franja'] ?? null,  // ventana de la limpieza (día/noche), si aplica
+            'toca_sabanas' => (bool) ($item['toca_sabanas'] ?? false),  // stayover al que hoy le toca cambio de sábanas
         ];
     }
 

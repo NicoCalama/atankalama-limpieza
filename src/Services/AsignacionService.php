@@ -15,6 +15,7 @@ final class AsignacionService
     public function __construct(
         private readonly NotificacionesService $notificaciones = new NotificacionesService(),
         private readonly AlertasService $alertas = new AlertasService(),
+        private readonly SabanasService $sabanas = new SabanasService(),
     ) {
     }
 
@@ -339,8 +340,9 @@ final class AsignacionService
      */
     public function colaDelTrabajador(int $usuarioId, string $fecha): array
     {
-        return Database::fetchAll(
-            'SELECT a.*, h.numero, h.estado, ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre
+        $filas = Database::fetchAll(
+            'SELECT a.*, h.numero, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+                    ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -349,6 +351,7 @@ final class AsignacionService
               ORDER BY a.orden_cola, a.id',
             [$usuarioId, $fecha]
         );
+        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
     }
 
     public function esHabitacionAsignadaA(int $habitacionId, int $usuarioId, string $fecha): bool

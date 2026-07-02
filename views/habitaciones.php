@@ -132,7 +132,15 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
                                   x-text="hotelCorto(hab.hotel_codigo)"></span>
                         </div>
                         <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || hab.tipo"></p>
-                        <div class="mt-auto pt-1" x-html="badgeEstado(hab.estado)"></div>
+                        <div class="mt-auto pt-1 flex flex-wrap gap-1 items-center">
+                            <span x-html="badgeEstado(hab.estado)"></span>
+                            <template x-if="hab.cb_frontdesk_status && hab.cb_frontdesk_status !== 'unused'">
+                                <span x-html="badgeOcupacion(hab.cb_frontdesk_status)"></span>
+                            </template>
+                            <template x-if="hab.toca_sabanas">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sábanas hoy</span>
+                            </template>
+                        </div>
                     </a>
                 </template>
             </div>
@@ -195,7 +203,9 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
                                 numero: a.numero,
                                 estado: a.estado,
                                 hotel_codigo: a.hotel_codigo,
-                                tipo_nombre: a.tipo_nombre
+                                tipo_nombre: a.tipo_nombre,
+                                cb_frontdesk_status: a.cb_frontdesk_status,
+                                toca_sabanas: a.toca_sabanas
                             };
                         });
                     }
@@ -259,6 +269,19 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';
+        },
+
+        // Badge de ocupación (frontdeskStatus de Cloudbeds). Ver docs/ocupacion-y-sabanas.md
+        badgeOcupacion(fs) {
+            var map = {
+                'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
+                'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
+                'turnover': { t: 'Día/noche', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
+                'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
+            };
+            var c = map[fs];
+            if (!c) return '';
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
         }
     };
 }

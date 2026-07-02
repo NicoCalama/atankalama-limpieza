@@ -64,6 +64,33 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertSame(1, (int) $hist['habitaciones_sincronizadas']);
     }
 
+    public function testSincronizarGuardaLaOcupacion(): void
+    {
+        // getHousekeepingStatus trae frontdeskStatus + arrival/departure + roomOccupied (verificado
+        // en v1.1). El sync debe guardarlos por pieza. Ver docs/ocupacion-y-sabanas.md
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true, 'arrivalDate' => '2026-07-01', 'departureDate' => '2026-07-09'],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'clean', 'frontdeskStatus' => 'unused', 'roomOccupied' => false, 'arrivalDate' => '-', 'departureDate' => '-'],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT cb_frontdesk_status, cb_ocupada, cb_arrival_date, cb_departure_date, cb_ocupacion_sync_at FROM habitaciones WHERE numero='101'");
+        $this->assertSame('stayover', $r101['cb_frontdesk_status']);
+        $this->assertSame(1, (int) $r101['cb_ocupada']);
+        $this->assertSame('2026-07-01', $r101['cb_arrival_date']);
+        $this->assertSame('2026-07-09', $r101['cb_departure_date']);
+        $this->assertNotNull($r101['cb_ocupacion_sync_at']);
+
+        $r102 = Database::fetchOne("SELECT cb_frontdesk_status, cb_ocupada, cb_arrival_date FROM habitaciones WHERE numero='102'");
+        $this->assertSame('unused', $r102['cb_frontdesk_status']);
+        $this->assertSame(0, (int) $r102['cb_ocupada']);
+        $this->assertNull($r102['cb_arrival_date']); // '-' se normaliza a null
+    }
+
     public function testSincronizarConRespuestaSinSuccessGeneraError(): void
     {
         // Regresión del bug del endpoint equivocado: un 404 (o cualquier respuesta

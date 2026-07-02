@@ -83,6 +83,17 @@ final class CloudbedsSyncService
                         continue;
                     }
 
+                    // Guardar la ocupación (frontdeskStatus + arrival/departure) — contexto para
+                    // priorizar y para la regla de sábanas. NO cambia el 'estado' de limpieza.
+                    // Ver docs/ocupacion-y-sabanas.md
+                    $this->habitaciones->actualizarOcupacionCloudbeds(
+                        $hab->id,
+                        self::normalizarFrontdesk($room['frontdeskStatus'] ?? null),
+                        array_key_exists('roomOccupied', $room) ? (bool) $room['roomOccupied'] : null,
+                        self::normalizarFecha($room['arrivalDate'] ?? null),
+                        self::normalizarFecha($room['departureDate'] ?? null),
+                    );
+
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
                         $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
                         $actualizadas++;
@@ -251,6 +262,23 @@ final class CloudbedsSyncService
                 );
             }
         });
+    }
+
+    /** Estados de ocupación válidos de Cloudbeds (frontdeskStatus). */
+    private const FRONTDESK_VALIDOS = ['check-in', 'check-out', 'stayover', 'turnover', 'unused'];
+
+    /** Normaliza frontdeskStatus de Cloudbeds a nuestro enum, o null si viene algo desconocido. */
+    private static function normalizarFrontdesk(mixed $valor): ?string
+    {
+        $v = strtolower(trim((string) $valor));
+        return in_array($v, self::FRONTDESK_VALIDOS, true) ? $v : null;
+    }
+
+    /** Normaliza una fecha de Cloudbeds: '-' o '' → null. */
+    private static function normalizarFecha(mixed $valor): ?string
+    {
+        $v = trim((string) $valor);
+        return ($v === '' || $v === '-') ? null : $v;
     }
 
     private function crearHistorial(string $tipo, ?int $hotelId, ?int $disparadaPor): int
