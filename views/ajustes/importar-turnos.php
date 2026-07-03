@@ -10,7 +10,7 @@
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center gap-3 max-w-3xl mx-auto">
-            <a href="/ajustes/turnos"
+            <a href="<?= u('/ajustes/turnos') ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
                 <i data-lucide="arrow-left" class="w-5 h-5"></i>
             </a>
@@ -295,7 +295,7 @@
                             class="flex-1 min-h-[48px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Importar otro archivo
                     </button>
-                    <a href="/ajustes/turnos"
+                    <a href="<?= u('/ajustes/turnos') ?>"
                        class="flex-1 min-h-[48px] bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition flex items-center justify-center">
                         Ver turnos
                     </a>
@@ -336,7 +336,7 @@ function importarTurnos() {
             try {
                 var fd = new FormData();
                 fd.append('csv_file', this.archivo);
-                var resp = await fetch('/api/turnos/importar/preview', { method: 'POST', body: fd });
+                var resp = await fetch(u('/api/turnos/importar/preview'), { method: 'POST', body: fd });
                 var json = await resp.json();
                 if (!json.ok) { this.error = json.error.mensaje; return; }
                 this.preview = json.data;
@@ -354,7 +354,7 @@ function importarTurnos() {
             this.cargando = true;
             this.error = null;
             try {
-                var resp = await fetch('/api/turnos/importar/confirmar', {
+                var resp = await fetch(u('/api/turnos/importar/confirmar'), {
                     method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body:    JSON.stringify({ token: this.token, reemplazar: this.reemplazar }),

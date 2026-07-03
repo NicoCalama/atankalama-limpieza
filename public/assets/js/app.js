@@ -77,13 +77,20 @@ document.addEventListener('alpine:init', function () {
             }
             this.usuario = null;
             this.permisos = [];
-            window.location.href = '/login';
+            window.location.href = (window.BASE_PATH || '') + '/login';
         }
     });
 });
 
 // --- Helper: apiFetch ---
+// Las llamadas se escriben root-relative ('/api/...') y acá se les antepone
+// BASE_PATH (subpath de prod, inyectado por el layout). No pasarle URLs ya
+// prefijadas con u() — quedaría el prefijo doble.
 async function apiFetch(url, opciones) {
+    if (url.charAt(0) === '/') {
+        url = (window.BASE_PATH || '') + url;
+    }
+
     var config = Object.assign({
         headers: { 'Content-Type': 'application/json' },
     }, opciones || {});
@@ -97,8 +104,9 @@ async function apiFetch(url, opciones) {
 
     if (resp.status === 401) {
         // Sesión expirada — redirigir al login
-        if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
+        var loginUrl = (window.BASE_PATH || '') + '/login';
+        if (window.location.pathname !== loginUrl) {
+            window.location.href = loginUrl;
             return null;
         }
     }

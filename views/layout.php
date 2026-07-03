@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($titulo ?? 'Atankalama Limpieza') ?></title>
 
+    <!-- Base path de la app ('' en dev, '/limpieza' en prod). Define u() para el
+         JS inline de las vistas; apiFetch/apiPost/apiPut (app.js) prefijan solos. -->
+    <script>
+        window.BASE_PATH = <?= json_encode(\Atankalama\Limpieza\Core\Url::base()) ?>;
+        window.u = function (p) { return window.BASE_PATH + p; };
+    </script>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -32,17 +39,17 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <!-- App CSS -->
-    <link rel="stylesheet" href="/assets/css/custom.css">
+    <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>">
 
     <!-- PWA -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="<?= u('/manifest') ?>">
     <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#1e40af" media="(prefers-color-scheme: dark)">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Limpieza">
-    <link rel="apple-touch-icon" href="/assets/img/icon-192.png">
+    <link rel="apple-touch-icon" href="<?= u('/assets/img/icon-192.png') ?>">
 
     <!-- Tema: aplicar antes de que Alpine cargue para evitar flash -->
     <script>
@@ -110,7 +117,7 @@
     <?php endif; ?>
 
     <!-- App JS -->
-    <script src="/assets/js/app.js"></script>
+    <script src="<?= u('/assets/js/app.js') ?>"></script>
     <script>
         // Store global de notificaciones (badge count)
         document.addEventListener('alpine:init', function() {
@@ -122,7 +129,7 @@
             lucide.createIcons();
             <?php if (isset($usuario)): ?>
             // Cargar conteo de no leídas para el badge
-            fetch('/api/notificaciones/sin-leer')
+            fetch(u('/api/notificaciones/sin-leer'))
                 .then(function(r) { return r.json(); })
                 .then(function(j) { if (j.ok) Alpine.store('notif').sinLeer = j.data.sin_leer; })
                 .catch(function() {});
@@ -136,7 +143,9 @@
         // ─── Service Worker ───────────────────────────────────────────────
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').catch(function() {});
+                // El scope del SW queda en BASE_PATH/ (raíz en dev, /limpieza/ en prod);
+                // sw.js deriva su prefijo de ese scope.
+                navigator.serviceWorker.register(u('/sw.js')).catch(function() {});
             });
         }
 
@@ -190,7 +199,7 @@
                 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
                 rounded-2xl shadow-xl p-4 flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
-            <img src="/assets/img/icon-192.png" alt="" class="w-8 h-8 rounded-lg">
+            <img src="<?= u('/assets/img/icon-192.png') ?>" alt="" class="w-8 h-8 rounded-lg">
         </div>
         <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Instalar app</p>

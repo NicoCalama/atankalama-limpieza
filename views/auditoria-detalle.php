@@ -29,7 +29,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-3xl mx-auto gap-3">
-            <a href="/home"
+            <a href="<?= u('/home') ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -523,7 +523,7 @@ function auditoriaDetalleApp(habitacionId) {
                 var json = await apiPost('/api/auditoria/' + this.habitacionId, payload);
                 if (json && json.ok) {
                     this.mostrarToast('exito', this.mensajeExito(veredicto));
-                    setTimeout(function () { window.location.href = '/home'; }, 1200);
+                    setTimeout(function () { window.location.href = u('/home'); }, 1200);
                 } else {
                     var msg = (json && json.error && json.error.mensaje) || 'No pudimos guardar el veredicto.';
                     this.mostrarToast('error', msg);

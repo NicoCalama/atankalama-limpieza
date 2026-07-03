@@ -122,7 +122,7 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
         <template x-if="habitaciones.length > 0">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in habitaciones" :key="hab.id">
-                    <a :href="'/habitaciones/' + hab.id"
+                    <a :href="u('/habitaciones/' + hab.id)"
                        class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 p-4 hover:shadow-md transition shadow-sm flex flex-col gap-2"
                        :class="[colorHotel(hab.hotel_codigo), estadoAuditado(hab.estado) ? 'opacity-60' : '']">
                         <div class="flex items-start justify-between">

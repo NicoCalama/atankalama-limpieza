@@ -40,6 +40,11 @@ final class Kernel
 
         // Páginas HTML
         $paginas = new PaginasController();
+        // Manifest PWA dinámico (público, lo pide el navegador sin sesión).
+        // Es una ruta y no un archivo estático para que start_url/scope/iconos
+        // salgan con BASE_PATH (dev raíz vs prod subpath). Sin extensión a
+        // propósito: el server embebido de PHP no rutea URIs con extensión.
+        $router->get('/manifest', [$paginas, 'manifest']);
         $router->get('/', [$paginas, 'raiz'], [$optionalAuth]);
         $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
         $router->get('/home', [$paginas, 'home'], [$optionalAuth]);

@@ -21,7 +21,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-3xl mx-auto gap-3">
-            <a href="/habitaciones"
+            <a href="<?= u('/habitaciones') ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -141,7 +141,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
                             <p class="text-sm text-red-900 dark:text-red-200">Esta habitación fue rechazada en auditoría y necesita re-limpieza.</p>
                         </div>
-                        <a href="/asignaciones"
+                        <a href="<?= u('/asignaciones') ?>"
                            class="w-full min-h-[48px] inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-sm">
                             <i data-lucide="user-check" class="w-5 h-5"></i>
                             Reasignar a un trabajador
@@ -513,7 +513,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
                 if (json && json.ok) {
                     this.mostrarConfirmar = false;
-                    window.location.href = '/home';
+                    window.location.href = u('/home');
                 } else {
                     alert((json && json.error && json.error.mensaje) || 'No pudimos completar.');
                 }

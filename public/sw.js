@@ -7,14 +7,19 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
+// La app puede vivir bajo un subpath (prod: /limpieza). El scope del SW es la
+// fuente del prefijo ('/' en dev → '', '/limpieza/' en prod → '/limpieza'),
+// así el mismo sw.js funciona en ambos sin build step.
+const BASE = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+
 const STATIC_ASSETS = [
-    '/assets/js/app.js',
-    '/assets/css/custom.css',
-    '/offline.html',
+    BASE + '/assets/js/app.js',
+    BASE + '/assets/css/custom.css',
+    BASE + '/offline.html',
 ];
 
 // ─── Install: pre-cachear assets estáticos ────────────────────────────────
@@ -67,10 +72,10 @@ self.addEventListener('fetch', function(event) {
     if (url.origin !== self.location.origin) return;
 
     // API: siempre red, nunca cache
-    if (url.pathname.startsWith('/api/')) return;
+    if (url.pathname.startsWith(BASE + '/api/')) return;
 
     // Assets estáticos: Cache First
-    if (url.pathname.startsWith('/assets/')) {
+    if (url.pathname.startsWith(BASE + '/assets/')) {
         event.respondWith(cacheFirst(event.request, CACHE_STATIC));
         return;
     }
@@ -118,7 +123,7 @@ async function networkFirstWithOfflineFallback(request) {
         var cached = await caches.match(request);
         if (cached) return cached;
 
-        var offline = await caches.match('/offline.html');
+        var offline = await caches.match(BASE + '/offline.html');
         return offline || new Response('Sin conexión', { status: 503 });
     }
 }
@@ -130,10 +135,11 @@ self.addEventListener('push', function(event) {
     var data = event.data.json();
     var options = {
         body: data.body || '',
-        icon: '/assets/img/icon-192.png',
-        badge: '/assets/img/icon-192.png',
+        icon: BASE + '/assets/img/icon-192.png',
+        badge: BASE + '/assets/img/icon-192.png',
         vibrate: [200, 100, 200],
-        data: { url: data.url || '/home' },
+        // data.url llega del backend ya con prefijo (Url::a); el default lo arma el SW.
+        data: { url: data.url || (BASE + '/home') },
         actions: data.actions || [],
         requireInteraction: data.requireInteraction || false,
     };
@@ -145,7 +151,7 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
-    var targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/home';
+    var targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : (BASE + '/home');
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {

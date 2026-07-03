@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Controllers;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Core\View;
 use Atankalama\Limpieza\Services\AuthService;
 
@@ -300,9 +301,62 @@ final class PaginasController
         ]);
     }
 
+    /**
+     * Manifest PWA generado en runtime: start_url, scope, iconos y shortcuts
+     * salen con el prefijo BASE_PATH, así una sola fuente sirve para dev (raíz)
+     * y prod (subpath /limpieza). No existe public/manifest.json estático.
+     */
+    public function manifest(Request $request): Response
+    {
+        $base = Url::base();
+        $manifest = [
+            'name' => 'Atankalama Limpieza',
+            'short_name' => 'Limpieza',
+            'description' => 'Gestión de limpieza hotelera Atankalama Corp',
+            'start_url' => $base . '/home',
+            'scope' => $base . '/',
+            'display' => 'standalone',
+            'orientation' => 'portrait-primary',
+            'background_color' => '#111827',
+            'theme_color' => '#2563eb',
+            'lang' => 'es',
+            'icons' => [
+                [
+                    'src' => $base . '/assets/img/icon-192.png',
+                    'sizes' => '192x192',
+                    'type' => 'image/png',
+                    'purpose' => 'any maskable',
+                ],
+                [
+                    'src' => $base . '/assets/img/icon-512.png',
+                    'sizes' => '512x512',
+                    'type' => 'image/png',
+                    'purpose' => 'any maskable',
+                ],
+            ],
+            'shortcuts' => [
+                [
+                    'name' => 'Mis habitaciones',
+                    'url' => $base . '/habitaciones',
+                    'description' => 'Ver habitaciones asignadas',
+                ],
+                [
+                    'name' => 'Auditoría',
+                    'url' => $base . '/auditoria',
+                    'description' => 'Bandeja de auditoría',
+                ],
+            ],
+            'categories' => ['productivity', 'utilities'],
+        ];
+
+        $json = json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
+        return new Response(200, $json, 'application/manifest+json; charset=utf-8');
+    }
+
     private static function redirect(string $url): Response
     {
+        // $url llega sin prefijo ('/login'); acá se antepone BASE_PATH una sola vez.
         $response = new Response(302, '', 'text/html; charset=utf-8');
-        return $response->conHeader('Location', $url);
+        return $response->conHeader('Location', Url::a($url));
     }
 }

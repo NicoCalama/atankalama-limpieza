@@ -32,7 +32,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-2xl mx-auto">
             <div class="flex items-center gap-3">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div>
@@ -163,7 +163,7 @@ if ($hora < 12) {
                                             </template>
                                         </div>
                                     </div>
-                                    <a :href="'/habitaciones/' + data.habitacion_actual.id"
+                                    <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
                                        class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
                                         <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
                                     </a>
@@ -177,7 +177,7 @@ if ($hora < 12) {
                                 <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Próximas</p>
                                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                                     <template x-for="hab in data.proximas" :key="hab.id">
-                                        <a :href="'/habitaciones/' + hab.id"
+                                        <a :href="u('/habitaciones/' + hab.id)"
                                            class="min-h-[60px] flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700 last:border-b-0
                                                   hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                                             <span class="text-lg font-bold text-gray-900 dark:text-gray-100 w-12" x-text="hab.numero"></span>
@@ -248,7 +248,7 @@ function homeTrabajador() {
             this.cargando = true;
             this.error = null;
             try {
-                var resp = await fetch('/api/home/trabajador');
+                var resp = await fetch(u('/api/home/trabajador'));
                 var json = await resp.json();
                 if (json.ok) {
                     this.data = json.data;
@@ -307,16 +307,16 @@ function homeTrabajador() {
             if (this.cerrando) return;
             this.cerrando = true;
             try {
-                await fetch('/api/auth/logout', { method: 'POST' });
+                await fetch(u('/api/auth/logout'), { method: 'POST' });
             } catch (e) { /* continuar igual */ }
-            window.location.href = '/login';
+            window.location.href = u('/login');
         },
 
         async avisarDisponibilidad() {
             if (this.enviandoAviso || this.data.aviso_disponibilidad_enviado_hoy) return;
             this.enviandoAviso = true;
             try {
-                var resp = await fetch('/api/disponibilidad/avisar', {
+                var resp = await fetch(u('/api/disponibilidad/avisar'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });

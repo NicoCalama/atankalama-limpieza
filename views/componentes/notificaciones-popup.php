@@ -104,7 +104,7 @@ function notificacionesPopup() {
             this.abierto  = true;
             this.cargando = true;
             try {
-                var resp = await fetch('/api/notificaciones');
+                var resp = await fetch(u('/api/notificaciones'));
                 var json = await resp.json();
                 if (json.ok) {
                     this.lista = json.data.notificaciones;

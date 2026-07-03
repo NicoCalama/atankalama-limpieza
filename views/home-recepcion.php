@@ -31,7 +31,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-3 min-w-0">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div class="min-w-0">
@@ -136,7 +136,7 @@ if ($hora < 12) {
             <template x-if="data.total_pendientes > 0">
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     <template x-for="hab in data.habitaciones_pendientes" :key="hab.id">
-                        <a :href="'/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || '')"
+                        <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
                            class="min-h-[80px] bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 active:ring-2 active:ring-blue-500 transition">
                             <span class="text-2xl font-bold text-gray-900 dark:text-gray-100"
                                   x-text="etiquetaTarjeta(hab)"></span>
@@ -201,8 +201,8 @@ function homeRecepcion() {
         },
 
         async cerrarSesion() {
-            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-            window.location.href = '/login';
+            try { await fetch(u('/api/auth/logout'), { method: 'POST' }); } catch (e) {}
+            window.location.href = u('/login');
         },
 
         setHotel(valor) {

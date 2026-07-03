@@ -14,5 +14,7 @@ $_ENV['APP_ENV'] = 'testing';
 $_ENV['APP_DEBUG'] = 'true';
 $_ENV['APP_TIMEZONE'] = 'America/Santiago';
 $_ENV['SESSION_LIFETIME_MINUTES'] = '480';
+// Suite determinista: la raíz siempre, aunque el .env local tenga BASE_PATH.
+$_ENV['BASE_PATH'] = '';
 
 Config::load($basePath);

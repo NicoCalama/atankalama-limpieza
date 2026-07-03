@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Url;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
@@ -79,6 +80,10 @@ final class PushService
     public function notificar(array $usuarioIds, string $titulo, string $cuerpo, string $url = '/home', array $acciones = [], bool $requireInteraction = false, string $tipo = 'general'): void
     {
         if (empty($usuarioIds)) return;
+
+        // $url llega app-relative ('/auditoria'); acá se antepone BASE_PATH una sola
+        // vez — el navegador (inbox y click de push) la usa tal cual, sin re-prefijar.
+        $url = Url::a($url);
 
         // Persistir en bandeja de todos los destinatarios (antes del filtro de turno)
         $this->notificaciones->crearParaVarios($usuarioIds, $tipo, $titulo, $cuerpo, $url);

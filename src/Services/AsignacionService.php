@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Asignacion;
 use Atankalama\Limpieza\Models\Habitacion;
@@ -75,7 +76,9 @@ final class AsignacionService
                 'asignacion',
                 'Nueva habitación asignada',
                 "Se te asignó la habitación #{$hab['numero']} para hoy.",
-                "/habitaciones/{$habitacionId}"
+                // La URL viaja al navegador tal cual (el popup no re-prefija):
+                // se antepone BASE_PATH acá, igual que hace PushService::notificar.
+                Url::a("/habitaciones/{$habitacionId}")
             );
         }
 

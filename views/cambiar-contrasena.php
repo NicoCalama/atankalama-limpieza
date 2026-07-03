@@ -125,7 +125,7 @@ function cambiarPwdApp() {
             this.cargando = true;
             this.error = '';
             try {
-                var resp = await fetch('/api/auth/cambiar-contrasena', {
+                var resp = await fetch(u('/api/auth/cambiar-contrasena'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -136,7 +136,7 @@ function cambiarPwdApp() {
                 });
                 var data = await resp.json();
                 if (data.ok) {
-                    window.location.href = '/home';
+                    window.location.href = u('/home');
                 } else {
                     this.error = data.error?.mensaje || 'Error al cambiar contraseña.';
                 }

@@ -12,6 +12,12 @@ use Atankalama\Limpieza\Models\Usuario;
 
 final class AuthService
 {
+    /**
+     * Nombre de la cookie de sesión. Propio de la app (no "session" a secas)
+     * porque en prod convive con otras apps bajo el mismo dominio (Maisterchef).
+     */
+    public const SESSION_COOKIE = 'limpieza_session';
+
     private static bool $migracionThrottleAplicada = false;
 
     public function __construct(

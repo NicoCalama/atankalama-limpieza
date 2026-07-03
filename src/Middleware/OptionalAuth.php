@@ -23,7 +23,7 @@ final class OptionalAuth implements Middleware
 
     public function handle(Request $request, callable $next): Response
     {
-        $token = $request->cookies['session'] ?? null;
+        $token = $request->cookies[AuthService::SESSION_COOKIE] ?? null;
         if ($token !== null && $token !== '') {
             $usuario = $this->auth->validarSesion($token);
             if ($usuario !== null && $usuario->activo) {

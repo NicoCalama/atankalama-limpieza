@@ -12,7 +12,7 @@
     <!-- Header -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center gap-3 max-w-3xl mx-auto">
-            <a href="/ajustes" class="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver">
+            <a href="<?= u('/ajustes') ?>" class="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
             </a>
             <div class="min-w-0">

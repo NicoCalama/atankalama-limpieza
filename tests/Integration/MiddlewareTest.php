@@ -47,7 +47,7 @@ final class MiddlewareTest extends TestCase
         $r = (new AuthService())->login('11111111-1', $pwd);
 
         $mw = new AuthCheck();
-        $req = $this->request(['session' => $r['token']]);
+        $req = $this->request([AuthService::SESSION_COOKIE => $r['token']]);
 
         $llamado = false;
         $resp = $mw->handle($req, function (Request $r) use (&$llamado) {

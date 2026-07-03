@@ -39,7 +39,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-3 min-w-0">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div class="min-w-0">
@@ -186,7 +186,7 @@ if ($hora < 12) {
 
                             <template x-if="alertasTotal > alertas.length">
                                 <div class="text-center pt-1">
-                                    <a href="/alertas" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                    <a href="<?= u('/alertas') ?>" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                                         Ver todas las alertas (<span x-text="alertasTotal"></span>)
                                         <i data-lucide="arrow-right" class="w-3 h-3"></i>
                                     </a>
@@ -206,12 +206,12 @@ if ($hora < 12) {
                     </h2>
                     <div class="flex items-center gap-3 flex-shrink-0">
                         <template x-if="$store.auth && $store.auth.tienePermiso('espacios.ver')">
-                            <a href="/espacios" class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
+                            <a href="<?= u('/espacios') ?>" class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
                                 Áreas comunes <i data-lucide="arrow-right" class="w-3 h-3"></i>
                             </a>
                         </template>
                         <template x-if="data.permisos.asignaciones_asignar_manual">
-                            <a href="/asignaciones" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                            <a href="<?= u('/asignaciones') ?>" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
                                 Asignaciones <i data-lucide="arrow-right" class="w-3 h-3"></i>
                             </a>
                         </template>
@@ -494,8 +494,8 @@ function homeSupervisora() {
         },
 
         async cerrarSesion() {
-            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-            window.location.href = '/login';
+            try { await fetch(u('/api/auth/logout'), { method: 'POST' }); } catch (e) {}
+            window.location.href = u('/login');
         },
 
         setHotel(valor) {
@@ -641,11 +641,11 @@ function homeSupervisora() {
             if (accion === 'reasignar_hab') {
                 // La página de Asignaciones tiene el modal de reasignación con todas las
                 // habitaciones rechazadas/sucias listas. /habitaciones/{id} muestra detalle bloqueado.
-                window.location.href = '/asignaciones';
+                window.location.href = u('/asignaciones');
                 return;
             }
             if (accion === 'asignar') {
-                window.location.href = '/asignaciones';
+                window.location.href = u('/asignaciones');
                 return;
             }
             // Acciones "genéricas" que resuelven la alerta en bitácora (cloudbeds retry, marcar atendido)

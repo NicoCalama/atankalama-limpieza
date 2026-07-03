@@ -31,7 +31,7 @@ require_once __DIR__ . '/componentes/avatar.php';
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-2 min-w-0">
-                <a href="/home" aria-label="Volver"
+                <a href="<?= u('/home') ?>" aria-label="Volver"
                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </a>
