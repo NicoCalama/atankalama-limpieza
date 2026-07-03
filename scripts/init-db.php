@@ -137,16 +137,19 @@ echo "  roles: " . count($catalogoRoles) . " sincronizados\n";
 echo "\nSi es la primera vez, ejecuta también `php scripts/seed.php` para cargar datos iniciales.\n";
 
 /**
- * Divide un script SQL (DDL de MariaDB) en statements ejecutables por separado. Quita las
- * líneas de comentario (-- ...) ANTES de partir en ';' para no cortar dentro de un comentario
- * ni ejecutar chunks de solo comentario. Asume que ';' solo aparece como terminador de
- * statement (cierto en el schema MariaDB del proyecto: los CHECK(... IN ('a','b')) usan comas).
+ * Divide un script SQL (DDL de MariaDB) en statements ejecutables por separado. Quita TODO
+ * comentario `-- ...` (de línea completa E inline) ANTES de partir en ';': un ';' dentro de
+ * un comentario inline cortaría el statement al medio (bug real: los comentarios de las
+ * columnas es_espacio_comun/franja/habitacion_id traían ';' y el CREATE llegaba truncado a
+ * MariaDB). Asume que fuera de comentarios el ';' solo aparece como terminador y que ningún
+ * literal del schema contiene ' -- ' (cierto hoy; los CHECK usan comas).
  *
  * @return list<string>
  */
 function dividirEnStatements(string $sql): array
 {
-    $sql = (string) preg_replace('/^\s*--.*$/m', '', $sql);
+    // Comentario de línea completa o inline: '--' seguido de espacio (sintaxis MySQL).
+    $sql = (string) preg_replace('/(^|\s)--\s.*$/m', '$1', $sql);
     $statements = [];
     foreach (explode(';', $sql) as $chunk) {
         $stmt = trim($chunk);
