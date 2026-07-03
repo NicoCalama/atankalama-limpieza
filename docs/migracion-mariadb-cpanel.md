@@ -1,6 +1,11 @@
 # Migración a MariaDB + despliegue en cPanel (compartido con Maisterchef)
 
-> **Estado: Fase 1 COMPLETA y VALIDADA EN DOCKER** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. **Validada end-to-end contra MariaDB 10.11 real** en Docker local (PHP 8.4, ver `docker-compose.yml` + `docs/plan-test-visual-botones.md`): `init-db.php` crea las 32 tablas `limpieza_*`, seeds OK y smoke autenticado (login, reportes, home, `LIMIT ?`) en HTTP 200 sin errores ni warnings SQL — esto cierra el caveat de "se confirma en staging" de más abajo. **Las rutas de escritura y la UI real también quedaron validadas contra MariaDB** (2ª sesión del 2026-06-30, 3 bugs corregidos — ver sección "Validación de escritura + UI" más abajo). Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-30.
+> **Estado 2026-07-03: Fases 1 y 2 COMPLETAS.** La Fase 2 (empaquetado cPanel +
+> soporte de subpath `/limpieza`) quedó validada con un ensayo local del deploy
+> real (ver sección "Plan por fases" y `docs/deploy-cpanel.md`). Solo falta la
+> Fase 3: la carga al hosting.
+>
+> **Estado previo: Fase 1 COMPLETA y VALIDADA EN DOCKER** (rama `feat/migracion-mariadb`). Tokenización (paso 6), fixes en origen (paso 7) y scripts de PDO crudo (paso 8) hechos y verificados. Linter de tokens en **0**; suite **198/198**. **Validada end-to-end contra MariaDB 10.11 real** en Docker local (PHP 8.4, ver `docker-compose.yml` + `docs/plan-test-visual-botones.md`): `init-db.php` crea las 32 tablas `limpieza_*`, seeds OK y smoke autenticado (login, reportes, home, `LIMIT ?`) en HTTP 200 sin errores ni warnings SQL — esto cierra el caveat de "se confirma en staging" de más abajo. **Las rutas de escritura y la UI real también quedaron validadas contra MariaDB** (2ª sesión del 2026-06-30, 3 bugs corregidos — ver sección "Validación de escritura + UI" más abajo). Sigue la **Fase 2** (empaquetado cPanel). Última actualización: 2026-06-30.
 
 ## Estado actual y cómo retomar
 
@@ -109,12 +114,26 @@ crudo sin ORM**, así que el prefijo y el dialecto MariaDB se construyen a mano.
 7. ✅ Fixes en origen no auto-traducibles: `julianday()` (helper `diffMinutosSql`), aritmética `strftime('now','-N')`/`||` (umbral en PHP), `ON CONFLICT` (helper `onConflictUpdate`). Extra: `LIMIT ?` inline `(int)` y traducción `DATE(col)→SUBSTR` en el motor.
 8. ✅ Scripts de PDO crudo: `scripts/init-db.php` driver-aware (MariaDB statement-por-statement + `information_schema`), `reset-admin-password.php` vía `Database`, `prepare-demo-video.php` y `migrate-add-notificaciones.php` con guard solo-SQLite + whitelist en el linter.
 
-**Fase 2 — Empaquetado cPanel**
-- Stub `index.php`, `.htaccess`, layout `app_core/`, `.env` de prod, crons, backup `mysqldump`.
+**Fase 2 — Empaquetado cPanel** ✅ **COMPLETA (2026-07-03)** — ver `docs/deploy-cpanel.md`.
+- La app vive en `atankalama.com/limpieza` (subpath, como Maisterchef): soporte
+  `BASE_PATH` transversal (router, redirects, links, API, PWA/SW, cookie
+  `limpieza_session`) con linter propio (`scripts/lint-url-basepath.php`) y tests.
+- Artefactos: `deployment/cpanel/` (stub, `.htaccess` x2, probe whichphp),
+  `deployment/cron/*.sh` (4 wrappers incl. backup `mysqldump` acotado a
+  `limpieza_*`), `scripts/build-cpanel-zip.php` (ZIP auditado ~2 MB),
+  `.env.production.example` reescrito.
+- **Ensayo local del deploy** (`docker-compose.ensayo.yml`): el ZIP extraído se
+  sirve igual que el hosting y se validó end-to-end bajo `/limpieza/` (login,
+  PWA instalable, cookie, API, app_core 403). El ensayo cazó y corrigió un bug
+  real: el splitter de `init-db.php` cortaba statements por `;` dentro de
+  comentarios inline del schema.
+- Revisión independiente (3 lentes + verificación adversarial): 3 mayores y 2
+  menores encontrados y corregidos; 0 bloqueantes restantes.
 
-**Fase 3 — La carga (deploy)**
-- Build ZIP (con `vendor/`) → subir por FileZilla → extraer → crear tablas `limpieza_*` en
-  `cat6852_australia` → `.env` (chmod 600) → seed (admin) → verificar.
+**Fase 3 — La carga (deploy)** — runbook completo en `docs/deploy-cpanel.md`.
+- Build ZIP → FileZilla → extraer → importar `build/limpieza-inicial.sql`
+  (32 tablas + seed + inventario real, generado en local) por phpMyAdmin →
+  `.env` (chmod 600) → probe PHP → crons → smokes.
 
 ## Convenciones .env (alineadas con Maisterchef)
 

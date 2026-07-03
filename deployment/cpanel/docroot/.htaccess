@@ -1,0 +1,27 @@
+# .htaccess de PRODUCCIÓN — public_html/limpieza/ (docroot del subpath)
+# Patrón Maisterchef: front controller + deny de sensibles. app_core/ tiene su
+# propio .htaccess con "Require all denied".
+
+Options -Indexes -MultiViews
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /limpieza/
+
+    # Preservar el header Authorization para PHP (CGI/suPHP lo descarta)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Archivos y directorios reales (assets, sw.js, offline.html) pasan directo;
+    # todo lo demás va al front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Denegar archivos sensibles por nombre (defensa en profundidad; el código
+# entero ya está denegado dentro de app_core/).
+<FilesMatch "^(\.env.*|composer\.(json|lock|phar)|phpunit\.xml|\.gitignore|\.gitattributes|README\.md)$">
+    Require all denied
+</FilesMatch>

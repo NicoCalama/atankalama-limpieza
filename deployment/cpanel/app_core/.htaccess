@@ -1,0 +1,2 @@
+# app_core/ es solo código: inaccesible por web, PHP lo lee por filesystem.
+Require all denied

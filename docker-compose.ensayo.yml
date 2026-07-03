@@ -1,0 +1,24 @@
+# docker-compose.ensayo.yml — ensayo local del deploy cPanel (dress rehearsal).
+#
+# Sirve el ZIP de deploy EXTRAÍDO (build/ensayo-docroot/ = public_html/ del
+# hosting) bajo http://localhost:8091/limpieza/, contra el mismo MariaDB del
+# compose principal. Valida el artefacto real: stub, .htaccess, subpath, PWA.
+#
+# Uso (ver docs/deploy-cpanel.md §ensayo):
+#   php scripts/build-cpanel-zip.php
+#   mkdir build/ensayo-docroot && tar -xf build/limpieza-cpanel.zip -C build/ensayo-docroot
+#   # crear build/ensayo-docroot/limpieza/app_core/.env (plantilla en el runbook)
+#   docker compose -f docker-compose.yml -f docker-compose.ensayo.yml up -d --build db ensayo
+#   docker compose exec ensayo php /var/www/html/limpieza/app_core/scripts/init-db.php
+
+services:
+  ensayo:
+    build: deployment/ensayo
+    container_name: atankalama_ensayo
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./build/ensayo-docroot:/var/www/html
+    ports:
+      - "8091:80"
