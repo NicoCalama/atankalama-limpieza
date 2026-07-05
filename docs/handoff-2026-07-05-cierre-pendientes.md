@@ -109,11 +109,58 @@ el feature "una habitación a la vez" y estos 3 arreglos de cierre.
 
 ---
 
-## 4. Pendiente
+## 4. Verificación en vivo — test visual + smoke funcional (post-merge)
+
+Después del merge se corrió un test manual sobre el server dev (`php -S localhost:8000`,
+SQLite) con Playwright, a pedido de Nicolás, para confirmar el flujo antes del deploy.
+
+**Datos de prueba.** Nicolás creó dos piezas de test en **Cloudbeds INN**
+("test 1" = room_id `678741-0`, "test 2" = room_id `678742-0`); junto con la ya
+existente TES(1) (`678522-0`) son **3 habitaciones de test**. El importador de
+inventario las marca como *colisión* (su parser deriva `numero="TES(1)"` para las
+tres, porque sus `roomName` en Cloudbeds no tienen prefijo numérico), así que se
+insertaron a mano con su `numero`/`cloudbeds_room_id` reales. **Regla: para
+demos/tests usar SIEMPRE estas piezas de test, nunca reales** (aprobar una real
+escribe `clean` a Cloudbeds producción). Durante el test se activó
+`CLOUDBEDS_DRY_RUN=true` para que ninguna aprobación tocara Cloudbeds real.
+
+**Resultados (todo verde):**
+
+- **Gap "e" en vivo** (Ana, trabajadora, con las 3 asignadas): el home muestra
+  solo la "habitación actual"; la pestaña **Habitaciones muestra solo 1** (no las
+  3); `GET /api/usuarios/3/cola` devuelve `total:1`; iniciar una fuera de orden →
+  **409 `NO_ES_TU_HABITACION_ACTUAL`**. La **misma cola vista por Sofía**
+  (supervisora, con `habitaciones.ver_todas`) devuelve las 3 → la vista de
+  supervisora sigue intacta.
+- **Transición "una a la vez"** completa: al completar cada habitación el backend
+  promueve la siguiente sola — TES(1) → test 1 → test 2 → **"¡Día completado!"**.
+- **Smoke funcional amplio**: **21/21 endpoints** clave respondieron `200/ok`
+  (homes admin/supervisora, roles, permisos, hoteles, habitaciones, asignaciones,
+  espacios, auditoría, tickets, usuarios, turnos, alertas, reportes, cloudbeds,
+  health).
+- **Auditoría 3 estados + inmutabilidad**: #157 → `aprobada`, #160 →
+  `aprobada_con_observacion`, #161 → `rechazada` (+ alerta P1 `habitacion_rechazada`);
+  re-auditar una ya auditada → **409 `HABITACION_NO_PENDIENTE`**.
+- **Suite automática: 290/290** (corrida sin el flag dry-run — ver nota abajo).
+
+Al terminar se limpió el entorno dev: las 3 test volvieron a `sucia`/sin asignación,
+la alerta de rechazo se borró, y el flag `CLOUDBEDS_DRY_RUN` se sacó del `.env`.
+
+> **⚠️ Nota para el deploy — `CLOUDBEDS_DRY_RUN`.** Activar `CLOUDBEDS_DRY_RUN=true`
+> **rompe 5 tests** de `CloudbedsSyncServiceTest` (esperan que una escritura falle;
+> con dry-run "tiene éxito" sintético). Por eso: la suite se corre **sin** ese flag,
+> y **producción debe tener `CLOUDBEDS_DRY_RUN=false`** (o ausente) para que las
+> escrituras a Cloudbeds sean reales. (Smell menor no bloqueante: el bootstrap de
+> tests debería pinear el flag en `false`, como hace con `BASE_PATH`.)
+
+---
+
+## 5. Pendiente — la próxima sesión es el DEPLOY
 
 - **Fase 3 — subir al hosting** siguiendo `docs/deploy-cpanel.md` (único gran
-  pendiente). Los artefactos están en `build/` (regenerables con
-  `composer build-cpanel`).
+  pendiente; **es lo que se hará la próxima sesión**). Los artefactos están en
+  `build/` (regenerables con `composer build-cpanel`). En el `.env` de prod:
+  **`CLOUDBEDS_DRY_RUN=false`**.
 - En prod con BD existente: correr las migraciones pendientes (las 4 previas +
   `migrate-add-alerta-saltada`); el camino MariaDB de esta última no se probó en
   vivo (en prod es no-op: BD fresca del dump). En BD nueva no hace falta.
