@@ -67,9 +67,14 @@ if (str_contains($definicion, 'habitacion_saltada')) {
 if ($esMaria) {
     // Ubicar el nombre autogenerado del CHECK de la columna `tipo` (el que enumera
     // los tipos; se distingue del CHECK de `prioridad` por su cláusula).
+    // Se acota por TABLE_NAME además del schema: en la BD compartida de cPanel conviven
+    // varias apps en la misma DATABASE(), y no queremos depender de que la subcadena
+    // 'cloudbeds_sync_failed' sea única en todo el esquema. $tabla es un valor interno
+    // (Database::tabla), no input de usuario, así que la interpolación es segura.
     $stmt = $pdo->query(
         "SELECT CONSTRAINT_NAME FROM information_schema.CHECK_CONSTRAINTS
           WHERE CONSTRAINT_SCHEMA = DATABASE()
+            AND TABLE_NAME = '{$tabla}'
             AND CHECK_CLAUSE LIKE '%cloudbeds_sync_failed%'"
     );
     $constraint = (string) $stmt->fetchColumn();
@@ -77,8 +82,14 @@ if ($esMaria) {
         fwrite(STDERR, "No se encontró el CHECK de tipos en {$tabla}. Aplicá el ALTER manual del runbook (docs/deploy-cpanel.md).\n");
         exit(1);
     }
-    $pdo->exec("ALTER TABLE `{$tabla}` DROP CONSTRAINT `{$constraint}`");
-    $pdo->exec("ALTER TABLE `{$tabla}` ADD CONSTRAINT `{$constraint}` CHECK (tipo IN ({$listaSql}))");
+    // DROP + ADD en un ÚNICO ALTER: MariaDB lo aplica atómicamente (un solo paso de
+    // metadata). Como dos statements separados, cada ALTER hace commit implícito y una
+    // interrupción entre ambos dejaría la tabla sin el CHECK de 'tipo' hasta arreglo manual.
+    $pdo->exec(
+        "ALTER TABLE `{$tabla}`
+            DROP CONSTRAINT `{$constraint}`,
+            ADD CONSTRAINT `{$constraint}` CHECK (tipo IN ({$listaSql}))"
+    );
     echo "CHECK de {$tabla} actualizado con el tipo 'habitacion_saltada'.\n";
     exit(0);
 }

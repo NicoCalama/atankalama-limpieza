@@ -110,16 +110,19 @@ final class ChecklistService
         // habitación nueva si ya tiene otra en progreso. Reanudar la misma sí se
         // permite (se resuelve arriba). Ver docs/checklist.md y docs/home-trabajador.md.
         //
-        // El candado se acota a las ejecuciones de la MISMA fecha (join a
-        // asignaciones): una ejecución 'en_progreso' huérfana de un turno anterior
-        // —que no aparece en la cola de hoy y por tanto no es alcanzable para
-        // terminarla ni saltarla— no debe bloquear al trabajador hoy.
+        // Se acota a las ejecuciones que cuelgan de una asignación ACTIVA de la MISMA
+        // fecha (join a asignaciones), en simetría con obtenerEjecucionEnProgresoDeCola:
+        //  - Otra fecha: una ejecución huérfana de un turno anterior no aparece hoy en
+        //    la cola y no es alcanzable para terminarla ni saltarla.
+        //  - Asignación inactiva (a.activa=0): si la habitación fue reasignada a otra
+        //    persona, la ejecución del trabajador queda huérfana y tampoco es saltable
+        //    ni completable; contarla en el candado lo dejaría trabado sin salida.
         $otraEnProgreso = Database::fetchOne(
             "SELECT ec.habitacion_id
                FROM #__ejecuciones_checklist ec
                JOIN #__asignaciones a ON a.id = ec.asignacion_id
               WHERE ec.usuario_id = ? AND ec.estado = 'en_progreso'
-                AND ec.habitacion_id != ? AND a.fecha = ?
+                AND ec.habitacion_id != ? AND a.fecha = ? AND a.activa = 1
               ORDER BY ec.id DESC LIMIT 1",
             [$usuarioId, $habitacionId, $fecha]
         );

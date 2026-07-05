@@ -82,18 +82,35 @@ final class AlertasService
             return;
         }
         Database::execute('DELETE FROM #__alertas_activas WHERE id = ?', [$alertaId]);
-        Database::execute(
-            "UPDATE #__bitacora_alertas
-                SET resuelta_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                    resolucion = ?,
-                    resuelta_por = ?,
-                    accion_tomada = ?
-              WHERE tipo = ? AND levantada_at = (
-                  SELECT MAX(levantada_at) FROM #__bitacora_alertas
-                   WHERE tipo = ? AND resuelta_at IS NULL
-              )",
-            [$resolucion, $usuarioId, $accion, $alerta['tipo'], $alerta['tipo']]
-        );
+
+        // Cerrar la fila de bitácora que corresponde a ESTA alerta. Si la alerta tiene
+        // dedupe key (p.ej. "saltada:5"), se acota por ella —misma semántica que
+        // buscarActivaPorDedupe— para no cerrar por error la bitácora de otra alerta del
+        // mismo tipo que siga activa (dos habitaciones saltadas/rechazadas a la vez, cada
+        // una con su dedupe). Sin dedupe se mantiene el comportamiento histórico (la más
+        // reciente sin resolver del tipo). Se resuelve por id (SELECT + UPDATE) en vez de
+        // un subselect sobre la misma tabla, lo que además esquiva la restricción 1093 de
+        // MariaDB (UPDATE con subquery a la tabla que se actualiza).
+        $sql = "SELECT id FROM #__bitacora_alertas WHERE tipo = ? AND resuelta_at IS NULL";
+        $params = [$alerta['tipo']];
+        $dedupeKey = $this->extraerDedupe($alerta['contexto_json'] ?? null);
+        if ($dedupeKey !== null) {
+            $sql .= ' AND contexto_json LIKE ?';
+            $params[] = '%"_dedupe":"' . $dedupeKey . '"%';
+        }
+        $sql .= ' ORDER BY levantada_at DESC, id DESC LIMIT 1';
+        $bitacora = Database::fetchOne($sql, $params);
+        if ($bitacora !== null) {
+            Database::execute(
+                "UPDATE #__bitacora_alertas
+                    SET resuelta_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                        resolucion = ?,
+                        resuelta_por = ?,
+                        accion_tomada = ?
+                  WHERE id = ?",
+                [$resolucion, $usuarioId, $accion, (int) $bitacora['id']]
+            );
+        }
 
         Logger::info('alertas', 'alerta resuelta', [
             'id' => $alertaId, 'tipo' => $alerta['tipo'], 'resolucion' => $resolucion,
@@ -214,5 +231,21 @@ final class AlertasService
             [$tipo, '%' . $needle . '%']
         );
         return $fila === null ? null : AlertaActiva::desdeFila($fila);
+    }
+
+    /**
+     * Extrae la dedupe key ('_dedupe') del contexto_json de una alerta, o null si la
+     * alerta no la tiene (se levantó sin dedupeKey).
+     */
+    private function extraerDedupe(?string $contextoJson): ?string
+    {
+        if ($contextoJson === null || $contextoJson === '') {
+            return null;
+        }
+        $datos = json_decode($contextoJson, true);
+        if (is_array($datos) && isset($datos['_dedupe']) && is_string($datos['_dedupe'])) {
+            return $datos['_dedupe'];
+        }
+        return null;
     }
 }

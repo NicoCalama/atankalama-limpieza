@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Tests\Integration;
 
+use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\ChecklistService;
+use Atankalama\Limpieza\Services\UsuarioService;
 use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
 
@@ -337,5 +340,129 @@ final class ChecklistServiceTest extends TestCase
             Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_saltada'"),
             'Completar la habitación retomada debe resolver la alerta'
         );
+    }
+
+    /**
+     * Regresión del deadlock del candado: si una habitación en curso se REASIGNA a otra
+     * persona (la asignación del trabajador queda inactiva) y luego se audita, la ejecución
+     * del trabajador queda huérfana pero NO debe contar para el candado una-a-la-vez; de lo
+     * contrario el trabajador queda trabado sin poder iniciar, saltar ni completar nada.
+     */
+    public function testCandadoNoBloqueaPorEjecucionDeAsignacionReasignada(): void
+    {
+        // A empieza la 101 (asignación activa).
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+
+        // La supervisora reasigna la 101 a otra persona: la asignación de A se desactiva,
+        // pero su ejecución queda 'en_progreso' (huérfana), colgando de una asignación
+        // con activa=0 y la fecha de hoy.
+        Database::execute(
+            'UPDATE asignaciones SET activa = 0 WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ?',
+            [$this->habitacionId, $this->usuarioId, $this->fecha]
+        );
+        // La otra persona limpió y la 101 quedó aprobada (inmutable).
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada' WHERE id = ?", [$this->habitacionId]);
+
+        // A tiene una segunda habitación válidamente asignada hoy.
+        $segunda = $this->crearSegundaHabitacionAsignada();
+
+        // El candado NO debe contar la ejecución huérfana: A puede empezar la segunda.
+        $ejec = $this->svc->iniciarEjecucion($segunda, $this->usuarioId, $this->fecha);
+        $this->assertSame('en_progreso', $ejec->estado);
+    }
+
+    /**
+     * Regresión del bug (8): el controller deriva la fecha del SERVIDOR e ignora la del
+     * body. Si confiara en el body, mandar una fecha arbitraria eludiría el candado
+     * una-a-la-vez (que se acota por fecha). Aquí, con la 101 en curso hoy, iniciar otra
+     * pieza mandando otra fecha en el body debe seguir chocando con el candado (409).
+     */
+    public function testControllerIniciarIgnoraFechaDelBody(): void
+    {
+        $hoy = date('Y-m-d');
+        $habA = $this->crearSegundaHabitacionAsignada('301', $hoy);
+        $habB = $this->crearSegundaHabitacionAsignada('302', $hoy);
+
+        // A queda en progreso hoy.
+        $this->svc->iniciarEjecucion($habA, $this->usuarioId, $hoy);
+
+        // Intento de bypass: iniciar B por el controller con una fecha falsa en el body.
+        $usuario = (new UsuarioService())->buscarPorId($this->usuarioId);
+        $req = new Request(
+            metodo: 'POST',
+            path: "/api/habitaciones/{$habB}/iniciar",
+            cuerpo: ['fecha' => '2999-12-31'],
+            ruta: ['id' => (string) $habB],
+        );
+        $req->usuario = $usuario;
+
+        $resp = (new ChecklistsController())->iniciar($req);
+
+        // El candado sigue aplicando porque el controller usó la fecha de hoy, no la del body.
+        $this->assertSame(409, $resp->status);
+        $this->assertStringContainsString('YA_TIENE_HABITACION_EN_PROGRESO', $resp->cuerpo);
+    }
+
+    /**
+     * Los espacios comunes (es_espacio_comun=1) NO se eximen del candado una-a-la-vez
+     * (funcionan como habitaciones), y al saltarlos el texto de la alerta se adapta.
+     */
+    public function testEspacioComunBajoCandadoYTextoDeSalto(): void
+    {
+        $espacioId = $this->crearEspacioComunAsignado('Piscina');
+        $this->svc->iniciarEjecucion($espacioId, $this->usuarioId, $this->fecha);
+
+        // Con el espacio en progreso, el candado bloquea iniciar la habitación 101.
+        try {
+            $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+            $this->fail('El espacio común debe contar para el candado una-a-la-vez');
+        } catch (ChecklistException $e) {
+            $this->assertSame('YA_TIENE_HABITACION_EN_PROGRESO', $e->codigo);
+        }
+
+        // Al saltar el espacio, el texto se adapta ("Espacio ..." en vez de "Habitación ...").
+        $res = $this->svc->saltarEjecucion($espacioId, $this->usuarioId, 'Requiere mantención', $this->fecha);
+        $this->assertSame($espacioId, $res['habitacion_id']);
+
+        $alerta = Database::fetchOne("SELECT titulo, descripcion FROM alertas_activas WHERE tipo = 'habitacion_saltada'");
+        $this->assertNotNull($alerta);
+        $this->assertSame('Espacio Piscina saltado', $alerta['titulo']);
+        $this->assertStringContainsString('el espacio Piscina', $alerta['descripcion']);
+    }
+
+    /**
+     * El cap de 200 caracteres del motivo se aplica en el servidor (por API se puede
+     * exceder el maxlength=200 del textarea): el motivo devuelto y el persistido en la
+     * alerta quedan truncados. Usa un motivo multibyte para ejercitar mb_substr.
+     */
+    public function testSaltarTruncaMotivoLargo(): void
+    {
+        $this->crearSegundaHabitacionAsignada();
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+
+        $motivoLargo = str_repeat('á', 250);
+        $res = $this->svc->saltarEjecucion($this->habitacionId, $this->usuarioId, $motivoLargo, $this->fecha);
+
+        $this->assertSame(200, mb_strlen($res['motivo']));
+
+        $alerta = Database::fetchOne("SELECT contexto_json FROM alertas_activas WHERE tipo = 'habitacion_saltada'");
+        $ctx = json_decode((string) $alerta['contexto_json'], true);
+        $this->assertSame(200, mb_strlen($ctx['motivo']));
+    }
+
+    /**
+     * Crea un espacio común 'sucio' asignado al mismo trabajador y retorna su id.
+     */
+    private function crearEspacioComunAsignado(string $numero = 'Piscina'): int
+    {
+        $hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
+        $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
+        Database::execute(
+            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado, es_espacio_comun) VALUES (?, ?, ?, 'sucia', 1)",
+            [$hotelId, $numero, $tipoId]
+        );
+        $id = Database::lastInsertId();
+        $this->asignaciones->asignarManual($id, $this->usuarioId, $this->fecha);
+        return $id;
     }
 }
