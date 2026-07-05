@@ -31,7 +31,7 @@ require_once __DIR__ . '/componentes/avatar.php';
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-2 min-w-0">
-                <a href="/home" aria-label="Volver"
+                <a href="<?= u('/home') ?>" aria-label="Volver"
                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                     <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </a>
@@ -56,12 +56,15 @@ require_once __DIR__ . '/componentes/avatar.php';
                     </div>
                 </div>
             </div>
-            <button @click="cargar()" :disabled="cargando"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-                    aria-label="Refrescar">
-                <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                   :class="cargando ? 'animate-spin' : ''"></i>
-            </button>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button @click="cargar()" :disabled="cargando"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                        aria-label="Refrescar">
+                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                       :class="cargando ? 'animate-spin' : ''"></i>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 
@@ -158,6 +161,37 @@ require_once __DIR__ . '/componentes/avatar.php';
                 </template>
             </section>
 
+            <!-- Sección: Volver a limpiar (2ª limpieza del día — ocupación día/noche) -->
+            <template x-if="data.re_limpiar && data.re_limpiar.length > 0">
+                <section>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 mb-1">
+                        <i data-lucide="rotate-cw" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
+                        Volver a limpiar
+                        <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
+                              x-text="data.re_limpiar.length"></span>
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Piezas ya limpias hoy que necesitan otra pasada (ocupación de día/noche). Al asignarlas se re-abren y la limpieza arranca de cero.</p>
+                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                        <template x-for="grupo in reLimpiarPorHotel()" :key="grupo.hotel_codigo">
+                            <div>
+                                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
+                                   x-text="grupo.hotel_nombre + ' · ' + grupo.habitaciones.length"></p>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="hab in grupo.habitaciones" :key="hab.id">
+                                        <button @click="toggleSeleccion(hab.id)"
+                                                :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
+                                                class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
+                                            <span x-text="hab.numero"></span>
+                                            <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+            </template>
+
             <!-- Sección: Equipo -->
             <section>
                 <div class="flex items-center justify-between mb-2">
@@ -208,6 +242,10 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                     <span class="text-[10px] px-1.5 py-0.5 rounded"
                                                           :class="claseBadgeHab(hab.estado)"
                                                           x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                    <template x-if="hab.franja">
+                                                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
+                                                              x-text="hab.franja"></span>
+                                                    </template>
                                                 </div>
                                                 <template x-if="esReasignable(hab.estado)">
                                                     <button @click="abrirReasignar(tr, hab)"
@@ -237,7 +275,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <div class="max-w-5xl mx-auto flex items-center justify-between gap-3">
             <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    <span x-text="seleccionadas.length"></span> habitación<span x-show="seleccionadas.length !== 1">es</span> seleccionada<span x-show="seleccionadas.length !== 1">s</span>
+                    <span x-text="seleccionadas.length"></span> <span x-text="seleccionadas.length === 1 ? 'habitación' : 'habitaciones'"></span> seleccionada<span x-show="seleccionadas.length !== 1">s</span>
                 </p>
                 <button @click="limpiarSeleccion()" class="text-xs text-gray-500 dark:text-gray-400 hover:underline">Limpiar</button>
             </div>
@@ -256,7 +294,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
             <div class="flex items-start justify-between mb-3">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asignar <span x-text="seleccionadas.length"></span> habitación<span x-show="seleccionadas.length !== 1">es</span></h3>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asignar <span x-text="seleccionadas.length"></span> <span x-text="seleccionadas.length === 1 ? 'habitación' : 'habitaciones'"></span></h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Ordenado por menor carga.</p>
                 </div>
                 <button @click="cerrarAsignar()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
@@ -268,6 +306,17 @@ require_once __DIR__ . '/componentes/avatar.php';
             </template>
             <template x-if="data && data.trabajadores.length > 0">
                 <div>
+                    <div class="mb-3">
+                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1.5">Franja (opcional)</p>
+                        <div class="flex gap-2">
+                            <template x-for="f in ['mañana','tarde','noche']" :key="f">
+                                <button @click="modalAsignar.franja = (modalAsignar.franja === f ? null : f)"
+                                        :class="modalAsignar.franja === f ? 'bg-teal-600 text-white border-teal-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
+                                        class="flex-1 min-h-[40px] px-2 py-1.5 text-sm font-medium rounded-lg border capitalize transition"
+                                        x-text="f"></button>
+                            </template>
+                        </div>
+                    </div>
                     <input x-model="modalAsignar.busqueda" type="text"
                            placeholder="Buscar trabajador por nombre..."
                            class="w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
@@ -360,7 +409,7 @@ function asignacionesApp() {
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
-        modalAsignar: { abierto: false, enviando: false, busqueda: '' },
+        modalAsignar: { abierto: false, enviando: false, busqueda: '', franja: null },
         modalReasignar: { abierto: false, origen: null, habitacion: null, motivo: '', enviando: false },
 
         hotelOpciones: [
@@ -375,7 +424,7 @@ function asignacionesApp() {
         },
 
         get fechaHoy() {
-            return new Date().toISOString().slice(0, 10);
+            return window.hoyServidor();
         },
 
         async cargar() {
@@ -390,8 +439,9 @@ function asignacionesApp() {
                     return;
                 }
                 this.data = r.data;
-                // Limpiar seleccionadas que ya no existan en sin_asignar
-                var idsDisponibles = this.data.sin_asignar.map(function (h) { return h.id; });
+                // Limpiar seleccionadas que ya no existan en sin_asignar o volver-a-limpiar
+                var idsDisponibles = this.data.sin_asignar.map(function (h) { return h.id; })
+                    .concat((this.data.re_limpiar || []).map(function (h) { return h.id; }));
                 this.seleccionadas = this.seleccionadas.filter(function (id) { return idsDisponibles.includes(id); });
             } catch (e) {
                 this.error = 'No pudimos conectar con el servidor.';
@@ -437,6 +487,19 @@ function asignacionesApp() {
             return Object.values(grupos);
         },
 
+        reLimpiarPorHotel() {
+            if (!this.data || !this.data.re_limpiar) return [];
+            var grupos = {};
+            this.data.re_limpiar.forEach(function (h) {
+                var key = h.hotel_codigo;
+                if (!grupos[key]) {
+                    grupos[key] = { hotel_codigo: key, hotel_nombre: h.hotel_nombre, habitaciones: [] };
+                }
+                grupos[key].habitaciones.push(h);
+            });
+            return Object.values(grupos);
+        },
+
         // --- Selección ---
 
         toggleSeleccion(id) {
@@ -452,12 +515,12 @@ function asignacionesApp() {
         // --- Asignar múltiples ---
 
         abrirAsignar() {
-            this.modalAsignar = { abierto: true, enviando: false, busqueda: '' };
+            this.modalAsignar = { abierto: true, enviando: false, busqueda: '', franja: null };
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
         cerrarAsignar() {
-            this.modalAsignar = { abierto: false, enviando: false, busqueda: '' };
+            this.modalAsignar = { abierto: false, enviando: false, busqueda: '', franja: null };
         },
 
         trabajadoresOrdenados() {
@@ -486,7 +549,8 @@ function asignacionesApp() {
                 var r = await apiPost('/api/asignaciones', {
                     habitacion_ids: this.seleccionadas,
                     usuario_id: tr.usuario.id,
-                    fecha: this.fechaHoy
+                    fecha: this.fechaHoy,
+                    franja: this.modalAsignar.franja
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Asignadas ' + r.data.total + ' habitaciones a ' + tr.usuario.nombre + '.');

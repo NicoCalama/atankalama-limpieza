@@ -285,7 +285,14 @@ function modalUsuarioNuevo() {
                     nombre: (this.form.nombre || '').trim(),
                     email: (this.form.email || '').trim() || null,
                     hotel_default: this.form.hotel_default || null,
-                    roles: this.form.roles.slice(),
+                    // El backend (UsuarioService::crear) espera IDs de rol, no nombres.
+                    // form.roles guarda nombres (para el toggle/estilo); acá los mapeamos a sus IDs.
+                    roles: this.form.roles
+                        .map(function (nombre) {
+                            var rol = this.rolesDisponibles.find(function (x) { return x.nombre === nombre; });
+                            return rol ? rol.id : null;
+                        }, this)
+                        .filter(function (id) { return id != null; }),
                 };
                 var r = await apiPost('/api/usuarios', payload);
                 if (r && r.ok) {

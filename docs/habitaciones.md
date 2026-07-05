@@ -71,6 +71,11 @@ La UI filtra habitaciones según el contexto del usuario:
 
 Backend: endpoints aceptan query param `?hotel=1_sur|inn|ambos`. Default: `ambos`.
 
+**Codificación por color:** en el listado, cada tarjeta lleva un acento por hotel (borde
+izquierdo + tinte de fondo + etiqueta) para distinguirlas de un vistazo en la vista "Ambos":
+**teal = Atankalama (1_sur)**, **violeta = Atankalama INN**. Elegidos para no chocar con los
+colores de estado; con variantes `dark:`.
+
 ---
 
 ## 6. Asignación de habitaciones a trabajadores

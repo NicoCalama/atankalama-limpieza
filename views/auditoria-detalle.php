@@ -13,7 +13,8 @@
  *  - Aprobar: confirm modal simple.
  *  - Aprobar con observación: entra a modo edición — checklist desmarcable,
  *    textarea comentario (min 10 chars), botón "Enviar observación".
- *  - Rechazar: textarea comentario (min 10 chars), botón "Confirmar rechazo".
+ *  - Rechazar: desmarca los ítems fallidos (>=1, se re-limpian) + textarea comentario
+ *    (min 10 chars), botón "Confirmar rechazo".
  *  - Inmutabilidad: backend rechaza con 409 si ya hay auditoría.
  *
  * Variables requeridas: $usuario, $habitacionId (int)
@@ -28,7 +29,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-3xl mx-auto gap-3">
-            <a href="/home"
+            <a href="<?= u('/home') ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -43,7 +44,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <span>Auditoría</span>
                 </template>
             </h1>
-            <div class="w-11"></div>
+            <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
     </header>
 
@@ -169,7 +170,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <i data-lucide="x-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
                     <div class="text-sm text-red-900 dark:text-red-200">
                         <p class="font-semibold">Rechazando habitación</p>
-                        <p>Escribe el motivo del rechazo (mínimo 10 caracteres). La habitación volverá a estado sucia.</p>
+                        <p>Marca los ítems que quedaron mal (se re-limpiarán) y escribe el motivo (mínimo 10 caracteres). La habitación volverá a estado sucia.</p>
+                        <p class="mt-1 font-medium" x-show="itemsDesmarcadosNuevos.length === 0">Selecciona al menos un ítem fallido.</p>
                     </div>
                 </div>
             </template>
@@ -274,7 +276,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         Cancelar
                     </button>
                     <button @click="enviarVeredictoModo()"
-                            :disabled="!comentarioValido || enviando"
+                            :disabled="!puedeConfirmarVeredicto || enviando"
                             class="flex-1 min-h-[56px] text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             :class="modo === 'observacion' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'">
                         <span x-text="enviando ? 'Enviando...' : (modo === 'observacion' ? 'Confirmar observación' : 'Confirmar rechazo')"></span>
@@ -351,12 +353,23 @@ function auditoriaDetalleApp(habitacionId) {
         },
 
         get puedeDesmarcar() {
-            // Sólo en modo observación y si tiene el permiso correspondiente.
-            return this.modo === 'observacion' && this.puedeEditarChecklist && !this.esAuditada;
+            if (this.esAuditada) return false;
+            // Observación: requiere el permiso de editar checklist. Rechazo: seleccionar los
+            // ítems fallidos es parte del propio rechazo (define qué se re-limpia).
+            if (this.modo === 'observacion') return this.puedeEditarChecklist;
+            if (this.modo === 'rechazo') return true;
+            return false;
         },
 
         get comentarioValido() {
             return this.comentario.trim().length >= 10;
+        },
+
+        get puedeConfirmarVeredicto() {
+            if (!this.comentarioValido) return false;
+            // El rechazo exige marcar al menos un ítem fallido (lo que hay que rehacer).
+            if (this.modo === 'rechazo') return this.itemsDesmarcadosNuevos.length > 0;
+            return true;
         },
 
         etiquetaHabitacion() {
@@ -492,9 +505,10 @@ function auditoriaDetalleApp(habitacionId) {
         },
 
         async enviarVeredictoModo() {
-            if (!this.comentarioValido || this.enviando) return;
+            if (!this.puedeConfirmarVeredicto || this.enviando) return;
             var veredicto = this.modo === 'observacion' ? 'aprobado_con_observacion' : 'rechazado';
-            var items = this.modo === 'observacion' ? this.itemsDesmarcadosNuevos.slice() : [];
+            // Observación y rechazo mandan los ítems desmarcados por el auditor.
+            var items = this.itemsDesmarcadosNuevos.slice();
             await this.enviarVeredicto(veredicto, this.comentario.trim(), items);
         },
 
@@ -509,7 +523,7 @@ function auditoriaDetalleApp(habitacionId) {
                 var json = await apiPost('/api/auditoria/' + this.habitacionId, payload);
                 if (json && json.ok) {
                     this.mostrarToast('exito', this.mensajeExito(veredicto));
-                    setTimeout(function () { window.location.href = '/home'; }, 1200);
+                    setTimeout(function () { window.location.href = u('/home'); }, 1200);
                 } else {
                     var msg = (json && json.error && json.error.mensaje) || 'No pudimos guardar el veredicto.';
                     this.mostrarToast('error', msg);

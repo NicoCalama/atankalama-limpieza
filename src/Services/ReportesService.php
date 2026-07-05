@@ -30,10 +30,10 @@ final class ReportesService
 
         return Database::fetchAll(
             "SELECT DISTINCT ec.usuario_id AS usuario_id, u.nombre
-               FROM ejecuciones_checklist ec
-               JOIN usuarios u ON u.id = ec.usuario_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$hotelCond}
               ORDER BY u.nombre",
@@ -53,19 +53,35 @@ final class ReportesService
         $params = [$desde, $hasta];
         $hotelCond = $this->hotelCond($hotel, $params);
 
+        // Créditos por persona (marcado_por), solo obligatorios. Ver docs/creditos-rework.md.
+        //   habitaciones      = piezas donde la persona obtuvo al menos un crédito.
+        //   creditos          = obligatorios marcados y no desmarcados, de ejecuciones no rechazadas.
+        //   creditos_maximos  = intentos (créditos + obligatorios que le desmarcó el auditor).
         return Database::fetchAll(
             "SELECT u.id AS usuario_id,
                     u.nombre,
-                    COUNT(DISTINCT ec.id) AS habitaciones,
-                    SUM(CASE WHEN ei.marcado = 1 AND (ei.desmarcado_por_auditor = 0 OR ei.desmarcado_por_auditor IS NULL) THEN 1 ELSE 0 END) AS creditos,
-                    COUNT(ic.id) AS creditos_maximos
-               FROM ejecuciones_checklist ec
-               JOIN usuarios u ON u.id = ec.usuario_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
-          LEFT JOIN ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
+                    COUNT(DISTINCT CASE
+                        WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
+                         AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                        THEN ec.habitacion_id END) AS habitaciones,
+                    SUM(CASE
+                        WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
+                         AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                        THEN 1 ELSE 0 END) AS creditos,
+                    SUM(CASE
+                        WHEN (ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
+                              AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado'))
+                          OR ei.desmarcado_por_auditor = 1
+                        THEN 1 ELSE 0 END) AS creditos_maximos
+               FROM #__ejecuciones_items ei
+               JOIN #__usuarios u ON u.id = ei.marcado_por
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__items_checklist ic ON ic.id = ei.item_id AND ic.obligatorio = 1
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND ei.marcado_por IS NOT NULL
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
@@ -181,10 +197,10 @@ final class ReportesService
                     SUM(CASE WHEN a.veredicto='aprobado' THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
                     SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas
-               FROM auditorias a
-               JOIN usuarios u ON u.id = a.auditor_id
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__auditorias a
+               JOIN #__usuarios u ON u.id = a.auditor_id
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
@@ -314,11 +330,11 @@ final class ReportesService
         $u = $this->userCond($usuarioId, $params, 'ec');
 
         $fila = Database::fetchOne(
-            "SELECT ROUND(AVG((julianday(ec.timestamp_fin) - julianday(ec.timestamp_inicio)) * 24 * 60), 1) AS valor,
+            "SELECT ROUND(AVG(" . Database::diffMinutosSql('ec.timestamp_inicio', 'ec.timestamp_fin') . "), 1) AS valor,
                     COUNT(*) AS total
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_fin IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
@@ -354,10 +370,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas
-               FROM auditorias a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN ejecuciones_checklist ec ON ec.id = a.ejecucion_id
+               FROM #__auditorias a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$h}{$u}",
             $params
@@ -395,10 +411,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN ec.estado IN ('completada', 'auditada') THEN 1 ELSE 0 END) AS completadas
-               FROM asignaciones asg
-               JOIN habitaciones h ON h.id = asg.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-          LEFT JOIN ejecuciones_checklist ec ON ec.asignacion_id = asg.id
+               FROM #__asignaciones asg
+               JOIN #__habitaciones h ON h.id = asg.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__ejecuciones_checklist ec ON ec.asignacion_id = asg.id
               WHERE asg.fecha BETWEEN ? AND ?
                 AND asg.activa = 1
                     {$h}{$u}",
@@ -426,34 +442,56 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiCreditos(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
-        $h = $this->hotelCond($hotel, $params);
-        $u = $this->userCond($usuarioId, $params, 'ec');
-
-        // Total ítems posibles = todos los ítems activos del template de cada ejecución
-        // Créditos obtenidos  = ítems marcados y NO desmarcados por auditor
-        $fila = Database::fetchOne(
-            "SELECT COUNT(ic.id)                                                         AS total_items,
-                    SUM(CASE WHEN ei.marcado = 1 AND (ei.desmarcado_por_auditor = 0 OR ei.desmarcado_por_auditor IS NULL) THEN 1 ELSE 0 END) AS creditos
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN items_checklist ic ON ic.template_id = ec.template_id AND ic.activo = 1
-          LEFT JOIN ejecuciones_items ei ON ei.ejecucion_id = ec.id AND ei.item_id = ic.id
-              WHERE ec.estado IN ('completada', 'auditada')
+        // Créditos por persona (marcado_por), solo obligatorios. Ver docs/creditos-rework.md.
+        // Numerador = obligatorios marcados y no desmarcados, de ejecuciones NO rechazadas
+        //             (así los ítems heredados en la re-limpieza no se doble-cuentan).
+        $pC = [$desde, $hasta];
+        $hC = $this->hotelCond($hotel, $pC);
+        $uC = $this->marcadoPorCond($usuarioId, $pC);
+        $creditos = (int) Database::fetchColumn(
+            "SELECT COUNT(*)
+               FROM #__ejecuciones_items ei
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__items_checklist ic ON ic.id = ei.item_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
+                AND ic.obligatorio = 1
+                AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                AND ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
-                    {$h}{$u}",
-            $params
+                    {$hC}{$uC}",
+            $pC
         );
 
-        $total = (int) ($fila['total_items'] ?? 0);
+        // Intentos fallidos = obligatorios desmarcados por el auditor (atribuidos a quien los
+        // marcó mal). El denominador = créditos + fallidos → el % castiga el error.
+        $pD = [$desde, $hasta];
+        $hD = $this->hotelCond($hotel, $pD);
+        $uD = $this->marcadoPorCond($usuarioId, $pD);
+        $desmarcados = (int) Database::fetchColumn(
+            "SELECT COUNT(*)
+               FROM #__ejecuciones_items ei
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__items_checklist ic ON ic.id = ei.item_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE ei.desmarcado_por_auditor = 1 AND ic.obligatorio = 1
+                AND ei.marcado_por IS NOT NULL
+                AND ec.estado IN ('completada', 'auditada')
+                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                    {$hD}{$uD}",
+            $pD
+        );
+
+        $total = $creditos + $desmarcados; // obligatorios intentados
         if ($total === 0) {
             return ['valor' => null, 'unidad' => '%', 'meta' => 90.0, 'contexto' => '0 ítems', 'estado' => 'sin_datos'];
         }
 
-        $creditos = (int) ($fila['creditos'] ?? 0);
-        $valor    = round($creditos / $total * 100, 1);
-        $meta     = 90.0;
+        $valor = round($creditos / $total * 100, 1);
+        $meta  = 90.0;
 
         return [
             'valor'    => $valor,
@@ -478,10 +516,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_con_observacion') THEN 1 ELSE 0 END) AS aprobadas
-               FROM auditorias a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN ejecuciones_checklist ec ON ec.id = a.ejecucion_id
+               FROM #__auditorias a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
               WHERE DATE(a.created_at) BETWEEN ? AND ?
                     {$h}{$u}",
             $params
@@ -516,9 +554,9 @@ final class ReportesService
             "SELECT COUNT(ec.id)                       AS completadas,
                     COUNT(DISTINCT ec.usuario_id)       AS trabajadoras,
                     COUNT(DISTINCT DATE(ec.timestamp_inicio)) AS dias
-               FROM ejecuciones_checklist ec
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$h}{$u}",
@@ -554,10 +592,10 @@ final class ReportesService
         $fila = Database::fetchOne(
             "SELECT SUM(CASE WHEN ei.marcado = 1 THEN 1 ELSE 0 END)                AS marcados,
                     SUM(CASE WHEN ei.desmarcado_por_auditor = 1 THEN 1 ELSE 0 END) AS desmarcados
-               FROM ejecuciones_items ei
-               JOIN ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
-               JOIN habitaciones h ON h.id = ec.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
+               FROM #__ejecuciones_items ei
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
                 AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
                     {$h}{$u}",
@@ -586,11 +624,14 @@ final class ReportesService
 
     private function hotelCond(string $hotel, array &$params): string
     {
+        // Excluye áreas comunes de todos los KPIs de piezas: cada query que usa este helper joinea
+        // #__habitaciones con alias 'h'. Un solo punto para no contaminar tasas. Ver docs/areas-comunes.md
+        $cond = ' AND h.es_espacio_comun = 0';
         if ($hotel !== 'ambos') {
             $params[] = $hotel;
-            return ' AND ho.codigo = ?';
+            $cond .= ' AND ho.codigo = ?';
         }
-        return '';
+        return $cond;
     }
 
     private function userCond(?int $usuarioId, array &$params, string $alias = 'ec'): string
@@ -598,6 +639,16 @@ final class ReportesService
         if ($usuarioId !== null) {
             $params[] = $usuarioId;
             return " AND {$alias}.usuario_id = ?";
+        }
+        return '';
+    }
+
+    /** Filtro por la persona que marcó el ítem (para créditos por marcado_por). */
+    private function marcadoPorCond(?int $usuarioId, array &$params): string
+    {
+        if ($usuarioId !== null) {
+            $params[] = $usuarioId;
+            return ' AND ei.marcado_por = ?';
         }
         return '';
     }

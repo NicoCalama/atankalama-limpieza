@@ -42,6 +42,9 @@ final class Request
         $metodo = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         $path = parse_url($uri, PHP_URL_PATH) ?: '/';
+        // Bajo subpath (BASE_PATH=/limpieza) el path llega prefijado; el Router
+        // trabaja siempre con rutas sin prefijo.
+        $path = Url::quitarBase($path);
 
         $cuerpo = [];
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';

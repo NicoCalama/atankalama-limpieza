@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
         libonig-dev \
         git \
         unzip \
-    && docker-php-ext-install pdo pdo_sqlite mbstring intl \
+    && docker-php-ext-install pdo pdo_sqlite pdo_mysql mbstring intl \
     && rm -rf /var/lib/apt/lists/*
 
 # Habilitar mod_rewrite para el front-controller

@@ -13,6 +13,7 @@ use Atankalama\Limpieza\Controllers\AuthController;
 use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
+use Atankalama\Limpieza\Controllers\EspaciosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\PaginasController;
@@ -39,6 +40,11 @@ final class Kernel
 
         // Páginas HTML
         $paginas = new PaginasController();
+        // Manifest PWA dinámico (público, lo pide el navegador sin sesión).
+        // Es una ruta y no un archivo estático para que start_url/scope/iconos
+        // salgan con BASE_PATH (dev raíz vs prod subpath). Sin extensión a
+        // propósito: el server embebido de PHP no rutea URIs con extensión.
+        $router->get('/manifest', [$paginas, 'manifest']);
         $router->get('/', [$paginas, 'raiz'], [$optionalAuth]);
         $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
         $router->get('/home', [$paginas, 'home'], [$optionalAuth]);
@@ -48,6 +54,7 @@ final class Kernel
         $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
+        $router->get('/espacios', [$paginas, 'espacios'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
         $router->get('/usuarios', [$paginas, 'usuarios'], [$optionalAuth]);
         $router->get('/ajustes', [$paginas, 'ajustes'], [$optionalAuth]);
@@ -155,7 +162,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('habitaciones.marcar_completada'),
         ]);
-        $router->post('/api/habitaciones/{id}/saltar', [$checklists, 'saltar'], [$authCheck]);
+        $router->post('/api/habitaciones/{id}/saltar', [$checklists, 'saltar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.saltar'),
+        ]);
         $router->get('/api/ejecuciones/{id}', [$checklists, 'estadoEjecucion'], [$authCheck]);
         $router->put('/api/ejecuciones/{id}/items/{itemId}', [$checklists, 'marcarItem'], [$authCheck]);
 
@@ -181,6 +191,33 @@ final class Kernel
         $router->get('/api/asignaciones/vista', [$asignaciones, 'vista'], [
             $authCheck,
             new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+
+        // Espacios (áreas comunes) — ver docs/areas-comunes.md
+        $espacios = new EspaciosController();
+        $router->get('/api/espacios', [$espacios, 'listar'], [
+            $authCheck,
+            new PermissionCheck('espacios.ver'),
+        ]);
+        $router->get('/api/espacios/{id}', [$espacios, 'obtener'], [
+            $authCheck,
+            new PermissionCheck('espacios.ver'),
+        ]);
+        $router->post('/api/espacios', [$espacios, 'crear'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->put('/api/espacios/{id}', [$espacios, 'editar'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->delete('/api/espacios/{id}', [$espacios, 'archivar'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->post('/api/espacios/{id}/pedir-limpieza', [$espacios, 'pedirLimpieza'], [
+            $authCheck,
+            new PermissionCheck('espacios.pedir_limpieza'),
         ]);
 
         // Auditoría

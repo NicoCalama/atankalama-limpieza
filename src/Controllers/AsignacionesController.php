@@ -21,6 +21,10 @@ final class AsignacionesController
         $habitacionIds = $request->input('habitacion_ids');
         $usuarioId = $request->inputInt('usuario_id');
         $fecha = $request->inputString('fecha');
+        // Franja opcional (mañana/tarde/noche): distingue la limpieza de día vs noche cuando una
+        // pieza se limpia varias veces el mismo día. Ver docs/limpiezas-multiples-dia.md
+        $franja = $request->inputString('franja', '');
+        $franja = $franja !== '' ? $franja : null;
 
         if (!is_array($habitacionIds) || $habitacionIds === [] || $usuarioId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_ids, usuario_id y fecha son requeridos.', 400);
@@ -28,7 +32,7 @@ final class AsignacionesController
         $ids = array_values(array_map('intval', $habitacionIds));
 
         try {
-            $creadas = $this->svc->asignarMultiple($ids, $usuarioId, $fecha, $request->usuario?->id);
+            $creadas = $this->svc->asignarMultiple($ids, $usuarioId, $fecha, $request->usuario?->id, $franja);
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -115,7 +119,19 @@ final class AsignacionesController
             return Response::error('SIN_PERMISO', 'No puedes ver la cola de otro trabajador.', 403);
         }
 
-        $cola = $this->svc->colaDelTrabajador($usuarioId, is_string($fecha) ? $fecha : date('Y-m-d'));
+        $fechaStr = is_string($fecha) ? $fecha : date('Y-m-d');
+
+        // Flujo "una habitación a la vez": quien NO puede ver todas (el trabajador)
+        // recibe SOLO su habitación actual, no la cola completa. Así no puede espiar
+        // ni elegir a mano cuál hacer primero (cherry-picking). Las supervisoras
+        // (con habitaciones.ver_todas) siguen recibiendo la cola completa para
+        // gestionar el orden. Ver docs/backlog-futuro.md ("gap e").
+        if ($solicitante->tienePermiso('habitaciones.ver_todas')) {
+            $cola = $this->svc->colaDelTrabajador($usuarioId, $fechaStr);
+        } else {
+            $actual = $this->svc->habitacionActualDeCola($usuarioId, $fechaStr);
+            $cola = $actual === null ? [] : [$actual];
+        }
         return Response::ok(['cola' => $cola, 'total' => count($cola)]);
     }
 

@@ -51,7 +51,7 @@ final class HomeService
     public function avisoDisponibilidadEnviado(int $trabajadorId, string $fecha): bool
     {
         $fila = Database::fetchOne(
-            'SELECT 1 FROM notificaciones_disponibilidad WHERE trabajador_id = ? AND fecha = ?',
+            'SELECT 1 FROM #__notificaciones_disponibilidad WHERE trabajador_id = ? AND fecha = ?',
             [$trabajadorId, $fecha]
         );
         return $fila !== null;
@@ -68,7 +68,7 @@ final class HomeService
         }
 
         Database::execute(
-            "INSERT INTO notificaciones_disponibilidad (trabajador_id, fecha, created_at)
+            "INSERT INTO #__notificaciones_disponibilidad (trabajador_id, fecha, created_at)
              VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
             [$trabajadorId, $fecha]
         );
@@ -89,9 +89,9 @@ final class HomeService
         return Database::fetchAll(
             'SELECT u.id, u.nombre, u.rut, u.hotel_default,
                     t.hora_inicio, t.hora_fin
-               FROM usuarios u
-               JOIN usuarios_turnos ut ON ut.usuario_id = u.id
-               JOIN turnos t ON t.id = ut.turno_id
+               FROM #__usuarios u
+               JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
+               JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ut.fecha = ? AND u.activo = 1
               ORDER BY u.nombre',
             [$fecha]
@@ -106,7 +106,7 @@ final class HomeService
     {
         $dedupe = "trabajador:{$trabajadorId}:fecha:{$fecha}";
         $fila = Database::fetchOne(
-            "SELECT 1 FROM alertas_activas WHERE tipo = 'trabajador_en_riesgo' AND contexto_json LIKE ?",
+            "SELECT 1 FROM #__alertas_activas WHERE tipo = 'trabajador_en_riesgo' AND contexto_json LIKE ?",
             ['%"_dedupe":"' . $dedupe . '"%']
         );
         return $fila !== null;
@@ -123,7 +123,7 @@ final class HomeService
      */
     public function hotelesPorCodigo(): array
     {
-        $filas = Database::fetchAll('SELECT id, codigo, nombre FROM hoteles ORDER BY codigo');
+        $filas = Database::fetchAll('SELECT id, codigo, nombre FROM #__hoteles ORDER BY codigo');
         $indexado = [];
         foreach ($filas as $h) {
             $indexado[(string) $h['codigo']] = [
@@ -145,8 +145,8 @@ final class HomeService
     {
         $sql = 'SELECT a.id, a.tipo, a.prioridad, a.titulo, a.descripcion, a.contexto_json,
                        a.hotel_id, a.created_at, ho.codigo AS hotel_codigo
-                  FROM alertas_activas a
-             LEFT JOIN hoteles ho ON ho.id = a.hotel_id
+                  FROM #__alertas_activas a
+             LEFT JOIN #__hoteles ho ON ho.id = a.hotel_id
                  WHERE a.prioridad <= 1';
         $params = [];
         if ($hotel !== 'ambos') {
@@ -190,7 +190,7 @@ final class HomeService
     {
         // Habitaciones activas agrupadas por estado actual
         $habs = Database::fetchAll(
-            'SELECT estado, COUNT(*) AS c FROM habitaciones WHERE activa = 1 AND hotel_id = ? GROUP BY estado',
+            'SELECT estado, COUNT(*) AS c FROM #__habitaciones WHERE activa = 1 AND es_espacio_comun = 0 AND hotel_id = ? GROUP BY estado',
             [$hotelId]
         );
         $porEstado = [
@@ -216,17 +216,17 @@ final class HomeService
         // Habitaciones sucias del hotel sin asignación activa para hoy
         $noAsignadas = (int) (Database::fetchOne(
             "SELECT COUNT(*) AS c
-               FROM habitaciones h
-          LEFT JOIN asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
-              WHERE h.activa = 1 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
+               FROM #__habitaciones h
+          LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
             [$fecha, $hotelId]
         )['c'] ?? 0);
 
         // Auditorías del día agrupadas por veredicto
         $auditoriasFila = Database::fetchAll(
             'SELECT au.veredicto, COUNT(*) AS c
-               FROM auditorias au
-               JOIN habitaciones h ON h.id = au.habitacion_id
+               FROM #__auditorias au
+               JOIN #__habitaciones h ON h.id = au.habitacion_id
               WHERE h.hotel_id = ? AND DATE(au.created_at) = ?
            GROUP BY au.veredicto',
             [$hotelId, $fecha]
@@ -249,33 +249,34 @@ final class HomeService
         // Trabajadores con turno hoy en este hotel (incluye hotel_default = 'ambos')
         $enTurno = (int) (Database::fetchOne(
             "SELECT COUNT(DISTINCT u.id) AS c
-               FROM usuarios u
-               JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+               FROM #__usuarios u
+               JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
               WHERE ut.fecha = ? AND u.activo = 1
-                AND (u.hotel_default = (SELECT codigo FROM hoteles WHERE id = ?) OR u.hotel_default = 'ambos')",
+                AND (u.hotel_default = (SELECT codigo FROM #__hoteles WHERE id = ?) OR u.hotel_default = 'ambos')",
             [$fecha, $hotelId]
         )['c'] ?? 0);
 
         // Trabajadores marcados como disponibles (alertas activas)
         $disponibles = (int) (Database::fetchOne(
             "SELECT COUNT(*) AS c
-               FROM alertas_activas
+               FROM #__alertas_activas
               WHERE tipo = 'trabajador_disponible' AND (hotel_id = ? OR hotel_id IS NULL)",
             [$hotelId]
         )['c'] ?? 0);
 
         // Tickets abiertos del hotel
         $ticketsAbiertos = (int) (Database::fetchOne(
-            "SELECT COUNT(*) AS c FROM tickets WHERE hotel_id = ? AND estado IN ('abierto','en_progreso')",
+            "SELECT COUNT(*) AS c FROM #__tickets WHERE hotel_id = ? AND estado IN ('abierto','en_progreso')",
             [$hotelId]
         )['c'] ?? 0);
 
         // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel
         $tiempoProm = Database::fetchOne(
-            'SELECT AVG((julianday(e.timestamp_fin) - julianday(e.timestamp_inicio)) * 1440) AS prom
-               FROM ejecuciones_checklist e
-               JOIN habitaciones h ON h.id = e.habitacion_id
+            'SELECT AVG(' . Database::diffMinutosSql('e.timestamp_inicio', 'e.timestamp_fin') . ') AS prom
+               FROM #__ejecuciones_checklist e
+               JOIN #__habitaciones h ON h.id = e.habitacion_id
               WHERE h.hotel_id = ?
+                AND h.es_espacio_comun = 0
                 AND e.timestamp_fin IS NOT NULL
                 AND DATE(e.timestamp_fin) = ?',
             [$hotelId, $fecha]
@@ -352,9 +353,9 @@ final class HomeService
         $metaEf = 85;
         $asignadas = (int) (Database::fetchOne(
             'SELECT COUNT(*) AS c
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-              WHERE h.hotel_id = ? AND a.fecha = ? AND a.activa = 1',
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND a.fecha = ? AND a.activa = 1',
             [$hotelId, $fecha]
         )['c'] ?? 0);
         $completadas = (int) $metricas['habitaciones']['limpias']
@@ -540,7 +541,7 @@ final class HomeService
      */
     public function sistemaCloudbeds(): array
     {
-        $fila = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial ORDER BY id DESC LIMIT 1');
+        $fila = Database::fetchOne('SELECT * FROM #__cloudbeds_sync_historial ORDER BY id DESC LIMIT 1');
         if ($fila === null) {
             return [
                 'estado' => 'ALERTA',
@@ -595,7 +596,7 @@ final class HomeService
                 SUM(CASE WHEN nivel = 'ERROR' THEN 1 ELSE 0 END) AS errores,
                 SUM(CASE WHEN nivel = 'WARNING' THEN 1 ELSE 0 END) AS warnings,
                 MAX(created_at) AS ultimo
-               FROM logs_eventos
+               FROM #__logs_eventos
               WHERE DATE(created_at) = ? AND nivel IN ('ERROR','WARNING')",
             [$fecha]
         );
@@ -652,8 +653,8 @@ final class HomeService
         $ahora = date('Y-m-d H:i:s');
         $sesiones = Database::fetchAll(
             'SELECT s.usuario_id, u.nombre, MAX(s.created_at) AS created_at
-               FROM sesiones s
-               JOIN usuarios u ON u.id = s.usuario_id
+               FROM #__sesiones s
+               JOIN #__usuarios u ON u.id = s.usuario_id
               WHERE s.expires_at > ? AND s.usuario_id <> ? AND u.activo = 1
            GROUP BY s.usuario_id, u.nombre
            ORDER BY created_at DESC',
@@ -662,7 +663,7 @@ final class HomeService
         $lista = [];
         foreach ($sesiones as $s) {
             $roles = Database::fetchAll(
-                'SELECT r.nombre FROM roles r JOIN usuarios_roles ur ON ur.rol_id = r.id WHERE ur.usuario_id = ?',
+                'SELECT r.nombre FROM #__roles r JOIN #__usuarios_roles ur ON ur.rol_id = r.id WHERE ur.usuario_id = ?',
                 [(int) $s['usuario_id']]
             );
             $lista[] = [

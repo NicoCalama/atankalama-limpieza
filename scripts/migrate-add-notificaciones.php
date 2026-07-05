@@ -14,6 +14,14 @@ use Atankalama\Limpieza\Core\Database;
 
 Config::load(dirname(__DIR__));
 
+// Solo-SQLite: migración puntual (ya aplicada en la BD de desarrollo). En MariaDB la tabla
+// #__notificaciones la crea init-db.php desde docs/database-schema.mariadb.sql. Este DDL usa
+// AUTOINCREMENT/strftime (dialecto SQLite) y nombres sin prefijo: no portable a MariaDB.
+if (Database::driver() !== 'sqlite') {
+    fwrite(STDERR, "Migración solo-SQLite. En MariaDB la tabla notificaciones la crea init-db.php desde el schema MariaDB.\n");
+    exit(1);
+}
+
 $pdo = Database::pdo();
 
 $pdo->exec("

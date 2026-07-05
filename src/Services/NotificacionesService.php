@@ -18,7 +18,7 @@ final class NotificacionesService
         string $url = '/home',
     ): void {
         Database::execute(
-            'INSERT INTO notificaciones (usuario_id, tipo, titulo, cuerpo, url) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__notificaciones (usuario_id, tipo, titulo, cuerpo, url) VALUES (?, ?, ?, ?, ?)',
             [$usuarioId, $tipo, $titulo, $cuerpo, $url]
         );
         $this->limpiarAntiguas($usuarioId);
@@ -40,20 +40,22 @@ final class NotificacionesService
     /** Devuelve las últimas notificaciones del usuario (más recientes primero). */
     public function listar(int $usuarioId, int $limite = 30): array
     {
+        // LIMIT con valor inline (entero validado): los prepares nativos de MySQL rechazan
+        // 'LIMIT ?' con binding de string. El cast (int) evita cualquier inyección.
         return Database::fetchAll(
             'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
-               FROM notificaciones
+               FROM #__notificaciones
               WHERE usuario_id = ?
               ORDER BY created_at DESC
-              LIMIT ?',
-            [$usuarioId, $limite]
+              LIMIT ' . (int) $limite,
+            [$usuarioId]
         );
     }
 
     public function sinLeer(int $usuarioId): int
     {
         $fila = Database::fetchOne(
-            'SELECT COUNT(*) AS total FROM notificaciones WHERE usuario_id = ? AND leida = 0',
+            'SELECT COUNT(*) AS total FROM #__notificaciones WHERE usuario_id = ? AND leida = 0',
             [$usuarioId]
         );
         return (int) ($fila['total'] ?? 0);
@@ -62,7 +64,7 @@ final class NotificacionesService
     public function marcarTodasLeidas(int $usuarioId): void
     {
         Database::execute(
-            'UPDATE notificaciones SET leida = 1 WHERE usuario_id = ? AND leida = 0',
+            'UPDATE #__notificaciones SET leida = 1 WHERE usuario_id = ? AND leida = 0',
             [$usuarioId]
         );
     }
@@ -70,16 +72,22 @@ final class NotificacionesService
     /** Conserva solo las últimas MAX_POR_USUARIO para no inflar la BD. */
     private function limpiarAntiguas(int $usuarioId): void
     {
+        // El subquery se envuelve en una tabla derivada (SELECT ... FROM (SELECT ... LIMIT N) AS t)
+        // porque MariaDB/MySQL no soportan LIMIT directo dentro de IN/NOT IN (error 1235) ni leer
+        // la tabla destino del DELETE en un subquery plano (error 1093). La tabla derivada materializa
+        // el resultado y evita ambos; en SQLite es igualmente válido. Portable entre los dos motores.
         Database::execute(
-            'DELETE FROM notificaciones
+            'DELETE FROM #__notificaciones
               WHERE usuario_id = ?
                 AND id NOT IN (
-                    SELECT id FROM notificaciones
-                     WHERE usuario_id = ?
-                     ORDER BY created_at DESC
-                     LIMIT ?
+                    SELECT id FROM (
+                        SELECT id FROM #__notificaciones
+                         WHERE usuario_id = ?
+                         ORDER BY created_at DESC
+                         LIMIT ' . (int) self::MAX_POR_USUARIO . '
+                    ) AS conservadas
                 )',
-            [$usuarioId, $usuarioId, self::MAX_POR_USUARIO]
+            [$usuarioId, $usuarioId]
         );
     }
 }

@@ -15,13 +15,13 @@ final class UsuarioService
 
     public function buscarPorId(int $id): ?Usuario
     {
-        $fila = Database::fetchOne('SELECT * FROM usuarios WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__usuarios WHERE id = ?', [$id]);
         return $fila === null ? null : $this->hidratar($fila);
     }
 
     public function buscarPorRut(string $rutNormalizado): ?Usuario
     {
-        $fila = Database::fetchOne('SELECT * FROM usuarios WHERE rut = ?', [$rutNormalizado]);
+        $fila = Database::fetchOne('SELECT * FROM #__usuarios WHERE rut = ?', [$rutNormalizado]);
         return $fila === null ? null : $this->hidratar($fila);
     }
 
@@ -36,8 +36,8 @@ final class UsuarioService
 
         $roles = Database::fetchAll(
             'SELECT r.nombre
-               FROM usuarios_roles ur
-               JOIN roles r ON r.id = ur.rol_id
+               FROM #__usuarios_roles ur
+               JOIN #__roles r ON r.id = ur.rol_id
               WHERE ur.usuario_id = ?
               ORDER BY r.nombre',
             [$usuarioId]
@@ -45,8 +45,8 @@ final class UsuarioService
 
         $permisos = Database::fetchAll(
             'SELECT DISTINCT rp.permiso_codigo AS codigo
-               FROM usuarios_roles ur
-               JOIN rol_permisos rp ON rp.rol_id = ur.rol_id
+               FROM #__usuarios_roles ur
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
               WHERE ur.usuario_id = ?',
             [$usuarioId]
         );
@@ -88,33 +88,47 @@ final class UsuarioService
             throw new UsuarioException('HOTEL_INVALIDO', 'hotel_default inválido.', 400);
         }
 
-        $existente = Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', [$rutNorm]);
+        $existente = Database::fetchOne('SELECT id FROM #__usuarios WHERE rut = ?', [$rutNorm]);
         if ($existente !== null) {
             throw new UsuarioException('RUT_DUPLICADO', 'Ya existe un usuario con ese RUT.', 409);
+        }
+
+        // Validamos los roles ANTES de tocar la BD. El payload trae IDs de rol; un ID
+        // inexistente (o un 0 producido por castear mal un nombre) debe fallar ruidosamente
+        // —igual que RbacService::asignarRolAUsuario— en vez de descartarse en silencio.
+        // `roles` sigue siendo opcional: una lista vacía crea el usuario sin roles.
+        $rolesRaw = $datos['roles'] ?? [];
+        if (!is_array($rolesRaw)) {
+            $rolesRaw = [];
+        }
+        $rolesIds = [];
+        foreach ($rolesRaw as $rolRaw) {
+            $rolId = (int) $rolRaw;
+            if ($rolId <= 0 || Database::fetchOne('SELECT id FROM #__roles WHERE id = ?', [$rolId]) === null) {
+                throw new UsuarioException('ROL_NO_ENCONTRADO', 'Uno de los roles indicados no existe.', 404);
+            }
+            $rolesIds[] = $rolId;
         }
 
         $temporal = $passwords->generarTemporal();
         $hash = $passwords->hash($temporal);
 
         $usuarioId = 0;
-        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $datos, $creadoPor): void {
+        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $rolesIds, $creadoPor): void {
             Database::execute(
-                'INSERT INTO usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
+                'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
                 [$rutNorm, $nombre, $email, $hash, $hotelDefault]
             );
             $usuarioId = Database::lastInsertId();
             Database::execute(
-                'INSERT INTO contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, ?, ?)',
+                'INSERT INTO #__contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, ?, ?)',
                 [$usuarioId, $creadoPor, 'creacion']
             );
-            $roles = $datos['roles'] ?? [];
-            if (is_array($roles)) {
-                foreach ($roles as $rolId) {
-                    Database::execute(
-                        'INSERT OR IGNORE INTO usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
-                        [$usuarioId, (int) $rolId]
-                    );
-                }
+            foreach ($rolesIds as $rolId) {
+                Database::execute(
+                    'INSERT OR IGNORE INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
+                    [$usuarioId, $rolId]
+                );
             }
         });
 
@@ -136,7 +150,7 @@ final class UsuarioService
      */
     public function actualizar(int $usuarioId, array $datos, int $editadoPor): Usuario
     {
-        $existente = Database::fetchOne('SELECT * FROM usuarios WHERE id = ?', [$usuarioId]);
+        $existente = Database::fetchOne('SELECT * FROM #__usuarios WHERE id = ?', [$usuarioId]);
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
@@ -178,7 +192,7 @@ final class UsuarioService
         }
         $sets[] = "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
         $params[] = $usuarioId;
-        Database::execute('UPDATE usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+        Database::execute('UPDATE #__usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
 
         Logger::audit($editadoPor, 'usuario.actualizar', 'usuario', $usuarioId, $datos);
         return $this->buscarPorId($usuarioId);
@@ -186,16 +200,16 @@ final class UsuarioService
 
     public function activar(int $usuarioId, bool $activo, int $editadoPor): Usuario
     {
-        $existente = Database::fetchOne('SELECT id FROM usuarios WHERE id = ?', [$usuarioId]);
+        $existente = Database::fetchOne('SELECT id FROM #__usuarios WHERE id = ?', [$usuarioId]);
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
         Database::execute(
-            "UPDATE usuarios SET activo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "UPDATE #__usuarios SET activo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             [$activo ? 1 : 0, $usuarioId]
         );
         if (!$activo) {
-            Database::execute('DELETE FROM sesiones WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioId]);
         }
         Logger::audit($editadoPor, $activo ? 'usuario.activar' : 'usuario.desactivar', 'usuario', $usuarioId, []);
         return $this->buscarPorId($usuarioId);
@@ -230,7 +244,7 @@ final class UsuarioService
      */
     public function eliminar(int $usuarioId, int $solicitanteId, string $motivo = 'derecho_cancelacion'): void
     {
-        $existente = Database::fetchOne('SELECT id, rut, nombre FROM usuarios WHERE id = ?', [$usuarioId]);
+        $existente = Database::fetchOne('SELECT id, rut, nombre FROM #__usuarios WHERE id = ?', [$usuarioId]);
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
@@ -259,22 +273,22 @@ final class UsuarioService
             $hashInerte
         ): void {
             // 1) Borrar datos de sesión activa y push (PII propia del usuario)
-            Database::execute('DELETE FROM sesiones WHERE usuario_id = ?', [$usuarioId]);
-            Database::execute('DELETE FROM push_subscriptions WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM #__push_subscriptions WHERE usuario_id = ?', [$usuarioId]);
 
             // 2) Borrar intentos_login asociados al RUT original (clave 'rut|ip')
-            Database::execute('DELETE FROM intentos_login WHERE clave LIKE ?', [$rutOriginal . '|%']);
+            Database::execute('DELETE FROM #__intentos_login WHERE clave LIKE ?', [$rutOriginal . '|%']);
 
             // 3) Borrar copilot (texto libre con PII potencial de huéspedes).
             //    copilot_mensajes cae por ON DELETE CASCADE.
-            Database::execute('DELETE FROM copilot_conversaciones WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM #__copilot_conversaciones WHERE usuario_id = ?', [$usuarioId]);
 
             // 4) Quitar roles (irrelevantes en un usuario eliminado)
-            Database::execute('DELETE FROM usuarios_roles WHERE usuario_id = ?', [$usuarioId]);
+            Database::execute('DELETE FROM #__usuarios_roles WHERE usuario_id = ?', [$usuarioId]);
 
             // 5) Anonimizar la fila en `usuarios`
             Database::execute(
-                "UPDATE usuarios
+                "UPDATE #__usuarios
                     SET rut = ?,
                         nombre = ?,
                         email = NULL,
@@ -317,7 +331,7 @@ final class UsuarioService
         $usuarioFila = Database::fetchOne(
             'SELECT id, rut, nombre, email, activo, requiere_cambio_pwd, hotel_default,
                     tema_preferido, created_at, updated_at, last_login_at
-               FROM usuarios WHERE id = ?',
+               FROM #__usuarios WHERE id = ?',
             [$usuarioId]
         );
         if ($usuarioFila === null) {
@@ -341,8 +355,8 @@ final class UsuarioService
         $roles = array_column(
             Database::fetchAll(
                 'SELECT r.nombre
-                   FROM usuarios_roles ur
-                   JOIN roles r ON r.id = ur.rol_id
+                   FROM #__usuarios_roles ur
+                   JOIN #__roles r ON r.id = ur.rol_id
                   WHERE ur.usuario_id = ?
                   ORDER BY r.nombre',
                 [$usuarioId]
@@ -353,7 +367,7 @@ final class UsuarioService
         // Sesiones activas (sin token; user_agent truncado a 120 chars para reducir ruido).
         $sesionesRaw = Database::fetchAll(
             "SELECT created_at, expires_at, ip, user_agent
-               FROM sesiones
+               FROM #__sesiones
               WHERE usuario_id = ? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               ORDER BY created_at DESC",
             [$usuarioId]
@@ -368,16 +382,20 @@ final class UsuarioService
             ];
         }, $sesionesRaw);
 
+        // Umbral "últimos 90 días" calculado en PHP (mismo formato ISO que Database::now())
+        // para no depender de strftime('now','-N days') de SQLite → portable a MariaDB.
+        $desde90 = gmdate('Y-m-d\TH:i:s.000\Z', time() - 90 * 86400);
+
         // Asignaciones últimos 90 días
         $asignaciones = Database::fetchAll(
             "SELECT a.id, a.habitacion_id, a.fecha, a.orden_cola, a.activa, a.asignado_por, a.created_at,
                     h.numero AS habitacion_numero, h.hotel_id
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.usuario_id = ?
-                AND a.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+                AND a.created_at >= ?
               ORDER BY a.created_at DESC",
-            [$usuarioId]
+            [$usuarioId, $desde90]
         );
 
         // Ejecuciones últimos 90 días — timestamp_inicio/fin SOLO si el solicitante NO es la
@@ -387,11 +405,11 @@ final class UsuarioService
             : 'id, habitacion_id, asignacion_id, template_id, estado, timestamp_inicio, timestamp_fin, created_at';
         $ejecuciones = Database::fetchAll(
             "SELECT {$columnasEjec}
-               FROM ejecuciones_checklist
+               FROM #__ejecuciones_checklist
               WHERE usuario_id = ?
-                AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-90 days')
+                AND created_at >= ?
               ORDER BY created_at DESC",
-            [$usuarioId]
+            [$usuarioId, $desde90]
         );
 
         // Tickets: levantados o asignados a la persona
@@ -403,7 +421,7 @@ final class UsuarioService
                         WHEN levantado_por = ? THEN 'levantado'
                         ELSE 'asignado'
                     END AS relacion
-               FROM tickets
+               FROM #__tickets
               WHERE levantado_por = ? OR asignado_a = ?
               ORDER BY created_at DESC",
             [$usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId]
@@ -412,7 +430,7 @@ final class UsuarioService
         // Últimas 50 notificaciones del inbox
         $notificaciones = Database::fetchAll(
             'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
-               FROM notificaciones
+               FROM #__notificaciones
               WHERE usuario_id = ?
               ORDER BY created_at DESC
               LIMIT 50',
@@ -422,7 +440,7 @@ final class UsuarioService
         // Conversaciones del copilot — solo metadata, sin contenido de mensajes
         $copilot = Database::fetchAll(
             'SELECT id, titulo, created_at, updated_at
-               FROM copilot_conversaciones
+               FROM #__copilot_conversaciones
               WHERE usuario_id = ?
               ORDER BY created_at DESC',
             [$usuarioId]
@@ -430,7 +448,7 @@ final class UsuarioService
 
         // Push subscriptions — endpoint truncado, sin claves p256dh/auth
         $pushRaw = Database::fetchAll(
-            'SELECT endpoint, created_at FROM push_subscriptions WHERE usuario_id = ? ORDER BY created_at DESC',
+            'SELECT endpoint, created_at FROM #__push_subscriptions WHERE usuario_id = ? ORDER BY created_at DESC',
             [$usuarioId]
         );
         $push = array_map(static function (array $p): array {
@@ -462,9 +480,9 @@ final class UsuarioService
     {
         $sql = "SELECT u.id, u.rut, u.nombre, u.email, u.activo, u.hotel_default, u.last_login_at,
                        GROUP_CONCAT(r.nombre, ',') AS roles
-                  FROM usuarios u
-             LEFT JOIN usuarios_roles ur ON ur.usuario_id = u.id
-             LEFT JOIN roles r ON r.id = ur.rol_id
+                  FROM #__usuarios u
+             LEFT JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+             LEFT JOIN #__roles r ON r.id = ur.rol_id
                  WHERE 1=1";
         $params = [];
         if (isset($filtros['activo'])) {

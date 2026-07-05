@@ -68,14 +68,18 @@ php scripts/seed.php              # carga catálogos, permisos, roles, checklist
 
 `seed.php` imprime la **contraseña temporal** del admin (`11111111-1`, Nicolás Campos). Guárdala — debe cambiarse en el primer login.
 
-### 4. (Opcional) Cargar datos de demo
+### 4. Importar el inventario real desde Cloudbeds
 
-Para ver la app con usuarios, habitaciones, turnos, ejecuciones y tickets ya poblados:
+`seed.php` deja la app con catálogos y el admin, pero **sin habitaciones**. Para traer las
+piezas reales de cada propiedad desde Cloudbeds (requiere las credenciales en `.env`):
 
 ```bash
-php scripts/seed-demo-data.php              # agrega demo sin tocar datos existentes
-php scripts/seed-demo-data.php --reset      # limpia demo previo y recarga (preserva admin original)
+php scripts/import-inventario-cloudbeds.php --dry-run   # muestra el plan de cambios, NO escribe
+php scripts/import-inventario-cloudbeds.php             # aplica el import
 ```
+
+El import es idempotente (podés re-correrlo cuando cambie el inventario) y mapea cada pieza a
+su tipo de limpieza por `maxGuests`. Ver [docs/cloudbeds-import-inventario.md](docs/cloudbeds-import-inventario.md).
 
 ### 5. Levantar el servidor de desarrollo
 
@@ -87,26 +91,15 @@ Abre http://localhost:8000 — te redirige al login.
 
 ---
 
-## Credenciales demo
+## Credencial inicial
 
-Tras correr `php scripts/seed-demo-data.php`, todos los usuarios demo comparten la contraseña **`Demo1234!`**.
+Tras `seed.php` solo existe el **admin**. Los demás usuarios se crean desde la app (Ajustes → Usuarios).
 
 | Rol | RUT | Nombre | Hotel |
 |---|---|---|---|
-| Admin (original de seed.php) | `11111111-1` | Nicolás Campos | Ambos |
-| Supervisora | `15234567-4` | Paola | 1 Sur |
-| Supervisora | `14987654-5` | Claudia | Inn |
-| Recepción | `16789012-1` | Daniela Contreras | 1 Sur |
-| Recepción | `17345678-6` | Andrea Silva | Inn |
-| Trabajadora | `18502341-9` | Valentina | — |
-| Trabajadora | `19234512-K` | Camila | — |
-| Trabajadora | `17834901-5` | Sofía | — |
-| Trabajadora | `16543210-K` | María | — |
-| Trabajadora | `19876543-0` | Isidora | — |
+| Admin | `11111111-1` | Nicolás Campos | Ambos |
 
-(El seeder crea 10 trabajadoras en total; ver [scripts/seed-demo-data.php](scripts/seed-demo-data.php) para el listado completo.)
-
-El **admin original** se preserva al correr `--reset` y conserva la contraseña que tenga al momento del reset.
+La contraseña temporal la imprime `seed.php` al correrlo; debe cambiarse en el primer login.
 
 ---
 
@@ -123,7 +116,10 @@ composer init-db                            # alias sin --fresh
 
 # Seeders
 php scripts/seed.php                        # catálogos + permisos + roles + admin inicial
-php scripts/seed-demo-data.php --reset      # recarga datos de demo
+
+# Inventario real desde Cloudbeds (idempotente)
+php scripts/import-inventario-cloudbeds.php --dry-run   # plan sin escribir
+php scripts/import-inventario-cloudbeds.php             # aplica
 
 # Cloudbeds (cron en producción — manual para pruebas)
 php scripts/sync-cloudbeds.php
@@ -153,7 +149,7 @@ atankalama-limpieza/
 │   ├── Repositories/       # Acceso a datos (PDO)
 │   └── Services/           # Lógica de negocio (Password, Cloudbeds, Copilot, Alertas, etc.)
 ├── views/                  # Templates PHP nativos (layout + homes por rol + componentes)
-├── scripts/                # CLI: init-db, seed, seed-demo-data, sync-cloudbeds, recalcular-alertas
+├── scripts/                # CLI: init-db, seed, import-inventario-cloudbeds, sync-cloudbeds, recalcular-alertas
 ├── database/
 │   ├── seeds/              # Catálogos PHP (permisos, roles, hoteles, turnos, checklists)
 │   └── atankalama.db       # SQLite (gitignored)

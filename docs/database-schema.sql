@@ -140,6 +140,7 @@ CREATE TABLE hoteles (
     nombre       TEXT NOT NULL,
     cloudbeds_property_id  TEXT,                    -- ID del hotel en Cloudbeds
     activo       INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    sabanas_cada_n_dias  INTEGER NOT NULL DEFAULT 4,  -- cada cuántas noches avisar cambio de sábanas en stayover. Ver docs/ocupacion-y-sabanas.md
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -164,6 +165,13 @@ CREATE TABLE habitaciones (
         'aprobada', 'aprobada_con_observacion', 'rechazada'
     )),
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
+    -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
+    cb_frontdesk_status     TEXT CHECK (cb_frontdesk_status IN ('check-in', 'check-out', 'stayover', 'turnover', 'unused')),
+    cb_ocupada              INTEGER CHECK (cb_ocupada IN (0, 1)),
+    cb_arrival_date         TEXT,                             -- entrada del huésped actual (YYYY-MM-DD)
+    cb_departure_date       TEXT,                             -- salida prevista (YYYY-MM-DD)
+    cb_ocupacion_sync_at    TEXT,                             -- cuándo se refrescó la ocupación
     created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (hotel_id, numero),
@@ -206,6 +214,7 @@ CREATE TABLE asignaciones (
     asignado_por    INTEGER,                            -- NULL = auto (round-robin), else = supervisora
     orden_cola      INTEGER NOT NULL DEFAULT 0,         -- posición en la cola del trabajador
     fecha           TEXT NOT NULL,                      -- 'YYYY-MM-DD' del turno
+    franja          TEXT CHECK (franja IN ('mañana', 'tarde', 'noche')),  -- ventana de la limpieza (día/noche); NULL = sin etiqueta. Ver docs/limpiezas-multiples-dia.md
     activa          INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),  -- 0 si se reasignó
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
@@ -221,12 +230,16 @@ CREATE INDEX idx_asignaciones_activa ON asignaciones(activa);
 CREATE TABLE checklists_template (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     tipo_habitacion_id    INTEGER NOT NULL,
+    habitacion_id         INTEGER,                             -- si != NULL, template propio de un espacio (área común); las piezas de huésped lo dejan NULL y se resuelven por tipo. Ver docs/areas-comunes.md
     nombre                TEXT NOT NULL,
     activo                INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT
+    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT,
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_checklists_template_habitacion ON checklists_template(habitacion_id);
 
 -- Items del template (orden, descripción, obligatoriedad)
 CREATE TABLE items_checklist (
@@ -235,6 +248,7 @@ CREATE TABLE items_checklist (
     orden               INTEGER NOT NULL,
     descripcion         TEXT NOT NULL,
     obligatorio         INTEGER NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
+    es_cambio_sabanas   INTEGER NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
     activo              INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (template_id) REFERENCES checklists_template(id) ON DELETE CASCADE
@@ -274,10 +288,12 @@ CREATE TABLE ejecuciones_items (
     item_id             INTEGER NOT NULL,
     marcado             INTEGER NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
     desmarcado_por_auditor  INTEGER NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    marcado_por         INTEGER,   -- quién marcó el ítem: reparte créditos en re-limpieza (ver docs/creditos-rework.md)
     updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (ejecucion_id, item_id),
     FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE CASCADE,
-    FOREIGN KEY (item_id) REFERENCES items_checklist(id) ON DELETE RESTRICT
+    FOREIGN KEY (item_id) REFERENCES items_checklist(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);

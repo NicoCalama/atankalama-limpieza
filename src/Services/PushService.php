@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Url;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
@@ -49,10 +50,11 @@ final class PushService
 
     public function suscribir(int $usuarioId, string $endpoint, string $p256dh, string $auth): void
     {
+        $onConflict = Database::onConflictUpdate(['usuario_id', 'endpoint'], ['p256dh', 'auth']);
         Database::execute(
-            'INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth)
+            "INSERT INTO #__push_subscriptions (usuario_id, endpoint, p256dh, auth)
              VALUES (?, ?, ?, ?)
-             ON CONFLICT(usuario_id, endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth',
+             {$onConflict}",
             [$usuarioId, $endpoint, $p256dh, $auth]
         );
     }
@@ -60,14 +62,14 @@ final class PushService
     public function desuscribir(int $usuarioId, string $endpoint): void
     {
         Database::execute(
-            'DELETE FROM push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
+            'DELETE FROM #__push_subscriptions WHERE usuario_id = ? AND endpoint = ?',
             [$usuarioId, $endpoint]
         );
     }
 
     public function desuscribirTodo(int $usuarioId): void
     {
-        Database::execute('DELETE FROM push_subscriptions WHERE usuario_id = ?', [$usuarioId]);
+        Database::execute('DELETE FROM #__push_subscriptions WHERE usuario_id = ?', [$usuarioId]);
     }
 
     /**
@@ -79,6 +81,10 @@ final class PushService
     {
         if (empty($usuarioIds)) return;
 
+        // $url llega app-relative ('/auditoria'); acá se antepone BASE_PATH una sola
+        // vez — el navegador (inbox y click de push) la usa tal cual, sin re-prefijar.
+        $url = Url::a($url);
+
         // Persistir en bandeja de todos los destinatarios (antes del filtro de turno)
         $this->notificaciones->crearParaVarios($usuarioIds, $tipo, $titulo, $cuerpo, $url);
 
@@ -87,7 +93,7 @@ final class PushService
 
         $placeholders = implode(',', array_fill(0, count($usuarioIds), '?'));
         $suscripciones = Database::fetchAll(
-            "SELECT * FROM push_subscriptions WHERE usuario_id IN ({$placeholders})",
+            "SELECT * FROM #__push_subscriptions WHERE usuario_id IN ({$placeholders})",
             $usuarioIds
         );
 
@@ -123,7 +129,7 @@ final class PushService
                 // Limpiar suscripciones con endpoint inválido (410 Gone)
                 if ($report->getResponse() !== null && $report->getResponse()->getStatusCode() === 410) {
                     Database::execute(
-                        'DELETE FROM push_subscriptions WHERE endpoint = ?',
+                        'DELETE FROM #__push_subscriptions WHERE endpoint = ?',
                         [$report->getEndpoint()]
                     );
                 }
@@ -155,8 +161,8 @@ final class PushService
         // Trae el turno asignado a cada usuario para hoy
         $filas = Database::fetchAll(
             "SELECT ut.usuario_id, t.hora_fin
-               FROM usuarios_turnos ut
-               JOIN turnos t ON t.id = ut.turno_id
+               FROM #__usuarios_turnos ut
+               JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ut.usuario_id IN ({$placeholders})
                 AND ut.fecha = ?",
             $params

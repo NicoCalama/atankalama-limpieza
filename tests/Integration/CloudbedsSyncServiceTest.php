@@ -42,10 +42,12 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testSincronizarMarcaChecOutComoSucia(): void
     {
+        // Shape real de getHousekeepingStatus: success + data plano con roomCondition.
         $this->transport->encolarOk(200, [
+            'success' => true,
             'data' => [
-                ['roomID' => 'CB_R101', 'cleaningStatus' => 'Dirty'],
-                ['roomID' => 'CB_R102', 'cleaningStatus' => 'Dirty'],
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty'],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'dirty'],
             ],
         ]);
 
@@ -60,6 +62,52 @@ final class CloudbedsSyncServiceTest extends TestCase
         $hist = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
         $this->assertSame('exito', $hist['resultado']);
         $this->assertSame(1, (int) $hist['habitaciones_sincronizadas']);
+    }
+
+    public function testSincronizarGuardaLaOcupacion(): void
+    {
+        // getHousekeepingStatus trae frontdeskStatus + arrival/departure + roomOccupied (verificado
+        // en v1.1). El sync debe guardarlos por pieza. Ver docs/ocupacion-y-sabanas.md
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true, 'arrivalDate' => '2026-07-01', 'departureDate' => '2026-07-09'],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'clean', 'frontdeskStatus' => 'unused', 'roomOccupied' => false, 'arrivalDate' => '-', 'departureDate' => '-'],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT cb_frontdesk_status, cb_ocupada, cb_arrival_date, cb_departure_date, cb_ocupacion_sync_at FROM habitaciones WHERE numero='101'");
+        $this->assertSame('stayover', $r101['cb_frontdesk_status']);
+        $this->assertSame(1, (int) $r101['cb_ocupada']);
+        $this->assertSame('2026-07-01', $r101['cb_arrival_date']);
+        $this->assertSame('2026-07-09', $r101['cb_departure_date']);
+        $this->assertNotNull($r101['cb_ocupacion_sync_at']);
+
+        $r102 = Database::fetchOne("SELECT cb_frontdesk_status, cb_ocupada, cb_arrival_date FROM habitaciones WHERE numero='102'");
+        $this->assertSame('unused', $r102['cb_frontdesk_status']);
+        $this->assertSame(0, (int) $r102['cb_ocupada']);
+        $this->assertNull($r102['cb_arrival_date']); // '-' se normaliza a null
+    }
+
+    public function testSincronizarConRespuestaSinSuccessGeneraError(): void
+    {
+        // Regresión del bug del endpoint equivocado: un 404 (o cualquier respuesta
+        // sin success=true) debe contar como error y levantar la alerta P0, no
+        // reportar "éxito / 0 registros" en silencio. json() sobre el HTML de 404
+        // devuelve [] (sin 'success').
+        $this->transport->encolarOk(200, []);
+
+        $syncId = $this->sync->sincronizar(null, 'manual');
+
+        $hist = Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        $this->assertSame('error', $hist['resultado']);
+        $this->assertSame(0, (int) $hist['habitaciones_sincronizadas']);
+
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'");
+        $this->assertNotNull($alerta);
+        $this->assertSame(0, (int) $alerta['prioridad']);
     }
 
     public function testSincronizarSinCloudbedsPropertyIdGeneraError(): void
@@ -92,6 +140,43 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertNull(Database::fetchOne("SELECT 1 FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'"));
     }
 
+    public function testEscrituraConSuccessFalseSeRegistraComoErrorYAlertaP0(): void
+    {
+        // Regresión: Cloudbeds responde HTTP 200 pero con {"success": false} cuando rechaza
+        // la escritura. No debe registrarse como éxito ni enmascararse.
+        $this->transport->encolarOk(200, ['success' => false, 'message' => 'Parameter roomID is required']);
+
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $ok = $this->sync->escribirEstadoClean($hab);
+
+        $this->assertFalse($ok);
+        $hist = Database::fetchOne("SELECT * FROM cloudbeds_sync_historial WHERE tipo = 'escritura_estado'");
+        $this->assertSame('error', $hist['resultado']);
+        $this->assertStringContainsString('Parameter roomID is required', (string) $hist['error_mensaje']);
+
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'");
+        $this->assertNotNull($alerta);
+        $this->assertSame(0, (int) $alerta['prioridad']);
+    }
+
+    public function testEscrituraUsaFormUrlencoded(): void
+    {
+        // Cloudbeds API v1.1 exige form-urlencoded en los POST (no JSON).
+        $this->transport->encolarOk(200, ['success' => true]);
+
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $this->sync->escribirEstadoClean($hab);
+
+        $ultima = end($this->transport->peticiones);
+        $this->assertSame('POST', $ultima['metodo']);
+        $this->assertStringContainsString('/postHousekeepingStatus', $ultima['url']);
+        $this->assertSame('application/x-www-form-urlencoded', $ultima['content_type']);
+    }
+
     public function testEscribirEstadoCleanConFalloGeneraAlertaP0(): void
     {
         // 1 intento + 3 reintentos = 4 fallos
@@ -115,7 +200,7 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testPayloadDeEscrituraSanitizaTokenEnLogs(): void
     {
-        $this->transport->encolarOk(200);
+        $this->transport->encolarOk(200, ['success' => true]);
 
         $hab = (new HabitacionService())->obtener(
             (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
@@ -127,9 +212,62 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertStringContainsString('roomID', $hist['payload_request']);
     }
 
+    // ----- Throttle del sync automático (Gap C — ver docs/cloudbeds.md §4.1) -----
+
+    public function testDebeCorrerSinHistorialPrevio(): void
+    {
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testThrottleOmiteTrasSyncReciente(): void
+    {
+        // Una sync exitosa recién iniciada: con intervalo 30 se omite; con intervalo 0 corre igual.
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]);
+        $this->sync->sincronizar(null, 'auto_cron');
+
+        $this->assertFalse($this->sync->debeCorrerSyncAutomatica(30));
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(0));
+    }
+
+    public function testSyncConErrorNoThrottlea(): void
+    {
+        // Si la última sync falló, el siguiente tick del cron debe reintentar (no throttlear).
+        $this->transport->encolarOk(200, []); // sin success=true → error
+        $this->sync->sincronizar(null, 'auto_cron');
+
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testEscrituraDeEstadoNoThrottleaElSyncEntrante(): void
+    {
+        // Las filas tipo 'escritura_estado' no cuentan para el throttle del sync entrante.
+        $this->transport->encolarOk(200, ['success' => true]);
+        $hab = (new HabitacionService())->obtener(
+            (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id']
+        );
+        $this->sync->escribirEstadoClean($hab);
+
+        $this->assertTrue($this->sync->debeCorrerSyncAutomatica(30));
+    }
+
+    public function testIntervaloLeeConfigConDefault(): void
+    {
+        // Sin clave → default 30.
+        $this->assertSame(30, $this->sync->intervaloSyncMinutos());
+
+        Database::execute("INSERT INTO cloudbeds_config (clave, valor) VALUES ('sync_intervalo_minutos', '15')");
+        $this->assertSame(15, $this->sync->intervaloSyncMinutos());
+
+        // Valor no numérico → default; valor menor a 1 → clamp a 1.
+        Database::execute("UPDATE cloudbeds_config SET valor = 'abc' WHERE clave = 'sync_intervalo_minutos'");
+        $this->assertSame(30, $this->sync->intervaloSyncMinutos());
+        Database::execute("UPDATE cloudbeds_config SET valor = '0' WHERE clave = 'sync_intervalo_minutos'");
+        $this->assertSame(1, $this->sync->intervaloSyncMinutos());
+    }
+
     public function testEstadoActualYHistorial(): void
     {
-        $this->transport->encolarOk(200, ['data' => []]);
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]);
         $this->sync->sincronizar(null, 'manual');
 
         $actual = $this->sync->estadoActual();

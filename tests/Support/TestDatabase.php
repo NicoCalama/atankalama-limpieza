@@ -44,23 +44,23 @@ final class TestDatabase
 
         foreach ($permisos as [$codigo, $descripcion, $categoria, $scope]) {
             Database::execute(
-                'INSERT OR IGNORE INTO permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)',
+                'INSERT OR IGNORE INTO #__permisos (codigo, descripcion, categoria, scope) VALUES (?, ?, ?, ?)',
                 [$codigo, $descripcion, $categoria, $scope]
             );
         }
 
-        $todos = array_column(Database::fetchAll('SELECT codigo FROM permisos'), 'codigo');
+        $todos = array_column(Database::fetchAll('SELECT codigo FROM #__permisos'), 'codigo');
 
         foreach ($roles as $rol) {
             Database::execute(
-                'INSERT INTO roles (nombre, descripcion, es_sistema) VALUES (?, ?, ?)',
+                'INSERT INTO #__roles (nombre, descripcion, es_sistema) VALUES (?, ?, ?)',
                 [$rol['nombre'], $rol['descripcion'], $rol['es_sistema']]
             );
             $rolId = Database::lastInsertId();
             $permisosRol = $rol['permisos'] === '__ALL__' ? $todos : $rol['permisos'];
             foreach ($permisosRol as $codigo) {
                 Database::execute(
-                    'INSERT INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
+                    'INSERT INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
                     [$rolId, $codigo]
                 );
             }
@@ -78,17 +78,17 @@ final class TestDatabase
         $data = require $seedDir . '/checklists.php';
         $items = $data['template_default_items'];
 
-        $tipos = Database::fetchAll('SELECT id, nombre FROM tipos_habitacion');
+        $tipos = Database::fetchAll('SELECT id, nombre FROM #__tipos_habitacion');
         foreach ($tipos as $tipo) {
             Database::execute(
-                'INSERT INTO checklists_template (tipo_habitacion_id, nombre, activo) VALUES (?, ?, 1)',
+                'INSERT INTO #__checklists_template (tipo_habitacion_id, nombre, activo) VALUES (?, ?, 1)',
                 [(int) $tipo['id'], 'Checklist ' . (string) $tipo['nombre']]
             );
             $templateId = Database::lastInsertId();
             foreach ($items as $item) {
                 Database::execute(
-                    'INSERT INTO items_checklist (template_id, orden, descripcion, obligatorio, activo) VALUES (?, ?, ?, ?, 1)',
-                    [$templateId, (int) $item['orden'], (string) $item['descripcion'], (int) $item['obligatorio']]
+                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, es_cambio_sabanas, activo) VALUES (?, ?, ?, ?, ?, 1)',
+                    [$templateId, (int) $item['orden'], (string) $item['descripcion'], (int) $item['obligatorio'], (int) ($item['es_cambio_sabanas'] ?? 0)]
                 );
             }
         }
@@ -111,17 +111,17 @@ final class TestDatabase
         $pwdService = new PasswordService();
         $hash = $pwdService->hash($password);
         Database::execute(
-            'INSERT INTO usuarios (rut, nombre, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__usuarios (rut, nombre, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, ?, ?)',
             [$rut, $nombre, $hash, $requiereCambio ? 1 : 0, $activo ? 1 : 0, 'ambos']
         );
         $usuarioId = Database::lastInsertId();
 
-        $rol = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', [$rolNombre]);
+        $rol = Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', [$rolNombre]);
         if ($rol === null) {
             throw new \RuntimeException("Rol de prueba no existe: {$rolNombre}");
         }
         Database::execute(
-            'INSERT INTO usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
+            'INSERT INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
             [$usuarioId, (int) $rol['id']]
         );
 

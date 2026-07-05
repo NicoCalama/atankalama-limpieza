@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar sesión — Atankalama Limpieza</title>
 
+    <!-- Base path de la app ('' en dev, '/limpieza' en prod). Ver views/layout.php. -->
+    <script>
+        window.BASE_PATH = <?= json_encode(\Atankalama\Limpieza\Core\Url::base()) ?>;
+        window.u = function (p) { return window.BASE_PATH + p; };
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -24,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/assets/css/custom.css">
+    <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>">
 
     <script>
         (function() {
@@ -203,7 +209,7 @@
     </div>
 </div>
 
-<script src="/assets/js/app.js"></script>
+<script src="<?= u('/assets/js/app.js') ?>"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() { lucide.createIcons(); });
 
@@ -222,7 +228,7 @@ function loginApp() {
         passwordNueva: '',
         passwordConfirm: '',
         sessionToken: null,
-        homeTarget: '/home',
+        homeTarget: u('/home'),
 
         formatearRut() {
             // Limpiar a solo dígitos y K
@@ -254,7 +260,7 @@ function loginApp() {
             this.errores = {};
 
             try {
-                var resp = await fetch('/api/auth/login', {
+                var resp = await fetch(u('/api/auth/login'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -268,11 +274,12 @@ function loginApp() {
                     if (data.data.requiere_cambio_pwd) {
                         this.requiereCambio = true;
                         this.passwordActual = this.password;
-                        this.homeTarget = data.data.home_target || '/home';
+                        // home_target ya llega con prefijo desde el backend (Url::a)
+                        this.homeTarget = data.data.home_target || u('/home');
                         this.password = '';
                         this.$nextTick(function() { lucide.createIcons(); });
                     } else {
-                        window.location.href = data.data.home_target || '/home';
+                        window.location.href = data.data.home_target || u('/home');
                     }
                 } else {
                     this.errorGeneral = data.error?.mensaje || 'Error al iniciar sesión.';
@@ -300,7 +307,7 @@ function loginApp() {
             this.errorGeneral = '';
 
             try {
-                var resp = await fetch('/api/auth/cambiar-contrasena', {
+                var resp = await fetch(u('/api/auth/cambiar-contrasena'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

@@ -38,10 +38,19 @@ final class EstadoHabitacionServiceTest extends TestCase
         }
     }
 
-    public function testNoSePuedeSaltarAuditoria(): void
+    public function testNoSePuedeSaltarChecklist(): void
     {
-        $this->assertFalse($this->svc->puedeTransicionar(Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_APROBADA));
+        // Desde 'sucia' hay que pasar por 'en_progreso': no se salta al final ni a pendiente de auditoría.
         $this->assertFalse($this->svc->puedeTransicionar(Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA));
+        $this->assertFalse($this->svc->puedeTransicionar(Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_APROBADA));
+    }
+
+    public function testEnProgresoAAprobadaEsAutoCierreDeEspacio(): void
+    {
+        // Las áreas comunes se auto-cierran al completar (en_progreso → aprobada), sin auditoría.
+        // Las piezas de huésped NO usan este camino: ChecklistService::completar las manda a
+        // 'completada_pendiente_auditoria' según es_espacio_comun. Ver docs/areas-comunes.md
+        $this->assertTrue($this->svc->puedeTransicionar(Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_APROBADA));
     }
 
     public function testAprobadaVuelveASuciaEnNuevoCiclo(): void

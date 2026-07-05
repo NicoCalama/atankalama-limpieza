@@ -39,7 +39,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-3 min-w-0">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div class="min-w-0">
@@ -85,6 +85,7 @@ if ($hora < 12) {
                         aria-label="Cerrar sesión">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
                 </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
     </header>
@@ -185,7 +186,7 @@ if ($hora < 12) {
 
                             <template x-if="alertasTotal > alertas.length">
                                 <div class="text-center pt-1">
-                                    <a href="/alertas" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                    <a href="<?= u('/alertas') ?>" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                                         Ver todas las alertas (<span x-text="alertasTotal"></span>)
                                         <i data-lucide="arrow-right" class="w-3 h-3"></i>
                                     </a>
@@ -203,11 +204,18 @@ if ($hora < 12) {
                         <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                         Estado del equipo
                     </h2>
-                    <template x-if="data.permisos.asignaciones_asignar_manual">
-                        <a href="/asignaciones" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
-                            Asignaciones <i data-lucide="arrow-right" class="w-3 h-3"></i>
-                        </a>
-                    </template>
+                    <div class="flex items-center gap-3 flex-shrink-0">
+                        <template x-if="$store.auth && $store.auth.tienePermiso('espacios.ver')">
+                            <a href="<?= u('/espacios') ?>" class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
+                                Áreas comunes <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                            </a>
+                        </template>
+                        <template x-if="data.permisos.asignaciones_asignar_manual">
+                            <a href="<?= u('/asignaciones') ?>" class="text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                                Asignaciones <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                            </a>
+                        </template>
+                    </div>
                 </div>
 
                 <!-- Progreso global -->
@@ -486,8 +494,8 @@ function homeSupervisora() {
         },
 
         async cerrarSesion() {
-            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-            window.location.href = '/login';
+            try { await fetch(u('/api/auth/logout'), { method: 'POST' }); } catch (e) {}
+            window.location.href = u('/login');
         },
 
         setHotel(valor) {
@@ -565,7 +573,8 @@ function homeSupervisora() {
                 'habitacion_rechazada': 'x-circle',
                 'fin_turno_pendientes': 'clock',
                 'trabajador_disponible': 'user-check',
-                'ticket_nuevo': 'wrench'
+                'ticket_nuevo': 'wrench',
+                'habitacion_saltada': 'skip-forward'
             };
             return map[tipo] || 'bell';
         },
@@ -577,7 +586,8 @@ function homeSupervisora() {
                 'habitacion_rechazada': 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
                 'fin_turno_pendientes': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
+                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
+                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -633,11 +643,11 @@ function homeSupervisora() {
             if (accion === 'reasignar_hab') {
                 // La página de Asignaciones tiene el modal de reasignación con todas las
                 // habitaciones rechazadas/sucias listas. /habitaciones/{id} muestra detalle bloqueado.
-                window.location.href = '/asignaciones';
+                window.location.href = u('/asignaciones');
                 return;
             }
             if (accion === 'asignar') {
-                window.location.href = '/asignaciones';
+                window.location.href = u('/asignaciones');
                 return;
             }
             // Acciones "genéricas" que resuelven la alerta en bitácora (cloudbeds retry, marcar atendido)
@@ -726,7 +736,7 @@ function homeSupervisora() {
                 var payload = {
                     habitacion_id: this.modalReasignar.habSeleccionada,
                     usuario_id: dest.usuario.id,
-                    fecha: new Date().toISOString().slice(0, 10),
+                    fecha: window.hoyServidor(),
                     motivo: this.modalReasignar.motivo || 'Reasignación desde Home Supervisora'
                 };
                 var r = await apiPost('/api/asignaciones/reasignar', payload);

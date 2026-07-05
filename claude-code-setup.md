@@ -162,8 +162,8 @@ atankalama-limpieza/
 │
 ├── scripts/
 │   ├── init-db.php              # Crea/recrea la BD desde migraciones + seeds
-│   ├── sync-cloudbeds.php       # Cron 2×/día
-│   ├── seed-demo-data.php       # Datos de demo para mostrar el MVP
+│   ├── sync-cloudbeds.php       # Cron 2×/día (estados de limpieza)
+│   ├── import-inventario-cloudbeds.php # Trae el inventario real de piezas desde Cloudbeds
 │   └── reset-admin-password.php # Rescate de emergencia si se pierde el admin
 │
 └── vendor/                      # Composer (gitignored)
@@ -532,10 +532,11 @@ php -S localhost:8000 -t public/
 # Crear/recrear la base de datos desde migraciones + seeds
 php scripts/init-db.php
 
-# Cargar datos de demo (para mostrar el MVP)
-php scripts/seed-demo-data.php
+# Importar el inventario real de habitaciones desde Cloudbeds (idempotente)
+php scripts/import-inventario-cloudbeds.php --dry-run   # muestra el plan, no escribe
+php scripts/import-inventario-cloudbeds.php             # aplica
 
-# Sincronizar manualmente con Cloudbeds (normalmente es cron)
+# Sincronizar manualmente los estados de limpieza con Cloudbeds (normalmente es cron)
 php scripts/sync-cloudbeds.php
 
 # Rescate de emergencia: resetear password del admin

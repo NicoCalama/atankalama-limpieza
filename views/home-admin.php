@@ -31,7 +31,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-3 min-w-0">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div class="min-w-0">
@@ -82,6 +82,7 @@ if ($hora < 12) {
                         aria-label="Cerrar sesión">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
                 </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
     </header>
@@ -189,7 +190,7 @@ if ($hora < 12) {
 
                                     <template x-if="alertasTotal > alertas.length">
                                         <div class="text-center pt-1">
-                                            <a href="/alertas" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                                            <a href="<?= u('/alertas') ?>" class="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                                                 Ver todas las alertas (<span x-text="alertasTotal"></span>)
                                                 <i data-lucide="arrow-right" class="w-3 h-3"></i>
                                             </a>
@@ -339,7 +340,7 @@ if ($hora < 12) {
                                 <p class="text-xs text-gray-500 dark:text-gray-400">
                                     <span x-text="data.sistema.errores_logs.errores"></span> errores · <span x-text="data.sistema.errores_logs.warnings"></span> warnings hoy
                                 </p>
-                                <a href="/ajustes#logs" class="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 mt-1" x-show="data.sistema.errores_logs.cantidad_hoy > 0">
+                                <a href="<?= u('/ajustes#logs') ?>" class="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 mt-1" x-show="data.sistema.errores_logs.cantidad_hoy > 0">
                                     Ver logs <i data-lucide="arrow-right" class="w-3 h-3"></i>
                                 </a>
                             </div>
@@ -423,7 +424,7 @@ if ($hora < 12) {
                         <i data-lucide="settings" class="w-12 h-12 text-gray-400 mx-auto mb-3"></i>
                         <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Ajustes del sistema</h2>
                         <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">Gestiona usuarios, roles, turnos, checklists y más.</p>
-                        <a href="/ajustes" class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                        <a href="<?= u('/ajustes') ?>" class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
                             Abrir Ajustes
                             <i data-lucide="arrow-right" class="w-4 h-4"></i>
                         </a>
@@ -536,8 +537,8 @@ function homeAdmin() {
         },
 
         async cerrarSesion() {
-            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-            window.location.href = '/login';
+            try { await fetch(u('/api/auth/logout'), { method: 'POST' }); } catch (e) {}
+            window.location.href = u('/login');
         },
 
         setHotel(valor) {
@@ -700,7 +701,8 @@ function homeAdmin() {
                 'habitacion_rechazada': 'x-circle',
                 'fin_turno_pendientes': 'clock',
                 'trabajador_disponible': 'user-check',
-                'ticket_nuevo': 'wrench'
+                'ticket_nuevo': 'wrench',
+                'habitacion_saltada': 'skip-forward'
             };
             return map[tipo] || 'bell';
         },
@@ -712,7 +714,8 @@ function homeAdmin() {
                 'habitacion_rechazada': 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
                 'fin_turno_pendientes': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
+                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
+                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -755,12 +758,12 @@ function homeAdmin() {
 
         async accionAlerta(al, accion) {
             if (accion === 'ir_asignaciones') {
-                window.location.href = '/asignaciones';
+                window.location.href = u('/asignaciones');
                 return;
             }
             if (accion === 'ir_habitacion') {
                 var habId = al.contexto && al.contexto.habitacion_id;
-                if (habId) window.location.href = '/habitaciones/' + habId;
+                if (habId) window.location.href = u('/habitaciones/' + habId);
                 return;
             }
             try {

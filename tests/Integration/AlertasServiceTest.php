@@ -131,4 +131,51 @@ final class AlertasServiceTest extends TestCase
         $count = Database::fetchOne('SELECT COUNT(*) AS n FROM alertas_activas')['n'];
         $this->assertSame(0, (int) $count);
     }
+
+    /**
+     * Regresión: con dos alertas del MISMO tipo activas a la vez (dedupe distinto),
+     * resolver una debe cerrar SU fila de bitácora, no la más reciente del tipo. Antes,
+     * el UPDATE matcheaba por MAX(levantada_at) del tipo y cerraba la bitácora equivocada.
+     */
+    public function testResolverPorDedupeCierraLaBitacoraCorrectaConVariasActivas(): void
+    {
+        // Se levanta primero la 101 (menos reciente) y luego la 205.
+        $a101 = $this->svc->levantar(
+            AlertaActiva::TIPO_HABITACION_SALTADA,
+            'Hab 101 saltada',
+            'Motivo A',
+            ['habitacion_id' => 101],
+            null,
+            'saltada:101'
+        );
+        $a205 = $this->svc->levantar(
+            AlertaActiva::TIPO_HABITACION_SALTADA,
+            'Hab 205 saltada',
+            'Motivo B',
+            ['habitacion_id' => 205],
+            null,
+            'saltada:205'
+        );
+
+        // Se resuelve la 101 (la MENOS reciente de las dos activas).
+        $this->svc->resolverPorDedupe(AlertaActiva::TIPO_HABITACION_SALTADA, 'saltada:101');
+
+        // La bitácora de la 101 (resuelta) queda cerrada...
+        $bit101 = Database::fetchOne(
+            'SELECT resuelta_at FROM bitacora_alertas WHERE contexto_json LIKE ?',
+            ['%"_dedupe":"saltada:101"%']
+        );
+        $this->assertNotNull($bit101['resuelta_at'], 'La bitácora de la habitación resuelta debe cerrarse');
+
+        // ...y la de la 205 (que sigue saltada) permanece ABIERTA.
+        $bit205 = Database::fetchOne(
+            'SELECT resuelta_at FROM bitacora_alertas WHERE contexto_json LIKE ?',
+            ['%"_dedupe":"saltada:205"%']
+        );
+        $this->assertNull($bit205['resuelta_at'], 'La bitácora de la habitación aún saltada NO debe cerrarse');
+
+        // Y en las activas: la 101 se borró, la 205 sigue viva.
+        $this->assertNull($this->svc->obtener($a101->id));
+        $this->assertNotNull($this->svc->obtener($a205->id));
+    }
 }

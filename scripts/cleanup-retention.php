@@ -71,12 +71,12 @@ function ejecutarBorrado(
     bool $dryRun,
 ): ResultadoRetencion {
     if ($dryRun) {
-        $sqlCount = "SELECT COUNT(*) FROM {$tabla} WHERE {$whereSql}";
+        $sqlCount = "SELECT COUNT(*) FROM #__{$tabla} WHERE {$whereSql}";
         $cuenta = (int) Database::fetchColumn($sqlCount, $params);
         return new ResultadoRetencion($tabla, $descripcion, $cuenta);
     }
 
-    $sqlDelete = "DELETE FROM {$tabla} WHERE {$whereSql}";
+    $sqlDelete = "DELETE FROM #__{$tabla} WHERE {$whereSql}";
     $borradas = Database::execute($sqlDelete, $params);
     return new ResultadoRetencion($tabla, $descripcion, $borradas);
 }
@@ -194,7 +194,7 @@ function limpiarCopilotMensajesHuerfanos(bool $dryRun): ResultadoRetencion
     return ejecutarBorrado(
         'copilot_mensajes',
         'huérfanos (sin conversación)',
-        'conversacion_id NOT IN (SELECT id FROM copilot_conversaciones)',
+        'conversacion_id NOT IN (SELECT id FROM #__copilot_conversaciones)',
         [],
         $dryRun,
     );

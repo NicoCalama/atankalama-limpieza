@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Controllers;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Services\AuthException;
 use Atankalama\Limpieza\Services\AuthService;
 
@@ -34,7 +35,7 @@ final class AuthController
         $usuario = $resultado['usuario'];
         $cookieOpts = [
             'expires' => time() + Config::getInt('SESSION_LIFETIME_MINUTES', 480) * 60,
-            'path' => '/',
+            'path' => Url::base() ?: '/',
             'httponly' => true,
             'samesite' => 'Strict',
         ];
@@ -46,8 +47,9 @@ final class AuthController
             'usuario' => $usuario->toArrayPublico(),
             'permisos' => $usuario->permisos,
             'requiere_cambio_pwd' => $usuario->requiereCambioPwd,
-            'home_target' => $resultado['home_target'],
-        ])->conCookie('session', $resultado['token'], $cookieOpts);
+            // home_target viaja al navegador para navegar directo: va con prefijo.
+            'home_target' => Url::a($resultado['home_target']),
+        ])->conCookie(AuthService::SESSION_COOKIE, $resultado['token'], $cookieOpts);
     }
 
     public function logout(Request $request): Response
@@ -57,7 +59,7 @@ final class AuthController
             $this->auth->logout($token, $request->usuario?->id, $request->ip);
         }
         return Response::ok(['mensaje' => 'Sesión cerrada.'])
-            ->conCookie('session', '', ['expires' => time() - 3600, 'path' => '/']);
+            ->conCookie(AuthService::SESSION_COOKIE, '', ['expires' => time() - 3600, 'path' => Url::base() ?: '/']);
     }
 
     public function yo(Request $request): Response
@@ -69,7 +71,7 @@ final class AuthController
         return Response::ok([
             'usuario' => $usuario->toArrayPublico(),
             'permisos' => $usuario->permisos,
-            'home_target' => $this->auth->calcularHomeTarget($usuario),
+            'home_target' => Url::a($this->auth->calcularHomeTarget($usuario)),
         ]);
     }
 

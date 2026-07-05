@@ -151,7 +151,7 @@ final class CopilotServiceTest extends TestCase
             {
             }
 
-            public function request(string $metodo, string $url, array $headers = [], ?array $cuerpoJson = null, int $timeoutSegundos = 10): HttpResponse
+            public function request(string $metodo, string $url, array $headers = [], ?array $cuerpoJson = null, int $timeoutSegundos = 10, string $contentType = 'application/json'): HttpResponse
             {
                 return new HttpResponse(200, $this->body);
             }

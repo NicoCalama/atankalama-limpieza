@@ -10,6 +10,7 @@ return [
         'permisos' => [
             'habitaciones.ver_asignadas_propias',
             'habitaciones.marcar_completada',
+            'habitaciones.saltar',
             'tickets.crear',
             'copilot.usar_nivel_1_consultas',
             'copilot.usar_nivel_2_acciones',
@@ -31,6 +32,9 @@ return [
             'asignaciones.asignar_manual',
             'asignaciones.auto_asignar',
             'asignaciones.reordenar_cola_trabajador',
+            'espacios.ver',
+            'espacios.crear_editar',
+            'espacios.pedir_limpieza',
             'auditoria.ver_bandeja',
             'auditoria.aprobar',
             'auditoria.aprobar_con_observacion',

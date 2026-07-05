@@ -7,21 +7,35 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v5';
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
+// La app puede vivir bajo un subpath (prod: /limpieza). El scope del SW es la
+// fuente del prefijo ('/' en dev → '', '/limpieza/' en prod → '/limpieza'),
+// así el mismo sw.js funciona en ambos sin build step.
+const BASE = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+
 const STATIC_ASSETS = [
-    '/assets/js/app.js',
-    '/assets/css/custom.css',
-    '/offline.html',
+    BASE + '/assets/js/app.js',
+    BASE + '/assets/css/custom.css',
+    BASE + '/offline.html',
 ];
 
 // ─── Install: pre-cachear assets estáticos ────────────────────────────────
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_STATIC).then(function(cache) {
-            return cache.addAll(STATIC_ASSETS);
+            // cache: 'reload' evita que el navegador sirva una copia rancia desde su
+            // HTTP cache al precachear; el SW guarda siempre la última versión real
+            // (sin esto, un app.js viejo en el HTTP cache se quedaría pegado).
+            return Promise.all(STATIC_ASSETS.map(function(url) {
+                return fetch(new Request(url, { cache: 'reload' })).then(function(response) {
+                    if (response && response.ok) {
+                        return cache.put(url, response);
+                    }
+                });
+            }));
         }).then(function() {
             return self.skipWaiting();
         })
@@ -58,10 +72,10 @@ self.addEventListener('fetch', function(event) {
     if (url.origin !== self.location.origin) return;
 
     // API: siempre red, nunca cache
-    if (url.pathname.startsWith('/api/')) return;
+    if (url.pathname.startsWith(BASE + '/api/')) return;
 
     // Assets estáticos: Cache First
-    if (url.pathname.startsWith('/assets/')) {
+    if (url.pathname.startsWith(BASE + '/assets/')) {
         event.respondWith(cacheFirst(event.request, CACHE_STATIC));
         return;
     }
@@ -70,17 +84,30 @@ self.addEventListener('fetch', function(event) {
     event.respondWith(networkFirstWithOfflineFallback(event.request));
 });
 
-// ─── Estrategia: Cache First ──────────────────────────────────────────────
+// ─── Estrategia: Cache First + revalidación en background ─────────────────
+// (stale-while-revalidate): sirve el cache al instante pero dispara un fetch en
+// paralelo que refresca el cache para la PRÓXIMA carga. Así un asset que cambia
+// (p. ej. app.js tras un deploy) deja de quedar congelado indefinidamente; se
+// actualiza solo en la siguiente visita sin necesidad de subir CACHE_VERSION.
 async function cacheFirst(request, cacheName) {
     var cached = await caches.match(request);
+
+    var fetchPromise = fetch(new Request(request.url, { cache: 'reload' })).then(function(response) {
+        if (response && response.ok) {
+            caches.open(cacheName).then(function(cache) {
+                cache.put(request, response.clone());
+            });
+        }
+        return response;
+    }).catch(function() {
+        return null;
+    });
+
+    // Si hay copia cacheada, respondé con ella ya (la revalidación sigue en background).
     if (cached) return cached;
 
-    var response = await fetch(request);
-    if (response.ok) {
-        var cache = await caches.open(cacheName);
-        cache.put(request, response.clone());
-    }
-    return response;
+    // Primera vez (cache miss): esperá la red.
+    return fetchPromise;
 }
 
 // ─── Estrategia: Network First con fallback ───────────────────────────────
@@ -96,7 +123,7 @@ async function networkFirstWithOfflineFallback(request) {
         var cached = await caches.match(request);
         if (cached) return cached;
 
-        var offline = await caches.match('/offline.html');
+        var offline = await caches.match(BASE + '/offline.html');
         return offline || new Response('Sin conexión', { status: 503 });
     }
 }
@@ -108,10 +135,11 @@ self.addEventListener('push', function(event) {
     var data = event.data.json();
     var options = {
         body: data.body || '',
-        icon: '/assets/img/icon-192.png',
-        badge: '/assets/img/icon-192.png',
+        icon: BASE + '/assets/img/icon-192.png',
+        badge: BASE + '/assets/img/icon-192.png',
         vibrate: [200, 100, 200],
-        data: { url: data.url || '/home' },
+        // data.url llega del backend ya con prefijo (Url::a); el default lo arma el SW.
+        data: { url: data.url || (BASE + '/home') },
         actions: data.actions || [],
         requireInteraction: data.requireInteraction || false,
     };
@@ -123,7 +151,7 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
-    var targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/home';
+    var targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : (BASE + '/home');
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {

@@ -20,12 +20,15 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto">
             <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Habitaciones</h1>
-            <button @click="cargar()" :disabled="cargando"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-                    aria-label="Refrescar">
-                <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                   :class="cargando ? 'animate-spin' : ''"></i>
-            </button>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button @click="cargar()" :disabled="cargando"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                        aria-label="Refrescar">
+                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                       :class="cargando ? 'animate-spin' : ''"></i>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 
@@ -119,16 +122,25 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
         <template x-if="habitaciones.length > 0">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in habitaciones" :key="hab.id">
-                    <a :href="'/habitaciones/' + hab.id"
-                       class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:border-blue-400 dark:hover:border-blue-500 transition shadow-sm flex flex-col gap-2"
-                       :class="estadoAuditado(hab.estado) ? 'opacity-60' : ''">
+                    <a :href="u('/habitaciones/' + hab.id)"
+                       class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 p-4 hover:shadow-md transition shadow-sm flex flex-col gap-2"
+                       :class="[colorHotel(hab.hotel_codigo), estadoAuditado(hab.estado) ? 'opacity-60' : '']">
                         <div class="flex items-start justify-between">
                             <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                            <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
+                            <span class="text-xs uppercase tracking-wide font-semibold"
+                                  :class="etiquetaHotel(hab.hotel_codigo)"
                                   x-text="hotelCorto(hab.hotel_codigo)"></span>
                         </div>
                         <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || hab.tipo"></p>
-                        <div class="mt-auto pt-1" x-html="badgeEstado(hab.estado)"></div>
+                        <div class="mt-auto pt-1 flex flex-wrap gap-1 items-center">
+                            <span x-html="badgeEstado(hab.estado)"></span>
+                            <template x-if="hab.cb_frontdesk_status && hab.cb_frontdesk_status !== 'unused'">
+                                <span x-html="badgeOcupacion(hab.cb_frontdesk_status)"></span>
+                            </template>
+                            <template x-if="hab.toca_sabanas">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sábanas hoy</span>
+                            </template>
+                        </div>
                     </a>
                 </template>
             </div>
@@ -191,7 +203,9 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
                                 numero: a.numero,
                                 estado: a.estado,
                                 hotel_codigo: a.hotel_codigo,
-                                tipo_nombre: a.tipo_nombre
+                                tipo_nombre: a.tipo_nombre,
+                                cb_frontdesk_status: a.cb_frontdesk_status,
+                                toca_sabanas: a.toca_sabanas
                             };
                         });
                     }
@@ -224,21 +238,54 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
             return codigo || '';
         },
 
+        // Acento por hotel para distinguir las tarjetas de un vistazo (borde izquierdo + tinte).
+        // DEFAULT APLICADO (aprobado por Nicolás): teal = Atankalama (1_sur), violeta = Atankalama INN.
+        // Elegidos para NO chocar con los colores de estado (amarillo/azul/índigo/verde/rojo).
+        colorHotel(codigo) {
+            if (codigo === '1_sur') return 'bg-teal-50 dark:bg-teal-900/15 border-l-teal-500 dark:border-l-teal-400';
+            if (codigo === 'inn') return 'bg-violet-50 dark:bg-violet-900/15 border-l-violet-500 dark:border-l-violet-400';
+            return 'bg-white dark:bg-gray-800 border-l-gray-200 dark:border-l-gray-700';
+        },
+
+        // Color del texto de la etiqueta del hotel, a juego con el acento de la tarjeta.
+        etiquetaHotel(codigo) {
+            if (codigo === '1_sur') return 'text-teal-700 dark:text-teal-300';
+            if (codigo === 'inn') return 'text-violet-700 dark:text-violet-300';
+            return 'text-gray-500 dark:text-gray-400';
+        },
+
         estadoAuditado(estado) {
             return estado === 'aprobada' || estado === 'aprobada_con_observacion' || estado === 'rechazada';
         },
 
         badgeEstado(estado) {
+            // 'aprobada_con_observacion' se muestra como "Aprobada" a secas al trabajador
+            // (sin habitaciones.ver_todas): no debe distinguirla de una aprobada normal.
+            // Solo supervisora/auditor ven "c/obs.". Ver CLAUDE.md y docs/auditoria.md.
+            var textoConObs = this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada';
             var configs = {
                 'sucia': { texto: 'Pendiente', clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
                 'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
                 'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200' },
                 'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'aprobada_con_observacion': { texto: 'Aprobada c/obs.', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+                'aprobada_con_observacion': { texto: textoConObs, clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
                 'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' }
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';
+        },
+
+        // Badge de ocupación (frontdeskStatus de Cloudbeds). Ver docs/ocupacion-y-sabanas.md
+        badgeOcupacion(fs) {
+            var map = {
+                'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
+                'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
+                'turnover': { t: 'Día/noche', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
+                'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
+            };
+            var c = map[fs];
+            if (!c) return '';
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
         }
     };
 }

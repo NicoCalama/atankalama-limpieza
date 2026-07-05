@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Middleware;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Services\AuthService;
 
 final class AuthCheck implements Middleware
@@ -17,7 +18,7 @@ final class AuthCheck implements Middleware
 
     public function handle(Request $request, callable $next): Response
     {
-        $token = $request->cookies['session'] ?? null;
+        $token = $request->cookies[AuthService::SESSION_COOKIE] ?? null;
         if ($token === null || $token === '') {
             return Response::error('NO_AUTENTICADO', 'Debes iniciar sesión.', 401);
         }
@@ -25,7 +26,7 @@ final class AuthCheck implements Middleware
         $usuario = $this->auth->validarSesion($token);
         if ($usuario === null) {
             return Response::error('SESION_EXPIRADA', 'Tu sesión expiró. Inicia sesión nuevamente.', 401)
-                ->conCookie('session', '', ['expires' => time() - 3600, 'path' => '/']);
+                ->conCookie(AuthService::SESSION_COOKIE, '', ['expires' => time() - 3600, 'path' => Url::base() ?: '/']);
         }
 
         if (!$usuario->activo) {

@@ -405,6 +405,13 @@ Elementos:
 >   desde su panel (Asignaciones). Un **modo de orden automático** de la cola queda
 >   como trabajo futuro — ver `docs/backlog-futuro.md`.
 >
+> **Blindaje de backend (05/07/2026):** para que el trabajador tampoco pueda
+> espiar ni elegir la cola por otras vías (pestaña "Habitaciones", API directa),
+> `GET /api/usuarios/{id}/cola` devuelve **solo la habitación actual** a quien no
+> tiene `habitaciones.ver_todas`, y `POST /api/habitaciones/{id}/iniciar` rechaza
+> con **409 `NO_ES_TU_HABITACION_ACTUAL`** si intenta adelantarse a otra que no es
+> la actual. Detalle en `docs/backlog-futuro.md` (gap "e", Resolución).
+>
 > El texto original se conserva abajo solo como referencia histórica.
 
 ### 7.1 Propósito (histórico)

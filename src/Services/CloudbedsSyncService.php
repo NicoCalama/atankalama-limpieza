@@ -27,6 +27,47 @@ final class CloudbedsSyncService
     ) {
     }
 
+    /** Default de cadencia del sync automático (minutos) si la config no existe. */
+    private const SYNC_INTERVALO_DEFAULT = 30;
+
+    /**
+     * Cadencia configurada del sync automático, en minutos. Lee cloudbeds_config
+     * ('sync_intervalo_minutos'); si la clave no existe o no es numérica, usa el default (30).
+     * Editable vía PUT /api/cloudbeds/config. Ver docs/cloudbeds.md §4.1.
+     */
+    public function intervaloSyncMinutos(): int
+    {
+        $fila = Database::fetchOne(
+            "SELECT valor FROM #__cloudbeds_config WHERE clave = 'sync_intervalo_minutos'"
+        );
+        $valor = $fila !== null && is_numeric($fila['valor']) ? (int) $fila['valor'] : self::SYNC_INTERVALO_DEFAULT;
+        return max(1, $valor);
+    }
+
+    /**
+     * ¿Le toca correr al sync automático? El cron invoca el script seguido (p. ej. cada 10 min) y
+     * este throttle decide según la última sync ENTRANTE que sirvió (exito/parcial): si pasaron
+     * menos de N minutos desde que se inició, se omite. Las syncs con error NO throttlean (así el
+     * siguiente tick del cron reintenta). Permite cambiar la cadencia desde Ajustes sin tocar crontab.
+     */
+    public function debeCorrerSyncAutomatica(?int $intervaloMinutos = null): bool
+    {
+        $intervalo = $intervaloMinutos ?? $this->intervaloSyncMinutos();
+        $ultima = Database::fetchOne(
+            "SELECT iniciada_at FROM #__cloudbeds_sync_historial
+              WHERE tipo IN ('auto_cron', 'manual') AND resultado IN ('exito', 'parcial')
+              ORDER BY id DESC LIMIT 1"
+        );
+        if ($ultima === null) {
+            return true;
+        }
+        $ts = strtotime((string) $ultima['iniciada_at']);
+        if ($ts === false) {
+            return true;
+        }
+        return (time() - $ts) >= $intervalo * 60;
+    }
+
     /**
      * Sincroniza los estados de habitaciones desde Cloudbeds.
      *
@@ -55,7 +96,15 @@ final class CloudbedsSyncService
 
             try {
                 $estados = $this->client->obtenerEstadosHabitaciones($hotel->cloudbedsPropertyId);
-                $rooms = $estados['data'] ?? $estados['rooms'] ?? $estados;
+                // Sin success=true la lectura no sirvió (endpoint 404, credencial, error de
+                // Cloudbeds). Contarlo como error en vez de reportar "éxito / 0 registros"
+                // en silencio — que fue exactamente lo que ocultó el endpoint equivocado.
+                if (($estados['success'] ?? null) !== true) {
+                    $errores++;
+                    $detalle[] = ['hotel' => $hotel->codigo, 'error' => 'respuesta de getHousekeepingStatus sin success=true'];
+                    continue;
+                }
+                $rooms = $estados['data'] ?? $estados['rooms'] ?? [];
                 if (!is_array($rooms)) {
                     continue;
                 }
@@ -74,6 +123,17 @@ final class CloudbedsSyncService
                     if ($hab === null) {
                         continue;
                     }
+
+                    // Guardar la ocupación (frontdeskStatus + arrival/departure) — contexto para
+                    // priorizar y para la regla de sábanas. NO cambia el 'estado' de limpieza.
+                    // Ver docs/ocupacion-y-sabanas.md
+                    $this->habitaciones->actualizarOcupacionCloudbeds(
+                        $hab->id,
+                        self::normalizarFrontdesk($room['frontdeskStatus'] ?? null),
+                        array_key_exists('roomOccupied', $room) ? (bool) $room['roomOccupied'] : null,
+                        self::normalizarFecha($room['arrivalDate'] ?? null),
+                        self::normalizarFecha($room['departureDate'] ?? null),
+                    );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
                         $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
@@ -116,23 +176,32 @@ final class CloudbedsSyncService
             return false;
         }
 
+        // Cloudbeds espera el valor en minúscula ('clean'/'dirty'), igual que lo devuelve
+        // getHousekeepingStatus. 'Clean' (mayúscula) es rechazado con "roomCondition has not a valid value".
         $payload = [
             'propertyID' => $hotel->cloudbedsPropertyId,
             'roomID' => $habitacion->cloudbedsRoomId,
-            'roomCondition' => 'Clean',
+            'roomCondition' => 'clean',
         ];
 
         Database::execute(
-            "INSERT INTO cloudbeds_sync_historial (tipo, hotel_id, payload_request) VALUES ('escritura_estado', ?, ?)",
+            "INSERT INTO #__cloudbeds_sync_historial (tipo, hotel_id, payload_request) VALUES ('escritura_estado', ?, ?)",
             [$hotel->id, json_encode(LogSanitizer::sanitize($payload), JSON_UNESCAPED_UNICODE)]
         );
         $histId = Database::lastInsertId();
 
         try {
-            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'Clean');
-            $exito = $resp->esExito();
+            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'clean');
+            // Cloudbeds responde HTTP 200 incluso cuando rechaza la escritura (p.ej.
+            // {"success": false, "message": "..."}). No basta con esExito(): hay que exigir
+            // success !== false en el cuerpo, si no una escritura fallida se registraría como éxito.
+            $cuerpoResp = $resp->json();
+            $mensajeCloudbeds = isset($cuerpoResp['message']) && is_string($cuerpoResp['message'])
+                ? $cuerpoResp['message']
+                : null;
+            $exito = $resp->esExito() && ($cuerpoResp['success'] ?? false) !== false;
             Database::execute(
-                "UPDATE cloudbeds_sync_historial
+                "UPDATE #__cloudbeds_sync_historial
                     SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                         resultado = ?,
                         habitaciones_sincronizadas = ?,
@@ -145,7 +214,7 @@ final class CloudbedsSyncService
                     $exito ? 1 : 0,
                     $exito ? 0 : 1,
                     json_encode(['status' => $resp->status, 'cuerpo' => substr($resp->cuerpo, 0, 500)], JSON_UNESCAPED_UNICODE),
-                    $exito ? null : ('status=' . $resp->status . ' errorRed=' . ($resp->errorRed ?? '-')),
+                    $exito ? null : ('status=' . $resp->status . ' success=false' . ($mensajeCloudbeds !== null ? ' msg=' . $mensajeCloudbeds : '') . ($resp->errorRed !== null ? ' errorRed=' . $resp->errorRed : '')),
                     $histId,
                 ]
             );
@@ -154,13 +223,13 @@ final class CloudbedsSyncService
                 $this->crearAlertaP0(
                     'cloudbeds_sync_failed',
                     "Error escribiendo habitación {$habitacion->numero} a Cloudbeds",
-                    "Status: {$resp->status}. Revisar logs."
+                    'Status: ' . $resp->status . ($mensajeCloudbeds !== null ? ". Cloudbeds: {$mensajeCloudbeds}" : '') . '. Revisar logs.'
                 );
             }
             return $exito;
         } catch (CloudbedsException $e) {
             Database::execute(
-                "UPDATE cloudbeds_sync_historial
+                "UPDATE #__cloudbeds_sync_historial
                     SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                         resultado = 'error',
                         errores_count = 1,
@@ -171,7 +240,7 @@ final class CloudbedsSyncService
             $this->crearAlertaP0(
                 'cloudbeds_sync_failed',
                 'Credencial Cloudbeds inválida',
-                'Revisar CLOUDBEDS_API_KEY en Ajustes / .env.'
+                'Revisar las credenciales Cloudbeds por propiedad (.env) en Ajustes.'
             );
             return false;
         }
@@ -181,16 +250,16 @@ final class CloudbedsSyncService
     public function estadoActual(): ?array
     {
         return Database::fetchOne(
-            'SELECT * FROM cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT 1'
+            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT 1'
         );
     }
 
     /** @return array<int, array<string, mixed>> */
     public function historial(int $limite = 50): array
     {
+        // LIMIT inline (entero ya clampeado): los prepares nativos de MySQL rechazan 'LIMIT ?'.
         return Database::fetchAll(
-            'SELECT * FROM cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ?',
-            [max(1, min(200, $limite))]
+            'SELECT * FROM #__cloudbeds_sync_historial ORDER BY iniciada_at DESC LIMIT ' . max(1, min(200, $limite))
         );
     }
 
@@ -201,7 +270,7 @@ final class CloudbedsSyncService
      */
     public function obtenerHistorial(int $syncId): ?array
     {
-        return Database::fetchOne('SELECT * FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        return Database::fetchOne('SELECT * FROM #__cloudbeds_sync_historial WHERE id = ?', [$syncId]);
     }
 
     /**
@@ -212,7 +281,7 @@ final class CloudbedsSyncService
     public function listarConfig(): array
     {
         return Database::fetchAll(
-            'SELECT clave, valor, descripcion, updated_at FROM cloudbeds_config ORDER BY clave'
+            'SELECT clave, valor, descripcion, updated_at FROM #__cloudbeds_config ORDER BY clave'
         );
     }
 
@@ -229,17 +298,34 @@ final class CloudbedsSyncService
         Database::transaction(function () use ($cambios, $actorId): void {
             foreach ($cambios as $clave => $valor) {
                 Database::execute(
-                    "UPDATE cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
+                    "UPDATE #__cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
                     [(string) $valor, $actorId, (string) $clave]
                 );
             }
         });
     }
 
+    /** Estados de ocupación válidos de Cloudbeds (frontdeskStatus). */
+    private const FRONTDESK_VALIDOS = ['check-in', 'check-out', 'stayover', 'turnover', 'unused'];
+
+    /** Normaliza frontdeskStatus de Cloudbeds a nuestro enum, o null si viene algo desconocido. */
+    private static function normalizarFrontdesk(mixed $valor): ?string
+    {
+        $v = strtolower(trim((string) $valor));
+        return in_array($v, self::FRONTDESK_VALIDOS, true) ? $v : null;
+    }
+
+    /** Normaliza una fecha de Cloudbeds: '-' o '' → null. */
+    private static function normalizarFecha(mixed $valor): ?string
+    {
+        $v = trim((string) $valor);
+        return ($v === '' || $v === '-') ? null : $v;
+    }
+
     private function crearHistorial(string $tipo, ?int $hotelId, ?int $disparadaPor): int
     {
         Database::execute(
-            'INSERT INTO cloudbeds_sync_historial (tipo, hotel_id, disparada_por) VALUES (?, ?, ?)',
+            'INSERT INTO #__cloudbeds_sync_historial (tipo, hotel_id, disparada_por) VALUES (?, ?, ?)',
             [$tipo, $hotelId, $disparadaPor]
         );
         return Database::lastInsertId();
@@ -249,7 +335,7 @@ final class CloudbedsSyncService
     private function cerrarHistorial(int $id, string $resultado, int $actualizadas, int $errores, array $detalle): void
     {
         Database::execute(
-            "UPDATE cloudbeds_sync_historial
+            "UPDATE #__cloudbeds_sync_historial
                 SET finalizada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
                     resultado = ?,
                     habitaciones_sincronizadas = ?,

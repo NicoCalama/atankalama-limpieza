@@ -10,8 +10,9 @@ final class CurlTransport implements HttpTransport
         string $metodo,
         string $url,
         array $headers = [],
-        ?array $cuerpoJson = null,
+        ?array $cuerpo = null,
         int $timeoutSegundos = 10,
+        string $contentType = 'application/json',
     ): HttpResponse {
         $ch = curl_init();
 
@@ -28,9 +29,15 @@ final class CurlTransport implements HttpTransport
         foreach ($headers as $n => $v) {
             $headersArr[] = $n . ': ' . $v;
         }
-        if ($cuerpoJson !== null) {
-            $headersArr[] = 'Content-Type: application/json';
-            $opts[CURLOPT_POSTFIELDS] = json_encode($cuerpoJson, JSON_UNESCAPED_UNICODE) ?: '';
+        if ($cuerpo !== null) {
+            // Cloudbeds API v1.1 exige form-urlencoded en los POST; el resto (Claude API) usa JSON.
+            if ($contentType === 'application/x-www-form-urlencoded') {
+                $headersArr[] = 'Content-Type: application/x-www-form-urlencoded';
+                $opts[CURLOPT_POSTFIELDS] = http_build_query($cuerpo);
+            } else {
+                $headersArr[] = 'Content-Type: application/json';
+                $opts[CURLOPT_POSTFIELDS] = json_encode($cuerpo, JSON_UNESCAPED_UNICODE) ?: '';
+            }
         }
         $opts[CURLOPT_HTTPHEADER] = $headersArr;
 

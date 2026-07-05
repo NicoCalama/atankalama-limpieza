@@ -49,6 +49,22 @@ final class Config
         return in_array(strtolower((string) $value), ['true', '1', 'yes', 'on'], true);
     }
 
+    /**
+     * Sobrescribe un valor ya cargado. SOLO para tests (permite ejercitar
+     * comportamientos dependientes de config, p. ej. BASE_PATH). Exige que
+     * Config::load() haya corrido antes: si inicializara acá, un mal uso
+     * anularía la carga del .env en silencio.
+     *
+     * @internal
+     */
+    public static function sobrescribir(string $key, mixed $valor): void
+    {
+        if (self::$values === null) {
+            throw new \RuntimeException('Config no inicializado. Llama a Config::load() primero.');
+        }
+        self::$values[$key] = $valor;
+    }
+
     public static function require(string $key): string
     {
         $value = self::get($key);

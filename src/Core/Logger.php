@@ -39,7 +39,7 @@ final class Logger
 
         try {
             Database::execute(
-                'INSERT INTO logs_eventos (nivel, modulo, mensaje, contexto_json, usuario_id) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO #__logs_eventos (nivel, modulo, mensaje, contexto_json, usuario_id) VALUES (?, ?, ?, ?, ?)',
                 [$nivel, $modulo, $mensaje, $contextoJson, $usuarioId]
             );
         } catch (\Throwable $e) {
@@ -80,7 +80,7 @@ final class Logger
         $detallesJson = empty($sanitizado) ? null : json_encode($sanitizado, JSON_UNESCAPED_UNICODE);
 
         Database::execute(
-            'INSERT INTO audit_log (usuario_id, accion, entidad, entidad_id, detalles_json, origen, ip) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO #__audit_log (usuario_id, accion, entidad, entidad_id, detalles_json, origen, ip) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$usuarioId, $accion, $entidad, $entidadId, $detallesJson, $origen, $ip]
         );
     }

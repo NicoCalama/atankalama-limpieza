@@ -21,7 +21,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-3xl mx-auto gap-3">
-            <a href="/habitaciones"
+            <a href="<?= u('/habitaciones') ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -34,7 +34,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <span>Habitación</span>
                 </template>
             </h1>
-            <div class="w-11"></div>
+            <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
     </header>
 
@@ -141,7 +141,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
                             <p class="text-sm text-red-900 dark:text-red-200">Esta habitación fue rechazada en auditoría y necesita re-limpieza.</p>
                         </div>
-                        <a href="/asignaciones"
+                        <a href="<?= u('/asignaciones') ?>"
                            class="w-full min-h-[48px] inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-sm">
                             <i data-lucide="user-check" class="w-5 h-5"></i>
                             Reasignar a un trabajador
@@ -162,7 +162,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                    :class="puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default'">
                                 <input type="checkbox"
                                        :checked="item.marcado == 1"
-                                       :disabled="!puedeEditar || item._guardando"
+                                       :disabled="!puedeEditar || item._guardando || esHeredado(item)"
                                        @change="toggleItem(item, $event.target.checked)"
                                        class="mt-1 w-6 h-6 rounded border-2 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-60 flex-shrink-0">
                                 <div class="flex-1 min-w-0">
@@ -173,9 +173,19 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                         <template x-if="item.obligatorio == 0">
                                             <span class="text-xs text-gray-500 dark:text-gray-400">Opcional</span>
                                         </template>
+                                        <template x-if="item.es_cambio_sabanas == 1">
+                                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                                <i data-lucide="bed-double" class="w-3 h-3"></i> Sábanas
+                                            </span>
+                                        </template>
                                         <template x-if="item.desmarcado_por_auditor == 1">
                                             <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                                                 <i data-lucide="alert-triangle" class="w-3 h-3"></i> Auditor desmarcó
+                                            </span>
+                                        </template>
+                                        <template x-if="esHeredado(item)">
+                                            <span class="inline-flex items-center gap-1 text-xs text-teal-700 dark:text-teal-400">
+                                                <i data-lucide="check" class="w-3 h-3"></i> Ya limpiado
                                             </span>
                                         </template>
                                         <template x-if="item._error">
@@ -236,6 +246,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No puedo terminar ahora</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         Elige un motivo. Se avisará a tu supervisora y esta habitación volverá más adelante a tu lista.
+                        <span class="block mt-1 text-amber-700 dark:text-amber-400">Se perderá lo que ya marcaste aquí: al retomarla, empiezas de cero.</span>
                     </p>
                     <div class="space-y-2 mb-4">
                         <template x-for="m in motivosSaltar" :key="m">
@@ -407,8 +418,13 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        esHeredado(item) {
+            // Ítem ya limpiado por otro trabajador en un intento previo (re-limpieza): solo lectura.
+            return item.marcado == 1 && item.marcado_por && Number(item.marcado_por) !== Number(this.usuarioId);
+        },
+
         toggleItem(item, nuevoValor) {
-            if (!this.puedeEditar) return;
+            if (!this.puedeEditar || this.esHeredado(item)) return;
             // Optimistic update
             var previo = item.marcado == 1;
             item.marcado = nuevoValor ? 1 : 0;
@@ -555,7 +571,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
                 if (json && json.ok) {
                     this.mostrarConfirmar = false;
-                    window.location.href = '/home';
+                    window.location.href = u('/home');
                 } else {
                     alert((json && json.error && json.error.mensaje) || 'No pudimos completar.');
                 }
@@ -580,7 +596,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/saltar', { motivo: motivo });
                 if (json && json.ok) {
                     this.mostrarSaltar = false;
-                    window.location.href = '/home';
+                    window.location.href = u('/home');
                 } else {
                     alert((json && json.error && json.error.mensaje) || 'No pudimos registrar el salto.');
                 }

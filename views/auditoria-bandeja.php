@@ -17,12 +17,15 @@
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Auditoría</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400" x-text="subtitulo()"></p>
             </div>
-            <button @click="cargar()" :disabled="cargando"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    aria-label="Refrescar">
-                <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                   :class="cargando ? 'animate-spin' : ''"></i>
-            </button>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button @click="cargar()" :disabled="cargando"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                        aria-label="Refrescar">
+                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
+                       :class="cargando ? 'animate-spin' : ''"></i>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 
@@ -87,7 +90,7 @@
         <template x-if="pendientes.length > 0">
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in pendientes" :key="hab.id">
-                    <a :href="'/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || '')"
+                    <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
                        class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex flex-col gap-2">
                         <div class="flex items-start justify-between">
                             <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>

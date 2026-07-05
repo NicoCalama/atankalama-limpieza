@@ -6,6 +6,8 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Url;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Asignacion;
 use Atankalama\Limpieza\Models\Habitacion;
 
@@ -13,32 +15,50 @@ final class AsignacionService
 {
     public function __construct(
         private readonly NotificacionesService $notificaciones = new NotificacionesService(),
+        private readonly AlertasService $alertas = new AlertasService(),
+        private readonly SabanasService $sabanas = new SabanasService(),
     ) {
     }
 
-    public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null): Asignacion
+    public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): Asignacion
     {
         $this->validarFecha($fecha);
+        $franja = $this->validarFranja($franja);
         $this->desactivarAsignacionesActivas($habitacionId);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
-        // Si la habitación venía de auditoría como rechazada, al reasignarla
-        // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza.
-        // La auditoría histórica permanece inmutable (otra ejecución_checklist).
-        $estadoActual = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$habitacionId]);
-        if ($estadoActual !== null && $estadoActual['estado'] === 'rechazada') {
+        // Si la habitación estaba en un estado terminal (rechazada / aprobada*), al (re)asignarla
+        // vuelve a 'sucia' para que el nuevo trabajador pueda iniciar limpieza. Esta es la primitiva
+        // de "re-abrir on-demand": la usa la reasignación tras rechazo, el re-pedir limpieza de un
+        // espacio (área común) y —a futuro— la 2ª limpieza del día (feature F). La auditoría
+        // histórica permanece inmutable (queda ligada a su ejecución_checklist).
+        $estadoActual = Database::fetchOne('SELECT estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+        $estadoTerminal = $estadoActual !== null && in_array($estadoActual['estado'], [
+            Habitacion::ESTADO_RECHAZADA,
+            Habitacion::ESTADO_APROBADA,
+            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+        ], true);
+        if ($estadoTerminal) {
             Database::execute(
-                "UPDATE habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$habitacionId]
             );
-            Logger::info('habitaciones', 'rechazada→sucia por reasignación', [
-                'habitacion_id' => $habitacionId, 'asignado_por' => $asignadoPor,
+            Logger::info('habitaciones', 'terminal→sucia por (re)asignación', [
+                'habitacion_id' => $habitacionId, 'desde' => $estadoActual['estado'], 'asignado_por' => $asignadoPor,
             ]);
+            // Si venía de un rechazo, la alerta P1 ya cumplió su propósito (la supervisora reasignó):
+            // se resuelve para que no quede colgada tras re-limpiar y re-aprobar.
+            if ($estadoActual['estado'] === Habitacion::ESTADO_RECHAZADA) {
+                $this->alertas->resolverPorDedupe(
+                    AlertaActiva::TIPO_HABITACION_RECHAZADA,
+                    "habitacion:{$habitacionId}"
+                );
+            }
         }
 
         Database::execute(
-            'INSERT INTO asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, ?, ?, 1)',
-            [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha]
+            'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, franja, activa) VALUES (?, ?, ?, ?, ?, ?, 1)',
+            [$habitacionId, $usuarioId, $asignadoPor, $orden, $fecha, $franja]
         );
         $id = Database::lastInsertId();
 
@@ -49,14 +69,16 @@ final class AsignacionService
         $asignacion = $this->obtener($id)
             ?? throw new AsignacionException('ASIGNACION_NO_CREADA', 'Error al crear asignación.', 500);
 
-        $hab = Database::fetchOne('SELECT numero FROM habitaciones WHERE id = ?', [$habitacionId]);
+        $hab = Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId]);
         if ($hab !== null) {
             $this->notificaciones->crear(
                 $usuarioId,
                 'asignacion',
                 'Nueva habitación asignada',
                 "Se te asignó la habitación #{$hab['numero']} para hoy.",
-                "/habitaciones/{$habitacionId}"
+                // La URL viaja al navegador tal cual (el popup no re-prefija):
+                // se antepone BASE_PATH acá, igual que hace PushService::notificar.
+                Url::a("/habitaciones/{$habitacionId}")
             );
         }
 
@@ -69,11 +91,11 @@ final class AsignacionService
      * @param list<int> $habitacionIds
      * @return list<Asignacion>
      */
-    public function asignarMultiple(array $habitacionIds, int $usuarioId, string $fecha, ?int $asignadoPor = null): array
+    public function asignarMultiple(array $habitacionIds, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): array
     {
         $creadas = [];
         foreach ($habitacionIds as $habitacionId) {
-            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor);
+            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja);
         }
         return $creadas;
     }
@@ -90,12 +112,13 @@ final class AsignacionService
         $filtroHotel = ($hotelCodigo === 'ambos') ? null : $hotelCodigo;
 
         $sqlHab = 'SELECT h.id
-                     FROM habitaciones h
-                     JOIN hoteles ho ON ho.id = h.hotel_id
-                LEFT JOIN asignaciones a
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                LEFT JOIN #__asignaciones a
                        ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.estado = ?
                       AND h.activa = 1
+                      AND h.es_espacio_comun = 0
                       AND a.id IS NULL';
         $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA];
         if ($filtroHotel !== null) {
@@ -107,8 +130,8 @@ final class AsignacionService
 
         // Trabajadores con turno ese día. Filtrar por hotel_default compatible.
         $sqlUsr = 'SELECT u.id
-                     FROM usuarios u
-                     JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+                     FROM #__usuarios u
+                     JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                     WHERE ut.fecha = ?
                       AND u.activo = 1';
         $paramsUsr = [$fecha];
@@ -162,7 +185,7 @@ final class AsignacionService
     {
         foreach ($ordenHabitaciones as $idx => $habitacionId) {
             Database::execute(
-                'UPDATE asignaciones SET orden_cola = ? WHERE usuario_id = ? AND fecha = ? AND habitacion_id = ? AND activa = 1',
+                'UPDATE #__asignaciones SET orden_cola = ? WHERE usuario_id = ? AND fecha = ? AND habitacion_id = ? AND activa = 1',
                 [$idx + 1, $usuarioId, $fecha, $habitacionId]
             );
         }
@@ -179,7 +202,7 @@ final class AsignacionService
     {
         $siguiente = $this->siguienteOrdenCola($usuarioId, $fecha);
         Database::execute(
-            'UPDATE asignaciones SET orden_cola = ? WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            'UPDATE #__asignaciones SET orden_cola = ? WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
             [$siguiente, $habitacionId, $usuarioId, $fecha]
         );
         Logger::audit($actorId, 'asignacion.enviar_al_final', 'asignacion', $habitacionId, [
@@ -189,14 +212,14 @@ final class AsignacionService
 
     public function obtener(int $id): ?Asignacion
     {
-        $fila = Database::fetchOne('SELECT * FROM asignaciones WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__asignaciones WHERE id = ?', [$id]);
         return $fila === null ? null : Asignacion::desdeFila($fila);
     }
 
     public function obtenerActivaDeHabitacion(int $habitacionId): ?Asignacion
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM asignaciones WHERE habitacion_id = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
+            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
             [$habitacionId]
         );
         return $fila === null ? null : Asignacion::desdeFila($fila);
@@ -213,6 +236,7 @@ final class AsignacionService
      *     fecha: string,
      *     hotel: string,
      *     sin_asignar: array<int, array<string, mixed>>,
+     *     re_limpiar: array<int, array<string, mixed>>,
      *     trabajadores: list<array<string, mixed>>
      * }
      */
@@ -223,11 +247,12 @@ final class AsignacionService
         // Habitaciones sucias o rechazadas SIN asignación activa hoy
         // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
         $sqlSin = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                     FROM habitaciones h
-                     JOIN hoteles ho ON ho.id = h.hotel_id
-                     JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                LEFT JOIN asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                     WHERE h.activa = 1
+                      AND h.es_espacio_comun = 0
                       AND h.estado IN (\'sucia\', \'rechazada\')
                       AND a.id IS NULL';
         $paramsSin = [$fecha];
@@ -238,10 +263,33 @@ final class AsignacionService
         $sqlSin .= ' ORDER BY ho.codigo, h.numero';
         $sinAsignar = Database::fetchAll($sqlSin, $paramsSin);
 
+        // Piezas ya limpias HOY (aprobadas) sin asignación activa: candidatas a una 2ª limpieza en
+        // otra ventana (día/noche). Al pedirles limpieza, asignarManual las resetea a 'sucia' y la
+        // nueva limpieza arranca de cero. Ver docs/limpiezas-multiples-dia.md
+        // Piezas ASIGNADAS hoy que ya quedaron limpias: se scoping por la asignación activa de la
+        // fecha (su fecha es local, a diferencia de created_at que va en UTC). Una pieza recién
+        // limpiada conserva su asignación (completada) activa; al pedir otra limpieza, asignarManual
+        // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
+        $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                     FROM #__habitaciones h
+                     JOIN #__hoteles ho ON ho.id = h.hotel_id
+                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                    WHERE h.activa = 1
+                      AND h.es_espacio_comun = 0
+                      AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\')
+                      AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
+        $paramsRe = [$fecha];
+        if ($filtroHotel !== null) {
+            $sqlRe .= ' AND ho.codigo = ?';
+            $paramsRe[] = $filtroHotel;
+        }
+        $sqlRe .= ' ORDER BY ho.codigo, h.numero';
+        $reLimpiar = Database::fetchAll($sqlRe, $paramsRe);
+
         // Trabajadores con turno hoy (filtrados por hotel si aplica)
         $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
-                    FROM usuarios u
-                    JOIN usuarios_turnos ut ON ut.usuario_id = u.id
+                    FROM #__usuarios u
+                    JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                    WHERE ut.fecha = ?
                      AND u.activo = 1';
         $paramsTr = [$fecha];
@@ -299,6 +347,7 @@ final class AsignacionService
             'fecha' => $fecha,
             'hotel' => $hotel,
             'sin_asignar' => $sinAsignar,
+            're_limpiar' => $reLimpiar,
             'trabajadores' => $trabajadoresVista,
         ];
     }
@@ -310,22 +359,44 @@ final class AsignacionService
      */
     public function colaDelTrabajador(int $usuarioId, string $fecha): array
     {
-        return Database::fetchAll(
-            'SELECT a.*, h.numero, h.estado, ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre
-               FROM asignaciones a
-               JOIN habitaciones h ON h.id = a.habitacion_id
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+        $filas = Database::fetchAll(
+            'SELECT a.*, h.numero, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+                    ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
               ORDER BY a.orden_cola, a.id',
             [$usuarioId, $fecha]
         );
+        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
+    }
+
+    /**
+     * Habitación "actual" del trabajador en el flujo una-a-la-vez: la primera de
+     * la cola (orden_cola) que NO está completada — en_progreso, sucia o rechazada.
+     * Devuelve null si no queda ninguna pendiente (cola vacía o todo completado).
+     *
+     * Misma selección que HomeController::trabajador para mantener una sola fuente
+     * de verdad de "cuál es la habitación que le toca ahora".
+     *
+     * @return array<string, mixed>|null Fila de la cola (forma de colaDelTrabajador).
+     */
+    public function habitacionActualDeCola(int $usuarioId, string $fecha): ?array
+    {
+        foreach ($this->colaDelTrabajador($usuarioId, $fecha) as $item) {
+            if (in_array($item['estado'], ['en_progreso', 'sucia', 'rechazada'], true)) {
+                return $item;
+            }
+        }
+        return null;
     }
 
     public function esHabitacionAsignadaA(int $habitacionId, int $usuarioId, string $fecha): bool
     {
         $fila = Database::fetchOne(
-            'SELECT 1 FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            'SELECT 1 FROM #__asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
             [$habitacionId, $usuarioId, $fecha]
         );
         return $fila !== null;
@@ -333,13 +404,13 @@ final class AsignacionService
 
     private function desactivarAsignacionesActivas(int $habitacionId): void
     {
-        Database::execute('UPDATE asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
+        Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
     }
 
     private function siguienteOrdenCola(int $usuarioId, string $fecha): int
     {
         $fila = Database::fetchOne(
-            'SELECT COALESCE(MAX(orden_cola), 0) + 1 AS siguiente FROM asignaciones WHERE usuario_id = ? AND fecha = ? AND activa = 1',
+            'SELECT COALESCE(MAX(orden_cola), 0) + 1 AS siguiente FROM #__asignaciones WHERE usuario_id = ? AND fecha = ? AND activa = 1',
             [$usuarioId, $fecha]
         );
         return (int) ($fila['siguiente'] ?? 1);
@@ -350,5 +421,17 @@ final class AsignacionService
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
             throw new AsignacionException('FECHA_INVALIDA', 'La fecha debe tener formato YYYY-MM-DD.', 400);
         }
+    }
+
+    /** Normaliza y valida la franja (ventana de limpieza). NULL/'' = sin etiqueta. */
+    private function validarFranja(?string $franja): ?string
+    {
+        if ($franja === null || $franja === '') {
+            return null;
+        }
+        if (!in_array($franja, Asignacion::FRANJAS, true)) {
+            throw new AsignacionException('FRANJA_INVALIDA', 'La franja debe ser mañana, tarde o noche.', 400);
+        }
+        return $franja;
     }
 }

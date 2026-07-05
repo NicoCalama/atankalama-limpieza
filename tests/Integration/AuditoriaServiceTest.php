@@ -21,6 +21,7 @@ final class AuditoriaServiceTest extends TestCase
     private int $trabajadorId;
     private int $auditorId;
     private int $ejecucionId;
+    private int $itemFallidoId;
     private string $fecha = '2026-04-14';
 
     protected function setUp(): void
@@ -56,8 +57,65 @@ final class AuditoriaServiceTest extends TestCase
         }
         $checklist->completar($ejec->id, $this->trabajadorId);
         $this->ejecucionId = $ejec->id;
+        $this->itemFallidoId = (int) $items[0]['id']; // un obligatorio, para los rechazos (exigen ≥1 ítem fallido)
 
         $this->svc = new AuditoriaService();
+    }
+
+    public function testObtenerDeEjecucionDistingueRelimpiezaPendiente(): void
+    {
+        // Escenario del bug: se rechaza la ejecución #1, se reasigna y re-limpia (ejecución #2
+        // pendiente). obtenerDeEjecucion debe scoping por ejecución: null para la #2 (sin auditar),
+        // aunque obtenerDeHabitacion siga devolviendo el rechazo de la #1. Sin esto, la pantalla
+        // de auditoría ocultaría los botones de veredicto de la re-limpieza.
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó limpiar el baño a fondo.',
+            [$this->itemFallidoId]
+        );
+
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
+
+        $checklist = new ChecklistService();
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $trabajador2, $this->fecha);
+        foreach ($checklist->itemsDelTemplate($ejec2->templateId) as $item) {
+            if ((int) $item['obligatorio'] === 1) {
+                $checklist->marcarItem($ejec2->id, (int) $item['id'], true, $trabajador2);
+            }
+        }
+        $checklist->completar($ejec2->id, $trabajador2);
+
+        // La ejecución vieja tiene su rechazo; la nueva (pendiente) no tiene auditoría.
+        $this->assertSame('rechazado', $this->svc->obtenerDeEjecucion($this->ejecucionId)?->veredicto);
+        $this->assertNull($this->svc->obtenerDeEjecucion($ejec2->id));
+        // obtenerDeHabitacion sí devolvería el rechazo viejo (el comportamiento que causaba el bug).
+        $this->assertSame('rechazado', $this->svc->obtenerDeHabitacion($this->habitacionId)?->veredicto);
+    }
+
+    public function testAlertaDeRechazoSeResuelveAlReasignar(): void
+    {
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó limpiar el baño a fondo.',
+            [$this->itemFallidoId]
+        );
+        // El rechazo levanta la alerta P1.
+        $this->assertNotNull(
+            Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_rechazada'")
+        );
+
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
+
+        // Al reasignar (rechazada→sucia) la alerta se resuelve y ya no queda activa.
+        $this->assertNull(
+            Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_rechazada'")
+        );
     }
 
     public function testAprobadoCambiaEstadoYMarcaEjecucionAuditada(): void
@@ -128,7 +186,8 @@ final class AuditoriaServiceTest extends TestCase
             $this->habitacionId,
             $this->auditorId,
             Auditoria::VEREDICTO_RECHAZADO,
-            'Baño sin limpiar. Requiere re-limpieza.'
+            'Baño sin limpiar. Requiere re-limpieza.',
+            [$this->itemFallidoId]
         );
 
         $hab = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$this->habitacionId]);
@@ -139,6 +198,102 @@ final class AuditoriaServiceTest extends TestCase
         );
         $this->assertNotNull($alerta);
         $this->assertSame(1, (int) $alerta['prioridad']);
+    }
+
+    public function testRechazoSinItemsFallidosLanza(): void
+    {
+        try {
+            $this->svc->emitirVeredicto(
+                $this->habitacionId,
+                $this->auditorId,
+                Auditoria::VEREDICTO_RECHAZADO,
+                'Comentario de rechazo válido pero sin ítems.'
+            );
+            $this->fail('Debía exigir al menos un ítem fallido');
+        } catch (AuditoriaException $e) {
+            $this->assertSame('ITEMS_FALLIDOS_REQUERIDOS', $e->codigo);
+            $this->assertSame(400, $e->httpStatus);
+        }
+    }
+
+    public function testRechazoDesmarcaLosItemsFallidos(): void
+    {
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltó el baño a fondo, rehacer.',
+            [$this->itemFallidoId]
+        );
+
+        // El ítem fallido queda desmarcado pero conserva a su autor (cuenta como intento
+        // fallido en el denominador de créditos de quien lo marcó mal).
+        $fila = Database::fetchOne(
+            'SELECT marcado, desmarcado_por_auditor, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            [$this->ejecucionId, $this->itemFallidoId]
+        );
+        $this->assertSame(0, (int) $fila['marcado']);
+        $this->assertSame(1, (int) $fila['desmarcado_por_auditor']);
+        $this->assertSame($this->trabajadorId, (int) $fila['marcado_por']);
+
+        // Se guarda el JSON de ítems desmarcados en la auditoría.
+        $json = Database::fetchOne(
+            'SELECT items_desmarcados_json FROM auditorias WHERE ejecucion_id = ?',
+            [$this->ejecucionId]
+        );
+        $this->assertStringContainsString((string) $this->itemFallidoId, (string) $json['items_desmarcados_json']);
+    }
+
+    public function testRelimpiezaHeredaItemsBuenosConAtribucion(): void
+    {
+        $checklist = new ChecklistService();
+        $ejec1 = $checklist->obtenerEjecucion($this->ejecucionId);
+        $obligatorios = array_values(array_filter(
+            $checklist->itemsDelTemplate($ejec1->templateId),
+            static fn(array $it) => (int) $it['obligatorio'] === 1
+        ));
+        $totalOblig = count($obligatorios);
+        $falla1 = (int) $obligatorios[0]['id'];
+        $falla2 = (int) $obligatorios[1]['id'];
+
+        // Ana (trabajadorId) completó ejec #1 en el setUp. Se rechazan 2 ítems.
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltaron dos ítems, rehacer.',
+            [$falla1, $falla2]
+        );
+
+        // Reasignar a Berta e iniciar la re-limpieza.
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
+
+        // La nueva ejecución hereda los obligatorios buenos (total - 2), a nombre de Ana.
+        $heredados = Database::fetchAll(
+            'SELECT item_id, marcado, marcado_por FROM ejecuciones_items WHERE ejecucion_id = ?',
+            [$ejec2->id]
+        );
+        $this->assertCount($totalOblig - 2, $heredados);
+        foreach ($heredados as $h) {
+            $this->assertSame(1, (int) $h['marcado']);
+            $this->assertSame($this->trabajadorId, (int) $h['marcado_por']); // Ana
+        }
+        $idsHeredados = array_map(static fn(array $h) => (int) $h['item_id'], $heredados);
+        $this->assertNotContains($falla1, $idsHeredados);
+        $this->assertNotContains($falla2, $idsHeredados);
+
+        // Berta completa los 2 fallidos → quedan a su nombre.
+        $checklist->marcarItem($ejec2->id, $falla1, true, $berta);
+        $checklist->marcarItem($ejec2->id, $falla2, true, $berta);
+        foreach ([$falla1, $falla2] as $itemId) {
+            $fila = Database::fetchOne(
+                'SELECT marcado_por FROM ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+                [$ejec2->id, $itemId]
+            );
+            $this->assertSame($berta, (int) $fila['marcado_por']);
+        }
     }
 
     public function testInmutabilidadRechaza409(): void

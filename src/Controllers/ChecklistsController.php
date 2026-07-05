@@ -33,13 +33,21 @@ final class ChecklistsController
     public function iniciar(Request $request): Response
     {
         $habitacionId = $request->rutaInt('id');
-        $fecha = $request->inputString('fecha', date('Y-m-d'));
+        // La fecha se deriva SIEMPRE en el servidor (hoy). No se confía en el cliente:
+        // si viniera del body, se podría pasar otra fecha y eludir el candado
+        // "una habitación a la vez" (ver docs/home-trabajador.md §7).
+        $fecha = date('Y-m-d');
         if ($habitacionId === null || $request->usuario === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }
 
+        // Los trabajadores (sin habitaciones.ver_todas) deben respetar el orden de su
+        // cola: solo pueden iniciar la habitación actual. Supervisoras/admin quedan
+        // exentas (pueden iniciar cualquiera asignada, p. ej. al probar). Ver gap "e".
+        $exigirOrden = !$request->usuario->tienePermiso('habitaciones.ver_todas');
+
         try {
-            $ejec = $this->svc->iniciarEjecucion($habitacionId, $request->usuario->id, $fecha);
+            $ejec = $this->svc->iniciarEjecucion($habitacionId, $request->usuario->id, $fecha, $exigirOrden);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -118,7 +126,8 @@ final class ChecklistsController
     {
         $habitacionId = $request->rutaInt('id');
         $motivo = $request->inputString('motivo', '');
-        $fecha = $request->inputString('fecha', date('Y-m-d'));
+        // Fecha derivada en el servidor (no se confía en el cliente); ver iniciar().
+        $fecha = date('Y-m-d');
         if ($habitacionId === null || $request->usuario === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }

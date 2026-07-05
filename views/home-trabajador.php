@@ -32,7 +32,7 @@ if ($hora < 12) {
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-2xl mx-auto">
             <div class="flex items-center gap-3">
-                <a href="/ajustes" aria-label="Mi perfil">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
                 <div>
@@ -40,16 +40,19 @@ if ($hora < 12) {
                     <p class="text-sm text-gray-500 dark:text-gray-400" x-text="data?.hotel_actual?.nombre || '<?= htmlspecialchars($usuario->hotelDefault === 'inn' ? 'Atankalama INN' : 'Atankalama') ?>'"></p>
                 </div>
             </div>
-            <!-- Campana -->
-            <button @click="$dispatch('toggle-notif')"
-                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
-                    aria-label="Notificaciones">
-                <i data-lucide="bell" class="w-6 h-6 text-gray-600 dark:text-gray-400"></i>
-                <template x-if="$store.notif && $store.notif.sinLeer > 0">
-                    <span class="absolute top-1 right-1 min-w-[16px] h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none"
-                          x-text="$store.notif.sinLeer > 9 ? '9+' : $store.notif.sinLeer"></span>
-                </template>
-            </button>
+            <!-- Campana + tema -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button @click="$dispatch('toggle-notif')"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
+                        aria-label="Notificaciones">
+                    <i data-lucide="bell" class="w-6 h-6 text-gray-600 dark:text-gray-400"></i>
+                    <template x-if="$store.notif && $store.notif.sinLeer > 0">
+                        <span class="absolute top-1 right-1 min-w-[16px] h-4 bg-blue-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none"
+                              x-text="$store.notif.sinLeer > 9 ? '9+' : $store.notif.sinLeer"></span>
+                    </template>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 
@@ -142,6 +145,7 @@ if ($hora < 12) {
                         saltarla), el backend promueve la siguiente. Ver
                         docs/home-trabajador.md §7.
                     -->
+                    <!-- Sección 3: Habitación actual (única que ve el trabajador) -->
                     <template x-if="data.habitacion_actual">
                         <div class="px-4 mt-4">
                             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
@@ -149,9 +153,20 @@ if ($hora < 12) {
                                 <div class="mb-4">
                                     <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
                                     <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
-                                    <div class="mt-2" x-html="badgeEstado(data.habitacion_actual.estado)"></div>
+                                    <div class="mt-2 flex items-center gap-2 flex-wrap">
+                                        <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
+                                        <template x-if="data.habitacion_actual.franja">
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
+                                                  x-text="data.habitacion_actual.franja"></span>
+                                        </template>
+                                        <template x-if="data.habitacion_actual.toca_sabanas">
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
+                                                <i data-lucide="bed-double" class="w-3.5 h-3.5"></i> Cambio de sábanas
+                                            </span>
+                                        </template>
+                                    </div>
                                 </div>
-                                <a :href="'/habitaciones/' + data.habitacion_actual.id"
+                                <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
                                    class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
                                     <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
                                 </a>
@@ -210,7 +225,7 @@ function homeTrabajador() {
             this.cargando = true;
             this.error = null;
             try {
-                var resp = await fetch('/api/home/trabajador');
+                var resp = await fetch(u('/api/home/trabajador'));
                 var json = await resp.json();
                 if (json.ok) {
                     this.data = json.data;
@@ -271,16 +286,16 @@ function homeTrabajador() {
             if (this.cerrando) return;
             this.cerrando = true;
             try {
-                await fetch('/api/auth/logout', { method: 'POST' });
+                await fetch(u('/api/auth/logout'), { method: 'POST' });
             } catch (e) { /* continuar igual */ }
-            window.location.href = '/login';
+            window.location.href = u('/login');
         },
 
         async avisarDisponibilidad() {
             if (this.enviandoAviso || this.data.aviso_disponibilidad_enviado_hoy) return;
             this.enviandoAviso = true;
             try {
-                var resp = await fetch('/api/disponibilidad/avisar', {
+                var resp = await fetch(u('/api/disponibilidad/avisar'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });

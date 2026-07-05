@@ -45,3 +45,63 @@ Puntos a definir cuando se retome:
 - El orden de la cola ya se apoya en `orden_en_cola` (asignaciones) →
   ver `AsignacionService::colaDelTrabajador()`.
 - El modo automático reemplazaría/complementaría ese ordenamiento manual.
+
+---
+
+## Flujo "una a la vez": impedir también ver/elegir la cola completa
+
+**Fecha:** 2026-07-05
+**Estado:** ✅ Resuelto (05/07/2026) — ver "Resolución" al final de la sección.
+**Origen:** Revisión del feature "una habitación a la vez" antes de portarlo.
+
+### Contexto
+
+El feature quitó la lista "próximas" del payload del home del trabajador, pero la
+cola completa del día sigue llegando al cliente por otras dos vías:
+
+- El endpoint `GET /api/usuarios/{id}/cola` devuelve todas las asignaciones del día
+  (lo consume el propio detalle de habitación para calcular `estaAsignada`).
+- La pestaña "Habitaciones" (`views/habitaciones.php`) muestra esa misma lista completa.
+
+El candado "una a la vez" impide tener DOS habitaciones abiertas al mismo tiempo,
+pero NO impide que el trabajador vea todas sus habitaciones y elija cuál hacer
+primero (cherry-picking en serie), que es parte de lo que el feature buscaba evitar.
+
+### Qué se quiere a futuro
+
+Decidir con Nicolás si se quiere cerrar del todo el "elegir":
+
+- Filtrar la respuesta de `/api/usuarios/{id}/cola` para roles sin
+  `habitaciones.ver_todas`, devolviendo solo la habitación actual (o un booleano
+  "¿está asignada a mí?").
+- Ajustar la pestaña "Habitaciones" del trabajador para no listar toda la cola.
+- Y/o que `iniciar` valide contra la habitación promovida por el backend, no
+  cualquier asignada.
+
+Nota: al filtrar la cola, mapear también `aprobada_con_observacion → aprobada` en
+el backend para ese rol (hoy el badge se maquilla en el cliente; el estado crudo
+aún viaja en la respuesta de la cola).
+
+### Resolución (05/07/2026)
+
+Se cerró por completo (opción "filtrar cola + forzar orden en iniciar"):
+
+- **`GET /api/usuarios/{id}/cola`** ahora, para solicitantes **sin
+  `habitaciones.ver_todas`** (el trabajador), devuelve **solo la habitación
+  actual** (`AsignacionService::habitacionActualDeCola`: la primera no-completada
+  de la cola por `orden_cola`), o vacío si no queda ninguna pendiente. Las
+  supervisoras (con `habitaciones.ver_todas`) siguen recibiendo la cola completa.
+  Con esto la pestaña "Habitaciones" del trabajador (que consume ese endpoint)
+  muestra solo la actual, y `estaAsignada` del detalle solo da true para la actual.
+- **`POST /api/habitaciones/{id}/iniciar`** valida el orden: el trabajador solo
+  puede iniciar su habitación actual; si intenta adelantarse (por URL/API directa)
+  responde **409 `NO_ES_TU_HABITACION_ACTUAL`**. La lógica vive en
+  `ChecklistService::iniciarEjecucion($habitacionId, $usuarioId, $fecha, $exigirOrden)`;
+  el controller pasa `$exigirOrden = !ver_todas`, así supervisoras/admin quedan
+  exentas. Reanudar la habitación ya en progreso sigue siendo idempotente.
+- El mapeo `aprobada_con_observacion → aprobada` para el trabajador dejó de ser
+  necesario en la cola: la habitación actual nunca está en un estado completado,
+  así que ese estado ya no viaja al cliente por esta vía.
+
+Como una sola fuente de verdad, `habitacionActualDeCola` replica exactamente la
+selección de "habitación actual" que `HomeController::trabajador()` ya hacía.

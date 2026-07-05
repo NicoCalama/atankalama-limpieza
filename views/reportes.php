@@ -15,7 +15,7 @@
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
             <div class="flex items-center gap-3">
-                <a href="/home" class="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver">
+                <a href="<?= u('/home') ?>" class="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver">
                     <i data-lucide="arrow-left" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
                 </a>
                 <i data-lucide="bar-chart-3" class="w-6 h-6 text-gray-700 dark:text-gray-300 hidden md:block flex-shrink-0"></i>
@@ -24,13 +24,16 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400" x-text="subtitulo"></p>
                 </div>
             </div>
-            <button @click="exportar()"
-                    :disabled="cargando || exportando"
-                    class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
-                           text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
-                <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
-                <span class="hidden sm:inline" x-text="exportando ? 'Exportando...' : 'Exportar Excel'"></span>
-            </button>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button @click="exportar()"
+                        :disabled="cargando || exportando"
+                        class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
+                               text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+                    <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                    <span class="hidden sm:inline" x-text="exportando ? 'Exportando...' : 'Exportar Excel'"></span>
+                </button>
+                <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
+            </div>
         </div>
     </header>
 
@@ -374,7 +377,7 @@
 
 <script>
 function reportes() {
-    var hoy = new Date().toISOString().split('T')[0];
+    var hoy = window.hoyServidor();
 
     return {
         data:         null,
@@ -393,13 +396,13 @@ function reportes() {
         subtitulo: 'Cargando...',
 
         // Resumen mensual (independiente)
-        mensualMes:        new Date().toISOString().slice(0, 7), // YYYY-MM
+        mensualMes:        window.hoyServidor().slice(0, 7), // YYYY-MM
         mensualData:       null,
         mensualCargando:   false,
         mensualExportando: false,
 
         // Resumen mensual de auditorías
-        auditMes:        new Date().toISOString().slice(0, 7),
+        auditMes:        window.hoyServidor().slice(0, 7),
         auditData:       null,
         auditCargando:   false,
         auditExportando: false,
@@ -413,15 +416,22 @@ function reportes() {
 
         setPreset(valor) {
             this.preset = valor;
-            var hoyDate = new Date();
-            var fmt = d => d.toISOString().split('T')[0];
+            // Anclar "hoy" a la fecha de America/Santiago y hacer la aritmética de
+            // días en UTC-mediodía para que restar días no cruce límites por zona/DST.
+            var p = window.hoyServidor().split('-');
+            var hoyDate = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+            var fmt = function (d) {
+                return d.getUTCFullYear() + '-' +
+                    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getUTCDate()).padStart(2, '0');
+            };
             if (valor === 'hoy') {
                 this.desde = this.hasta = fmt(hoyDate);
             } else if (valor === 'semana') {
-                var d = new Date(hoyDate); d.setDate(d.getDate() - 6);
+                var d = new Date(hoyDate); d.setUTCDate(d.getUTCDate() - 6);
                 this.desde = fmt(d); this.hasta = fmt(hoyDate);
             } else if (valor === 'mes') {
-                var d = new Date(hoyDate); d.setDate(d.getDate() - 29);
+                var d = new Date(hoyDate); d.setUTCDate(d.getUTCDate() - 29);
                 this.desde = fmt(d); this.hasta = fmt(hoyDate);
             }
             if (valor !== 'personalizado') this.cargar();
@@ -438,7 +448,7 @@ function reportes() {
                 });
                 if (this.usuarioId) params.set('usuario_id', this.usuarioId);
 
-                var resp = await fetch('/api/reportes/kpis?' + params.toString());
+                var resp = await fetch(u('/api/reportes/kpis?' + params.toString()));
                 var json = await resp.json();
 
                 if (json.ok) {
@@ -466,7 +476,7 @@ function reportes() {
             this.mensualCargando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch('/api/reportes/resumen-mensual?' + params.toString());
+                var resp = await fetch(u('/api/reportes/resumen-mensual?' + params.toString()));
                 var json = await resp.json();
                 if (json.ok) {
                     this.mensualData = json.data.trabajadores || [];
@@ -505,7 +515,7 @@ function reportes() {
                 });
                 if (this.usuarioId) params.set('usuario_id', this.usuarioId);
 
-                var resp = await fetch('/api/reportes/exportar?' + params.toString());
+                var resp = await fetch(u('/api/reportes/exportar?' + params.toString()));
                 if (!resp.ok) { this.exportando = false; return; }
 
                 var blob = await resp.blob();
@@ -529,7 +539,7 @@ function reportes() {
             this.auditCargando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch('/api/reportes/resumen-mensual-auditores?' + params.toString());
+                var resp = await fetch(u('/api/reportes/resumen-mensual-auditores?' + params.toString()));
                 var json = await resp.json();
                 if (json.ok) {
                     this.auditData = json.data.auditores || [];
@@ -554,7 +564,7 @@ function reportes() {
             this.auditExportando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch('/api/reportes/exportar-mensual-auditores?' + params.toString());
+                var resp = await fetch(u('/api/reportes/exportar-mensual-auditores?' + params.toString()));
                 if (!resp.ok) { this.auditExportando = false; return; }
 
                 var blob = await resp.blob();
@@ -579,7 +589,7 @@ function reportes() {
             this.mensualExportando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch('/api/reportes/exportar-mensual?' + params.toString());
+                var resp = await fetch(u('/api/reportes/exportar-mensual?' + params.toString()));
                 if (!resp.ok) { this.mensualExportando = false; return; }
 
                 var blob = await resp.blob();

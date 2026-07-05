@@ -6,6 +6,7 @@ return [
     ['habitaciones.ver_todas', 'Ver estado de todas las habitaciones', 'Habitaciones', 'global'],
     ['habitaciones.ver_asignadas_propias', 'Ver solo las habitaciones asignadas al propio usuario', 'Habitaciones', 'propio'],
     ['habitaciones.marcar_completada', 'Marcar una habitación propia como terminada', 'Habitaciones', 'propio'],
+    ['habitaciones.saltar', 'Saltar la habitación propia en curso cuando no se puede terminar', 'Habitaciones', 'propio'],
     ['habitaciones.ver_historial', 'Ver historial completo de una habitación', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],
@@ -15,6 +16,10 @@ return [
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
     ['asignaciones.reordenar_cola_trabajador', 'Reordenar la cola de un trabajador', 'Asignaciones', 'global'],
+
+    ['espacios.ver', 'Ver el listado de áreas comunes', 'Espacios', 'global'],
+    ['espacios.crear_editar', 'Crear/editar áreas comunes y su checklist', 'Espacios', 'global'],
+    ['espacios.pedir_limpieza', 'Solicitar la limpieza de un área común a un trabajador', 'Espacios', 'global'],
 
     ['auditoria.ver_bandeja', 'Ver la bandeja de habitaciones pendientes de auditar', 'Auditoría', 'global'],
     ['auditoria.aprobar', 'Dar veredicto aprobada', 'Auditoría', 'global'],

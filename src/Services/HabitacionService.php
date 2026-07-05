@@ -12,6 +12,7 @@ final class HabitacionService
 {
     public function __construct(
         private readonly EstadoHabitacionService $estados = new EstadoHabitacionService(),
+        private readonly SabanasService $sabanas = new SabanasService(),
     ) {
     }
 
@@ -24,7 +25,9 @@ final class HabitacionService
      */
     public function listar(?string $hotel = 'ambos', ?string $estado = null): array
     {
-        $where = ['h.activa = 1'];
+        // es_espacio_comun = 0: el listado de habitaciones es solo piezas de huésped; las áreas
+        // comunes tienen su propia pantalla (EspacioService). Ver docs/areas-comunes.md
+        $where = ['h.activa = 1', 'h.es_espacio_comun = 0'];
         $params = [];
 
         if ($hotel !== null && $hotel !== 'ambos') {
@@ -40,19 +43,21 @@ final class HabitacionService
             $params[] = $estado;
         }
 
-        $sql = 'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                  FROM habitaciones h
-                  JOIN hoteles ho ON ho.id = h.hotel_id
-                  JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+        $sql = 'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre,
+                       ho.sabanas_cada_n_dias
+                  FROM #__habitaciones h
+                  JOIN #__hoteles ho ON ho.id = h.hotel_id
+                  JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
                  WHERE ' . implode(' AND ', $where) . '
               ORDER BY ho.codigo, h.numero';
 
-        return Database::fetchAll($sql, $params);
+        $filas = Database::fetchAll($sql, $params);
+        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
     }
 
     public function obtener(int $id): ?Habitacion
     {
-        $fila = Database::fetchOne('SELECT * FROM habitaciones WHERE id = ?', [$id]);
+        $fila = Database::fetchOne('SELECT * FROM #__habitaciones WHERE id = ?', [$id]);
         return $fila === null ? null : Habitacion::desdeFila($fila);
     }
 
@@ -65,18 +70,46 @@ final class HabitacionService
     {
         return Database::fetchOne(
             'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-               FROM habitaciones h
-               JOIN hoteles ho ON ho.id = h.hotel_id
-               JOIN tipos_habitacion th ON th.id = h.tipo_habitacion_id
+               FROM #__habitaciones h
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE h.id = ?',
             [$id]
+        );
+    }
+
+    /**
+     * Guarda la ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto para
+     * priorizar y para la regla de sábanas; NO cambia el 'estado' de limpieza. Ver docs/ocupacion-y-sabanas.md
+     *
+     * @param string|null $frontdeskStatus check-in|check-out|stayover|turnover|unused (o null si desconocido)
+     */
+    public function actualizarOcupacionCloudbeds(
+        int $id,
+        ?string $frontdeskStatus,
+        ?bool $ocupada,
+        ?string $arrivalDate,
+        ?string $departureDate,
+    ): void {
+        Database::execute(
+            "UPDATE #__habitaciones
+                SET cb_frontdesk_status = ?, cb_ocupada = ?, cb_arrival_date = ?, cb_departure_date = ?,
+                    cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              WHERE id = ?",
+            [
+                $frontdeskStatus,
+                $ocupada === null ? null : ($ocupada ? 1 : 0),
+                $arrivalDate,
+                $departureDate,
+                $id,
+            ]
         );
     }
 
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
     {
         $fila = Database::fetchOne(
-            'SELECT * FROM habitaciones WHERE hotel_id = ? AND cloudbeds_room_id = ?',
+            'SELECT * FROM #__habitaciones WHERE hotel_id = ? AND cloudbeds_room_id = ?',
             [$hotelId, $cloudbedsRoomId]
         );
         return $fila === null ? null : Habitacion::desdeFila($fila);
@@ -102,7 +135,7 @@ final class HabitacionService
 
         try {
             Database::execute(
-                "UPDATE habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET estado = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$nuevoEstado, $id]
             );
         } catch (\PDOException $e) {
@@ -130,6 +163,7 @@ final class HabitacionService
             cloudbedsRoomId: $habitacion->cloudbedsRoomId,
             estado: $nuevoEstado,
             activa: $habitacion->activa,
+            esEspacioComun: $habitacion->esEspacioComun,
         );
     }
 
@@ -144,18 +178,18 @@ final class HabitacionService
             return $existente;
         }
         $porNumero = Database::fetchOne(
-            'SELECT * FROM habitaciones WHERE hotel_id = ? AND numero = ?',
+            'SELECT * FROM #__habitaciones WHERE hotel_id = ? AND numero = ?',
             [$hotelId, $numero]
         );
         if ($porNumero !== null) {
             Database::execute(
-                "UPDATE habitaciones SET cloudbeds_room_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                "UPDATE #__habitaciones SET cloudbeds_room_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$cloudbedsRoomId, (int) $porNumero['id']]
             );
             return $this->obtener((int) $porNumero['id']);
         }
         Database::execute(
-            'INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)',
             [$hotelId, $numero, $tipoHabitacionId, $cloudbedsRoomId, Habitacion::ESTADO_SUCIA]
         );
         return $this->obtener(Database::lastInsertId());

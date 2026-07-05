@@ -18,12 +18,15 @@ Antes de tocar cualquier módulo, lee:
 
 ## Modo de trabajo
 
-Este proyecto opera en **autonomía híbrida**:
+Este proyecto opera con el **modelo de trabajo de Maisterchef**: aprobás el plan, ejecuto de corrido, y pregunto solo cuando hay duda, cambio de alcance o desvío. No hay candado por-edición.
 
-- **Autonomía total** para módulos backend mecánicos: schema, modelos, CRUD, RBAC dinámico, integración Cloudbeds, middleware, alertas predictivas, tests. Codifica módulos completos, commitea, sigue.
-- **Supervisión por módulo** para UI: Login, Home (4 versiones por rol), checklist, copilot IA, ajustes (matriz RBAC), auditoría, alertas predictivas. Propone archivos, espera aprobación antes de aceptar.
+- **Gate de planificación:** ante un pedido no trivial, primero propongo el plan y espero tu OK; recién ahí ejecuto. Para pedidos triviales y claros, ejecuto directo.
+- **Una vez aprobado el plan, ejecuto de corrido** (editar, correr, verificar) sin pedir permiso por cada archivo.
+- **Control de alcance:** construyo solo lo pedido. Si se me ocurre agregar algo "porque parece útil", freno y pregunto.
+- **Ante la duda o un desvío del plan:** pregunto antes de asumir, y si me desvío lo documento primero. Nunca salto una regla en silencio.
+- **Commits:** cuando un bloque esté listo, propongo el commit (con su mensaje). **Pero si vos me pediste explícitamente el commit, lo ejecuto sin volver a pedir permiso** (igual que en Maisterchef). Nunca encadeno commits no pedidos sin aprobación.
 
-Cuando estés en modo autonomía total y debas tomar una decisión que no esté especificada en `docs/`, sigue los **Defaults razonables** (más abajo) y deja un comentario `// DECISIÓN AUTÓNOMA: <descripción>` en el código para revisión posterior.
+Cuando debas tomar una decisión que no esté especificada en `docs/`, **no la asumas en silencio**: propón la opción siguiendo los **Defaults razonables** (más abajo) y espera confirmación antes de codificarla.
 
 ## Stack obligatorio
 
@@ -45,7 +48,7 @@ Cuando estés en modo autonomía total y debas tomar una decisión que no esté 
 - **Mobile-first siempre:** escribe los estilos base para 375px y agrega `sm:`, `md:`, `lg:` para escalar
 - **Botones mínimo 44px de alto:** `min-h-[44px]` o equivalente
 - **Bottom tab bar en móvil**, sidebar en desktop (`md:` y arriba)
-- **FAB del copilot IA** siempre visible — `fixed bottom-20 right-4` o similar
+- **FAB del copilot IA** visible solo con el flag `COPILOT_HABILITADO=true` (default off, se reactiva al conectar Claude API) **y** el permiso del usuario — `fixed bottom-20 right-4` o similar
 - **Modo día/noche** con clase `dark:` de Tailwind, persistido en localStorage
 
 ## Arquitectura clave — RBAC Dinámico
@@ -188,9 +191,9 @@ Ver la skill `php-conventions` para más detalle.
 - **Hora:** zona horaria `America/Santiago`
 - **Idioma:** español chileno. Textos cortos, claros, sin formalismos excesivos pero respetuosos.
 
-Cuando uses un default razonable, deja un comentario:
+Cuando el usuario apruebe un default razonable, deja constancia con un comentario:
 ```php
-// DECISIÓN AUTÓNOMA: usé spinner azul porque docs/checklist.md no especifica estado de carga
+// DEFAULT APLICADO (aprobado por el usuario): spinner azul porque docs/checklist.md no especifica estado de carga
 ```
 
 ## Comandos útiles del proyecto
@@ -202,10 +205,11 @@ php -S localhost:8000 -t public/
 # Crear/recrear la base de datos desde migraciones + seeds
 php scripts/init-db.php
 
-# Cargar datos de demo (para mostrar el MVP)
-php scripts/seed-demo-data.php
+# Importar el inventario real de habitaciones desde Cloudbeds (idempotente)
+php scripts/import-inventario-cloudbeds.php --dry-run   # muestra el plan, no escribe
+php scripts/import-inventario-cloudbeds.php             # aplica
 
-# Sincronizar manualmente con Cloudbeds (normalmente es cron)
+# Sincronizar manualmente los estados de limpieza con Cloudbeds (normalmente es cron)
 php scripts/sync-cloudbeds.php
 
 # Rescate de emergencia: resetear password del admin
@@ -238,7 +242,7 @@ Un commit por módulo o sub-módulo lógico terminado. NO commitees código a me
 
 ## Testing
 
-Para los módulos en autonomía total, escribe tests unitarios mínimos:
+Para los módulos backend, escribe tests unitarios mínimos:
 - Validación de RUT (incluye casos con K)
 - Hash y verificación de contraseñas
 - Generación de contraseñas temporales (sin caracteres ambiguos)
@@ -247,15 +251,15 @@ Para los módulos en autonomía total, escribe tests unitarios mínimos:
 - Sistema de permisos dinámicos (`tienePermiso()`)
 - Cliente Cloudbeds (con respuestas mockeadas)
 
-Los módulos UI (con supervisión) no requieren tests automatizados en el MVP.
+Los módulos UI no requieren tests automatizados en el MVP.
 
 ## Cuando termines un módulo
 
 1. Asegúrate de que el código corre sin errores (`php -S localhost:8000 -t public/`)
 2. Si es módulo backend: corre los tests
-3. Haz commit con mensaje descriptivo
-4. Si encontraste decisiones autónomas significativas, menciónalas en el cuerpo del commit
-5. Continúa con el siguiente módulo del orden definido en `claude-code-setup.md` sección 10
+3. **Propón** el commit (con mensaje descriptivo). Si el usuario ya te lo pidió, ejecútalo sin volver a preguntar
+4. Si hubo defaults razonables o decisiones de diseño, inclúyelas en el cuerpo del commit
+5. **No continúes** con el siguiente módulo (orden en `claude-code-setup.md` sección 10) hasta que el usuario lo apruebe
 
 ## Cuando algo no funciona
 

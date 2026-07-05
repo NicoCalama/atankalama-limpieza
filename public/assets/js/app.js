@@ -8,6 +8,35 @@
  * - Helper 'copilotInput': Alpine component para el input del copilot FAB
  */
 
+// --- Toggle global de tema (día/noche), independiente de Alpine ---
+// Lo usa el botón de la barra superior (views/componentes/boton-tema.php).
+// Alterna la clase `dark` del <html> y persiste la preferencia en localStorage.
+// Se define al cargar app.js (no dentro de alpine:init) para que esté disponible
+// aunque Alpine aún no haya arrancado.
+window.toggleTema = function () {
+    var oscuro = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('tema', oscuro ? 'dark' : 'light');
+    // Mantener en sync el store Alpine si ya existe (vistas que lo consulten).
+    if (window.Alpine && Alpine.store && Alpine.store('tema')) {
+        Alpine.store('tema').oscuro = oscuro;
+    }
+};
+
+// --- Fecha "hoy" en la zona del backend (America/Santiago) ---
+// Devuelve 'YYYY-MM-DD'. Usar SIEMPRE esto para la fecha de trabajo del día en
+// vez de new Date().toISOString().slice(0,10): toISOString da la fecha en UTC y
+// de noche en Chile (UTC ya en el día siguiente) no coincidiría con date('Y-m-d')
+// del servidor, mandando asignaciones/consultas al día equivocado.
+window.hoyServidor = function () {
+    var partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santiago',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date());
+    var m = {};
+    partes.forEach(function (p) { m[p.type] = p.value; });
+    return m.year + '-' + m.month + '-' + m.day;
+};
+
 // --- Store: Tema (día/noche) ---
 document.addEventListener('alpine:init', function () {
 
@@ -30,6 +59,13 @@ document.addEventListener('alpine:init', function () {
         usuario: null,
         permisos: [],
         cargado: false,
+
+        // Alpine llama init() al registrar el store: cargamos la sesión/permisos en cada carga de
+        // página para que los gates de UI (x-if="$store.auth.tienePermiso(...)") funcionen. Sin esto
+        // el store queda vacío y los botones por permiso nunca aparecen.
+        init() {
+            this.cargar();
+        },
 
         tienePermiso(codigo) {
             return this.permisos.indexOf(codigo) !== -1;
@@ -56,13 +92,20 @@ document.addEventListener('alpine:init', function () {
             }
             this.usuario = null;
             this.permisos = [];
-            window.location.href = '/login';
+            window.location.href = (window.BASE_PATH || '') + '/login';
         }
     });
 });
 
 // --- Helper: apiFetch ---
+// Las llamadas se escriben root-relative ('/api/...') y acá se les antepone
+// BASE_PATH (subpath de prod, inyectado por el layout). No pasarle URLs ya
+// prefijadas con u() — quedaría el prefijo doble.
 async function apiFetch(url, opciones) {
+    if (url.charAt(0) === '/') {
+        url = (window.BASE_PATH || '') + url;
+    }
+
     var config = Object.assign({
         headers: { 'Content-Type': 'application/json' },
     }, opciones || {});
@@ -76,8 +119,9 @@ async function apiFetch(url, opciones) {
 
     if (resp.status === 401) {
         // Sesión expirada — redirigir al login
-        if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
+        var loginUrl = (window.BASE_PATH || '') + '/login';
+        if (window.location.pathname !== loginUrl) {
+            window.location.href = loginUrl;
             return null;
         }
     }
