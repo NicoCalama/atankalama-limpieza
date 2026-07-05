@@ -424,7 +424,7 @@ function asignacionesApp() {
         },
 
         get fechaHoy() {
-            return new Date().toISOString().slice(0, 10);
+            return window.hoyServidor();
         },
 
         async cargar() {

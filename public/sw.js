@@ -7,7 +7,7 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 

@@ -22,6 +22,21 @@ window.toggleTema = function () {
     }
 };
 
+// --- Fecha "hoy" en la zona del backend (America/Santiago) ---
+// Devuelve 'YYYY-MM-DD'. Usar SIEMPRE esto para la fecha de trabajo del día en
+// vez de new Date().toISOString().slice(0,10): toISOString da la fecha en UTC y
+// de noche en Chile (UTC ya en el día siguiente) no coincidiría con date('Y-m-d')
+// del servidor, mandando asignaciones/consultas al día equivocado.
+window.hoyServidor = function () {
+    var partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santiago',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date());
+    var m = {};
+    partes.forEach(function (p) { m[p.type] = p.value; });
+    return m.year + '-' + m.month + '-' + m.day;
+};
+
 // --- Store: Tema (día/noche) ---
 document.addEventListener('alpine:init', function () {
 

@@ -377,7 +377,7 @@
 
 <script>
 function reportes() {
-    var hoy = new Date().toISOString().split('T')[0];
+    var hoy = window.hoyServidor();
 
     return {
         data:         null,
@@ -396,13 +396,13 @@ function reportes() {
         subtitulo: 'Cargando...',
 
         // Resumen mensual (independiente)
-        mensualMes:        new Date().toISOString().slice(0, 7), // YYYY-MM
+        mensualMes:        window.hoyServidor().slice(0, 7), // YYYY-MM
         mensualData:       null,
         mensualCargando:   false,
         mensualExportando: false,
 
         // Resumen mensual de auditorías
-        auditMes:        new Date().toISOString().slice(0, 7),
+        auditMes:        window.hoyServidor().slice(0, 7),
         auditData:       null,
         auditCargando:   false,
         auditExportando: false,
@@ -416,15 +416,22 @@ function reportes() {
 
         setPreset(valor) {
             this.preset = valor;
-            var hoyDate = new Date();
-            var fmt = d => d.toISOString().split('T')[0];
+            // Anclar "hoy" a la fecha de America/Santiago y hacer la aritmética de
+            // días en UTC-mediodía para que restar días no cruce límites por zona/DST.
+            var p = window.hoyServidor().split('-');
+            var hoyDate = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2], 12));
+            var fmt = function (d) {
+                return d.getUTCFullYear() + '-' +
+                    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getUTCDate()).padStart(2, '0');
+            };
             if (valor === 'hoy') {
                 this.desde = this.hasta = fmt(hoyDate);
             } else if (valor === 'semana') {
-                var d = new Date(hoyDate); d.setDate(d.getDate() - 6);
+                var d = new Date(hoyDate); d.setUTCDate(d.getUTCDate() - 6);
                 this.desde = fmt(d); this.hasta = fmt(hoyDate);
             } else if (valor === 'mes') {
-                var d = new Date(hoyDate); d.setDate(d.getDate() - 29);
+                var d = new Date(hoyDate); d.setUTCDate(d.getUTCDate() - 29);
                 this.desde = fmt(d); this.hasta = fmt(hoyDate);
             }
             if (valor !== 'personalizado') this.cargar();

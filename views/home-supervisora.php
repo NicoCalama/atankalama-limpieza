@@ -736,7 +736,7 @@ function homeSupervisora() {
                 var payload = {
                     habitacion_id: this.modalReasignar.habSeleccionada,
                     usuario_id: dest.usuario.id,
-                    fecha: new Date().toISOString().slice(0, 10),
+                    fecha: window.hoyServidor(),
                     motivo: this.modalReasignar.motivo || 'Reasignación desde Home Supervisora'
                 };
                 var r = await apiPost('/api/asignaciones/reasignar', payload);

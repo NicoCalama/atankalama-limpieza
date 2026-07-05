@@ -300,7 +300,7 @@ function espaciosApp() {
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('espacios.pedir_limpieza'));
         },
         get fechaHoy() {
-            return new Date().toISOString().slice(0, 10);
+            return window.hoyServidor();
         },
 
         async cargar() {
