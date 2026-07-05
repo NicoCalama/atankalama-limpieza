@@ -33,7 +33,10 @@ final class ChecklistsController
     public function iniciar(Request $request): Response
     {
         $habitacionId = $request->rutaInt('id');
-        $fecha = $request->inputString('fecha', date('Y-m-d'));
+        // La fecha se deriva SIEMPRE en el servidor (hoy). No se confía en el cliente:
+        // si viniera del body, se podría pasar otra fecha y eludir el candado
+        // "una habitación a la vez" (ver docs/home-trabajador.md §7).
+        $fecha = date('Y-m-d');
         if ($habitacionId === null || $request->usuario === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }
@@ -107,5 +110,28 @@ final class ChecklistsController
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
         return Response::ok(['completada' => true]);
+    }
+
+    /**
+     * POST /api/habitaciones/{id}/saltar
+     * Válvula de escape: el trabajador no puede terminar la habitación actual.
+     * La cierra, la manda al final de su cola y avisa a la supervisora.
+     */
+    public function saltar(Request $request): Response
+    {
+        $habitacionId = $request->rutaInt('id');
+        $motivo = $request->inputString('motivo', '');
+        // Fecha derivada en el servidor (no se confía en el cliente); ver iniciar().
+        $fecha = date('Y-m-d');
+        if ($habitacionId === null || $request->usuario === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
+        }
+
+        try {
+            $res = $this->svc->saltarEjecucion($habitacionId, $request->usuario->id, $motivo, $fecha);
+        } catch (ChecklistException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['saltada' => true, 'habitacion_id' => $res['habitacion_id']]);
     }
 }

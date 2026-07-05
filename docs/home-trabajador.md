@@ -309,6 +309,29 @@ Notas:
 - Tap → navega al detalle de la habitación con el checklist (pantalla a definir en `docs/checklist.md`)
 - Si toca "Continuar", el checklist debe abrirse exactamente en el estado donde lo dejó (con los items previamente marcados ya marcados)
 
+### 6.4.4 Válvula de escape — "No puedo terminar ahora"
+
+Como el trabajador solo puede tener **una habitación a la vez** (candado en el
+backend: no puede iniciar otra mientras tenga una en progreso), necesita una
+salida cuando una habitación se traba (huésped no ha salido, falta un insumo,
+requiere mantención). Sin esto, quedaría bloqueado.
+
+Dentro del **detalle de la habitación** (no en la Home), mientras la ejecución
+está en progreso, aparece un botón secundario **"No puedo terminar esta ahora"**
+debajo del botón "Habitación terminada". Al tocarlo:
+
+1. Se abre un modal con motivos: "Huésped no ha salido", "Falta un insumo",
+   "Requiere mantención", "Otro" (con texto libre).
+2. Al confirmar → `POST /api/habitaciones/{id}/saltar` con `{ motivo }`.
+3. El backend:
+   - Cierra (descarta) la ejecución en progreso — el progreso parcial se pierde,
+     la próxima vez se empieza de cero.
+   - Devuelve la habitación a estado `sucia`.
+   - La manda **al final de la cola** del trabajador (reaparece más tarde en el turno).
+   - Levanta una alerta **P2 `habitacion_saltada`** a la supervisora (el trabajador
+     nunca la ve).
+4. El trabajador vuelve a la Home y ve la siguiente habitación.
+
 ### 6.5 Estado vacío — sin habitaciones asignadas
 
 Cuando el trabajador no tiene NINGUNA habitación asignada (ni pendientes, ni en progreso, ni del día), reemplazar la sección entera por un estado vacío amigable:
@@ -366,7 +389,25 @@ Elementos:
 
 ## 7. Sección 4 — Lista del resto de habitaciones asignadas
 
-### 7.1 Propósito
+> ⚠️ **DEPRECADA desde 2026-07-05 — flujo "una habitación a la vez".**
+>
+> Esta sección "Próximas" **ya no se muestra** al trabajador y el backend **ya no
+> envía** el array `proximas`. Se revirtió la decisión original (que mandaba
+> mostrar la lista) porque los trabajadores veían todas sus habitaciones, las
+> aceptaban en grupo o en lote, y eso degradaba la calidad de la limpieza.
+>
+> El nuevo flujo:
+> - El trabajador ve **solo la habitación actual** (Sección 3).
+> - Al terminarla (o saltarla), el backend promueve automáticamente la siguiente.
+> - Esto además refuerza la filosofía "sin ansiedad" del §1.3 (no ve cuántas ni
+>   cuáles le faltan).
+> - La **supervisora sigue controlando** el orden de la cola y ve la lista completa
+>   desde su panel (Asignaciones). Un **modo de orden automático** de la cola queda
+>   como trabajo futuro — ver `docs/backlog-futuro.md`.
+>
+> El texto original se conserva abajo solo como referencia histórica.
+
+### 7.1 Propósito (histórico)
 
 Mostrar al trabajador qué OTRAS habitaciones tiene asignadas hoy (además de la actual), en el orden en que se las va a tocar hacer.
 
@@ -615,10 +656,6 @@ Response sugerido:
       "estado": "pendiente",
       "checklist_progreso": null
     },
-    "proximas": [
-      { "id": 108, "numero": "308", "tipo": "Doble", "estado": "pendiente" },
-      { "id": 112, "numero": "312", "tipo": "Doble", "estado": "pendiente" }
-    ],
     "notificaciones_sin_leer": 0,
     "tiene_asignaciones_hoy": true,
     "aviso_disponibilidad_enviado_hoy": false
@@ -730,6 +767,9 @@ Cuando el trabajador completa una habitación en el checklist y vuelve a la Home
 Esta lista es un checklist final para que Claude Code valide al terminar la pantalla:
 
 - [ ] **NO se muestran números de habitaciones pendientes/completadas** en la barra de progreso
+- [ ] **NO se muestra la lista "Próximas"** — el trabajador ve solo su habitación actual (flujo "una a la vez"); el backend NO envía `proximas`
+- [ ] **El backend rechaza iniciar una segunda habitación** si el trabajador ya tiene una en progreso (409 `YA_TIENE_HABITACION_EN_PROGRESO`)
+- [ ] **Existe la salida "No puedo terminar ahora"** en el detalle de la habitación, que la manda al final de la cola y avisa a la supervisora
 - [ ] **NO se muestra cronómetro** ni tiempo transcurrido al trabajador
 - [ ] **El badge de habitaciones `aprobada_con_observacion` dice "Aprobada"**, exactamente igual que `aprobada` — el trabajador no debe distinguirlas
 - [ ] **El trabajador NO ve habitaciones de otros trabajadores** — el endpoint del backend solo devuelve las suyas

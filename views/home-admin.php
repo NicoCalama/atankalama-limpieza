@@ -701,7 +701,8 @@ function homeAdmin() {
                 'habitacion_rechazada': 'x-circle',
                 'fin_turno_pendientes': 'clock',
                 'trabajador_disponible': 'user-check',
-                'ticket_nuevo': 'wrench'
+                'ticket_nuevo': 'wrench',
+                'habitacion_saltada': 'skip-forward'
             };
             return map[tipo] || 'bell';
         },
@@ -713,7 +714,8 @@ function homeAdmin() {
                 'habitacion_rechazada': 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
                 'fin_turno_pendientes': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
+                'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
+                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },

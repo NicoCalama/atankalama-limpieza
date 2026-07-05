@@ -168,6 +168,7 @@ Mostrar de un vistazo qué necesita **acción inmediata** de la supervisora. Las
 **Prioridad 2 (Importante):**
 - 📍 Trabajador disponible sin carga
 - 🔧 Ticket de mantenimiento (nuevo/sin atender)
+- ⏭️ Habitación saltada por un trabajador (no la pudo terminar)
 
 **Prioridad 3 (Menos urgente):**
 - ⏸️ Trabajador disponible (indicador de que tiene capacidad para recibir carga)

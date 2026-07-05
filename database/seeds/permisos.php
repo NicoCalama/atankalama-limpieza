@@ -6,6 +6,7 @@ return [
     ['habitaciones.ver_todas', 'Ver estado de todas las habitaciones', 'Habitaciones', 'global'],
     ['habitaciones.ver_asignadas_propias', 'Ver solo las habitaciones asignadas al propio usuario', 'Habitaciones', 'propio'],
     ['habitaciones.marcar_completada', 'Marcar una habitación propia como terminada', 'Habitaciones', 'propio'],
+    ['habitaciones.saltar', 'Saltar la habitación propia en curso cuando no se puede terminar', 'Habitaciones', 'propio'],
     ['habitaciones.ver_historial', 'Ver historial completo de una habitación', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],

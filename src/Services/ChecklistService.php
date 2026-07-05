@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\EjecucionChecklist;
 use Atankalama\Limpieza\Models\Habitacion;
 
@@ -15,6 +16,7 @@ final class ChecklistService
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
         private readonly ?AlertasPredictivasService $predictivas = null,
+        private readonly ?AlertasService $alertas = null,
     ) {
     }
 
@@ -104,6 +106,31 @@ final class ChecklistService
             return EjecucionChecklist::desdeFila($existente);
         }
 
+        // Candado "una habitación a la vez": el trabajador no puede iniciar una
+        // habitación nueva si ya tiene otra en progreso. Reanudar la misma sí se
+        // permite (se resuelve arriba). Ver docs/checklist.md y docs/home-trabajador.md.
+        //
+        // El candado se acota a las ejecuciones de la MISMA fecha (join a
+        // asignaciones): una ejecución 'en_progreso' huérfana de un turno anterior
+        // —que no aparece en la cola de hoy y por tanto no es alcanzable para
+        // terminarla ni saltarla— no debe bloquear al trabajador hoy.
+        $otraEnProgreso = Database::fetchOne(
+            "SELECT ec.habitacion_id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones a ON a.id = ec.asignacion_id
+              WHERE ec.usuario_id = ? AND ec.estado = 'en_progreso'
+                AND ec.habitacion_id != ? AND a.fecha = ?
+              ORDER BY ec.id DESC LIMIT 1",
+            [$usuarioId, $habitacionId, $fecha]
+        );
+        if ($otraEnProgreso !== null) {
+            throw new ChecklistException(
+                'YA_TIENE_HABITACION_EN_PROGRESO',
+                'Ya tienes una habitación en curso. Termínala o salta antes de empezar otra.',
+                409
+            );
+        }
+
         if ($habitacion->estado !== Habitacion::ESTADO_SUCIA && $habitacion->estado !== Habitacion::ESTADO_RECHAZADA && $habitacion->estado !== Habitacion::ESTADO_EN_PROGRESO) {
             throw new ChecklistException('ESTADO_INVALIDO_PARA_INICIAR', 'La habitación no está en un estado que permita iniciar.', 409);
         }
@@ -153,6 +180,27 @@ final class ChecklistService
               WHERE habitacion_id = ? AND usuario_id = ? AND estado = 'en_progreso'
               ORDER BY id DESC LIMIT 1",
             [$habitacionId, $usuarioId]
+        );
+        return $fila === null ? null : (int) $fila['id'];
+    }
+
+    /**
+     * Como obtenerEjecucionEnProgreso, pero exige que la ejecución cuelgue de una
+     * asignación ACTIVA de la fecha dada (la que el trabajador tiene hoy en su cola).
+     * Descarta ejecuciones huérfanas —de turnos anteriores o de asignaciones ya
+     * reasignadas— que no deben ser saltables, para no revertir a 'sucia' una
+     * habitación que ya limpió y auditó otra persona.
+     */
+    private function obtenerEjecucionEnProgresoDeCola(int $habitacionId, int $usuarioId, string $fecha): ?int
+    {
+        $fila = Database::fetchOne(
+            "SELECT ec.id
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones a ON a.id = ec.asignacion_id
+              WHERE ec.habitacion_id = ? AND ec.usuario_id = ? AND ec.estado = 'en_progreso'
+                AND a.fecha = ? AND a.activa = 1
+              ORDER BY ec.id DESC LIMIT 1",
+            [$habitacionId, $usuarioId, $fecha]
         );
         return $fila === null ? null : (int) $fila['id'];
     }
@@ -304,6 +352,15 @@ final class ChecklistService
             'habitacion_id' => $ejec->habitacionId, 'es_espacio_comun' => $esEspacio,
         ]);
 
+        // Si esta habitación/espacio había sido saltado hoy, terminarlo hace que la
+        // condición desaparezca: se resuelve la alerta P2 para que no quede colgada en la
+        // bandeja de la supervisora. Ver docs/home-supervisora.md (ciclo de vida de alertas).
+        $alertas = $this->alertas ?? new AlertasService();
+        $alertas->resolverPorDedupe(
+            AlertaActiva::TIPO_HABITACION_SALTADA,
+            "saltada:{$ejec->habitacionId}"
+        );
+
         try {
             $svc = $this->predictivas ?? new AlertasPredictivasService();
             $turno = Database::fetchOne(
@@ -322,6 +379,92 @@ final class ChecklistService
                 'mensaje' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Válvula de escape: el trabajador no puede terminar la habitación actual
+     * (huésped no salió, falta insumo, etc.). Cierra la ejecución en progreso,
+     * devuelve la habitación a 'sucia' y la manda al final de su cola para poder
+     * reintentarla más tarde en el turno. La alerta a la supervisora la levanta
+     * el controller.
+     *
+     * @return array{habitacion_id:int, motivo:string}
+     */
+    public function saltarEjecucion(int $habitacionId, int $usuarioId, string $motivo, string $fecha): array
+    {
+        // Solo se puede saltar la ejecución en curso que cuelga de una asignación
+        // ACTIVA de hoy (la que el trabajador ve en su cola). Acotarlo evita saltar
+        // una ejecución huérfana que revertiría a 'sucia' una habitación ya auditada
+        // por otra persona (inmutabilidad post-auditoría). Ver docs/home-trabajador.md §7.
+        $ejecId = $this->obtenerEjecucionEnProgresoDeCola($habitacionId, $usuarioId, $fecha);
+        if ($ejecId === null) {
+            throw new ChecklistException(
+                'EJECUCION_NO_ENCONTRADA',
+                'No tienes esta habitación en curso.',
+                404
+            );
+        }
+
+        $motivo = trim($motivo);
+        if ($motivo === '') {
+            throw new ChecklistException('MOTIVO_REQUERIDO', 'Indica un motivo para saltar la habitación.', 400);
+        }
+        // Cap de largo server-side (coincide con el maxlength=200 del textarea del modal):
+        // sin esto, por API se podría enviar un texto enorme que se persiste tres veces
+        // (audit_log, alertas_activas, bitacora_alertas) y ensucia la bandeja de alertas.
+        if (mb_strlen($motivo) > 200) {
+            $motivo = mb_substr($motivo, 0, 200);
+        }
+
+        $alertas = $this->alertas ?? new AlertasService();
+
+        // Todas las escrituras del salto son atómicas: si algo falla a mitad,
+        // se revierte y la habitación no queda en un estado inconsistente
+        // (ejecución borrada pero habitación aún 'en_progreso', o sin alerta).
+        Database::transaction(function () use ($habitacionId, $usuarioId, $motivo, $fecha, $ejecId, $alertas): void {
+            // Se descarta el progreso parcial: la ejecución abandonada se elimina
+            // (sus items caen por cascade). Cuando el trabajador la retome, empieza
+            // desde cero. El registro del salto queda en audit_log y en la alerta.
+            Logger::audit($usuarioId, 'checklist.saltar', 'ejecucion_checklist', $ejecId, [
+                'habitacion_id' => $habitacionId,
+                'motivo' => $motivo,
+            ]);
+
+            Database::execute('DELETE FROM #__ejecuciones_items WHERE ejecucion_id = ?', [$ejecId]);
+            Database::execute('DELETE FROM #__ejecuciones_checklist WHERE id = ?', [$ejecId]);
+
+            // La habitación vuelve a estar disponible para limpiar.
+            $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_SUCIA, $usuarioId, 'ui');
+
+            // Al final de la cola del trabajador, para que reaparezca después.
+            $this->asignaciones->enviarAlFinalDeCola($habitacionId, $usuarioId, $fecha, $usuarioId);
+
+            // Alerta a la supervisora (P2). El trabajador nunca la ve.
+            $trabajador = Database::fetchOne('SELECT nombre FROM #__usuarios WHERE id = ?', [$usuarioId]);
+            $hab = Database::fetchOne('SELECT numero, hotel_id, es_espacio_comun FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+            $nombreTrab = $trabajador['nombre'] ?? 'Un trabajador';
+            $numero = $hab['numero'] ?? (string) $habitacionId;
+            $hotelId = isset($hab['hotel_id']) ? (int) $hab['hotel_id'] : null;
+            // Los espacios comunes van por la misma cola que las piezas (funcionan como
+            // habitaciones), pero el texto se adapta para que no diga "Habitación Piscina".
+            $esEspacio = (bool) ($hab['es_espacio_comun'] ?? false);
+            $tituloAlerta = $esEspacio ? "Espacio {$numero} saltado" : "Habitación {$numero} saltada";
+            $lugar = $esEspacio ? "el espacio {$numero}" : "la habitación {$numero}";
+
+            $alertas->levantar(
+                AlertaActiva::TIPO_HABITACION_SALTADA,
+                $tituloAlerta,
+                "{$nombreTrab} no pudo terminar {$lugar}: {$motivo}.",
+                ['habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo],
+                $hotelId,
+                // Dedupe por habitación (sin fecha): una habitación saltada es una
+                // condición por pieza, y así completar() puede resolverla sin adivinar
+                // la fecha exacta del salto. Consistente con habitacion_rechazada.
+                "saltada:{$habitacionId}",
+            );
+        });
+
+        return ['habitacion_id' => $habitacionId, 'motivo' => $motivo];
     }
 
     /** @return array{marcados:int,total:int,porcentaje:int,obligatorios_total:int,obligatorios_marcados:int,obligatorios_pendientes:int} */

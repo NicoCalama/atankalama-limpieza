@@ -122,11 +122,11 @@ El sistema calcula en tiempo real si cada trabajador va a alcanzar a terminar su
 
 **Tipos de alertas y prioridades (definidos en `docs/home-supervisora.md`):**
 
-El sistema maneja 6 tipos de alertas con prioridades 0-3:
+El sistema maneja 7 tipos de alertas con prioridades 0-3:
 
 - P0: `cloudbeds_sync_failed`
 - P1: `trabajador_en_riesgo`, `habitacion_rechazada`, `fin_turno_pendientes`
-- P2: `trabajador_disponible`, `ticket_nuevo`
+- P2: `trabajador_disponible`, `ticket_nuevo`, `habitacion_saltada`
 - P3: (reservado para casos futuros)
 
 Cada tipo de alerta tiene:

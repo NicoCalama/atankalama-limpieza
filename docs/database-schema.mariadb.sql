@@ -306,7 +306,8 @@ CREATE TABLE #__alertas_activas (
         'habitacion_rechazada',
         'fin_turno_pendientes',
         'trabajador_disponible',
-        'ticket_nuevo'
+        'ticket_nuevo',
+        'habitacion_saltada'
     )),
     prioridad           INT NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
     titulo              VARCHAR(200) NOT NULL,

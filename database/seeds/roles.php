@@ -10,6 +10,7 @@ return [
         'permisos' => [
             'habitaciones.ver_asignadas_propias',
             'habitaciones.marcar_completada',
+            'habitaciones.saltar',
             'tickets.crear',
             'copilot.usar_nivel_1_consultas',
             'copilot.usar_nivel_2_acciones',

@@ -139,63 +139,40 @@ if ($hora < 12) {
                         </template>
                     </div>
 
-                    <!-- Grid responsive: en desktop, 2 columnas para actual + próximas -->
-                    <div class="md:grid md:grid-cols-2 md:gap-4 md:px-4 md:mt-4">
-
-                        <!-- Sección 3: Habitación actual -->
-                        <template x-if="data.habitacion_actual">
-                            <div class="px-4 md:px-0 mt-4 md:mt-0">
-                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-                                    <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Habitación actual</p>
-                                    <div class="mb-4">
-                                        <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
-                                        <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
-                                        <div class="mt-2 flex items-center gap-2 flex-wrap">
-                                            <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
-                                            <template x-if="data.habitacion_actual.franja">
-                                                <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
-                                                      x-text="data.habitacion_actual.franja"></span>
-                                            </template>
-                                            <template x-if="data.habitacion_actual.toca_sabanas">
-                                                <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
-                                                    <i data-lucide="bed-double" class="w-3.5 h-3.5"></i> Cambio de sábanas
-                                                </span>
-                                            </template>
-                                        </div>
+                    <!--
+                        Flujo "una habitación a la vez": el trabajador ve SOLO su
+                        habitación actual, nunca la lista completa. Al terminarla (o
+                        saltarla), el backend promueve la siguiente. Ver
+                        docs/home-trabajador.md §7.
+                    -->
+                    <!-- Sección 3: Habitación actual (única que ve el trabajador) -->
+                    <template x-if="data.habitacion_actual">
+                        <div class="px-4 mt-4">
+                            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                                <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Habitación actual</p>
+                                <div class="mb-4">
+                                    <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
+                                    <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
+                                    <div class="mt-2 flex items-center gap-2 flex-wrap">
+                                        <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
+                                        <template x-if="data.habitacion_actual.franja">
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
+                                                  x-text="data.habitacion_actual.franja"></span>
+                                        </template>
+                                        <template x-if="data.habitacion_actual.toca_sabanas">
+                                            <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
+                                                <i data-lucide="bed-double" class="w-3.5 h-3.5"></i> Cambio de sábanas
+                                            </span>
+                                        </template>
                                     </div>
-                                    <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
-                                       class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
-                                        <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
-                                    </a>
                                 </div>
+                                <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
+                                   class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
+                                    <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
+                                </a>
                             </div>
-                        </template>
-
-                        <!-- Sección 4: Próximas habitaciones -->
-                        <template x-if="data.proximas && data.proximas.length > 0">
-                            <div class="px-4 md:px-0 mt-4 md:mt-0">
-                                <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Próximas</p>
-                                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                                    <template x-for="hab in data.proximas" :key="hab.id">
-                                        <a :href="u('/habitaciones/' + hab.id)"
-                                           class="min-h-[60px] flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700 last:border-b-0
-                                                  hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                                            <span class="text-lg font-bold text-gray-900 dark:text-gray-100 w-12" x-text="hab.numero"></span>
-                                            <span class="text-base text-gray-600 dark:text-gray-400 flex-1 ml-4" x-text="hab.tipo"></span>
-                                            <template x-if="hab.franja">
-                                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize mr-2" x-text="hab.franja"></span>
-                                            </template>
-                                            <template x-if="hab.toca_sabanas">
-                                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 mr-2">Sábanas</span>
-                                            </template>
-                                            <span x-html="badgeEstado(hab.estado)"></span>
-                                        </a>
-                                    </template>
-                                </div>
-                            </div>
-                        </template>
-
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </template>
 
@@ -289,6 +266,8 @@ function homeTrabajador() {
                 'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
                 'completada': { texto: 'Completada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
                 'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+                // El trabajador NO distingue "con observación" de "aprobada". Siempre "Aprobada".
+                'aprobada_con_observacion': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
                 'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };

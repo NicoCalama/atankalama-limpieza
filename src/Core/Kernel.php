@@ -162,6 +162,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('habitaciones.marcar_completada'),
         ]);
+        $router->post('/api/habitaciones/{id}/saltar', [$checklists, 'saltar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.saltar'),
+        ]);
         $router->get('/api/ejecuciones/{id}', [$checklists, 'estadoEjecucion'], [$authCheck]);
         $router->put('/api/ejecuciones/{id}/items/{itemId}', [$checklists, 'marcarItem'], [$authCheck]);
 
