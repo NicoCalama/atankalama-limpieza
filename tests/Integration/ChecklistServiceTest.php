@@ -158,8 +158,9 @@ final class ChecklistServiceTest extends TestCase
     /**
      * Crea una segunda habitación 'sucia' asignada al mismo trabajador y retorna su id.
      */
-    private function crearSegundaHabitacionAsignada(string $numero = '102'): int
+    private function crearSegundaHabitacionAsignada(string $numero = '102', ?string $fecha = null): int
     {
+        $fecha ??= $this->fecha;
         $hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
         $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
         Database::execute(
@@ -167,8 +168,23 @@ final class ChecklistServiceTest extends TestCase
             [$hotelId, $numero, $tipoId]
         );
         $id = Database::lastInsertId();
-        $this->asignaciones->asignarManual($id, $this->usuarioId, $this->fecha);
+        $this->asignaciones->asignarManual($id, $this->usuarioId, $fecha);
         return $id;
+    }
+
+    public function testCandadoNoBloqueaEjecucionEnProgresoDeOtraFecha(): void
+    {
+        // Ejecución 'en_progreso' de un turno anterior, nunca terminada.
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+
+        // Habitación de OTRO día (turno siguiente).
+        $otraFecha = '2026-04-15';
+        $hoyId = $this->crearSegundaHabitacionAsignada('201', $otraFecha);
+
+        // No debe bloquear: la ejecución huérfana es de otra fecha, no aparece en la
+        // cola de hoy y no sería alcanzable para terminarla ni saltarla.
+        $ejec = $this->svc->iniciarEjecucion($hoyId, $this->usuarioId, $otraFecha);
+        $this->assertSame('en_progreso', $ejec->estado);
     }
 
     public function testNoPuedeIniciarSegundaHabitacionConOtraEnProgreso(): void
