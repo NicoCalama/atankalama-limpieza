@@ -31,12 +31,18 @@ final class HomeController
         $hoy = date('Y-m-d');
         $cola = $this->home->colaTrabajador($usuario->id, $hoy);
 
-        // Clasificar habitaciones por estado
+        // Clasificar habitaciones por estado.
+        //
+        // Flujo "una habitación a la vez": el trabajador NO ve la lista completa
+        // de sus habitaciones, solo la "actual" (la primera en progreso o, si no
+        // hay, la primera pendiente de la cola). La lista de "próximas" se calcula
+        // internamente para el conteo del progreso, pero deliberadamente NO se
+        // envía al cliente, para que no pueda espiarla ni adelantarse. Ver
+        // docs/home-trabajador.md §7 y docs/backlog-futuro.md.
         $completadas = 0;
         $enProgreso = 0;
         $pendientes = 0;
         $habitacionActual = null;
-        $proximas = [];
 
         foreach ($cola as $item) {
             $estado = $item['estado'];
@@ -50,8 +56,6 @@ final class HomeController
                 $enProgreso++;
                 if ($habitacionActual === null) {
                     $habitacionActual = $this->formatearHabitacion($item);
-                } else {
-                    $proximas[] = $this->formatearHabitacion($item);
                 }
                 continue;
             }
@@ -60,8 +64,6 @@ final class HomeController
                 $pendientes++;
                 if ($habitacionActual === null) {
                     $habitacionActual = $this->formatearHabitacion($item);
-                } else {
-                    $proximas[] = $this->formatearHabitacion($item);
                 }
                 continue;
             }
@@ -105,7 +107,6 @@ final class HomeController
                 'todas_completadas' => $total > 0 && $pendientes === 0 && $enProgreso === 0,
             ],
             'habitacion_actual' => $habitacionActual,
-            'proximas' => $proximas,
             'tiene_asignaciones_hoy' => $total > 0,
             'aviso_disponibilidad_enviado_hoy' => $avisoEnviado,
         ]);

@@ -171,6 +171,22 @@ final class AsignacionService
         ]);
     }
 
+    /**
+     * Manda la habitación al final de la cola del trabajador (mayor orden_cola).
+     * Usado por la válvula de escape "No puedo terminar ahora".
+     */
+    public function enviarAlFinalDeCola(int $habitacionId, int $usuarioId, string $fecha, ?int $actorId = null): void
+    {
+        $siguiente = $this->siguienteOrdenCola($usuarioId, $fecha);
+        Database::execute(
+            'UPDATE asignaciones SET orden_cola = ? WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            [$siguiente, $habitacionId, $usuarioId, $fecha]
+        );
+        Logger::audit($actorId, 'asignacion.enviar_al_final', 'asignacion', $habitacionId, [
+            'usuario_id' => $usuarioId, 'fecha' => $fecha, 'nuevo_orden' => $siguiente,
+        ]);
+    }
+
     public function obtener(int $id): ?Asignacion
     {
         $fila = Database::fetchOne('SELECT * FROM asignaciones WHERE id = ?', [$id]);

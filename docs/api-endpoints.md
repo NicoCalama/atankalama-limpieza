@@ -104,8 +104,9 @@ Ver [habitaciones.md](habitaciones.md).
 | GET | `/api/habitaciones/asignadas` | `habitaciones.ver_asignadas_propias` | Mis asignaciones hoy |
 | GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle |
 | GET | `/api/habitaciones/{id}/historial` | `habitaciones.ver_historial` | Historial completo |
-| POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso` |
+| POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso`. 409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` + asignada | → `completada_pendiente_auditoria` |
+| POST | `/api/habitaciones/{id}/saltar` | asignada | "No puedo terminar ahora": descarta la ejecución, `→ sucia`, al final de la cola + alerta `habitacion_saltada`. Body: `{ motivo }` |
 
 ---
 

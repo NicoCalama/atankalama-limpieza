@@ -60,6 +60,28 @@ Cuando el trabajador abre una habitación desde su Home:
 1. Si `habitacion.estado == 'sucia'` + no hay ejecución previa → POST `/api/habitaciones/{id}/iniciar` crea `ejecuciones_checklist` con `estado='en_progreso'`, `timestamp_inicio=now`. Habitación pasa a `en_progreso`.
 2. Si ya existe ejecución `en_progreso` para esa habitación/asignación → la reanuda (muestra checks ya marcados).
 
+**Candado "una habitación a la vez":** el trabajador no puede iniciar una habitación
+nueva mientras tenga **otra** en progreso. En ese caso `iniciar` responde `409`
+con código `YA_TIENE_HABITACION_EN_PROGRESO`. Reanudar la misma habitación siempre
+se permite (es el caso 2). Esto obliga a cerrar cada habitación antes de pasar a la
+siguiente y evita que el trabajador acepte todo en lote. La única forma de soltar la
+habitación actual sin terminarla es la válvula de escape (§3.6).
+
+### 3.6 Válvula de escape — "No puedo terminar ahora"
+
+Si el trabajador no puede terminar la habitación actual (huésped no salió, falta un
+insumo, requiere mantención), toca **"No puedo terminar esta ahora"** en el detalle,
+elige un motivo y confirma → `POST /api/habitaciones/{id}/saltar` con `{ motivo }`.
+
+El backend:
+- Descarta la ejecución en progreso (el progreso parcial se pierde; al retomar se
+  empieza de cero) y libera el candado de §3.1.
+- Devuelve la habitación a estado `sucia`.
+- La manda **al final de la cola** del trabajador (reaparece más tarde en el turno).
+- Levanta una alerta **P2 `habitacion_saltada`** a la supervisora, con el motivo. El
+  trabajador nunca ve esta alerta.
+- Registra el salto en `audit_log` (`accion='checklist.saltar'`, con el motivo).
+
 ### 3.2 Persistencia tap-a-tap
 
 Cada tap en un item dispara inmediatamente:
@@ -157,8 +179,9 @@ Detalle en [auditoria.md](auditoria.md) §4.
 | PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar template |
 | GET | `/api/ejecuciones/{id}` | asignada a mí OR `habitaciones.ver_todas` | Estado actual de ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada a mí | Marcar/desmarcar item |
-| POST | `/api/habitaciones/{id}/iniciar` | asignada a mí | Crear ejecución |
+| POST | `/api/habitaciones/{id}/iniciar` | asignada a mí | Crear ejecución (409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso) |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` | Terminar ejecución |
+| POST | `/api/habitaciones/{id}/saltar` | asignada a mí | "No puedo terminar ahora": descarta la ejecución, devuelve la habitación a `sucia`, la manda al final de la cola y alerta a la supervisora |
 
 Detalle en [api-endpoints.md](api-endpoints.md).
 

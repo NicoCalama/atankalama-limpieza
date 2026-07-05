@@ -108,4 +108,26 @@ final class ChecklistsController
         }
         return Response::ok(['completada' => true]);
     }
+
+    /**
+     * POST /api/habitaciones/{id}/saltar
+     * Válvula de escape: el trabajador no puede terminar la habitación actual.
+     * La cierra, la manda al final de su cola y avisa a la supervisora.
+     */
+    public function saltar(Request $request): Response
+    {
+        $habitacionId = $request->rutaInt('id');
+        $motivo = $request->inputString('motivo', '');
+        $fecha = $request->inputString('fecha', date('Y-m-d'));
+        if ($habitacionId === null || $request->usuario === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
+        }
+
+        try {
+            $res = $this->svc->saltarEjecucion($habitacionId, $request->usuario->id, $motivo, $fecha);
+        } catch (ChecklistException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['saltada' => true, 'habitacion_id' => $res['habitacion_id']]);
+    }
 }
