@@ -450,6 +450,86 @@ final class ChecklistServiceTest extends TestCase
         $this->assertSame(200, mb_strlen($ctx['motivo']));
     }
 
+    // -----------------------------------------------------------------------
+    // Gap "e": orden obligatorio de la cola + "habitación actual"
+    // -----------------------------------------------------------------------
+
+    /** Marca todos los obligatorios y completa la ejecución de la habitación indicada. */
+    private function completarHabitacion(int $habitacionId): void
+    {
+        $ejec = $this->svc->iniciarEjecucion($habitacionId, $this->usuarioId, $this->fecha);
+        foreach ($this->svc->itemsDelTemplate($ejec->templateId) as $item) {
+            if ((int) $item['obligatorio'] === 1) {
+                $this->svc->marcarItem($ejec->id, (int) $item['id'], true, $this->usuarioId);
+            }
+        }
+        $this->svc->completar($ejec->id, $this->usuarioId);
+    }
+
+    public function testHabitacionActualDeColaEsLaPrimeraPendienteYSaltaCompletadas(): void
+    {
+        $segunda = $this->crearSegundaHabitacionAsignada(); // 102, orden_cola 2
+
+        // Con ambas pendientes, la actual es la primera de la cola (101).
+        $actual = $this->asignaciones->habitacionActualDeCola($this->usuarioId, $this->fecha);
+        $this->assertSame($this->habitacionId, (int) $actual['habitacion_id']);
+
+        // Completada la 101, la actual avanza a la 102.
+        $this->completarHabitacion($this->habitacionId);
+        $actual = $this->asignaciones->habitacionActualDeCola($this->usuarioId, $this->fecha);
+        $this->assertSame($segunda, (int) $actual['habitacion_id']);
+
+        // Completadas ambas, no queda actual.
+        $this->completarHabitacion($segunda);
+        $this->assertNull($this->asignaciones->habitacionActualDeCola($this->usuarioId, $this->fecha));
+    }
+
+    public function testExigirOrdenBloqueaIniciarFueraDeOrden(): void
+    {
+        $segunda = $this->crearSegundaHabitacionAsignada(); // 102, no es la actual (lo es la 101)
+
+        $this->expectException(ChecklistException::class);
+        $this->expectExceptionMessage('Debes empezar por tu habitación actual.');
+        try {
+            $this->svc->iniciarEjecucion($segunda, $this->usuarioId, $this->fecha, true);
+        } catch (ChecklistException $e) {
+            $this->assertSame('NO_ES_TU_HABITACION_ACTUAL', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+            // No dejó ejecución colgando ni tocó el estado de la 102.
+            $hab = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$segunda]);
+            $this->assertSame('sucia', $hab['estado']);
+            throw $e;
+        }
+    }
+
+    public function testExigirOrdenPermiteIniciarLaHabitacionActual(): void
+    {
+        $this->crearSegundaHabitacionAsignada();
+
+        $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha, true);
+        $this->assertSame('en_progreso', $ejec->estado);
+    }
+
+    public function testExigirOrdenPermiteReanudarLaEnProgreso(): void
+    {
+        $this->crearSegundaHabitacionAsignada();
+
+        $e1 = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha, true);
+        // Re-iniciar la misma (en progreso, sigue siendo la actual) es idempotente, no bloquea.
+        $e2 = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha, true);
+        $this->assertSame($e1->id, $e2->id);
+    }
+
+    public function testSinExigirOrdenPermiteIniciarFueraDeOrden(): void
+    {
+        // Rol con habitaciones.ver_todas (supervisora/admin): el controller pasa
+        // exigirOrden=false y puede iniciar cualquier asignada, sin candado de orden.
+        $segunda = $this->crearSegundaHabitacionAsignada();
+
+        $ejec = $this->svc->iniciarEjecucion($segunda, $this->usuarioId, $this->fecha, false);
+        $this->assertSame('en_progreso', $ejec->estado);
+    }
+
     /**
      * Crea un espacio común 'sucio' asignado al mismo trabajador y retorna su id.
      */

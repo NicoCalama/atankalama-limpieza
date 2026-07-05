@@ -41,8 +41,13 @@ final class ChecklistsController
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }
 
+        // Los trabajadores (sin habitaciones.ver_todas) deben respetar el orden de su
+        // cola: solo pueden iniciar la habitación actual. Supervisoras/admin quedan
+        // exentas (pueden iniciar cualquiera asignada, p. ej. al probar). Ver gap "e".
+        $exigirOrden = !$request->usuario->tienePermiso('habitaciones.ver_todas');
+
         try {
-            $ejec = $this->svc->iniciarEjecucion($habitacionId, $request->usuario->id, $fecha);
+            $ejec = $this->svc->iniciarEjecucion($habitacionId, $request->usuario->id, $fecha, $exigirOrden);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

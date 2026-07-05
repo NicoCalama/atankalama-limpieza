@@ -373,6 +373,26 @@ final class AsignacionService
         return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
     }
 
+    /**
+     * Habitación "actual" del trabajador en el flujo una-a-la-vez: la primera de
+     * la cola (orden_cola) que NO está completada — en_progreso, sucia o rechazada.
+     * Devuelve null si no queda ninguna pendiente (cola vacía o todo completado).
+     *
+     * Misma selección que HomeController::trabajador para mantener una sola fuente
+     * de verdad de "cuál es la habitación que le toca ahora".
+     *
+     * @return array<string, mixed>|null Fila de la cola (forma de colaDelTrabajador).
+     */
+    public function habitacionActualDeCola(int $usuarioId, string $fecha): ?array
+    {
+        foreach ($this->colaDelTrabajador($usuarioId, $fecha) as $item) {
+            if (in_array($item['estado'], ['en_progreso', 'sucia', 'rechazada'], true)) {
+                return $item;
+            }
+        }
+        return null;
+    }
+
     public function esHabitacionAsignadaA(int $habitacionId, int $usuarioId, string $fecha): bool
     {
         $fila = Database::fetchOne(

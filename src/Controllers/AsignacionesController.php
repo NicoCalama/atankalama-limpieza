@@ -119,7 +119,19 @@ final class AsignacionesController
             return Response::error('SIN_PERMISO', 'No puedes ver la cola de otro trabajador.', 403);
         }
 
-        $cola = $this->svc->colaDelTrabajador($usuarioId, is_string($fecha) ? $fecha : date('Y-m-d'));
+        $fechaStr = is_string($fecha) ? $fecha : date('Y-m-d');
+
+        // Flujo "una habitación a la vez": quien NO puede ver todas (el trabajador)
+        // recibe SOLO su habitación actual, no la cola completa. Así no puede espiar
+        // ni elegir a mano cuál hacer primero (cherry-picking). Las supervisoras
+        // (con habitaciones.ver_todas) siguen recibiendo la cola completa para
+        // gestionar el orden. Ver docs/backlog-futuro.md ("gap e").
+        if ($solicitante->tienePermiso('habitaciones.ver_todas')) {
+            $cola = $this->svc->colaDelTrabajador($usuarioId, $fechaStr);
+        } else {
+            $actual = $this->svc->habitacionActualDeCola($usuarioId, $fechaStr);
+            $cola = $actual === null ? [] : [$actual];
+        }
         return Response::ok(['cola' => $cola, 'total' => count($cola)]);
     }
 

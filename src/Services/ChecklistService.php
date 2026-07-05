@@ -81,7 +81,7 @@ final class ChecklistService
      * Inicia ejecución del checklist para una habitación asignada al trabajador.
      * Idempotente: si ya existe una ejecución 'en_progreso' la retorna (reanuda).
      */
-    public function iniciarEjecucion(int $habitacionId, int $usuarioId, string $fecha): EjecucionChecklist
+    public function iniciarEjecucion(int $habitacionId, int $usuarioId, string $fecha, bool $exigirOrden = false): EjecucionChecklist
     {
         $habitacion = $this->habitaciones->obtener($habitacionId);
         if ($habitacion === null) {
@@ -132,6 +132,22 @@ final class ChecklistService
                 'Ya tienes una habitación en curso. Termínala o salta antes de empezar otra.',
                 409
             );
+        }
+
+        // Orden obligatorio (flujo "una habitación a la vez"): el trabajador solo
+        // puede iniciar la habitación que le toca ahora (la primera pendiente de su
+        // cola), no adelantarse a otra por URL/API directa. No aplica a roles con
+        // habitaciones.ver_todas (el controller pasa $exigirOrden=false para ellos).
+        // Reanudar la misma habitación en progreso ya se resolvió arriba ($existente).
+        if ($exigirOrden) {
+            $actual = $this->asignaciones->habitacionActualDeCola($usuarioId, $fecha);
+            if ($actual === null || (int) $actual['habitacion_id'] !== $habitacionId) {
+                throw new ChecklistException(
+                    'NO_ES_TU_HABITACION_ACTUAL',
+                    'Debes empezar por tu habitación actual.',
+                    409
+                );
+            }
         }
 
         if ($habitacion->estado !== Habitacion::ESTADO_SUCIA && $habitacion->estado !== Habitacion::ESTADO_RECHAZADA && $habitacion->estado !== Habitacion::ESTADO_EN_PROGRESO) {
