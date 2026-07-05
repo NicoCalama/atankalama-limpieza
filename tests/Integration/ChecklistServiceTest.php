@@ -154,4 +154,106 @@ final class ChecklistServiceTest extends TestCase
 
         $this->assertSame(0, $p['marcados']);
     }
+
+    /**
+     * Crea una segunda habitación 'sucia' asignada al mismo trabajador y retorna su id.
+     */
+    private function crearSegundaHabitacionAsignada(string $numero = '102', ?string $fecha = null): int
+    {
+        $fecha ??= $this->fecha;
+        $hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
+        $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
+        Database::execute(
+            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, ?, ?, 'sucia')",
+            [$hotelId, $numero, $tipoId]
+        );
+        $id = Database::lastInsertId();
+        $this->asignaciones->asignarManual($id, $this->usuarioId, $fecha);
+        return $id;
+    }
+
+    public function testCandadoNoBloqueaEjecucionEnProgresoDeOtraFecha(): void
+    {
+        // Ejecución 'en_progreso' de un turno anterior, nunca terminada.
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+
+        // Habitación de OTRO día (turno siguiente).
+        $otraFecha = '2026-04-15';
+        $hoyId = $this->crearSegundaHabitacionAsignada('201', $otraFecha);
+
+        // No debe bloquear: la ejecución huérfana es de otra fecha, no aparece en la
+        // cola de hoy y no sería alcanzable para terminarla ni saltarla.
+        $ejec = $this->svc->iniciarEjecucion($hoyId, $this->usuarioId, $otraFecha);
+        $this->assertSame('en_progreso', $ejec->estado);
+    }
+
+    public function testNoPuedeIniciarSegundaHabitacionConOtraEnProgreso(): void
+    {
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+        $segunda = $this->crearSegundaHabitacionAsignada();
+
+        try {
+            $this->svc->iniciarEjecucion($segunda, $this->usuarioId, $this->fecha);
+            $this->fail('Debía lanzar por candado una-a-la-vez');
+        } catch (ChecklistException $e) {
+            $this->assertSame('YA_TIENE_HABITACION_EN_PROGRESO', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+    }
+
+    public function testSaltarLiberaCandadoDevuelveSuciaYReordena(): void
+    {
+        $segunda = $this->crearSegundaHabitacionAsignada();
+        $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+
+        $res = $this->svc->saltarEjecucion($this->habitacionId, $this->usuarioId, 'Huésped no ha salido', $this->fecha);
+        $this->assertSame($this->habitacionId, $res['habitacion_id']);
+
+        // La ejecución se descartó.
+        $this->assertNull(Database::fetchOne('SELECT id FROM ejecuciones_checklist WHERE id = ?', [$ejec->id]));
+
+        // La habitación vuelve a 'sucia'.
+        $hab = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$this->habitacionId]);
+        $this->assertSame(Habitacion::ESTADO_SUCIA, $hab['estado']);
+
+        // Se levantó la alerta a la supervisora.
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'habitacion_saltada'");
+        $this->assertNotNull($alerta);
+
+        // La saltada quedó al final de la cola (mayor orden_cola que la segunda).
+        $ordenSaltada = (int) Database::fetchOne(
+            'SELECT orden_cola FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            [$this->habitacionId, $this->usuarioId, $this->fecha]
+        )['orden_cola'];
+        $ordenSegunda = (int) Database::fetchOne(
+            'SELECT orden_cola FROM asignaciones WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+            [$segunda, $this->usuarioId, $this->fecha]
+        )['orden_cola'];
+        $this->assertGreaterThan($ordenSegunda, $ordenSaltada);
+
+        // Y ahora sí puede iniciar la segunda (candado liberado).
+        $e2 = $this->svc->iniciarEjecucion($segunda, $this->usuarioId, $this->fecha);
+        $this->assertSame('en_progreso', $e2->estado);
+    }
+
+    public function testSaltarSinEjecucionEnProgresoLanza(): void
+    {
+        try {
+            $this->svc->saltarEjecucion($this->habitacionId, $this->usuarioId, 'Falta un insumo', $this->fecha);
+            $this->fail('Debía lanzar');
+        } catch (ChecklistException $e) {
+            $this->assertSame('EJECUCION_NO_ENCONTRADA', $e->codigo);
+        }
+    }
+
+    public function testSaltarSinMotivoLanza(): void
+    {
+        $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+        try {
+            $this->svc->saltarEjecucion($this->habitacionId, $this->usuarioId, '   ', $this->fecha);
+            $this->fail('Debía lanzar');
+        } catch (ChecklistException $e) {
+            $this->assertSame('MOTIVO_REQUERIDO', $e->codigo);
+        }
+    }
 }

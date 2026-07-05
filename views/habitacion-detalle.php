@@ -195,6 +195,14 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             <span x-text="completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada')"></span>
                         </button>
                     </template>
+
+                    <!-- Válvula de escape: no puedo terminar esta habitación ahora -->
+                    <template x-if="puedeEditar">
+                        <button @click="mostrarSaltar = true"
+                                class="w-full min-h-[48px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
+                            No puedo terminar esta ahora
+                        </button>
+                    </template>
                 </div>
             </template>
 
@@ -215,6 +223,45 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <button @click="completar()" :disabled="completando"
                                 class="flex-1 min-h-[44px] px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg transition">
                             <span x-text="completando ? 'Enviando...' : 'Confirmar'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal "No puedo terminar ahora" -->
+            <div x-show="mostrarSaltar" x-cloak
+                 class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                 @click.self="cerrarSaltar()">
+                <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No puedo terminar ahora</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Elige un motivo. Se avisará a tu supervisora y esta habitación volverá más adelante a tu lista.
+                    </p>
+                    <div class="space-y-2 mb-4">
+                        <template x-for="m in motivosSaltar" :key="m">
+                            <button type="button"
+                                    @click="motivoSaltar = m"
+                                    :class="motivoSaltar === m
+                                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="w-full min-h-[44px] text-left px-4 py-2 border rounded-lg text-sm font-medium transition">
+                                <span x-text="m"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <template x-if="motivoSaltar === 'Otro'">
+                        <textarea x-model="motivoOtro" rows="2" maxlength="200"
+                                  placeholder="Cuéntanos brevemente qué pasó"
+                                  class="w-full mb-4 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"></textarea>
+                    </template>
+                    <div class="flex gap-3">
+                        <button @click="cerrarSaltar()"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition">
+                            Cancelar
+                        </button>
+                        <button @click="saltar()" :disabled="saltando || !motivoSaltarValido"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition">
+                            <span x-text="saltando ? 'Enviando...' : 'Confirmar'"></span>
                         </button>
                     </div>
                 </div>
@@ -243,6 +290,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         iniciando: false,
         completando: false,
         mostrarConfirmar: false,
+        mostrarSaltar: false,
+        saltando: false,
+        motivoSaltar: null,
+        motivoOtro: '',
+        motivosSaltar: ['Huésped no ha salido', 'Falta un insumo', 'Requiere mantención', 'Otro'],
         sinConexion: !navigator.onLine,
         cola: [],
         errorPermanente: false,
@@ -263,6 +315,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
 
         get colaKey() {
             return this.ejecucion ? ('checklist_queue_' + this.ejecucion.id) : null;
+        },
+
+        get motivoSaltarValido() {
+            if (this.motivoSaltar === 'Otro') return this.motivoOtro.trim().length > 0;
+            return !!this.motivoSaltar;
         },
 
         async cargar() {
@@ -509,13 +566,43 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        cerrarSaltar() {
+            this.mostrarSaltar = false;
+            this.motivoSaltar = null;
+            this.motivoOtro = '';
+        },
+
+        async saltar() {
+            if (this.saltando || !this.motivoSaltarValido) return;
+            this.saltando = true;
+            var motivo = this.motivoSaltar === 'Otro' ? this.motivoOtro.trim() : this.motivoSaltar;
+            try {
+                var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/saltar', { motivo: motivo });
+                if (json && json.ok) {
+                    this.mostrarSaltar = false;
+                    window.location.href = '/home';
+                } else {
+                    alert((json && json.error && json.error.mensaje) || 'No pudimos registrar el salto.');
+                }
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.saltando = false;
+            }
+        },
+
         badgeEstado(estado) {
+            // 'aprobada_con_observacion' se muestra como "Aprobada" a secas para el
+            // trabajador (no debe distinguirla de una aprobada normal — filosofía sin
+            // ansiedad). Solo quien tiene 'habitaciones.ver_todas' (supervisora/auditor)
+            // ve la distinción "c/obs.". Ver CLAUDE.md y docs/auditoria.md.
+            var textoConObs = this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada';
             var configs = {
                 'sucia': { texto: 'Pendiente', clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
                 'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
                 'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200' },
                 'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'aprobada_con_observacion': { texto: 'Aprobada c/obs.', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+                'aprobada_con_observacion': { texto: textoConObs, clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
                 'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' }
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
