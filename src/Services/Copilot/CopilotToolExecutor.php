@@ -80,15 +80,9 @@ final class CopilotToolExecutor
 
     private function listarMisHabitaciones(Usuario $usuario): array
     {
-        $asignaciones = Database::fetchAll(
-            "SELECT a.id, a.habitacion_id, h.numero, h.estado, ho.nombre AS hotel
-               FROM #__asignaciones a
-               JOIN #__habitaciones h ON h.id = a.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE a.usuario_id = ? AND a.fecha = date('now') AND a.completada = 0
-              ORDER BY a.orden",
-            [$usuario->id]
-        );
+        // Reusa colaDelTrabajador (incluye estado por habitación) en vez de SQL propio
+        // que referenciaba columnas inexistentes (asignaciones.completada, a.orden).
+        $asignaciones = $this->asignaciones->colaDelTrabajador($usuario->id, date('Y-m-d'));
         return ['habitaciones' => $asignaciones, 'total' => count($asignaciones)];
     }
 
@@ -96,11 +90,7 @@ final class CopilotToolExecutor
     private function listarHabitacionesHotel(array $input): array
     {
         $hotel = (string) ($input['hotel'] ?? 'ambos');
-        $filtros = [];
-        if ($hotel !== 'ambos') {
-            $filtros['hotel'] = $hotel;
-        }
-        $habitaciones = $this->habitaciones->listar($filtros);
+        $habitaciones = $this->habitaciones->listar($hotel);
         return ['habitaciones' => $habitaciones, 'total' => count($habitaciones)];
     }
 
@@ -132,12 +122,22 @@ final class CopilotToolExecutor
         $fecha = isset($input['fecha']) && is_string($input['fecha']) ? $input['fecha'] : date('Y-m-d');
         $turnos = $this->turnos->turnosDelDia($fecha);
 
+        // "Completada" se deriva del estado de la habitación (no existe asignaciones.completada),
+        // misma convención que HomeService y AlertasPredictivasService.
         $completadas = (int) Database::fetchOne(
-            "SELECT COUNT(*) AS n FROM #__asignaciones WHERE fecha = ? AND completada = 1",
+            "SELECT COUNT(*) AS n
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE a.fecha = ? AND a.activa = 1
+                AND h.estado IN ('completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion')",
             [$fecha]
         )['n'];
         $pendientes = (int) Database::fetchOne(
-            "SELECT COUNT(*) AS n FROM #__asignaciones WHERE fecha = ? AND completada = 0",
+            "SELECT COUNT(*) AS n
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE a.fecha = ? AND a.activa = 1
+                AND h.estado IN ('sucia', 'en_progreso', 'rechazada')",
             [$fecha]
         )['n'];
 
@@ -155,8 +155,9 @@ final class CopilotToolExecutor
     {
         $habitacionId = (int) ($input['habitacion_id'] ?? 0);
         $usuarioId = (int) ($input['usuario_id'] ?? 0);
-        $id = $this->asignaciones->asignarManual($habitacionId, $usuarioId, $usuario->id);
-        return ['asignacion_id' => $id, 'mensaje' => 'Habitación asignada correctamente.'];
+        // La tool no recibe fecha: se asigna para hoy (caso de uso del copilot).
+        $asignacion = $this->asignaciones->asignarManual($habitacionId, $usuarioId, date('Y-m-d'), $usuario->id);
+        return ['asignacion_id' => $asignacion->id, 'mensaje' => 'Habitación asignada correctamente.'];
     }
 
     /** @param array<string,mixed> $input */
@@ -177,7 +178,11 @@ final class CopilotToolExecutor
     private function completarHabitacion(array $input, Usuario $usuario): array
     {
         $habitacionId = (int) ($input['habitacion_id'] ?? 0);
-        $this->checklists->completar($habitacionId, $usuario->id);
+        $ejecucionId = $this->checklists->obtenerEjecucionEnProgreso($habitacionId, $usuario->id);
+        if ($ejecucionId === null) {
+            throw new \RuntimeException('No tienes una limpieza en progreso para esa habitación.');
+        }
+        $this->checklists->completar($ejecucionId, $usuario->id);
         return ['mensaje' => 'Habitación marcada como completada.'];
     }
 }
