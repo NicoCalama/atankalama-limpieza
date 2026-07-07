@@ -3,7 +3,15 @@
 > Runbook del deploy real (Fase 3 de `docs/migracion-mariadb-cpanel.md`), imitando
 > el patrón probado de Maisterchef en la misma cuenta. **El hosting NO tiene SSH,
 > consola ni composer**: todo va por FileZilla + File Manager + phpMyAdmin + cron.
-> Última actualización: 2026-07-03.
+> Última actualización: 2026-07-07 (deploy real ejecutado).
+
+> **Datos reales de este hosting (verificados en el deploy del 2026-07-07):**
+> - La carpeta home es **`/home4/cat6852`** (con `4`, NO `/home/cat6852`). Las rutas
+>   `/home/cat6852/...` que aparecen abajo equivalen a `/home4/cat6852/...`.
+> - El binario PHP CLI para los crons es **`/opt/alt/php84/usr/bin/php`** (hosting
+>   **CloudLinux + LiteSpeed**, PHP 8.4.14; `PHP_BINARY` del web es `/usr/local/bin/lsphp`).
+> - Los 4 wrappers de `deployment/cron/*.sh` **ya usan `$HOME`** para sus rutas (APP, logs,
+>   backups), así que no dependen de `/home` vs `/home4`, y `PHP_BIN` ya trae la ruta real.
 
 ## Arquitectura
 
@@ -138,6 +146,8 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
    `PHP_BINDIR` y verificar las extensiones OK.
 3. **Borrar el archivo** inmediatamente.
 4. El binario CLI es `<PHP_BINDIR>/php` (probarlo en un cron de prueba si hay dudas).
+   **En este hosting (verificado 2026-07-07):** `PHP_BINDIR=/opt/alt/php84/usr/bin` →
+   binario CLI **`/opt/alt/php84/usr/bin/php`** (ya puesto como `PHP_BIN` en los `.sh`).
 
 ## 7. Smokes post-deploy (obligatorios)
 
@@ -170,10 +180,10 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
    la UI rechaza con 401 cualquier metacarácter) y **Cron Email vacío**:
 
 ```
-*/10 * * * * /home/cat6852/cron/limpieza-sync-cloudbeds.sh
-*/15 * * * * /home/cat6852/cron/limpieza-recalcular-alertas.sh
-0 3 * * * /home/cat6852/cron/limpieza-cleanup-retention.sh
-30 3 * * * /home/cat6852/cron/limpieza-backup-db.sh
+*/10 * * * * /home4/cat6852/cron/limpieza-sync-cloudbeds.sh
+*/15 * * * * /home4/cat6852/cron/limpieza-recalcular-alertas.sh
+0 3 * * * /home4/cat6852/cron/limpieza-cleanup-retention.sh
+30 3 * * * /home4/cat6852/cron/limpieza-backup-db.sh
 ```
 
 > El sync tickea cada 10 min pero se **auto-regula** por

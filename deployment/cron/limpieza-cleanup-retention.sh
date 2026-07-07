@@ -1,16 +1,16 @@
 #!/bin/sh
 # limpieza-cleanup-retention.sh — poda de datos por política de retención (RGPD).
 #
-# Instalar en /home/cat6852/cron/, chmod 755, saltos LF.
+# Instalar en $HOME/cron/, chmod 755, saltos LF.
 # Cron cPanel:
-#   0 3 * * * /home/cat6852/cron/limpieza-cleanup-retention.sh
+#   0 3 * * * $HOME/cron/limpieza-cleanup-retention.sh
 #
 # PHP_BIN: descubrir con el probe whichphp (ver runbook §crons).
 
-PHP_BIN="/usr/local/bin/ea-php84"
-APP="/home/cat6852/public_html/limpieza/app_core"
+PHP_BIN="/opt/alt/php84/usr/bin/php"
+APP="$HOME/public_html/limpieza/app_core"
 # Log fuera del webroot (ver limpieza-sync-cloudbeds.sh).
-LOGDIR="/home/cat6852/logs"
+LOGDIR="$HOME/logs"
 LOG="$LOGDIR/limpieza-retencion.log"
 
 mkdir -p "$LOGDIR"

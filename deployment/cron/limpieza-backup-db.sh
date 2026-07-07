@@ -2,11 +2,11 @@
 # limpieza-backup-db.sh — respaldo diario de las tablas limpieza_* (SOLO esas:
 # la BD cat6852_australia es COMPARTIDA con Maisterchef, no volcarla completa).
 #
-# Instalar en /home/cat6852/cron/, chmod 755, saltos LF.
+# Instalar en $HOME/cron/, chmod 755, saltos LF.
 # Cron cPanel:
-#   30 3 * * * /home/cat6852/cron/limpieza-backup-db.sh
+#   30 3 * * * $HOME/cron/limpieza-backup-db.sh
 #
-# Credenciales: /home/cat6852/.my.cnf con chmod 600 (NUNCA en la línea de
+# Credenciales: $HOME/.my.cnf con chmod 600 (NUNCA en la línea de
 # comandos). Formato:
 #   [client]
 #   user=USUARIO_MYSQL
@@ -16,7 +16,7 @@
 # ajustar DUMP_BIN / DUMP_ARGS (fragilidad conocida, ver runbook §backup).
 
 DB="cat6852_australia"
-DEST="/home/cat6852/backups/limpieza"
+DEST="$HOME/backups/limpieza"
 CNF="$HOME/.my.cnf"
 DUMP_BIN="mysqldump"
 DUMP_ARGS="--single-transaction --quick --no-tablespaces --default-character-set=utf8mb4"
