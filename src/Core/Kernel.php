@@ -157,6 +157,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('checklists.ver'),
         ]);
+        $router->put('/api/checklists/templates/{id}', [$checklists, 'editarTemplate'], [
+            $authCheck,
+            new PermissionCheck('checklists.editar'),
+        ]);
         $router->post('/api/habitaciones/{id}/iniciar', [$checklists, 'iniciar'], [$authCheck]);
         $router->post('/api/habitaciones/{id}/completar', [$checklists, 'completar'], [
             $authCheck,
