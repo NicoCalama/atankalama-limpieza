@@ -2,3 +2,7 @@
 # (Un CRLF rompe el shebang y el cron falla en silencio.)
 *.sh text eol=lf
 deployment/cron/*.sh text eol=lf
+
+# Los PDF (manuales de usuario) son binarios: NUNCA convertir fin de línea
+# (autocrlf en Windows corrompería el PDF al hacer checkout).
+*.pdf binary
