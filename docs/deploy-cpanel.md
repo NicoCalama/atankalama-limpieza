@@ -221,7 +221,11 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
    sueltos por FTP si el cambio es puntual. El `.env` del server NO se toca
    (el ZIP no trae `.env` y extraer no lo pisa; verificar igual tras extraer).
 2. Si el release trae migración de esquema: generar el SQL con prefijo
-   `limpieza_` en local y correrlo por phpMyAdmin (no hay consola).
+   `limpieza_` en local y correrlo por phpMyAdmin (no hay consola). **Orden:**
+   si la columna es **aditiva** (con `DEFAULT`), correr el `ALTER` **ANTES** de
+   subir el código — el código viejo ignora la columna nueva y el código nuevo
+   la necesita, así el deploy queda sin downtime. Si la migración fuera
+   destructiva o cambiara tipos, coordinar una ventana (no es el caso hasta hoy).
 3. Bump de `CACHE_VERSION` en `sw.js` si cambió un asset y no se propaga
    (el SW ya hace stale-while-revalidate, normalmente no hace falta).
 4. Smokes del paso 7.
@@ -242,3 +246,13 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 - **`app_core/.env` descargable (200)** → el hosting no está aplicando
   `.htaccess` de app_core: verificar que el archivo llegó (los dotfiles a veces
   no se ven en File Manager → Settings → Show Hidden Files).
+
+## 11. Historial de deploys
+
+Registro de lo que se desplegó y cómo, para reconstruir el estado de prod sin
+adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
+
+| Fecha | Release | Notas |
+|---|---|---|
+| 2026-07-07 | **Deploy inicial** | App publicada en `atankalama.com/limpieza`. Código (`main` `08410de`) + `.env` (600) + dump limpio (156 hab reales, sin test rooms) + 4 cron. Fix VAPID en `generate-vapid-keys.php`. RUT admin → real por phpMyAdmin. |
+| 2026-07-07 | **Editor de checklist + créditos por peso** (`822bc2b`) | Deploy delta, ZIP completo. **Migración:** `ALTER TABLE limpieza_items_checklist ADD COLUMN creditos INT NOT NULL DEFAULT 1;` por phpMyAdmin, corrida **antes** de extraer el ZIP (aditiva, backfill a 1 → reportes históricos idénticos). Sin cambios de dependencias (vendor sin tocar). Permiso `checklists.editar` **ya estaba** en prod (venía en el dump inicial + rol Admin `__ALL__`, que init-db/seed expanden a todos los códigos) → no se sembró nada. Smokes verdes: `/api/health` ok, `app_core/.env` 403, Ajustes → Checklists carga/edita/guarda, Reportes calcula bien. |
