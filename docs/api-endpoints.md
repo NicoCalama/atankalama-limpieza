@@ -129,9 +129,10 @@ Ver [checklist.md](checklist.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates |
-| POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template |
-| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar |
+| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo (con `items_count` y `creditos_total`) |
+| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template |
+| POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
+| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems: descripción, orden, `obligatorio`, peso de `creditos`, `es_cambio_sabanas`. Body `{ nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }` |
 | GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada | Tap-a-tap |
 
