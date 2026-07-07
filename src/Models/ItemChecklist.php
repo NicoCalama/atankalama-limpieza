@@ -13,6 +13,7 @@ final class ItemChecklist
         public readonly string $descripcion,
         public readonly bool $obligatorio,
         public readonly bool $activo,
+        public readonly int $creditos = 1,
     ) {
     }
 
@@ -26,6 +27,8 @@ final class ItemChecklist
             descripcion: (string) $fila['descripcion'],
             obligatorio: ((int) $fila['obligatorio']) === 1,
             activo: ((int) $fila['activo']) === 1,
+            // Fallback a 1 si la query no seleccionó la columna (compat con consultas viejas).
+            creditos: (int) ($fila['creditos'] ?? 1),
         );
     }
 
@@ -37,6 +40,7 @@ final class ItemChecklist
             'orden' => $this->orden,
             'descripcion' => $this->descripcion,
             'obligatorio' => $this->obligatorio,
+            'creditos' => $this->creditos,
             'activo' => $this->activo,
         ];
     }
