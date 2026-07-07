@@ -211,6 +211,7 @@ function checklistsApp() {
         error: null,
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         _seq: 0,
+        _loadToken: 0,
         editor: { abierto: false, cargandoItems: false, enviando: false, templateId: null, tipoNombre: '', items: [] },
 
         async cargar() {
@@ -232,10 +233,14 @@ function checklistsApp() {
         },
 
         async abrirEditor(t) {
+            // Token de carga: si se abre otro template mientras este fetch está en vuelo, la
+            // respuesta vieja no debe pisar el editor recién abierto.
+            var token = ++this._loadToken;
             this.editor = { abierto: true, cargandoItems: true, enviando: false, templateId: t.id, tipoNombre: t.tipo_nombre, items: [] };
             this.$nextTick(function () { lucide.createIcons(); });
             try {
                 var r = await apiFetch('/api/checklists/templates/' + t.id + '/items');
+                if (token !== this._loadToken) return; // se abrió otro template: descartar esta respuesta
                 if (r && r.ok) {
                     var self = this;
                     this.editor.items = (r.data.items || []).map(function (i) {
@@ -252,10 +257,13 @@ function checklistsApp() {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cargar los ítems.');
                 }
             } catch (e) {
+                if (token !== this._loadToken) return;
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             } finally {
-                this.editor.cargandoItems = false;
-                this.$nextTick(function () { lucide.createIcons(); });
+                if (token === this._loadToken) {
+                    this.editor.cargandoItems = false;
+                    this.$nextTick(function () { lucide.createIcons(); });
+                }
             }
         },
         cerrarEditor() {

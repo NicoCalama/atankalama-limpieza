@@ -591,6 +591,29 @@ final class ChecklistServiceTest extends TestCase
         $this->assertSame(0, (int) $fila['activo']);
     }
 
+    public function testEditarTemplateOpcionalNoGuardaCreditosAunqueSeEnvien(): void
+    {
+        $tid = $this->templateDelTipo();
+        $items = $this->svc->itemsDelTemplate($tid);
+
+        // Reenvía todos; el primero pasa a OPCIONAL pero con un peso "sucio" de 50.
+        $payload = [];
+        foreach ($items as $idx => $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => $i['descripcion'],
+                'obligatorio' => $idx !== 0,
+                'creditos' => $idx === 0 ? 50 : (int) $i['creditos'],
+            ];
+        }
+        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        $primero = Database::fetchOne('SELECT obligatorio, creditos FROM items_checklist WHERE id = ?', [(int) $items[0]['id']]);
+        $this->assertSame(0, (int) $primero['obligatorio']);
+        // El servidor normaliza a 0: los opcionales no llevan crédito, aunque el cliente mande 50.
+        $this->assertSame(0, (int) $primero['creditos']);
+    }
+
     public function testEditarTemplateVacioLanza(): void
     {
         try {

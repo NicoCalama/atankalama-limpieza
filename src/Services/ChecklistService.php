@@ -172,12 +172,14 @@ final class ChecklistService
                 $descripcion = mb_substr($descripcion, 0, 255);
             }
 
-            $creditos = (int) ($item['creditos'] ?? 1);
-            $creditos = max(0, min(100, $creditos));
+            $obligatorio = $this->esVerdadero($item['obligatorio'] ?? true) ? 1 : 0;
+            // Los opcionales no dan crédito: se normaliza a 0 en el servidor (no solo en la UI),
+            // para no dejar peso "sucio" en la BD si un cliente no-UI manda creditos > 0 sin obligatorio.
+            $creditos = $obligatorio === 1 ? max(0, min(100, (int) ($item['creditos'] ?? 1))) : 0;
 
             $norm = [
                 'descripcion' => $descripcion,
-                'obligatorio' => $this->esVerdadero($item['obligatorio'] ?? true) ? 1 : 0,
+                'obligatorio' => $obligatorio,
                 'creditos' => $creditos,
                 'es_cambio_sabanas' => $this->esVerdadero($item['es_cambio_sabanas'] ?? false) ? 1 : 0,
             ];
