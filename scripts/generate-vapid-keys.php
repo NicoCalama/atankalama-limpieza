@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use WebPush\WebPush;
+use Minishlink\WebPush\VAPID;
 
 try {
-    $keys = WebPush::generateVapidKeys();
+    $keys = VAPID::createVapidKeys();
 
     echo "=== Claves VAPID generadas ===\n\n";
     echo "VAPID_PUBLIC_KEY=" . $keys['publicKey'] . "\n";
