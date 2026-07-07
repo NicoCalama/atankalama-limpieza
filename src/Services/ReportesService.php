@@ -53,10 +53,10 @@ final class ReportesService
         $params = [$desde, $hasta];
         $hotelCond = $this->hotelCond($hotel, $params);
 
-        // Créditos por persona (marcado_por), solo obligatorios. Ver docs/creditos-rework.md.
+        // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
         //   habitaciones      = piezas donde la persona obtuvo al menos un crédito.
-        //   creditos          = obligatorios marcados y no desmarcados, de ejecuciones no rechazadas.
-        //   creditos_maximos  = intentos (créditos + obligatorios que le desmarcó el auditor).
+        //   creditos          = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones no rechazadas.
+        //   creditos_maximos  = intentos (créditos + créditos de obligatorios que le desmarcó el auditor).
         return Database::fetchAll(
             "SELECT u.id AS usuario_id,
                     u.nombre,
@@ -67,12 +67,12 @@ final class ReportesService
                     SUM(CASE
                         WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
                          AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
-                        THEN 1 ELSE 0 END) AS creditos,
+                        THEN ic.creditos ELSE 0 END) AS creditos,
                     SUM(CASE
                         WHEN (ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
                               AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado'))
                           OR ei.desmarcado_por_auditor = 1
-                        THEN 1 ELSE 0 END) AS creditos_maximos
+                        THEN ic.creditos ELSE 0 END) AS creditos_maximos
                FROM #__ejecuciones_items ei
                JOIN #__usuarios u ON u.id = ei.marcado_por
                JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
@@ -442,14 +442,14 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiCreditos(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        // Créditos por persona (marcado_por), solo obligatorios. Ver docs/creditos-rework.md.
-        // Numerador = obligatorios marcados y no desmarcados, de ejecuciones NO rechazadas
-        //             (así los ítems heredados en la re-limpieza no se doble-cuentan).
+        // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
+        // Numerador = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones
+        //             NO rechazadas (así los ítems heredados en la re-limpieza no se doble-cuentan).
         $pC = [$desde, $hasta];
         $hC = $this->hotelCond($hotel, $pC);
         $uC = $this->marcadoPorCond($usuarioId, $pC);
         $creditos = (int) Database::fetchColumn(
-            "SELECT COUNT(*)
+            "SELECT COALESCE(SUM(ic.creditos), 0)
                FROM #__ejecuciones_items ei
                JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
                JOIN #__items_checklist ic ON ic.id = ei.item_id
@@ -465,13 +465,13 @@ final class ReportesService
             $pC
         );
 
-        // Intentos fallidos = obligatorios desmarcados por el auditor (atribuidos a quien los
-        // marcó mal). El denominador = créditos + fallidos → el % castiga el error.
+        // Intentos fallidos = créditos de obligatorios desmarcados por el auditor (atribuidos a
+        // quien los marcó mal). El denominador = créditos + fallidos → el % castiga el error.
         $pD = [$desde, $hasta];
         $hD = $this->hotelCond($hotel, $pD);
         $uD = $this->marcadoPorCond($usuarioId, $pD);
         $desmarcados = (int) Database::fetchColumn(
-            "SELECT COUNT(*)
+            "SELECT COALESCE(SUM(ic.creditos), 0)
                FROM #__ejecuciones_items ei
                JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
                JOIN #__items_checklist ic ON ic.id = ei.item_id
@@ -485,9 +485,9 @@ final class ReportesService
             $pD
         );
 
-        $total = $creditos + $desmarcados; // obligatorios intentados
+        $total = $creditos + $desmarcados; // créditos de obligatorios intentados
         if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 90.0, 'contexto' => '0 ítems', 'estado' => 'sin_datos'];
+            return ['valor' => null, 'unidad' => '%', 'meta' => 90.0, 'contexto' => '0 créditos', 'estado' => 'sin_datos'];
         }
 
         $valor = round($creditos / $total * 100, 1);
@@ -497,7 +497,7 @@ final class ReportesService
             'valor'    => $valor,
             'unidad'   => '%',
             'meta'     => $meta,
-            'contexto' => "{$creditos} / {$total} ítems",
+            'contexto' => "{$creditos} / {$total} créditos",
             'estado'   => $valor >= $meta ? 'ok' : ($valor >= 80.0 ? 'alerta' : 'critico'),
         ];
     }

@@ -24,6 +24,8 @@ final class ReportesServiceTest extends TestCase
     private int $ana;
     private int $berta;
     private int $totalOblig;
+    /** @var list<int> ids de los 2 ítems obligatorios que el auditor rechazó */
+    private array $falla;
 
     protected function setUp(): void
     {
@@ -64,6 +66,7 @@ final class ReportesServiceTest extends TestCase
 
         // 2) El auditor rechaza 2 ítems (fallidos de Ana).
         $falla = [(int) $oblig[0]['id'], (int) $oblig[1]['id']];
+        $this->falla = $falla;
         $aud->emitirVeredicto($habId, $sofia, Auditoria::VEREDICTO_RECHAZADO, 'Rehacer estos dos ítems.', $falla);
 
         // 3) Berta re-limpia (hereda los 7 buenos, completa los 2 fallidos) y se aprueba.
@@ -85,17 +88,54 @@ final class ReportesServiceTest extends TestCase
 
         // Ana: 7 créditos de 9 intentos (los 2 desmarcados cuentan en su denominador).
         $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana)['creditos'];
-        $this->assertSame("{$creditosAna} / {$this->totalOblig} ítems", $kAna['contexto']);
+        $this->assertSame("{$creditosAna} / {$this->totalOblig} créditos", $kAna['contexto']);
         $this->assertSame(round($creditosAna / $this->totalOblig * 100, 1), $kAna['valor']);
 
         // Berta: 2 créditos de 2 intentos = 100%.
         $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta)['creditos'];
-        $this->assertSame('2 / 2 ítems', $kBerta['contexto']);
+        $this->assertSame('2 / 2 créditos', $kBerta['contexto']);
         $this->assertSame(100.0, $kBerta['valor']);
 
         // Global: 9 créditos de 11 intentos (no hay doble conteo de los heredados).
         $kGlobal = $this->rep->kpis($hoy, $hoy, 'ambos', null)['creditos'];
-        $this->assertSame(($creditosAna + 2) . ' / ' . ($this->totalOblig + 2) . ' ítems', $kGlobal['contexto']);
+        $this->assertSame(($creditosAna + 2) . ' / ' . ($this->totalOblig + 2) . ' créditos', $kGlobal['contexto']);
+    }
+
+    /**
+     * Con peso configurable por ítem, los créditos SUMAN ic.creditos en vez de contar ítems.
+     * Subimos a 5 el peso de los 2 ítems que Berta re-limpió: se re-valúan en vivo (la query
+     * lee items_checklist al momento, no un snapshot) → Berta acredita 10 y el denominador de
+     * Ana se infla por lo que arruinó (7 / 17).
+     */
+    public function testCreditosPonderadosPorPesoDeItem(): void
+    {
+        $ph = implode(',', array_fill(0, count($this->falla), '?'));
+        Database::execute("UPDATE items_checklist SET creditos = 5 WHERE id IN ({$ph})", $this->falla);
+
+        $hoy   = gmdate('Y-m-d');
+        $kept  = $this->totalOblig - 2;   // 7 ítems que Ana conservó (peso 1)
+        $fall  = 2 * 5;                    // 2 ítems fallidos * peso 5 = 10
+
+        // Ana: 7 créditos (peso 1) / (7 + 10) intentos.
+        $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana)['creditos'];
+        $this->assertSame("{$kept} / " . ($kept + $fall) . ' créditos', $kAna['contexto']);
+        $this->assertSame(round($kept / ($kept + $fall) * 100, 1), $kAna['valor']);
+
+        // Berta: 2 ítems fallidos * peso 5 = 10 créditos / 10 = 100%.
+        $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta)['creditos'];
+        $this->assertSame("{$fall} / {$fall} créditos", $kBerta['contexto']);
+        $this->assertSame(100.0, $kBerta['valor']);
+
+        // Resumen mensual: Ana 7 (máx 17), Berta 10 (máx 10).
+        $filas = $this->rep->resumenMensual((int) gmdate('Y'), (int) gmdate('n'), 'ambos');
+        $porNombre = [];
+        foreach ($filas as $f) {
+            $porNombre[$f['nombre']] = $f;
+        }
+        $this->assertSame($kept, (int) $porNombre['Ana']['creditos']);
+        $this->assertSame($kept + $fall, (int) $porNombre['Ana']['creditos_maximos']);
+        $this->assertSame($fall, (int) $porNombre['Berta']['creditos']);
+        $this->assertSame($fall, (int) $porNombre['Berta']['creditos_maximos']);
     }
 
     public function testResumenMensualRepartido(): void
