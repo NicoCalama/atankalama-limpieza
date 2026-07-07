@@ -27,8 +27,13 @@ final class ChecklistService
     {
         // Solo templates de tipo (piezas de huésped). Los de espacio (habitacion_id != NULL)
         // se editan desde la pantalla de áreas comunes, no acá. Ver docs/areas-comunes.md
+        // items_count / creditos_total (solo obligatorios activos) alimentan las tarjetas del editor.
         return Database::fetchAll(
-            'SELECT ct.*, th.nombre AS tipo_nombre
+            'SELECT ct.*, th.nombre AS tipo_nombre,
+                    (SELECT COUNT(*) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1) AS items_count,
+                    (SELECT COALESCE(SUM(ic.creditos), 0) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.obligatorio = 1) AS creditos_total
                FROM #__checklists_template ct
                JOIN #__tipos_habitacion th ON th.id = ct.tipo_habitacion_id
               WHERE ct.activo = 1 AND ct.habitacion_id IS NULL

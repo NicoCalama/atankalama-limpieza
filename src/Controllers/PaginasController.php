@@ -155,6 +155,23 @@ final class PaginasController
         ]);
     }
 
+    public function ajustesChecklists(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('checklists.editar')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-checklists', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Checklists',
+        ]);
+    }
+
     public function ajustesMiCuenta(Request $request): Response
     {
         if ($request->usuario === null) {

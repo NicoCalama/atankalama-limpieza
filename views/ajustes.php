@@ -29,6 +29,13 @@ $secciones = [
         'visible' => $usuario->tienePermiso('usuarios.ver'),
     ],
     [
+        'ruta' => '/ajustes/checklists',
+        'icono' => 'list-checks',
+        'label' => 'Checklists',
+        'descripcion' => 'Ítems del checklist por tipo y sus créditos',
+        'visible' => $usuario->tienePermiso('checklists.editar'),
+    ],
+    [
         'ruta' => '/ajustes/turnos',
         'icono' => 'calendar-clock',
         'label' => 'Turnos',
