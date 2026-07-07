@@ -62,6 +62,7 @@ final class Kernel
         $router->get('/ajustes/turnos', [$paginas, 'ajustesTurnos'], [$optionalAuth]);
         $router->get('/ajustes/alertas', [$paginas, 'ajustesAlertas'], [$optionalAuth]);
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
+        $router->get('/ajustes/checklists', [$paginas, 'ajustesChecklists'], [$optionalAuth]);
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
@@ -156,6 +157,10 @@ final class Kernel
         $router->get('/api/checklists/templates/{id}/items', [$checklists, 'itemsDelTemplate'], [
             $authCheck,
             new PermissionCheck('checklists.ver'),
+        ]);
+        $router->put('/api/checklists/templates/{id}', [$checklists, 'editarTemplate'], [
+            $authCheck,
+            new PermissionCheck('checklists.editar'),
         ]);
         $router->post('/api/habitaciones/{id}/iniciar', [$checklists, 'iniciar'], [$authCheck]);
         $router->post('/api/habitaciones/{id}/completar', [$checklists, 'completar'], [

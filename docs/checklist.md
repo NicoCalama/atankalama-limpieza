@@ -21,8 +21,8 @@ Una habitación puede tener múltiples ejecuciones a lo largo del tiempo (una po
 ### 2.1 Estructura
 
 - Un template = N items ordenados.
-- Cada item: `orden`, `descripcion`, `obligatorio` (default true).
-- Items `obligatorio=0` son opcionales (no bloquean el botón "habitación terminada", pero siguen siendo marcables).
+- Cada item: `orden`, `descripcion`, `obligatorio` (default true), `creditos` (peso, default 1), `es_cambio_sabanas` (etiqueta).
+- Items `obligatorio=0` son opcionales (no bloquean el botón "habitación terminada", pero siguen siendo marcables) y **no otorgan créditos** (el peso `creditos` solo cuenta si el item es obligatorio; ver [creditos-rework.md](creditos-rework.md)).
 
 ### 2.2 Ejemplos (MVP seed)
 
@@ -38,16 +38,18 @@ Una habitación puede tener múltiples ejecuciones a lo largo del tiempo (una po
 9. Revisar iluminación y aire
 10. Inspección final
 
-### 2.3 Edición (requiere `checklists.editar`)
+### 2.3 Edición (requiere `checklists.editar`) — IMPLEMENTADO
 
-Admin edita desde Ajustes → Checklists templates:
-- Reordenar items (drag & drop).
+Admin edita desde **Ajustes → Checklists** (`/ajustes/checklists`, `ChecklistService::editarTemplate`):
+- Reordenar items (botones subir/bajar).
 - Editar descripción.
 - Toggle `obligatorio`.
-- Desactivar un item (`activo=0`) — no elimina, preserva histórico de ejecuciones.
+- Fijar el **peso de créditos** por item (input visible solo en items obligatorios; ver [creditos-rework.md](creditos-rework.md)).
+- Toggle `es_cambio_sabanas` (etiqueta de sábanas).
 - Agregar items nuevos.
+- Quitar un item → se **desactiva** (`activo=0`), no se elimina, para preservar el histórico de ejecuciones (FK RESTRICT desde `ejecuciones_items`).
 
-**Importante:** editar un template **no** afecta ejecuciones ya en progreso. Las ejecuciones usan snapshot del template al momento de crearse (a través de `template_id` + `items_checklist`, filtrando `activo=1` al **momento de la consulta de la ejecución**). Para robustez futura, podría copiarse la estructura al iniciar la ejecución, pero MVP mantiene referencia.
+Los items se actualizan **in-place por id**: los conservados mantienen su `id`, los nuevos se insertan y los quitados se desactivan (primero se desactiva, después se inserta, para no apagar los recién creados). Como la ejecución lee el template en vivo filtrando `activo=1`, **una edición se refleja en las ejecuciones en progreso**: una descripción renombrada aparece al instante, un item quitado desaparece, y los items ya marcados conservan su estado por mantener el `id`. Solo se editan acá los templates de **tipo** (piezas de huésped); los de **espacio** (áreas comunes, `habitacion_id != NULL`) se editan desde `/espacios`.
 
 ---
 
@@ -174,9 +176,10 @@ Detalle en [auditoria.md](auditoria.md) §4.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates |
-| POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template |
-| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar template |
+| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo (con `items_count`, `creditos_total`) |
+| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template |
+| POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
+| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems (descripción, orden, obligatorio, peso de créditos, sábanas) |
 | GET | `/api/ejecuciones/{id}` | asignada a mí OR `habitaciones.ver_todas` | Estado actual de ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada a mí | Marcar/desmarcar item |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada a mí | Crear ejecución (409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso) |

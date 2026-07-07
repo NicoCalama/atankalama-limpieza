@@ -248,6 +248,7 @@ CREATE TABLE items_checklist (
     orden               INTEGER NOT NULL,
     descripcion         TEXT NOT NULL,
     obligatorio         INTEGER NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
+    creditos            INTEGER NOT NULL DEFAULT 1 CHECK (creditos >= 0),  -- peso de créditos del ítem; solo cuenta para créditos si obligatorio=1. Ver docs/creditos-rework.md
     es_cambio_sabanas   INTEGER NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
     activo              INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),

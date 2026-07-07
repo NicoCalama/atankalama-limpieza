@@ -530,6 +530,164 @@ final class ChecklistServiceTest extends TestCase
         $this->assertSame('en_progreso', $ejec->estado);
     }
 
+    // -----------------------------------------------------------------------
+    // Editor de templates por tipo (checklists.editar) + peso de créditos
+    // -----------------------------------------------------------------------
+
+    private function templateDelTipo(): int
+    {
+        $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
+        return (int) $this->svc->templateParaTipo($tipoId);
+    }
+
+    public function testEditarTemplateActualizaInPlaceConservandoIds(): void
+    {
+        $tid = $this->templateDelTipo();
+        $items = $this->svc->itemsDelTemplate($tid);
+        $ids = array_map(static fn($i) => (int) $i['id'], $items);
+
+        // Reenvía TODOS los ítems con su id, cambiando descripción y peso del primero.
+        $payload = [];
+        foreach ($items as $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => (int) $i['id'] === $ids[0] ? 'Descripción editada' : $i['descripcion'],
+                'obligatorio' => (int) $i['obligatorio'] === 1,
+                'creditos' => (int) $i['id'] === $ids[0] ? 3 : (int) $i['creditos'],
+            ];
+        }
+        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        $despues = $this->svc->itemsDelTemplate($tid);
+        // Mismos ids en el mismo orden (se actualizaron in-place, no se recrearon).
+        $this->assertSame($ids, array_map(static fn($i) => (int) $i['id'], $despues));
+        $this->assertSame('Descripción editada', $despues[0]['descripcion']);
+        $this->assertSame(3, (int) $despues[0]['creditos']);
+    }
+
+    public function testEditarTemplateAgregaYDesactivaItemsSinBorrar(): void
+    {
+        $tid = $this->templateDelTipo();
+        $items = $this->svc->itemsDelTemplate($tid);
+        $total = count($items);
+
+        // Conserva todos menos el último, y agrega uno nuevo (sin id).
+        $payload = [];
+        foreach (array_slice($items, 0, $total - 1) as $i) {
+            $payload[] = ['id' => (int) $i['id'], 'descripcion' => $i['descripcion'], 'obligatorio' => (int) $i['obligatorio'] === 1, 'creditos' => (int) $i['creditos']];
+        }
+        $payload[] = ['descripcion' => 'Ítem nuevo', 'obligatorio' => true, 'creditos' => 2];
+
+        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        $activos = $this->svc->itemsDelTemplate($tid);
+        $this->assertCount($total, $activos); // -1 quitado + 1 nuevo
+        $this->assertContains('Ítem nuevo', array_map(static fn($i) => $i['descripcion'], $activos));
+
+        // El quitado NO se borró: sigue en la tabla con activo=0 (preserva histórico, FK RESTRICT).
+        $quitadoId = (int) $items[$total - 1]['id'];
+        $fila = Database::fetchOne('SELECT activo FROM items_checklist WHERE id = ?', [$quitadoId]);
+        $this->assertNotNull($fila);
+        $this->assertSame(0, (int) $fila['activo']);
+    }
+
+    public function testEditarTemplateOpcionalNoGuardaCreditosAunqueSeEnvien(): void
+    {
+        $tid = $this->templateDelTipo();
+        $items = $this->svc->itemsDelTemplate($tid);
+
+        // Reenvía todos; el primero pasa a OPCIONAL pero con un peso "sucio" de 50.
+        $payload = [];
+        foreach ($items as $idx => $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => $i['descripcion'],
+                'obligatorio' => $idx !== 0,
+                'creditos' => $idx === 0 ? 50 : (int) $i['creditos'],
+            ];
+        }
+        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        $primero = Database::fetchOne('SELECT obligatorio, creditos FROM items_checklist WHERE id = ?', [(int) $items[0]['id']]);
+        $this->assertSame(0, (int) $primero['obligatorio']);
+        // El servidor normaliza a 0: los opcionales no llevan crédito, aunque el cliente mande 50.
+        $this->assertSame(0, (int) $primero['creditos']);
+    }
+
+    public function testEditarTemplateVacioLanza(): void
+    {
+        try {
+            $this->svc->editarTemplate($this->templateDelTipo(), null, [], $this->usuarioId);
+            $this->fail('Debía lanzar');
+        } catch (ChecklistException $e) {
+            $this->assertSame('CHECKLIST_VACIO', $e->codigo);
+        }
+    }
+
+    public function testEditarTemplateItemAjenoLanza(): void
+    {
+        try {
+            $this->svc->editarTemplate($this->templateDelTipo(), null, [
+                ['id' => 999999, 'descripcion' => 'x', 'obligatorio' => true, 'creditos' => 1],
+            ], $this->usuarioId);
+            $this->fail('Debía lanzar');
+        } catch (ChecklistException $e) {
+            $this->assertSame('ITEM_AJENO', $e->codigo);
+        }
+    }
+
+    public function testEditarTemplateDeEspacioNoSePermiteAca(): void
+    {
+        // Un template propio de espacio (habitacion_id != NULL) NO se edita por esta vía:
+        // los espacios se editan desde áreas comunes. Se le crea su template a mano.
+        $espacioId = $this->crearEspacioComunAsignado('Piscina');
+        $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
+        Database::execute(
+            "INSERT INTO checklists_template (tipo_habitacion_id, habitacion_id, nombre) VALUES (?, ?, 'Checklist — Piscina')",
+            [$tipoId, $espacioId]
+        );
+        $tid = (int) Database::lastInsertId();
+
+        try {
+            $this->svc->editarTemplate($tid, null, [
+                ['descripcion' => 'x', 'obligatorio' => true, 'creditos' => 1],
+            ], $this->usuarioId);
+            $this->fail('Debía lanzar: los templates de espacio se editan desde áreas comunes');
+        } catch (ChecklistException $e) {
+            $this->assertSame('TEMPLATE_NO_ENCONTRADO', $e->codigo);
+        }
+    }
+
+    public function testEditarTemplateSeReflejaEnEjecucionEnProgreso(): void
+    {
+        // Ejecución en curso; editar el template debe verse en vivo (la ejecución filtra activo=1).
+        $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+        $items = $this->svc->itemsDelTemplate($ejec->templateId);
+        $primeroId = (int) $items[0]['id'];
+        $this->svc->marcarItem($ejec->id, $primeroId, true, $this->usuarioId);
+
+        // Renombra el primero (mismo id) y quita el último.
+        $payload = [];
+        foreach (array_slice($items, 0, count($items) - 1) as $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => (int) $i['id'] === $primeroId ? 'Renombrado' : $i['descripcion'],
+                'obligatorio' => (int) $i['obligatorio'] === 1,
+                'creditos' => (int) $i['creditos'],
+            ];
+        }
+        $this->svc->editarTemplate($ejec->templateId, null, $payload, $this->usuarioId);
+
+        $porId = [];
+        foreach ($this->svc->estadoEjecucion($ejec->id)['items'] as $it) {
+            $porId[(int) $it['id']] = $it;
+        }
+        // El primero conserva su marca (mismo id) y muestra la nueva descripción.
+        $this->assertArrayHasKey($primeroId, $porId);
+        $this->assertSame('Renombrado', $porId[$primeroId]['descripcion']);
+        $this->assertSame(1, (int) $porId[$primeroId]['marcado']);
+    }
+
     /**
      * Crea un espacio común 'sucio' asignado al mismo trabajador y retorna su id.
      */

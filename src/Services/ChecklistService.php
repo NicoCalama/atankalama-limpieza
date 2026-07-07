@@ -27,8 +27,13 @@ final class ChecklistService
     {
         // Solo templates de tipo (piezas de huésped). Los de espacio (habitacion_id != NULL)
         // se editan desde la pantalla de áreas comunes, no acá. Ver docs/areas-comunes.md
+        // items_count / creditos_total (solo obligatorios activos) alimentan las tarjetas del editor.
         return Database::fetchAll(
-            'SELECT ct.*, th.nombre AS tipo_nombre
+            'SELECT ct.*, th.nombre AS tipo_nombre,
+                    (SELECT COUNT(*) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1) AS items_count,
+                    (SELECT COALESCE(SUM(ic.creditos), 0) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.obligatorio = 1) AS creditos_total
                FROM #__checklists_template ct
                JOIN #__tipos_habitacion th ON th.id = ct.tipo_habitacion_id
               WHERE ct.activo = 1 AND ct.habitacion_id IS NULL
@@ -47,6 +52,156 @@ final class ChecklistService
             "SELECT * FROM #__items_checklist WHERE $where ORDER BY orden, id",
             [$templateId]
         );
+    }
+
+    /**
+     * Edita los ítems de un template de TIPO (pieza de huésped): descripción, orden, obligatorio,
+     * peso de créditos y la etiqueta de sábanas. Los ítems con id se actualizan IN-PLACE (así las
+     * ejecuciones en progreso, que leen el template en vivo filtrando activo=1, quedan coherentes),
+     * los nuevos se insertan y los quitados se desactivan (nunca DELETE: FK RESTRICT desde
+     * ejecuciones históricas). Los templates de espacio (habitacion_id != NULL) se editan desde
+     * áreas comunes, no acá. Requiere permiso checklists.editar (gateado en el Kernel).
+     *
+     * @param list<array<string, mixed>> $items cada uno: {id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}
+     */
+    public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null): void
+    {
+        $template = Database::fetchOne(
+            'SELECT id FROM #__checklists_template WHERE id = ? AND habitacion_id IS NULL AND activo = 1',
+            [$templateId]
+        );
+        if ($template === null) {
+            throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'El checklist no existe o no se edita desde acá.', 404);
+        }
+
+        $normalizados = $this->normalizarItemsTemplate($items);
+        if ($normalizados === []) {
+            throw new ChecklistException('CHECKLIST_VACIO', 'El checklist debe tener al menos un ítem.', 400);
+        }
+
+        // Ids que el cliente conserva: deben pertenecer a este template (activos o no) para no
+        // pisar ítems de otro checklist por un id inyectado.
+        $idsEnviados = [];
+        foreach ($normalizados as $it) {
+            if (isset($it['id'])) {
+                $idsEnviados[] = $it['id'];
+            }
+        }
+        if ($idsEnviados !== []) {
+            $ph = implode(',', array_fill(0, count($idsEnviados), '?'));
+            $delTemplate = Database::fetchAll(
+                "SELECT id FROM #__items_checklist WHERE template_id = ? AND id IN ($ph)",
+                array_merge([$templateId], $idsEnviados)
+            );
+            $validos = array_map(static fn(array $f) => (int) $f['id'], $delTemplate);
+            foreach ($idsEnviados as $idEnv) {
+                if (!in_array($idEnv, $validos, true)) {
+                    throw new ChecklistException('ITEM_AJENO', 'Un ítem no pertenece a este checklist.', 400);
+                }
+            }
+        }
+
+        Database::transaction(function () use ($templateId, $nombre, $normalizados, $idsEnviados): void {
+            if ($nombre !== null && trim($nombre) !== '') {
+                Database::execute(
+                    "UPDATE #__checklists_template SET nombre = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    [trim($nombre), $templateId]
+                );
+            }
+
+            // Primero se desactivan los ítems activos que ya no vienen en el payload (los quitados).
+            // Va ANTES de insertar los nuevos: si se hiciera después, la cláusula "id NOT IN
+            // ($idsEnviados)" apagaría a los recién insertados (sus ids no están en la lista enviada).
+            if ($idsEnviados === []) {
+                Database::execute('UPDATE #__items_checklist SET activo = 0 WHERE template_id = ? AND activo = 1', [$templateId]);
+            } else {
+                $ph = implode(',', array_fill(0, count($idsEnviados), '?'));
+                Database::execute(
+                    "UPDATE #__items_checklist SET activo = 0 WHERE template_id = ? AND activo = 1 AND id NOT IN ($ph)",
+                    array_merge([$templateId], $idsEnviados)
+                );
+            }
+
+            // Luego se actualizan in-place los conservados y se insertan los nuevos, en el orden
+            // del arreglo (la posición fija el campo orden).
+            $orden = 1;
+            foreach ($normalizados as $it) {
+                if (isset($it['id'])) {
+                    Database::execute(
+                        'UPDATE #__items_checklist
+                            SET orden = ?, descripcion = ?, obligatorio = ?, creditos = ?, es_cambio_sabanas = ?, activo = 1
+                          WHERE id = ? AND template_id = ?',
+                        [$orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas'], $it['id'], $templateId]
+                    );
+                } else {
+                    Database::execute(
+                        'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
+                         VALUES (?, ?, ?, ?, ?, ?, 1)',
+                        [$templateId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
+                    );
+                }
+                $orden++;
+            }
+        });
+
+        Logger::audit($actorId, 'checklist.editar_template', 'checklists_template', $templateId, [
+            'items' => count($normalizados),
+        ]);
+    }
+
+    /**
+     * Valida y normaliza los ítems del editor. Descarta filas sin descripción; cada ítem queda con
+     * descripción (≤255), obligatorio (0/1), creditos (0..100; solo cuenta para créditos si es
+     * obligatorio) y es_cambio_sabanas (0/1). El orden lo fija la posición en el arreglo.
+     *
+     * @param list<array<string, mixed>> $items
+     * @return list<array{id?:int, descripcion:string, obligatorio:int, creditos:int, es_cambio_sabanas:int}>
+     */
+    private function normalizarItemsTemplate(array $items): array
+    {
+        $out = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $descripcion = trim((string) ($item['descripcion'] ?? ''));
+            if ($descripcion === '') {
+                continue; // fila vacía: se ignora
+            }
+            if (mb_strlen($descripcion) > 255) {
+                $descripcion = mb_substr($descripcion, 0, 255);
+            }
+
+            $obligatorio = $this->esVerdadero($item['obligatorio'] ?? true) ? 1 : 0;
+            // Los opcionales no dan crédito: se normaliza a 0 en el servidor (no solo en la UI),
+            // para no dejar peso "sucio" en la BD si un cliente no-UI manda creditos > 0 sin obligatorio.
+            $creditos = $obligatorio === 1 ? max(0, min(100, (int) ($item['creditos'] ?? 1))) : 0;
+
+            $norm = [
+                'descripcion' => $descripcion,
+                'obligatorio' => $obligatorio,
+                'creditos' => $creditos,
+                'es_cambio_sabanas' => $this->esVerdadero($item['es_cambio_sabanas'] ?? false) ? 1 : 0,
+            ];
+            $id = $item['id'] ?? null;
+            if ($id !== null && (int) $id > 0) {
+                $norm['id'] = (int) $id;
+            }
+            $out[] = $norm;
+        }
+        return $out;
+    }
+
+    /** Interpreta booleanos que pueden llegar como bool, int o string (JSON o form). */
+    private function esVerdadero(mixed $valor): bool
+    {
+        if (is_bool($valor)) {
+            return $valor;
+        }
+        if (is_int($valor)) {
+            return $valor !== 0;
+        }
+        return in_array(strtolower((string) $valor), ['1', 'true', 'yes', 'on'], true);
     }
 
     public function templateParaTipo(int $tipoHabitacionId): ?int

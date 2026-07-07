@@ -30,6 +30,38 @@ final class ChecklistsController
         return Response::ok(['items' => $this->svc->itemsDelTemplate($id)]);
     }
 
+    /**
+     * PUT /api/checklists/templates/{id} — editar el checklist de un tipo.
+     * Body: { nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }.
+     * Requiere checklists.editar (gateado en el Kernel).
+     */
+    public function editarTemplate(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'template_id inválido.', 400);
+        }
+
+        $nombre = $request->input('nombre');
+        $nombre = is_string($nombre) ? $nombre : null;
+
+        $items = $request->input('items', []);
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        try {
+            $this->svc->editarTemplate($id, $nombre, $items, $request->usuario?->id);
+        } catch (ChecklistException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        return Response::ok([
+            'template_id' => $id,
+            'items' => $this->svc->itemsDelTemplate($id),
+        ]);
+    }
+
     public function iniciar(Request $request): Response
     {
         $habitacionId = $request->rutaInt('id');

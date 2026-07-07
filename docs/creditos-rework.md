@@ -13,6 +13,14 @@
 > **Nota de matiz vs. §4.1:** el desmarcado del auditor **conserva** `marcado_por` (no lo
 > pone en NULL) para que el ítem fallido cuente en el denominador de quien lo marcó mal.
 
+> **Actualización (07/07/2026) — peso de créditos por ítem:** cada ítem obligatorio puede valer
+> N créditos (columna `items_checklist.creditos`, default 1), editable desde **Ajustes → Checklists**
+> (ver [checklist.md](checklist.md) §2.3). El motor (`ReportesService::kpiCreditos` y `resumenMensual`)
+> **suma** `ic.creditos` en vez de contar ítems; el filtro sigue siendo `obligatorio=1` (los opcionales
+> no dan crédito). Con el backfill a 1 de la migración, los reportes históricos dan idéntico. Los
+> créditos se computan **en vivo** desde el template (no snapshot), así que editar un peso re-valúa
+> reportes pasados —consistente con cómo `obligatorio`/`activo` ya afectaban el cálculo.
+
 Documenta el rediseño del flujo **rechazo → re-limpieza → créditos** para que los créditos midan la limpieza *realmente correcta* y se repartan por persona según lo que cada uno limpió.
 
 ---
