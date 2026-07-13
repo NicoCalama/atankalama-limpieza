@@ -189,6 +189,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('asignaciones.asignar_manual'),
         ]);
+        $router->post('/api/asignaciones/desasignar', [$asignaciones, 'desasignar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
         $router->put('/api/asignaciones/orden', [$asignaciones, 'reordenar'], [
             $authCheck,
             new PermissionCheck('asignaciones.reordenar_cola_trabajador'),

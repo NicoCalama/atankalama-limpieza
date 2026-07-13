@@ -120,6 +120,7 @@ Ver [habitaciones.md](habitaciones.md) §6.
 | POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual |
 | POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
 | POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar |
+| POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
 
 ---

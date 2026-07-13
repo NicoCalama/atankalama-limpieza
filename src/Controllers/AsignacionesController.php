@@ -83,6 +83,23 @@ final class AsignacionesController
         return Response::ok(['asignacion' => $a->toArray()], 201);
     }
 
+    public function desasignar(Request $request): Response
+    {
+        $habitacionId = $request->inputInt('habitacion_id');
+        $fecha = $request->inputString('fecha');
+
+        if ($habitacionId === null || $fecha === '') {
+            return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y fecha son requeridos.', 400);
+        }
+
+        try {
+            $this->svc->desasignar($habitacionId, $fecha, $request->usuario?->id);
+        } catch (AsignacionException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['mensaje' => 'Habitación desasignada.']);
+    }
+
     public function reordenar(Request $request): Response
     {
         $usuarioId = $request->inputInt('usuario_id');
