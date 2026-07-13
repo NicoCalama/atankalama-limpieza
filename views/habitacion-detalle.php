@@ -216,6 +216,42 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </div>
             </template>
 
+            <!-- Historial de limpiezas (permiso habitaciones.ver_historial; el
+                 trabajador nunca lo ve — incluye horas, que le son invisibles) -->
+            <template x-if="puedeVerHistorial">
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                        <i data-lucide="history" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Historial de limpiezas</h2>
+                        <span class="text-xs text-gray-400" x-text="historial.length ? historial.length : ''"></span>
+                    </div>
+                    <template x-if="historial.length === 0">
+                        <p class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Esta habitación aún no registra limpiezas.</p>
+                    </template>
+                    <template x-if="historial.length > 0">
+                        <ul>
+                            <template x-for="h in historial" :key="h.id">
+                                <li class="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="h.trabajador_nombre"></p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="fechaHistorial(h.timestamp_inicio)"></p>
+                                        </div>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0"
+                                              :class="claseHistorial(h)" x-text="etiquetaHistorial(h)"></span>
+                                    </div>
+                                    <template x-if="h.veredicto && h.auditor_nombre">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            Auditada por <span x-text="h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
+                                        </p>
+                                    </template>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </template>
+
             <!-- Modal confirmación completar -->
             <div x-show="mostrarConfirmar" x-cloak
                  class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
@@ -295,6 +331,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         estaAsignada: false,
         puedeVerTodas: false,
         puedeAsignar: false,
+        puedeVerHistorial: false,
+        historial: [],
 
         cargando: false,
         error: null,
@@ -343,6 +381,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 if (yo && yo.cargado) {
                     this.puedeVerTodas = yo.tienePermiso('habitaciones.ver_todas');
                     this.puedeAsignar = yo.tienePermiso('asignaciones.asignar_manual');
+                    this.puedeVerHistorial = yo.tienePermiso('habitaciones.ver_historial');
                 }
 
                 var r1 = await apiFetch('/api/habitaciones/' + this.habitacionId);
@@ -363,6 +402,23 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 // (el backend de iniciar es idempotente y retorna la ejecución existente si ya hay una).
                 if (this.habitacion.estado === 'en_progreso' && this.estaAsignada) {
                     await this.cargarEjecucion();
+                }
+
+                // Historial de limpiezas: la autoridad es el backend (403 si el rol
+                // no tiene habitaciones.ver_historial). No podemos depender solo del
+                // store de auth: puede no haber terminado de cargar en este punto.
+                // Si el store YA cargó y dice que no hay permiso, ni intentamos.
+                var stAuth = Alpine.store('auth');
+                var intentarHistorial = !(stAuth && stAuth.cargado)
+                    || stAuth.tienePermiso('habitaciones.ver_historial');
+                if (intentarHistorial) {
+                    try {
+                        var rHist = await apiFetch('/api/habitaciones/' + this.habitacionId + '/historial');
+                        if (rHist && rHist.ok) {
+                            this.historial = rHist.data.historial || [];
+                            this.puedeVerHistorial = true;
+                        }
+                    } catch (e) { /* sección opcional: sin historial no se rompe la página */ }
                 }
 
                 // Cargar cola offline
@@ -623,6 +679,37 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';
+        },
+
+        // --- Historial de limpiezas ---
+
+        fechaHistorial(ts) {
+            // Timestamps ISO-UTC de la BD → fecha/hora local de Chile (DD/MM/YYYY HH:mm)
+            if (!ts) return '';
+            try {
+                var d = new Date(ts);
+                return d.toLocaleString('es-CL', {
+                    timeZone: 'America/Santiago',
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            } catch (e) { return ts; }
+        },
+
+        etiquetaHistorial(h) {
+            if (h.veredicto === 'aprobado') return 'Aprobada';
+            if (h.veredicto === 'aprobado_con_observacion') return 'Aprobada c/obs.';
+            if (h.veredicto === 'rechazado') return 'Rechazada';
+            if (h.estado === 'en_progreso') return 'En progreso';
+            if (h.estado === 'completada') return 'Completada';
+            return 'Auditada';
+        },
+
+        claseHistorial(h) {
+            if (h.veredicto === 'rechazado') return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200';
+            if (h.veredicto) return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200';
+            if (h.estado === 'en_progreso') return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200';
+            return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200';
         }
     };
 }

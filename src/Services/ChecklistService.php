@@ -395,6 +395,36 @@ final class ChecklistService
     }
 
     /**
+     * Historial de limpiezas de una habitación: ejecuciones (quién, cuándo, en qué
+     * quedó) con su veredicto de auditoría si existe. Más recientes primero.
+     *
+     * Para la vista de detalle con permiso `habitaciones.ver_historial` (Supervisora,
+     * Recepción, Admin). OJO: incluye timestamps de inicio/fin — el trabajador NUNCA
+     * debe recibir esta respuesta (su rol no tiene el permiso; el endpoint lo exige).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function historialDeHabitacion(int $habitacionId, int $limite = 30): array
+    {
+        $limite = max(1, min(100, $limite));
+        return Database::fetchAll(
+            "SELECT ec.id, ec.estado, ec.timestamp_inicio, ec.timestamp_fin,
+                    u.nombre AS trabajador_nombre,
+                    a.veredicto, a.comentario AS auditoria_comentario,
+                    a.created_at AS auditoria_at,
+                    au.nombre AS auditor_nombre
+               FROM #__ejecuciones_checklist ec
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+          LEFT JOIN #__usuarios au ON au.id = a.auditor_id
+              WHERE ec.habitacion_id = ?
+              ORDER BY ec.id DESC
+              LIMIT {$limite}",
+            [$habitacionId]
+        );
+    }
+
+    /**
      * Estado detallado de una ejecución con sus items y progreso.
      *
      * @return array<string, mixed>
