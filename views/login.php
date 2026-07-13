@@ -120,8 +120,71 @@
         </form>
 
         <p class="text-center text-xs text-gray-500 dark:text-gray-400 mt-4">
-            ¿Olvidaste tu contraseña? Contacta a tu supervisor.
+            ¿Olvidaste tu contraseña?
+            <button type="button"
+                    @click="abrirRecuperar()"
+                    class="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                Recupérala aquí
+            </button>
         </p>
+    </div>
+
+    <!-- Modal recuperar contraseña -->
+    <div x-show="recuperarAbierto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="cerrarRecuperar()"></div>
+        <div class="relative bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div class="text-center mb-4">
+                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="mail" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                </div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Recuperar contraseña</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Ingresa tu RUT y te enviaremos una contraseña temporal al correo registrado.
+                </p>
+            </div>
+
+            <!-- Mensaje de éxito (genérico) -->
+            <div x-show="recuperarMensaje" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
+                <p x-text="recuperarMensaje" class="text-sm text-green-700 dark:text-green-400"></p>
+            </div>
+
+            <form x-show="!recuperarMensaje" @submit.prevent="enviarRecuperar()">
+                <div class="space-y-4">
+                    <div>
+                        <label for="rut-recuperar" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RUT</label>
+                        <input type="text"
+                               id="rut-recuperar"
+                               x-model="rutRecuperar"
+                               @input="rutRecuperar = formatearRutValor(rutRecuperar)"
+                               placeholder="12.345.678-9"
+                               autocomplete="username"
+                               class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+                                      border border-gray-300 dark:border-gray-600 rounded-lg
+                                      text-gray-900 dark:text-gray-100
+                                      placeholder-gray-400 dark:placeholder-gray-500
+                                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div x-show="recuperarError" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p x-text="recuperarError" class="text-sm text-red-700 dark:text-red-400"></p>
+                    </div>
+
+                    <button type="submit"
+                            :disabled="rutRecuperar.replace(/\./g, '').trim().length < 3 || recuperarCargando"
+                            class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
+                                   transition-colors flex items-center justify-center gap-2
+                                   disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span x-text="recuperarCargando ? 'Enviando...' : 'Enviar contraseña temporal'"></span>
+                    </button>
+                </div>
+            </form>
+
+            <button type="button"
+                    @click="cerrarRecuperar()"
+                    class="w-full min-h-[44px] mt-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                <span x-text="recuperarMensaje ? 'Volver al inicio de sesión' : 'Cancelar'"></span>
+            </button>
+        </div>
     </div>
 
     <!-- Formulario cambio de contraseña forzado -->
@@ -230,10 +293,17 @@ function loginApp() {
         sessionToken: null,
         homeTarget: u('/home'),
 
-        formatearRut() {
+        // Estado recuperar contraseña
+        recuperarAbierto: false,
+        rutRecuperar: '',
+        recuperarCargando: false,
+        recuperarMensaje: '',
+        recuperarError: '',
+
+        formatearRutValor(valor) {
             // Limpiar a solo dígitos y K
-            var limpio = this.rut.replace(/[^0-9kK]/g, '').toUpperCase();
-            if (limpio.length <= 1) { this.rut = limpio; return; }
+            var limpio = valor.replace(/[^0-9kK]/g, '').toUpperCase();
+            if (limpio.length <= 1) { return limpio; }
 
             var cuerpo = limpio.slice(0, -1);
             var dv = limpio.slice(-1);
@@ -243,7 +313,11 @@ function loginApp() {
                 if (c > 0 && c % 3 === 0) formateado = '.' + formateado;
                 formateado = cuerpo[i] + formateado;
             }
-            this.rut = formateado + '-' + dv;
+            return formateado + '-' + dv;
+        },
+
+        formatearRut() {
+            this.rut = this.formatearRutValor(this.rut);
         },
 
         normalizarRut() {
@@ -288,6 +362,43 @@ function loginApp() {
                 this.errorGeneral = 'No pudimos conectar con el servidor. Intenta de nuevo.';
             } finally {
                 this.cargando = false;
+            }
+        },
+
+        abrirRecuperar() {
+            this.recuperarAbierto = true;
+            this.recuperarMensaje = '';
+            this.recuperarError = '';
+            // Prellenar con lo que ya escribió en el login, si hay algo
+            this.rutRecuperar = this.rut;
+            this.$nextTick(function() { lucide.createIcons(); });
+        },
+
+        cerrarRecuperar() {
+            this.recuperarAbierto = false;
+        },
+
+        async enviarRecuperar() {
+            this.recuperarCargando = true;
+            this.recuperarError = '';
+
+            try {
+                var resp = await fetch(u('/api/auth/recuperar'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rut: this.rutRecuperar.replace(/\./g, '').trim() })
+                });
+                var data = await resp.json();
+
+                if (data.ok) {
+                    this.recuperarMensaje = data.data.mensaje;
+                } else {
+                    this.recuperarError = data.error?.mensaje || 'No pudimos procesar tu solicitud. Intenta de nuevo.';
+                }
+            } catch (e) {
+                this.recuperarError = 'No pudimos conectar con el servidor. Intenta de nuevo.';
+            } finally {
+                this.recuperarCargando = false;
             }
         },
 

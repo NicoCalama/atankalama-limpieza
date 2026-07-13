@@ -52,6 +52,29 @@ final class AuthController
         ])->conCookie(AuthService::SESSION_COOKIE, $resultado['token'], $cookieOpts);
     }
 
+    /**
+     * Endpoint público de recuperación de clave. Respuesta SIEMPRE genérica
+     * (anti-enumeración): no revela si el RUT existe ni si tiene correo.
+     */
+    public function recuperar(Request $request): Response
+    {
+        $rut = $request->inputString('rut');
+        if ($rut === '') {
+            return Response::error('CAMPOS_REQUERIDOS', 'El RUT es obligatorio.', 400);
+        }
+
+        try {
+            $this->auth->recuperarContrasena($rut, $request->ip);
+        } catch (AuthException $e) {
+            // Solo errores que no revelan existencia: RUT malformado o throttle.
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        return Response::ok([
+            'mensaje' => 'Si el RUT está registrado y tiene un correo asociado, te enviaremos una contraseña temporal en unos minutos.',
+        ]);
+    }
+
     public function logout(Request $request): Response
     {
         $token = $request->sessionToken;

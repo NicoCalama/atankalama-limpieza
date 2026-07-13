@@ -68,6 +68,7 @@ final class Kernel
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
+        $router->post('/api/auth/recuperar', [$auth, 'recuperar']);
 
         // Auth autenticado
         $router->post('/api/auth/logout', [$auth, 'logout'], [$authCheck]);

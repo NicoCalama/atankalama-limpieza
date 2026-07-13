@@ -23,6 +23,7 @@ final class AuthService
     public function __construct(
         private readonly UsuarioService $usuarios = new UsuarioService(),
         private readonly PasswordService $passwords = new PasswordService(),
+        private readonly EmailService $emails = new EmailService(),
     ) {
     }
 
@@ -114,10 +115,11 @@ final class AuthService
 
     /**
      * Cuenta intentos fallidos dentro de la ventana. Si >= MAX, lanza THROTTLED.
+     * $maxOverride permite un límite distinto al de login (p. ej. recuperación).
      */
-    private function verificarThrottle(string $clave, ?string $ip): void
+    private function verificarThrottle(string $clave, ?string $ip, ?int $maxOverride = null): void
     {
-        $max = max(1, Config::getInt('LOGIN_THROTTLE_MAX_INTENTOS', 5));
+        $max = $maxOverride ?? max(1, Config::getInt('LOGIN_THROTTLE_MAX_INTENTOS', 5));
         $ventanaMin = max(1, Config::getInt('LOGIN_THROTTLE_VENTANA_MINUTOS', 15));
 
         $desde = gmdate('Y-m-d\TH:i:s.000\Z', time() - $ventanaMin * 60);
@@ -285,7 +287,7 @@ final class AuthService
         Logger::audit($adminId, 'usuario.reset_password', 'usuario', $usuarioIdObjetivo, ['motivo' => $motivo]);
 
         if (!empty($usuario['email'])) {
-            (new EmailService())->enviarPasswordTemporal(
+            $this->emails->enviarPasswordTemporal(
                 $usuario['email'],
                 $usuario['nombre'],
                 $usuario['rut'],
@@ -295,6 +297,84 @@ final class AuthService
         }
 
         return $temporal;
+    }
+
+    /**
+     * Flujo público "olvidé mi contraseña": genera una temporal y la envía al
+     * email registrado del usuario.
+     *
+     * Anti-enumeración: NUNCA revela si el RUT existe — todos los caminos (RUT
+     * inexistente, usuario inactivo, sin email, fallo de envío) terminan en
+     * silencio y el controlador responde siempre el mismo mensaje genérico.
+     *
+     * El hash se pisa SOLO si el email salió: si el envío falla o el correo está
+     * deshabilitado, el usuario conserva su contraseña actual (no queda
+     * bloqueado por un mail perdido).
+     *
+     * Throttle propio (clave "rec:<rut>|<ip>"): cada solicitud consume un
+     * intento, exista o no el RUT, para impedir bombardeo de correos y sondeo
+     * de RUTs. Límite: RECUPERAR_THROTTLE_MAX_INTENTOS (default 3) por ventana.
+     */
+    public function recuperarContrasena(string $rutInput, ?string $ip = null): void
+    {
+        $this->asegurarTablaIntentosLogin();
+
+        $rutNorm = Rut::normalizar($rutInput);
+        if (!Rut::validar($rutNorm)) {
+            throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
+        }
+
+        $clave = 'rec:' . $this->claveThrottle($rutNorm, $ip);
+        $max = max(1, Config::getInt('RECUPERAR_THROTTLE_MAX_INTENTOS', 3));
+        $this->verificarThrottle($clave, $ip, $max);
+        // A diferencia del login, acá TODA solicitud suma (también las "exitosas"):
+        // sin esto, un tercero que conozca el RUT podría bombardear el correo ajeno.
+        $this->registrarIntentoFallido($clave);
+
+        $usuario = Database::fetchOne(
+            'SELECT id, nombre, rut, email, activo FROM #__usuarios WHERE rut = ?',
+            [$rutNorm]
+        );
+        if ($usuario === null || ((int) $usuario['activo']) !== 1 || empty($usuario['email'])) {
+            Logger::warning('auth', 'recuperación omitida: RUT sin usuario elegible', [
+                'rut' => $rutNorm,
+                'ip'  => $ip,
+            ]);
+            return;
+        }
+
+        $usuarioId = (int) $usuario['id'];
+        $temporal = $this->passwords->generarTemporal();
+        $hash = $this->passwords->hash($temporal);
+
+        $enviado = $this->emails->enviarPasswordTemporal(
+            (string) $usuario['email'],
+            (string) $usuario['nombre'],
+            (string) $usuario['rut'],
+            $temporal,
+            'olvido'
+        );
+        if (!$enviado) {
+            Logger::warning('auth', 'recuperación abortada: no se pudo enviar el email', [
+                'usuario_id' => $usuarioId,
+            ]);
+            return;
+        }
+
+        Database::transaction(function () use ($usuarioId, $hash): void {
+            Database::execute(
+                "UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$hash, $usuarioId]
+            );
+            Database::execute(
+                'INSERT INTO #__contrasenas_temporales (usuario_id, generada_por, motivo) VALUES (?, NULL, ?)',
+                [$usuarioId, 'olvido']
+            );
+            // Igual que el reset por admin: la clave cambió, las sesiones viejas caen.
+            Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioId]);
+        });
+
+        Logger::audit($usuarioId, 'auth.recuperar_password', 'usuario', $usuarioId, ['motivo' => 'olvido'], 'ui', $ip);
     }
 
     public function calcularHomeTarget(Usuario $usuario): string

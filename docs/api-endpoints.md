@@ -56,6 +56,7 @@ Ver [auth.md](auth.md).
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | POST | `/api/auth/login` | (ninguno) | Login RUT + pwd |
+| POST | `/api/auth/recuperar` | (ninguno) | Recuperación de clave: envía temporal al email del RUT. Respuesta siempre genérica (anti-enumeración); throttle 3/ventana por rut+ip |
 | POST | `/api/auth/logout` | sesión | Logout |
 | POST | `/api/auth/cambiar-contrasena` | `usuarios.cambiar_propia_contrasena` | Cambio propio |
 | POST | `/api/auth/reset-temporal` | `usuarios.resetear_password` | Admin resetea a otro |
