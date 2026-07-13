@@ -8,6 +8,26 @@
     display: none !important;
 }
 
+/*
+ * Colores configurables (Ajustes → Colores).
+ * Las variables --ce-* (chips de estado) y --ch-* (acentos de hotel) las inyecta
+ * views/layout.php desde ui_config (defaults = paleta Tailwind histórica); el
+ * modo oscuro redefine las variables bajo .dark en ese mismo bloque inyectado.
+ * Los fallbacks de acá cubren cualquier página sin el bloque (p. ej. login).
+ */
+.chip-estado-sucia { background-color: var(--ce-sucia-bg, #fdf6dc); color: var(--ce-sucia-fg, #856605); }
+.chip-estado-en_progreso { background-color: var(--ce-en_progreso-bg, #e4eefe); color: var(--ce-en_progreso-fg, #224a8c); }
+.chip-estado-completada_pendiente_auditoria { background-color: var(--ce-completada_pendiente_auditoria-bg, #ececfd); color: var(--ce-completada_pendiente_auditoria-fg, #383a89); }
+.chip-estado-aprobada { background-color: var(--ce-aprobada-bg, #e3f8ea); color: var(--ce-aprobada-fg, #137135); }
+.chip-estado-aprobada_con_observacion { background-color: var(--ce-aprobada_con_observacion-bg, #e3f8ea); color: var(--ce-aprobada_con_observacion-fg, #137135); }
+.chip-estado-rechazada { background-color: var(--ce-rechazada-bg, #fde4e4); color: var(--ce-rechazada-fg, #882727); }
+
+/* Acento por hotel en tarjetas: borde izquierdo + tinte de fondo + etiqueta */
+.hotel-accent-1_sur { border-left-color: var(--ch-1_sur-borde, #14b8a6); background-color: var(--ch-1_sur-tinte, rgba(20, 184, 166, 0.06)); }
+.hotel-accent-inn { border-left-color: var(--ch-inn-borde, #8b5cf6); background-color: var(--ch-inn-tinte, rgba(139, 92, 246, 0.06)); }
+.hotel-chip-1_sur { color: var(--ch-1_sur-texto, #0e8174); }
+.hotel-chip-inn { color: var(--ch-inn-texto, #6141ac); }
+
 /* Safe area para bottom nav en dispositivos con notch (iOS) */
 .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);

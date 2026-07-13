@@ -279,14 +279,15 @@ function homeTrabajador() {
         },
 
         badgeEstado(estado) {
+            // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
             var configs = {
-                'pendiente': { texto: 'Pendiente', clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
-                'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-                'completada': { texto: 'Completada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+                'pendiente': { texto: 'Pendiente', clase: 'chip-estado-sucia' },
+                'en_progreso': { texto: 'En progreso', clase: 'chip-estado-en_progreso' },
+                'completada': { texto: 'Completada', clase: 'chip-estado-completada_pendiente_auditoria' },
+                'aprobada': { texto: 'Aprobada', clase: 'chip-estado-aprobada' },
                 // El trabajador NO distingue "con observación" de "aprobada". Siempre "Aprobada".
-                'aprobada_con_observacion': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
+                'aprobada_con_observacion': { texto: 'Aprobada', clase: 'chip-estado-aprobada_con_observacion' },
+                'rechazada': { texto: 'Rechazada', clase: 'chip-estado-rechazada' },
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';

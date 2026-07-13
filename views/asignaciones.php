@@ -699,13 +699,16 @@ function asignacionesApp() {
         },
 
         claseBadgeHab(estado) {
+            // Colores por estado: clases semánticas .chip-estado-* (editables en
+            // Ajustes → Colores). Unifica esta vista con el resto de la app
+            // (antes 'sucia' era gris y 'por auditar' ámbar solo acá).
             var map = {
-                'sucia': 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100',
-                'en_progreso': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200',
-                'completada_pendiente_auditoria': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200',
-                'aprobada': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                'aprobada_con_observacion': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                'rechazada': 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                'sucia': 'chip-estado-sucia',
+                'en_progreso': 'chip-estado-en_progreso',
+                'completada_pendiente_auditoria': 'chip-estado-completada_pendiente_auditoria',
+                'aprobada': 'chip-estado-aprobada',
+                'aprobada_con_observacion': 'chip-estado-aprobada_con_observacion',
+                'rechazada': 'chip-estado-rechazada'
             };
             return map[estado] || 'bg-gray-200 text-gray-800';
         },

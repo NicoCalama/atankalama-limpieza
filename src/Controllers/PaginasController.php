@@ -172,6 +172,23 @@ final class PaginasController
         ]);
     }
 
+    public function ajustesColores(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('apariencia.editar')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-colores', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Colores',
+        ]);
+    }
+
     public function ajustesMiCuenta(Request $request): Response
     {
         if ($request->usuario === null) {

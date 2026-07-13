@@ -9,13 +9,15 @@
 
 function badgeEstadoHtml(string $estado): string
 {
+    // Colores vía clases semánticas .chip-estado-* (custom.css + variables que
+    // inyecta el layout desde ui_config — editables en Ajustes → Colores).
     $config = match ($estado) {
-        'pendiente' => ['texto' => 'Pendiente', 'clase' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200'],
-        'en_progreso' => ['texto' => 'En progreso', 'clase' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'],
-        'completada', 'completada_pendiente_auditoria' => ['texto' => 'Completada', 'clase' => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'],
-        'aprobada', 'aprobada_con_observacion' => ['texto' => 'Aprobada', 'clase' => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'],
-        'rechazada' => ['texto' => 'Rechazada', 'clase' => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'],
-        'sucia' => ['texto' => 'Pendiente', 'clase' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200'],
+        'pendiente', 'sucia' => ['texto' => 'Pendiente', 'clase' => 'chip-estado-sucia'],
+        'en_progreso' => ['texto' => 'En progreso', 'clase' => 'chip-estado-en_progreso'],
+        'completada', 'completada_pendiente_auditoria' => ['texto' => 'Completada', 'clase' => 'chip-estado-completada_pendiente_auditoria'],
+        'aprobada' => ['texto' => 'Aprobada', 'clase' => 'chip-estado-aprobada'],
+        'aprobada_con_observacion' => ['texto' => 'Aprobada', 'clase' => 'chip-estado-aprobada_con_observacion'],
+        'rechazada' => ['texto' => 'Rechazada', 'clase' => 'chip-estado-rechazada'],
         default => ['texto' => ucfirst($estado), 'clase' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'],
     };
 

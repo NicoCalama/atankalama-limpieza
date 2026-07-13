@@ -99,7 +99,7 @@
                         </div>
                         <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || ''"></p>
                         <div class="mt-auto pt-1">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria">
                                 Por auditar
                             </span>
                         </div>

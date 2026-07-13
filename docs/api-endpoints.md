@@ -164,6 +164,13 @@ Ver [alertas-predictivas.md](alertas-predictivas.md).
 | GET | `/api/alertas/bitacora` | `alertas.recibir_predictivas` | Histórico |
 | PUT | `/api/alertas/config` | `alertas.configurar_umbrales` | Editar umbrales |
 
+### Apariencia (Ajustes → Colores)
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/ui-config/colores` | `apariencia.editar` | Colores efectivos + defaults + etiquetas (para el editor) |
+| PUT | `/api/ui-config/colores` | `apariencia.editar` | Guardar colores `{ colores: { clave: '#rrggbb' } }`. Claves: `color_estado_*` y `color_hotel_*` (ver `UiConfigService::DEFAULTS`) |
+
 ---
 
 ## 10. Tickets

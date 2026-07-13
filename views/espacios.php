@@ -354,12 +354,13 @@ function espaciosApp() {
             return map[estado] || 'Listo';
         },
         claseBadge(estado) {
+            // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
             var map = {
-                'aprobada': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                'sucia': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200',
-                'en_progreso': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200'
+                'aprobada': 'chip-estado-aprobada',
+                'sucia': 'chip-estado-sucia',
+                'en_progreso': 'chip-estado-en_progreso'
             };
-            return map[estado] || 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200';
+            return map[estado] || 'chip-estado-aprobada';
         },
 
         // --- Crear / editar ---
