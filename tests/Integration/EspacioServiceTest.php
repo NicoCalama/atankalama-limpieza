@@ -160,7 +160,7 @@ final class EspacioServiceTest extends TestCase
         $this->assertSame('aprobada', (string) Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$espacioId])['estado']);
     }
 
-    public function testEspaciosNoContaminanKpisDePiezas(): void
+    public function testEspaciosNoContaminanKpisDePiezasPeroSusCreditosSuman(): void
     {
         $trabajadorId = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
         $espacioId = $this->svc->crear('Piscina', '1_sur', ['Barrer', 'Vidrios']);
@@ -173,11 +173,62 @@ final class EspacioServiceTest extends TestCase
         }
         $chk->completar($ejec->id, $trabajadorId);
 
-        // No hay piezas de huésped limpiadas: los KPIs de piezas no deben contar el espacio.
         $rep = new ReportesService();
         $kpis = $rep->kpis($this->hoy, $this->hoy, 'ambos');
+        // Los KPIs de piezas (tiempos, tasas) NO cuentan el espacio…
         $this->assertNull($kpis['tiempo_promedio']['valor'], 'tiempo_promedio no debe contar el espacio');
-        $this->assertNull($kpis['creditos']['valor'], 'creditos no debe contar el espacio');
+        // …pero los CRÉDITOS SÍ (pedido de la empresa, jul-2026): 2 ítems × 1 crédito.
+        $this->assertSame('2 / 2 créditos', $kpis['creditos']['contexto']);
+        $this->assertSame(100.0, $kpis['creditos']['valor']);
+    }
+
+    public function testCrearConCreditosPorItemYResumenMensual(): void
+    {
+        $trabajadorId = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
+        // Ítems con peso: barrer=3, vidrios=1 (formato {descripcion, creditos})
+        $espacioId = $this->svc->crear('Piscina', '1_sur', [
+            ['descripcion' => 'Barrer', 'creditos' => 3],
+            ['descripcion' => 'Vidrios', 'creditos' => 1],
+        ]);
+
+        // Persistencia: los ítems guardan su peso y listar() lo agrega
+        $detalle = $this->svc->obtenerDetalle($espacioId);
+        $pesos = array_map(static fn(array $i) => (int) $i['creditos'], $detalle['items']);
+        $this->assertSame([3, 1], $pesos);
+        $lista = $this->svc->listar('ambos');
+        $this->assertSame(4, (int) $lista[0]['creditos_total']);
+
+        // Limpieza completa → los 4 créditos entran al resumen mensual del trabajador,
+        // pero el conteo 'habitaciones' sigue en 0 (es un espacio, no una pieza).
+        $this->svc->pedirLimpieza($espacioId, $trabajadorId, $this->hoy);
+        $chk = new ChecklistService();
+        $ejec = $chk->iniciarEjecucion($espacioId, $trabajadorId, $this->hoy);
+        foreach ($chk->estadoEjecucion($ejec->id)['items'] as $it) {
+            $chk->marcarItem($ejec->id, (int) $it['id'], true, $trabajadorId);
+        }
+        $chk->completar($ejec->id, $trabajadorId);
+
+        $rep = new ReportesService();
+        $resumen = $rep->resumenMensual((int) date('Y'), (int) date('n'), 'ambos');
+        $this->assertCount(1, $resumen);
+        $this->assertSame('Ana', $resumen[0]['nombre']);
+        $this->assertSame(4, (int) $resumen[0]['creditos']);
+        $this->assertSame(0, (int) $resumen[0]['habitaciones']);
+    }
+
+    public function testEditarActualizaCreditos(): void
+    {
+        $espacioId = $this->svc->crear('Piscina', '1_sur', [
+            ['descripcion' => 'Barrer', 'creditos' => 2],
+        ]);
+        $this->svc->editar($espacioId, 'Piscina', [
+            ['descripcion' => 'Barrer', 'creditos' => 5],
+            ['descripcion' => 'Cloro', 'creditos' => 0],
+        ]);
+
+        $detalle = $this->svc->obtenerDetalle($espacioId);
+        $pesos = array_map(static fn(array $i) => (int) $i['creditos'], $detalle['items']);
+        $this->assertSame([5, 0], $pesos);
     }
 
     public function testEditarReemplazaChecklist(): void

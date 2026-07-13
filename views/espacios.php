@@ -8,8 +8,8 @@
  * Endpoints:
  *  - GET    /api/espacios?hotel=              { espacios, trabajadores, fecha }
  *  - GET    /api/espacios/{id}                { espacio, items }
- *  - POST   /api/espacios                     { nombre, hotel, items:[] }
- *  - PUT    /api/espacios/{id}                { nombre, items:[] }
+ *  - POST   /api/espacios                     { nombre, hotel, items:[{descripcion, creditos}] }
+ *  - PUT    /api/espacios/{id}                { nombre, items:[{descripcion, creditos}] }
  *  - DELETE /api/espacios/{id}
  *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha }
  *
@@ -137,7 +137,7 @@
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="esp.numero"></p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="esp.hotel_nombre + ' · ' + esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's')"></p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="esp.hotel_nombre + ' · ' + esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
                                 </div>
                                 <span class="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0" :class="claseBadge(esp.estado)" x-text="etiquetaEstado(esp.estado)"></span>
                             </div>
@@ -206,9 +206,12 @@
                     <div class="space-y-2">
                         <template x-for="(item, idx) in form.items" :key="idx">
                             <div class="flex items-center gap-2">
-                                <input x-model="form.items[idx]" type="text" maxlength="200"
+                                <input x-model="item.descripcion" type="text" maxlength="200"
                                        :placeholder="'Ítem ' + (idx + 1) + ' — ej: limpiar vidrios'"
-                                       class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                       class="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                <input x-model.number="item.creditos" type="number" min="0" max="100"
+                                       title="Créditos (peso en KPI)" aria-label="Créditos del ítem"
+                                       class="w-16 px-2 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px] text-center">
                                 <button @click="quitarItem(idx)" aria-label="Quitar ítem"
                                         class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
                                     <i data-lucide="x" class="w-4 h-4"></i>
@@ -216,10 +219,15 @@
                             </div>
                         </template>
                     </div>
-                    <button @click="agregarItem()"
-                            class="mt-2 text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
-                        <i data-lucide="plus" class="w-4 h-4"></i> Agregar ítem
-                    </button>
+                    <div class="flex items-center justify-between mt-2">
+                        <button @click="agregarItem()"
+                                class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Agregar ítem
+                        </button>
+                        <span class="text-[11px] text-gray-400">
+                            Créditos: peso del ítem en KPIs · total <span class="font-semibold" x-text="totalCreditos()"></span>
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -282,7 +290,7 @@ function espaciosApp() {
         _intervalId: null,
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         modalForm: { abierto: false, enviando: false },
-        form: { id: null, nombre: '', hotel: '1_sur', items: [''] },
+        form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
         modalPedir: { abierto: false, enviando: false, espacio: null },
 
         hotelOpciones: [
@@ -356,18 +364,20 @@ function espaciosApp() {
 
         // --- Crear / editar ---
         abrirCrear() {
-            this.form = { id: null, nombre: '', hotel: (this.hotel !== 'ambos' ? this.hotel : '1_sur'), items: [''] };
+            this.form = { id: null, nombre: '', hotel: (this.hotel !== 'ambos' ? this.hotel : '1_sur'), items: [{ descripcion: '', creditos: 1 }] };
             this.modalForm = { abierto: true, enviando: false };
             this.$nextTick(function () { lucide.createIcons(); });
         },
         async abrirEditar(esp) {
             this.modalForm = { abierto: true, enviando: false };
-            this.form = { id: esp.id, nombre: esp.numero, hotel: esp.hotel_codigo, items: [''] };
+            this.form = { id: esp.id, nombre: esp.numero, hotel: esp.hotel_codigo, items: [{ descripcion: '', creditos: 1 }] };
             try {
                 var r = await apiFetch('/api/espacios/' + esp.id);
                 if (r && r.ok) {
-                    var items = (r.data.items || []).map(function (i) { return i.descripcion; });
-                    this.form.items = items.length ? items : [''];
+                    var items = (r.data.items || []).map(function (i) {
+                        return { descripcion: i.descripcion, creditos: (i.creditos == null ? 1 : parseInt(i.creditos, 10)) };
+                    });
+                    this.form.items = items.length ? items : [{ descripcion: '', creditos: 1 }];
                     this.form.nombre = r.data.espacio.numero;
                 }
             } catch (e) { /* deja el nombre básico */ }
@@ -377,17 +387,31 @@ function espaciosApp() {
             this.modalForm.abierto = false;
         },
         agregarItem() {
-            this.form.items.push('');
+            this.form.items.push({ descripcion: '', creditos: 1 });
             this.$nextTick(function () { lucide.createIcons(); });
         },
         quitarItem(idx) {
             this.form.items.splice(idx, 1);
-            if (this.form.items.length === 0) this.form.items.push('');
+            if (this.form.items.length === 0) this.form.items.push({ descripcion: '', creditos: 1 });
+        },
+        totalCreditos() {
+            return this.form.items.reduce(function (acc, i) {
+                var c = parseInt(i.creditos, 10);
+                return acc + (((i.descripcion || '').trim() !== '' && !isNaN(c)) ? Math.max(0, Math.min(100, c)) : 0);
+            }, 0);
         },
         async guardar() {
             if (this.modalForm.enviando) return;
             var nombre = (this.form.nombre || '').trim();
-            var items = this.form.items.map(function (i) { return (i || '').trim(); }).filter(function (i) { return i !== ''; });
+            var items = this.form.items
+                .map(function (i) {
+                    var c = parseInt(i.creditos, 10);
+                    return {
+                        descripcion: (i.descripcion || '').trim(),
+                        creditos: isNaN(c) ? 1 : Math.max(0, Math.min(100, c))
+                    };
+                })
+                .filter(function (i) { return i.descripcion !== ''; });
             if (nombre === '') { this.mostrarToast('error', 'Ponle un nombre al área.'); return; }
             if (items.length === 0) { this.mostrarToast('error', 'Agrega al menos un ítem al checklist.'); return; }
 

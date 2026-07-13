@@ -26,7 +26,10 @@ final class ReportesService
     public function trabajadoras(string $desde, string $hasta, string $hotel): array
     {
         $params = [$desde, $hasta];
-        $hotelCond = $this->hotelCond($hotel, $params);
+        // Incluye a quien solo limpió áreas comunes: sus créditos cuentan (jul-2026),
+        // así que debe aparecer en el listado por trabajadora (sus KPIs de piezas
+        // saldrán 'sin_datos', lo cual es honesto).
+        $hotelCond = $this->hotelCondCreditos($hotel, $params);
 
         return Database::fetchAll(
             "SELECT DISTINCT ec.usuario_id AS usuario_id, u.nombre
@@ -51,11 +54,13 @@ final class ReportesService
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-t', strtotime($desde));
         $params = [$desde, $hasta];
-        $hotelCond = $this->hotelCond($hotel, $params);
+        // Créditos incluyen áreas comunes desde jul-2026 (hotelCondCreditos); el conteo
+        // 'habitaciones' sigue siendo SOLO piezas de huésped (filtro dentro del CASE).
+        $hotelCond = $this->hotelCondCreditos($hotel, $params);
 
         // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
-        //   habitaciones      = piezas donde la persona obtuvo al menos un crédito.
-        //   creditos          = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones no rechazadas.
+        //   habitaciones      = piezas de huésped donde la persona obtuvo al menos un crédito.
+        //   creditos          = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones no rechazadas (piezas + espacios).
         //   creditos_maximos  = intentos (créditos + créditos de obligatorios que le desmarcó el auditor).
         return Database::fetchAll(
             "SELECT u.id AS usuario_id,
@@ -63,6 +68,7 @@ final class ReportesService
                     COUNT(DISTINCT CASE
                         WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
                          AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                         AND h.es_espacio_comun = 0
                         THEN ec.habitacion_id END) AS habitaciones,
                     SUM(CASE
                         WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
@@ -446,7 +452,7 @@ final class ReportesService
         // Numerador = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones
         //             NO rechazadas (así los ítems heredados en la re-limpieza no se doble-cuentan).
         $pC = [$desde, $hasta];
-        $hC = $this->hotelCond($hotel, $pC);
+        $hC = $this->hotelCondCreditos($hotel, $pC); // incluye áreas comunes (jul-2026)
         $uC = $this->marcadoPorCond($usuarioId, $pC);
         $creditos = (int) Database::fetchColumn(
             "SELECT COALESCE(SUM(ic.creditos), 0)
@@ -468,7 +474,7 @@ final class ReportesService
         // Intentos fallidos = créditos de obligatorios desmarcados por el auditor (atribuidos a
         // quien los marcó mal). El denominador = créditos + fallidos → el % castiga el error.
         $pD = [$desde, $hasta];
-        $hD = $this->hotelCond($hotel, $pD);
+        $hD = $this->hotelCondCreditos($hotel, $pD); // simetría con el numerador
         $uD = $this->marcadoPorCond($usuarioId, $pD);
         $desmarcados = (int) Database::fetchColumn(
             "SELECT COALESCE(SUM(ic.creditos), 0)
@@ -624,14 +630,27 @@ final class ReportesService
 
     private function hotelCond(string $hotel, array &$params): string
     {
-        // Excluye áreas comunes de todos los KPIs de piezas: cada query que usa este helper joinea
-        // #__habitaciones con alias 'h'. Un solo punto para no contaminar tasas. Ver docs/areas-comunes.md
+        // Excluye áreas comunes de los KPIs de piezas (tiempos, tasas de auditoría, productividad):
+        // cada query que usa este helper joinea #__habitaciones con alias 'h'. Un solo punto para no
+        // contaminar tasas. Ver docs/areas-comunes.md. Los CRÉDITOS usan hotelCondCreditos (abajo).
         $cond = ' AND h.es_espacio_comun = 0';
         if ($hotel !== 'ambos') {
             $params[] = $hotel;
             $cond .= ' AND ho.codigo = ?';
         }
         return $cond;
+    }
+
+    private function hotelCondCreditos(string $hotel, array &$params): string
+    {
+        // Variante para CRÉDITOS: NO excluye áreas comunes — desde julio 2026 los créditos de los
+        // ítems de espacios SUMAN al total del trabajador (pedido de la empresa: hay gente dedicada
+        // solo a espacios y su trabajo debe pesar en el KPI). Los demás KPIs siguen solo-piezas.
+        if ($hotel !== 'ambos') {
+            $params[] = $hotel;
+            return ' AND ho.codigo = ?';
+        }
+        return '';
     }
 
     private function userCond(?int $usuarioId, array &$params, string $alias = 'ec'): string
