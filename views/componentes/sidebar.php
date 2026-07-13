@@ -142,9 +142,9 @@ $inicial = mb_strtoupper(mb_substr($primerNombre, 0, 1));
         <?php endforeach; ?>
     </nav>
 
-    <!-- Usuario -->
-    <div class="border-t border-gray-200 dark:border-gray-700 px-4 py-4">
-        <a href="<?= u('/ajustes') ?>" class="flex items-center gap-3 group">
+    <!-- Usuario + cerrar sesión -->
+    <div class="border-t border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center gap-2">
+        <a href="<?= u('/ajustes') ?>" class="flex items-center gap-3 group flex-1 min-w-0">
             <div class="w-9 h-9 rounded-full <?= htmlspecialchars((string) $avatarColor, ENT_QUOTES, 'UTF-8') ?> flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                 <?= htmlspecialchars((string) $inicial, ENT_QUOTES, 'UTF-8') ?>
             </div>
@@ -153,5 +153,12 @@ $inicial = mb_strtoupper(mb_substr($primerNombre, 0, 1));
                 <p class="text-xs text-gray-500 dark:text-gray-400 truncate"><?= htmlspecialchars(implode(', ', $usuario->roles)) ?></p>
             </div>
         </a>
+        <button type="button"
+                onclick="if (confirm('¿Cerrar sesión?')) Alpine.store('auth').cerrarSesion();"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+                class="p-2 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
     </div>
 </aside>
