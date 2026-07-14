@@ -256,3 +256,35 @@ adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
 |---|---|---|
 | 2026-07-07 | **Deploy inicial** | App publicada en `atankalama.com/limpieza`. Código (`main` `08410de`) + `.env` (600) + dump limpio (156 hab reales, sin test rooms) + 4 cron. Fix VAPID en `generate-vapid-keys.php`. RUT admin → real por phpMyAdmin. |
 | 2026-07-07 | **Editor de checklist + créditos por peso** (`822bc2b`) | Deploy delta, ZIP completo. **Migración:** `ALTER TABLE limpieza_items_checklist ADD COLUMN creditos INT NOT NULL DEFAULT 1;` por phpMyAdmin, corrida **antes** de extraer el ZIP (aditiva, backfill a 1 → reportes históricos idénticos). Sin cambios de dependencias (vendor sin tocar). Permiso `checklists.editar` **ya estaba** en prod (venía en el dump inicial + rol Admin `__ALL__`, que init-db/seed expanden a todos los códigos) → no se sembró nada. Smokes verdes: `/api/health` ok, `app_core/.env` 403, Ajustes → Checklists carga/edita/guarda, Reportes calcula bien. |
+| PENDIENTE | **Solicitudes de la empresa julio** (7 features) | Deploy delta, ZIP completo. **Pasos previos al ZIP (phpMyAdmin, aditivos, sin downtime):** correr el SQL de abajo (§11.1). **Después de extraer el ZIP:** editar `app_core/.env` y agregar `MAIL_TRANSPORT=mail` + completar `SMTP_FROM=sistema@atankalama.com` y `SMTP_FROM_NAME="Atankalama Limpieza"` (la casilla debe existir en cPanel → Email Accounts; con mail() nativo NO hacen falta SMTP_HOST/USER/PASS) — esto activa además el pendiente de correo para usuarios nuevos. **Smokes:** login, "¿Olvidaste tu contraseña?" con un RUT de prueba CON email (llega el correo, la clave vieja muere), botón Salir en bottom-nav, contador en home del trabajador, desasignar una pieza, crear área común con créditos, historial en detalle de habitación (Supervisora), Ajustes → Colores carga/edita/guarda y las tarjetas cambian. Nota: el SW pasó a v6 (custom.css nuevo). |
+
+### 11.1 SQL del release "solicitudes de la empresa julio" (phpMyAdmin)
+
+Equivalente con prefijo `limpieza_` de `scripts/migrate-add-ui-config.php` (que en
+prod no se puede correr por CLI). Idempotente:
+
+```sql
+CREATE TABLE IF NOT EXISTS limpieza_ui_config (
+    clave        VARCHAR(100) PRIMARY KEY,
+    valor        TEXT NOT NULL,
+    updated_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_by   INT,
+    FOREIGN KEY (updated_by) REFERENCES limpieza_usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'apariencia.editar', 'Editar los colores de las tarjetas de la aplicación', 'Apariencia', 'global'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'apariencia.editar');
+
+-- OJO: el '__ALL__' de Admin se expande al sembrar — un permiso nuevo hay que
+-- concedérselo explícito también a Admin, no solo a Supervisora.
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT r.id, 'apariencia.editar'
+  FROM limpieza_roles r
+ WHERE r.nombre IN ('Supervisora', 'Admin')
+   AND NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos rp
+                    WHERE rp.rol_id = r.id AND rp.permiso_codigo = 'apariencia.editar');
+```
+
+No se insertan colores: sin filas en `limpieza_ui_config` la app usa los defaults
+(paleta idéntica a la actual) — el deploy no cambia nada visual por sí solo.

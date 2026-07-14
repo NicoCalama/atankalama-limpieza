@@ -64,9 +64,15 @@ if ($permiso === null) {
     echo "Permiso apariencia.editar ya existía.\n";
 }
 
-// 3. Concederlo a Supervisora (si el rol existe y no lo tiene)
-$rol = Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', ['Supervisora']);
-if ($rol !== null) {
+// 3. Concederlo a Supervisora y Admin. OJO: el '__ALL__' de Admin se expande al
+//    momento del seed (init-db/seed.php), así que un permiso agregado DESPUÉS no
+//    le llega solo — hay que concedérselo explícitamente acá.
+foreach (['Supervisora', 'Admin'] as $nombreRol) {
+    $rol = Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ?', [$nombreRol]);
+    if ($rol === null) {
+        echo "Rol {$nombreRol} no encontrado — concede el permiso desde Ajustes → Roles.\n";
+        continue;
+    }
     $ya = Database::fetchOne(
         'SELECT 1 FROM #__rol_permisos WHERE rol_id = ? AND permiso_codigo = ?',
         [(int) $rol['id'], 'apariencia.editar']
@@ -76,12 +82,10 @@ if ($rol !== null) {
             'INSERT INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
             [(int) $rol['id'], 'apariencia.editar']
         );
-        echo "Permiso concedido al rol Supervisora.\n";
+        echo "Permiso concedido al rol {$nombreRol}.\n";
     } else {
-        echo "El rol Supervisora ya tenía el permiso.\n";
+        echo "El rol {$nombreRol} ya tenía el permiso.\n";
     }
-} else {
-    echo "Rol Supervisora no encontrado — concede el permiso desde Ajustes → Roles.\n";
 }
 
 echo "Migración completa.\n";
