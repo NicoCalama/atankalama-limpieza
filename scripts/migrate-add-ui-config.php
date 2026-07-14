@@ -40,13 +40,15 @@ if ($esMaria) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 } else {
+    // FK con el MISMO prefijo que la tabla usuarios (en dev el prefijo es '', pero
+    // no hardcodear 'usuarios' para no romper si algún día hay prefijo en SQLite).
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS {$tabla} (
             clave        TEXT PRIMARY KEY,
             valor        TEXT NOT NULL,
             updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             updated_by   INTEGER,
-            FOREIGN KEY (updated_by) REFERENCES usuarios(id) ON DELETE SET NULL
+            FOREIGN KEY (updated_by) REFERENCES {$tUsuarios}(id) ON DELETE SET NULL
         )"
     );
 }

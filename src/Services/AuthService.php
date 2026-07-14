@@ -336,9 +336,14 @@ final class AuthService
             [$rutNorm]
         );
         if ($usuario === null || ((int) $usuario['activo']) !== 1 || empty($usuario['email'])) {
+            // Igualar el costo del hash para no delatar por tiempo si el RUT es
+            // elegible (el camino elegible corre un bcrypt; este corre uno igual y
+            // lo descarta). No cierra el canal del envío de correo, pero sube el
+            // piso de ruido; el throttle 3/ventana limita el sondeo de todos modos.
+            $this->passwords->hash('anti_timing_' . bin2hex(random_bytes(8)));
+            // Log con RUT truncado (no filtrar el RUT completo), igual que el login.
             Logger::warning('auth', 'recuperación omitida: RUT sin usuario elegible', [
-                'rut' => $rutNorm,
-                'ip'  => $ip,
+                'clave' => $this->claveTruncada($rutNorm . '|' . ($ip ?? 'sin_ip')),
             ]);
             return;
         }

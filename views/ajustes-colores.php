@@ -53,6 +53,21 @@
         </div>
     </template>
 
+    <!-- Error de carga (evita la pantalla en blanco si el GET inicial falla) -->
+    <template x-if="errorCarga && !listo && !cargando">
+        <div class="min-h-[50vh] flex items-center justify-center px-4">
+            <div class="text-center max-w-xs">
+                <i data-lucide="alert-circle" class="w-12 h-12 text-red-500 mx-auto mb-3"></i>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No pudimos cargar los colores</h2>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">Verifica tu conexión e intenta de nuevo.</p>
+                <button @click="cargar()"
+                        class="min-h-[44px] px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                    Reintentar
+                </button>
+            </div>
+        </div>
+    </template>
+
     <template x-if="listo">
         <main class="pb-28 md:pb-10 px-4 py-4 max-w-3xl mx-auto space-y-5">
 
@@ -137,6 +152,7 @@ function coloresApp() {
     return {
         cargando: false,
         listo: false,
+        errorCarga: false,
         guardando: false,
         form: {},
         defaults: {},
@@ -152,6 +168,7 @@ function coloresApp() {
 
         async cargar() {
             this.cargando = true;
+            this.errorCarga = false;
             try {
                 var r = await apiFetch('/api/ui-config/colores');
                 if (r && r.ok) {
@@ -160,9 +177,11 @@ function coloresApp() {
                     this.etiquetas = r.data.etiquetas;
                     this.listo = true;
                 } else {
+                    this.errorCarga = true;
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cargar los colores.');
                 }
             } catch (e) {
+                this.errorCarga = true;
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             } finally {
                 this.cargando = false;
