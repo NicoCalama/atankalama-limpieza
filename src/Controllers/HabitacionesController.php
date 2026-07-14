@@ -77,6 +77,33 @@ final class HabitacionesController
     }
 
     /**
+     * GET /api/habitaciones/{id}/historial
+     * Historial de limpiezas: ejecuciones (quién, cuándo) + veredicto de auditoría.
+     * Gateado por permiso habitaciones.ver_historial (el trabajador NO lo tiene:
+     * la respuesta incluye timestamps, que le son invisibles por regla de diseño).
+     */
+    public function historial(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ID de habitación inválido.', 400);
+        }
+
+        $habitacion = $this->habitaciones->obtenerDetalle($id);
+        if ($habitacion === null) {
+            return Response::error('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+
+        $historial = $this->checklist->historialDeHabitacion($id);
+
+        return Response::ok([
+            'habitacion_id' => $id,
+            'historial' => $historial,
+            'total' => count($historial),
+        ]);
+    }
+
+    /**
      * GET /api/habitaciones/{id}/auditoria
      * Devuelve la última auditoría de la habitación (si existe) + ejecución + items.
      * Usado por la pantalla de auditoría (pendiente o histórica).

@@ -13,7 +13,7 @@ Documenta el flujo de login, logout, cambio de contraseña, generación de contr
 - **Campo 1:** RUT (formato libre en input, normalizado al enviar: sin puntos, con guión, ej. `12345678-9`). Validación de dígito verificador antes de hacer el POST.
 - **Campo 2:** Contraseña.
 - Botón **"Ingresar"** (deshabilitado hasta que ambos campos tengan valor válido).
-- Link **"Olvidé mi contraseña"** → muestra tooltip: "Contacta a tu supervisor/admin para un reset."
+- Link **"¿Olvidaste tu contraseña? Recupérala aquí"** → abre modal que pide el RUT y dispara `POST /api/auth/recuperar` (ver §1.5). El mensaje de respuesta es siempre genérico.
 
 ### 1.2 Validación de RUT
 
@@ -69,7 +69,22 @@ Se calcula según permisos efectivos del usuario (ver [roles-permisos.md §1.3](
 
 Si ninguno coincide, `home_target = "/login"` y se muestra error "Tu usuario no tiene acceso a ninguna sección. Contacta al admin.".
 
-### 1.5 Cambio forzado en primer login
+### 1.5 Recuperación de clave (`POST /api/auth/recuperar`) — público
+
+Flujo "olvidé mi contraseña" autoservicio, sin intervención de admin:
+
+1. El usuario abre el modal desde el login e ingresa su RUT.
+2. `AuthService::recuperarContrasena()`:
+   - Valida el RUT (malformado → `RUT_INVALIDO` 400, no revela existencia).
+   - **Throttle propio** (clave `rec:<rut>|<ip>` en `intentos_login`): toda solicitud consume un intento — exista o no el RUT — para impedir bombardeo de correos y sondeo. Límite `RECUPERAR_THROTTLE_MAX_INTENTOS` (default 3) por ventana → `THROTTLED` 429.
+   - Si el RUT no existe, el usuario está inactivo o no tiene email: **silencio** (solo `WARNING` en logs).
+   - Genera una contraseña temporal y **la envía por email primero**; el hash se pisa **solo si el envío salió bien** (si el correo está deshabilitado o falla, el usuario conserva su clave actual — nunca queda bloqueado por un mail perdido).
+   - Si el envío salió: actualiza `password_hash`, `requiere_cambio_pwd = 1`, inserta traza en `contrasenas_temporales` (`motivo='olvido'`, `generada_por=NULL`) y **borra todas las sesiones** del usuario.
+3. La respuesta HTTP es **siempre la misma** (anti-enumeración): "Si el RUT está registrado y tiene un correo asociado, te enviaremos una contraseña temporal en unos minutos."
+
+**Transporte de correo (`MAIL_TRANSPORT`):** `smtp` (PHPMailer autenticado, requiere `SMTP_HOST/USER/PASS`), `mail` (mail() nativo del servidor — recomendado en cPanel, solo requiere `SMTP_FROM`) o `log` (dev/tests: simula envío exitoso registrando destinatario y asunto, nunca el cuerpo).
+
+### 1.6 Cambio forzado en primer login
 
 Si `requiere_cambio_pwd = 1` después del login, el frontend redirige inmediatamente a `/cambiar-contrasena` (ruta protegida por `AuthCheck` pero no requiere permisos adicionales). El usuario no puede salir de esa pantalla hasta cambiar su contraseña.
 

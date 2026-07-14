@@ -50,6 +50,7 @@ return [
             'copilot.ver_historial_propio',
             'kpis.ver_operativas',
             'alertas.recibir_predictivas',
+            'apariencia.editar',
             'usuarios.cambiar_propia_contrasena',
             'usuarios.exportar_datos_propios',
             'notificaciones.ver',

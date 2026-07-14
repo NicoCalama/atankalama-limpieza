@@ -56,6 +56,7 @@ Ver [auth.md](auth.md).
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | POST | `/api/auth/login` | (ninguno) | Login RUT + pwd |
+| POST | `/api/auth/recuperar` | (ninguno) | Recuperación de clave: envía temporal al email del RUT. Respuesta siempre genérica (anti-enumeración); throttle 3/ventana por rut+ip |
 | POST | `/api/auth/logout` | sesión | Logout |
 | POST | `/api/auth/cambiar-contrasena` | `usuarios.cambiar_propia_contrasena` | Cambio propio |
 | POST | `/api/auth/reset-temporal` | `usuarios.resetear_password` | Admin resetea a otro |
@@ -119,6 +120,7 @@ Ver [habitaciones.md](habitaciones.md) §6.
 | POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual |
 | POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
 | POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar |
+| POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
 
 ---
@@ -161,6 +163,13 @@ Ver [alertas-predictivas.md](alertas-predictivas.md).
 | POST | `/api/alertas/{id}/accion` | según acción | Ejecuta botón |
 | GET | `/api/alertas/bitacora` | `alertas.recibir_predictivas` | Histórico |
 | PUT | `/api/alertas/config` | `alertas.configurar_umbrales` | Editar umbrales |
+
+### Apariencia (Ajustes → Colores)
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/ui-config/colores` | `apariencia.editar` | Colores efectivos + defaults + etiquetas (para el editor) |
+| PUT | `/api/ui-config/colores` | `apariencia.editar` | Guardar colores `{ colores: { clave: '#rrggbb' } }`. Claves: `color_estado_*` y `color_hotel_*` (ver `UiConfigService::DEFAULTS`) |
 
 ---
 

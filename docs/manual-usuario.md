@@ -401,7 +401,7 @@ En **Reportes**:
 
 ### **P: ¿Qué hago si olvido mi contraseña?**
 
-**R:** Avísale a tu Admin. Él puede resetearla desde la app. Recibirás una contraseña temporal nueva.
+**R:** En la pantalla de inicio de sesión toca **"¿Olvidaste tu contraseña? Recupérala aquí"**, escribe tu RUT y, si tienes un correo registrado, te llegará una contraseña temporal nueva en unos minutos. (Si no tienes correo registrado, pídele a tu Admin que te la resetee desde la app.)
 
 ### **P: ¿La app me da tips de limpieza?**
 

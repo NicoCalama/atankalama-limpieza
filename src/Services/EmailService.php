@@ -11,18 +11,32 @@ use PHPMailer\PHPMailer\SMTP;
 
 final class EmailService
 {
+    private string $transport;
     private bool $habilitado;
 
     public function __construct()
     {
-        $this->habilitado = Config::get('SMTP_HOST', '') !== '';
+        // MAIL_TRANSPORT: 'smtp' (PHPMailer vía SMTP autenticado), 'mail' (mail()
+        // nativo del servidor — recomendado en cPanel, donde Exim entrega el correo
+        // del propio dominio sin credenciales) o 'log' (no envía, solo registra;
+        // para dev/tests).
+        $this->transport = strtolower((string) Config::get('MAIL_TRANSPORT', 'smtp'));
+        $this->habilitado = match ($this->transport) {
+            'mail'  => Config::get('SMTP_FROM', '') !== '',
+            'log'   => true,
+            default => Config::get('SMTP_HOST', '') !== '',
+        };
     }
 
     /**
      * Envía la contraseña temporal a un usuario recién creado o con reset.
      * Si el email no está configurado o el usuario no tiene email, se omite silenciosamente.
      *
-     * @param string $motivo 'creacion' | 'reset_admin'
+     * @param string $motivo 'creacion' | 'reset_admin' | 'olvido'
+     * @return bool true si el mensaje fue aceptado para envío. Los flujos donde el
+     *              usuario depende del correo para no quedar bloqueado (p. ej.
+     *              recuperación de clave) DEBEN chequear este retorno antes de
+     *              pisar el hash.
      */
     public function enviarPasswordTemporal(
         string $destinatario,
@@ -30,32 +44,52 @@ final class EmailService
         string $rut,
         string $passwordTemporal,
         string $motivo = 'creacion'
-    ): void {
-        if (!$this->habilitado || $destinatario === '') return;
+    ): bool {
+        if (!$this->habilitado || $destinatario === '') return false;
 
-        $asunto = $motivo === 'creacion'
-            ? 'Tu acceso a Atankalama Limpieza'
-            : 'Tu contraseña fue reseteada — Atankalama Limpieza';
+        $asunto = match ($motivo) {
+            'creacion' => 'Tu acceso a Atankalama Limpieza',
+            'olvido'   => 'Recuperación de contraseña — Atankalama Limpieza',
+            default    => 'Tu contraseña fue reseteada — Atankalama Limpieza',
+        };
 
         $cuerpo = $this->plantillaPasswordTemporal($nombre, $rut, $passwordTemporal, $motivo);
 
-        $this->enviar($destinatario, $nombre, $asunto, $cuerpo);
+        return $this->enviar($destinatario, $nombre, $asunto, $cuerpo);
     }
 
-    private function enviar(string $destinatario, string $nombreDest, string $asunto, string $cuerpoHtml): void
+    private function enviar(string $destinatario, string $nombreDest, string $asunto, string $cuerpoHtml): bool
     {
+        if ($this->transport === 'log') {
+            // Transport de dev/tests: no envía nada. OJO: nunca registrar el cuerpo
+            // (contiene la contraseña temporal).
+            Logger::info('email', 'Email simulado (MAIL_TRANSPORT=log)', [
+                'destinatario' => $destinatario,
+                'asunto'       => $asunto,
+            ]);
+            return true;
+        }
+
         try {
             $mail = new PHPMailer(true);
 
-            $mail->isSMTP();
-            $mail->Host       = Config::get('SMTP_HOST', '');
-            $mail->SMTPAuth   = true;
-            $mail->Username   = Config::get('SMTP_USER', '');
-            $mail->Password   = Config::get('SMTP_PASS', '');
-            $mail->SMTPSecure = Config::get('SMTP_ENCRYPTION', 'tls') === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = (int) Config::get('SMTP_PORT', '587');
-            $mail->CharSet    = 'UTF-8';
-            $mail->Timeout    = 10;
+            if ($this->transport === 'mail') {
+                // mail() nativo de PHP: el MTA local (Exim en cPanel) entrega el
+                // correo del dominio sin autenticación SMTP. PHPMailer arma los
+                // headers MIME/UTF-8 y llama a mail() por debajo.
+                $mail->isMail();
+            } else {
+                $mail->isSMTP();
+                $mail->Host       = Config::get('SMTP_HOST', '');
+                $mail->SMTPAuth   = true;
+                $mail->Username   = Config::get('SMTP_USER', '');
+                $mail->Password   = Config::get('SMTP_PASS', '');
+                $mail->SMTPSecure = Config::get('SMTP_ENCRYPTION', 'tls') === 'ssl' ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port       = (int) Config::get('SMTP_PORT', '587');
+                $mail->Timeout    = 10;
+            }
+
+            $mail->CharSet = 'UTF-8';
 
             $mail->setFrom(
                 Config::get('SMTP_FROM', Config::get('SMTP_USER', '')),
@@ -69,6 +103,7 @@ final class EmailService
             $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $cuerpoHtml));
 
             $mail->send();
+            return true;
         } catch (\Throwable $e) {
             // No bloquear el flujo principal si el email falla
             Logger::warning('email', 'Fallo al enviar email', [
@@ -76,6 +111,7 @@ final class EmailService
                 'asunto'       => $asunto,
                 'error'        => $e->getMessage(),
             ]);
+            return false;
         }
     }
 
@@ -87,9 +123,11 @@ final class EmailService
         $rutHtml    = htmlspecialchars($rut);
         $pwdHtml    = htmlspecialchars($pwd);
 
-        $intro = $motivo === 'creacion'
-            ? "Tu cuenta en <strong>{$appNombre}</strong> ha sido creada. A continuación encontrarás tus credenciales de acceso:"
-            : "Un administrador ha reseteado tu contraseña en <strong>{$appNombre}</strong>. Usa las siguientes credenciales para ingresar:";
+        $intro = match ($motivo) {
+            'creacion' => "Tu cuenta en <strong>{$appNombre}</strong> ha sido creada. A continuación encontrarás tus credenciales de acceso:",
+            'olvido'   => "Recibimos una solicitud para recuperar tu contraseña en <strong>{$appNombre}</strong>. Usa esta contraseña temporal para ingresar:",
+            default    => "Un administrador ha reseteado tu contraseña en <strong>{$appNombre}</strong>. Usa las siguientes credenciales para ingresar:",
+        };
 
         return <<<HTML
         <!DOCTYPE html>

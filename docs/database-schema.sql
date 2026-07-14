@@ -386,6 +386,17 @@ CREATE TABLE alertas_config (
     FOREIGN KEY (updated_by) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
+-- Apariencia configurable de la UI (Ajustes → Colores): colores de tarjetas por
+-- estado y por hotel. Key-value, mismo patrón que alertas_config. Sin fila = se
+-- usa el default de UiConfigService::DEFAULTS.
+CREATE TABLE ui_config (
+    clave        TEXT PRIMARY KEY,                         -- ej: 'color_estado_sucia'
+    valor        TEXT NOT NULL,                            -- hex '#rrggbb'
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_by   INTEGER,
+    FOREIGN KEY (updated_by) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
 -- ============================================================================
 -- BLOQUE 5 — CLOUDBEDS
 -- ============================================================================

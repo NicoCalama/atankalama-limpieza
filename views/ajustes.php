@@ -36,6 +36,13 @@ $secciones = [
         'visible' => $usuario->tienePermiso('checklists.editar'),
     ],
     [
+        'ruta' => '/ajustes/colores',
+        'icono' => 'palette',
+        'label' => 'Colores',
+        'descripcion' => 'Colores de las tarjetas por estado y hotel',
+        'visible' => $usuario->tienePermiso('apariencia.editar'),
+    ],
+    [
         'ruta' => '/ajustes/turnos',
         'icono' => 'calendar-clock',
         'label' => 'Turnos',

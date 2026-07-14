@@ -162,7 +162,13 @@ Formato: `codigo | descripcion | categoria | scope`
 |---|---|---|---|
 | `ajustes.acceder` | Acceder al módulo `/ajustes` (las secciones internas se filtran por sus propios permisos) | Ajustes | global |
 
-### 2.15 Logs
+### 2.15 Apariencia
+
+| Código | Descripción | Categoría | Scope |
+|---|---|---|---|
+| `apariencia.editar` | Editar los colores de las tarjetas (Ajustes → Colores). Por defecto: Supervisora y Admin | Apariencia | global |
+
+### 2.16 Logs
 
 | Código | Descripción | Categoría | Scope |
 |---|---|---|---|
@@ -269,6 +275,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `checklists.ver` | ⚪ | ⚪ | ⚪ | ✅ |
 | `checklists.editar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `checklists.crear_nuevos` | ⚪ | ⚪ | ⚪ | ✅ |
+| `apariencia.editar` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.asignar_manual` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.auto_asignar` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.reordenar_cola_trabajador` | ⚪ | ✅ | ⚪ | ✅ |

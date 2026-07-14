@@ -163,4 +163,98 @@ final class AsignacionServiceTest extends TestCase
         $this->assertTrue($this->svc->esHabitacionAsignadaA($hab, $uid, '2026-04-14'));
         $this->assertFalse($this->svc->esHabitacionAsignadaA($hab, $otra, '2026-04-14'));
     }
+
+    // --- Desasignar ---
+
+    public function testDesasignarDejaLaHabitacionSinAsignacionActiva(): void
+    {
+        $hab = $this->crearHabitacion('101');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $this->svc->asignarManual($hab, $uid, '2026-04-14');
+
+        $this->svc->desasignar($hab, '2026-04-14');
+
+        $this->assertFalse($this->svc->esHabitacionAsignadaA($hab, $uid, '2026-04-14'));
+        $this->assertNull($this->svc->obtenerActivaDeHabitacion($hab));
+        // La pieza sigue 'sucia': vuelve al pool de sin-asignar
+        $fila = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$hab]);
+        $this->assertSame('sucia', $fila['estado']);
+    }
+
+    public function testDesasignarEnProgresoRevierteASucia(): void
+    {
+        $hab = $this->crearHabitacion('101', 'en_progreso');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $this->svc->asignarManual($hab, $uid, '2026-04-14');
+
+        $this->svc->desasignar($hab, '2026-04-14');
+
+        $fila = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$hab]);
+        $this->assertSame('sucia', $fila['estado']);
+        $this->assertNull($this->svc->obtenerActivaDeHabitacion($hab));
+    }
+
+    public function testDesasignarNotificaAlTrabajador(): void
+    {
+        $hab = $this->crearHabitacion('101');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $this->svc->asignarManual($hab, $uid, '2026-04-14');
+
+        $this->svc->desasignar($hab, '2026-04-14');
+
+        $notif = Database::fetchOne(
+            "SELECT titulo FROM notificaciones WHERE usuario_id = ? AND titulo = 'Habitación retirada de tu cola'",
+            [$uid]
+        );
+        $this->assertNotNull($notif);
+    }
+
+    public function testDesasignarSinAsignacionActivaLanza404(): void
+    {
+        $hab = $this->crearHabitacion('101');
+
+        try {
+            $this->svc->desasignar($hab, '2026-04-14');
+            $this->fail('Debía lanzar ASIGNACION_NO_ENCONTRADA');
+        } catch (AsignacionException $e) {
+            $this->assertSame('ASIGNACION_NO_ENCONTRADA', $e->codigo);
+            $this->assertSame(404, $e->httpStatus);
+        }
+    }
+
+    public function testDesasignarCompletadaLanza409(): void
+    {
+        $hab = $this->crearHabitacion('101');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $this->svc->asignarManual($hab, $uid, '2026-04-14');
+        Database::execute("UPDATE habitaciones SET estado = 'completada_pendiente_auditoria' WHERE id = ?", [$hab]);
+
+        try {
+            $this->svc->desasignar($hab, '2026-04-14');
+            $this->fail('Debía lanzar ESTADO_NO_DESASIGNABLE');
+        } catch (AsignacionException $e) {
+            $this->assertSame('ESTADO_NO_DESASIGNABLE', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+
+        // La asignación sigue activa (registro de quién la limpió)
+        $this->assertNotNull($this->svc->obtenerActivaDeHabitacion($hab));
+    }
+
+    public function testDesasignarRechazadaMantieneEstadoRechazada(): void
+    {
+        $hab = $this->crearHabitacion('101', 'rechazada');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $this->svc->asignarManual($hab, $uid, '2026-04-14');
+        // asignarManual resetea terminal→sucia; forzamos rechazada de nuevo para
+        // simular un rechazo posterior a la asignación
+        Database::execute("UPDATE habitaciones SET estado = 'rechazada' WHERE id = ?", [$hab]);
+
+        $this->svc->desasignar($hab, '2026-04-14');
+
+        // Rechazada se mantiene (aparece en sin-asignar como rechazada, listo para reasignar)
+        $fila = Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$hab]);
+        $this->assertSame('rechazada', $fila['estado']);
+        $this->assertNull($this->svc->obtenerActivaDeHabitacion($hab));
+    }
 }

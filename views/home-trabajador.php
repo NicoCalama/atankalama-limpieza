@@ -4,7 +4,10 @@
  * Spec: docs/home-trabajador.md
  *
  * Filosofía: "¿Qué tengo que hacer ahora?"
- * NO mostrar números, contadores ni tiempos — solo barra de progreso visual.
+ * NO mostrar tiempos (docs/home-trabajador.md — regla no negociable). El contador
+ * de habitaciones del header ("N limpias / faltan M") fue pedido por la empresa
+ * (julio 2026) y revierte a propósito la regla original de "sin números"; los
+ * tiempos siguen 100% ocultos para el trabajador.
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
@@ -31,17 +34,32 @@ if ($hora < 12) {
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-2xl mx-auto">
-            <div class="flex items-center gap-3">
-                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil">
+            <div class="flex items-center gap-3 min-w-0 flex-1">
+                <a href="<?= u('/ajustes') ?>" aria-label="Mi perfil" class="flex-shrink-0">
                     <?= avatarHtml($usuario->nombre, $usuario->rut) ?>
                 </a>
-                <div>
-                    <p class="text-lg font-semibold text-gray-900 dark:text-gray-100"><?= htmlspecialchars($saludo) ?>, <?= htmlspecialchars($primerNombre) ?></p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400" x-text="data?.hotel_actual?.nombre || '<?= htmlspecialchars($usuario->hotelDefault === 'inn' ? 'Atankalama INN' : 'Atankalama') ?>'"></p>
+                <div class="min-w-0">
+                    <!-- En pantallas muy angostas el saludo se oculta para que el nombre
+                         conviva con el contador sin truncarse -->
+                    <p class="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate"><span class="hidden min-[420px]:inline"><?= htmlspecialchars($saludo) ?>, </span><?= htmlspecialchars($primerNombre) ?></p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 truncate" x-text="data?.hotel_actual?.nombre || '<?= htmlspecialchars($usuario->hotelDefault === 'inn' ? 'Atankalama INN' : 'Atankalama') ?>'"></p>
                 </div>
             </div>
-            <!-- Campana + tema -->
+            <!-- Contador de habitaciones + campana + tema -->
             <div class="flex items-center gap-1 flex-shrink-0">
+                <!-- Contador "limpias / faltan" (pedido empresa jul-2026; solo conteos, nunca tiempos) -->
+                <template x-if="data && data.tiene_asignaciones_hoy">
+                    <div class="text-right mr-1" aria-label="Progreso de hoy">
+                        <p class="text-sm font-bold text-green-600 dark:text-green-400 leading-tight"
+                           x-text="data.progreso.completadas + (data.progreso.completadas === 1 ? ' limpia' : ' limpias')"></p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 leading-tight"
+                           x-text="(data.progreso.total - data.progreso.completadas) === 0
+                                       ? 'todo listo'
+                                       : ((data.progreso.total - data.progreso.completadas) === 1
+                                           ? 'falta 1'
+                                           : 'faltan ' + (data.progreso.total - data.progreso.completadas))"></p>
+                    </div>
+                </template>
                 <button @click="$dispatch('toggle-notif')"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
                         aria-label="Notificaciones">
@@ -261,14 +279,15 @@ function homeTrabajador() {
         },
 
         badgeEstado(estado) {
+            // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
             var configs = {
-                'pendiente': { texto: 'Pendiente', clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
-                'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-                'completada': { texto: 'Completada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+                'pendiente': { texto: 'Pendiente', clase: 'chip-estado-sucia' },
+                'en_progreso': { texto: 'En progreso', clase: 'chip-estado-en_progreso' },
+                'completada': { texto: 'Completada', clase: 'chip-estado-completada_pendiente_auditoria' },
+                'aprobada': { texto: 'Aprobada', clase: 'chip-estado-aprobada' },
                 // El trabajador NO distingue "con observación" de "aprobada". Siempre "Aprobada".
-                'aprobada_con_observacion': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
+                'aprobada_con_observacion': { texto: 'Aprobada', clase: 'chip-estado-aprobada_con_observacion' },
+                'rechazada': { texto: 'Rechazada', clase: 'chip-estado-rechazada' },
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';

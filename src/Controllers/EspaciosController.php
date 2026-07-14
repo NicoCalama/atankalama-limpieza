@@ -123,9 +123,11 @@ final class EspaciosController
     }
 
     /**
-     * Normaliza el campo items del cuerpo a una lista de strings.
+     * Normaliza el campo items del cuerpo. Acepta strings pelados (compat) o
+     * objetos {descripcion, creditos}; la validación/clamp fino queda en
+     * EspacioService::normalizarItems.
      *
-     * @return list<string>
+     * @return list<string|array{descripcion: string, creditos: int|string|null}>
      */
     private function itemsDelRequest(Request $request): array
     {
@@ -137,6 +139,11 @@ final class EspaciosController
         foreach ($items as $item) {
             if (is_string($item) || is_numeric($item)) {
                 $out[] = (string) $item;
+            } elseif (is_array($item)) {
+                $out[] = [
+                    'descripcion' => (string) ($item['descripcion'] ?? ''),
+                    'creditos' => $item['creditos'] ?? null,
+                ];
             }
         }
         return $out;

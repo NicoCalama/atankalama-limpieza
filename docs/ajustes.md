@@ -32,6 +32,7 @@ Header común: breadcrumb "Ajustes > {sección}", botón volver (móvil).
 | Usuarios | `usuarios.ver` | delega a [usuarios.md](usuarios.md) |
 | Turnos | `turnos.ver` | delega a [turnos.md](turnos.md) |
 | Checklists | `checklists.ver` | delega a [checklist.md](checklist.md) §2 |
+| Colores | `apariencia.editar` | Colores de tarjetas por estado y hotel: la supervisora elige un color base por concepto (key-value en `ui_config`); el backend deriva variantes claro/oscuro (`Helpers\Colores`) y el layout las inyecta como CSS vars para las clases `.chip-estado-*` / `.hotel-accent-*` de custom.css. Endpoints en [api-endpoints.md](api-endpoints.md) |
 | Alertas | `alertas.configurar_umbrales` | §4 |
 | Cloudbeds | `cloudbeds.configurar_credenciales` | §5 |
 | Logs | `logs.ver` | delega a [logs.md](logs.md) |

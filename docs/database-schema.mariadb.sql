@@ -352,6 +352,17 @@ CREATE TABLE #__alertas_config (
     FOREIGN KEY (updated_by) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Apariencia configurable de la UI (Ajustes → Colores): colores de tarjetas por
+-- estado y por hotel. Key-value, mismo patrón que alertas_config. Sin fila = se
+-- usa el default de UiConfigService::DEFAULTS.
+CREATE TABLE #__ui_config (
+    clave        VARCHAR(100) PRIMARY KEY,
+    valor        TEXT NOT NULL,
+    updated_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_by   INT,
+    FOREIGN KEY (updated_by) REFERENCES #__usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- BLOQUE 5 — CLOUDBEDS
 -- ============================================================================

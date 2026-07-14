@@ -25,9 +25,11 @@ No es un menú. No es un dashboard frío con métricas. Es la primera pantalla q
 
 ### 1.3 Filosofía UX clave — sin generar ansiedad
 
-**Decisión de diseño crítica:** esta pantalla deliberadamente **oculta métricas y contadores numéricos** ("te quedan 3", "vas al 67%", tiempo transcurrido) porque pueden generar ansiedad en el personal. Solo muestra **barras de progreso visuales** que transmiten avance sin presión.
+**Decisión de diseño original:** esta pantalla ocultaba **todo** número — solo barra de progreso visual — para no generar ansiedad.
 
-La presión se gestiona desde el rol de la supervisora vía las alertas predictivas (que el trabajador NO ve).
+> **Revisión julio 2026 (pedido de la empresa):** el header ahora **sí** muestra un contador simple de habitaciones — "N limpias / faltan M" — junto a la campana. Se revirtió a propósito la regla de "sin números" para las CANTIDADES de piezas. Lo que sigue **100% oculto y no negociable** son los **TIEMPOS** (transcurrido, promedio, tracking): esa parte de la filosofía queda intacta. Los porcentajes/tiempos del checklist tampoco se muestran.
+
+La presión de tiempo se gestiona desde el rol de la supervisora vía las alertas predictivas (que el trabajador NO ve).
 
 **Esto es un requisito de diseño no negociable.** Si codificando encuentras espacio para "agregar valor mostrando al trabajador cuántas le quedan", **NO lo hagas**. Ya se discutió y se decidió en contra deliberadamente.
 

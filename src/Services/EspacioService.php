@@ -65,7 +65,12 @@ final class EspacioService
                     (SELECT COUNT(*)
                        FROM #__checklists_template ct
                        JOIN #__items_checklist ic ON ic.template_id = ct.id
-                      WHERE ct.habitacion_id = h.id AND ct.activo = 1 AND ic.activo = 1) AS items_count
+                      WHERE ct.habitacion_id = h.id AND ct.activo = 1 AND ic.activo = 1) AS items_count,
+                    (SELECT COALESCE(SUM(ic.creditos), 0)
+                       FROM #__checklists_template ct
+                       JOIN #__items_checklist ic ON ic.template_id = ct.id
+                      WHERE ct.habitacion_id = h.id AND ct.activo = 1 AND ic.activo = 1
+                        AND ic.obligatorio = 1) AS creditos_total
                FROM #__habitaciones h
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ' . implode(' AND ', $where) . '
@@ -93,7 +98,7 @@ final class EspacioService
         }
 
         $items = Database::fetchAll(
-            'SELECT ic.id, ic.orden, ic.descripcion
+            'SELECT ic.id, ic.orden, ic.descripcion, ic.creditos
                FROM #__items_checklist ic
                JOIN #__checklists_template ct ON ct.id = ic.template_id
               WHERE ct.habitacion_id = ? AND ct.activo = 1 AND ic.activo = 1
@@ -108,7 +113,8 @@ final class EspacioService
      * Crea un espacio con su checklist propio. Estado inicial 'aprobada' (idle / listo): recién al
      * "pedir limpieza" pasa a 'sucia' y entra en la cola de un trabajador.
      *
-     * @param list<string> $items descripciones de los ítems del checklist (todos obligatorios)
+     * @param list<string|array{descripcion?: string, creditos?: int|string}> $items ítems del
+     *        checklist (todos obligatorios); acepta strings o {descripcion, creditos}
      * @return int id del espacio creado
      */
     public function crear(string $nombre, string $hotelCodigo, array $items, ?int $actorId = null): int
@@ -149,7 +155,7 @@ final class EspacioService
      * Edita un espacio: nombre y checklist. El checklist se reemplaza (los ítems viejos quedan
      * inactivos, se insertan los nuevos) para no romper el FK de ejecuciones históricas.
      *
-     * @param list<string> $items
+     * @param list<string|array{descripcion?: string, creditos?: int|string}> $items
      */
     public function editar(int $id, string $nombre, array $items, ?int $actorId = null): void
     {
@@ -259,16 +265,31 @@ final class EspacioService
     }
 
     /**
-     * @param list<string> $items
-     * @return list<string>
+     * Normaliza ítems a {descripcion, creditos}. Acepta strings pelados (creditos=1,
+     * compat con clientes viejos) o arrays {descripcion, creditos}. Créditos con el
+     * mismo clamp 0..100 que ChecklistService::normalizarItemsTemplate; como todos
+     * los ítems de espacio son obligatorios, su peso siempre cuenta para KPIs.
+     *
+     * @param list<string|array{descripcion?: string, creditos?: int|string}> $items
+     * @return list<array{descripcion: string, creditos: int}>
      */
     private function normalizarItems(array $items): array
     {
         $limpios = [];
         foreach ($items as $item) {
-            $desc = trim((string) $item);
+            if (is_array($item)) {
+                $desc = trim((string) ($item['descripcion'] ?? ''));
+                $creditos = $item['creditos'] ?? 1;
+                $creditos = is_numeric($creditos) ? (int) $creditos : 1;
+            } else {
+                $desc = trim((string) $item);
+                $creditos = 1;
+            }
             if ($desc !== '') {
-                $limpios[] = $desc;
+                $limpios[] = [
+                    'descripcion' => mb_substr($desc, 0, 255),
+                    'creditos' => max(0, min(100, $creditos)),
+                ];
             }
         }
         if ($limpios === []) {
@@ -277,14 +298,14 @@ final class EspacioService
         return $limpios;
     }
 
-    /** @param list<string> $items */
+    /** @param list<array{descripcion: string, creditos: int}> $items */
     private function insertarItems(int $templateId, array $items): void
     {
         $orden = 1;
-        foreach ($items as $desc) {
+        foreach ($items as $item) {
             Database::execute(
-                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio) VALUES (?, ?, ?, 1)',
-                [$templateId, $orden, $desc]
+                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos) VALUES (?, ?, ?, 1, ?)',
+                [$templateId, $orden, $item['descripcion'], $item['creditos']]
             );
             $orden++;
         }

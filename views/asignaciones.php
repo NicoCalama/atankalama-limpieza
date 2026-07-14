@@ -248,10 +248,20 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                     </template>
                                                 </div>
                                                 <template x-if="esReasignable(hab.estado)">
-                                                    <button @click="abrirReasignar(tr, hab)"
-                                                            class="min-h-[36px] px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition flex-shrink-0">
-                                                        Reasignar
-                                                    </button>
+                                                    <div class="flex items-center gap-1.5 flex-shrink-0">
+                                                        <button @click="abrirReasignar(tr, hab)"
+                                                                class="min-h-[36px] px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
+                                                            Reasignar
+                                                        </button>
+                                                        <button @click="desasignar(tr, hab)"
+                                                                title="Desasignar"
+                                                                aria-label="Desasignar"
+                                                                class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg
+                                                                       border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400
+                                                                       hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                                            <i data-lucide="user-minus" class="w-4 h-4"></i>
+                                                        </button>
+                                                    </div>
                                                 </template>
                                             </li>
                                         </template>
@@ -652,6 +662,28 @@ function asignacionesApp() {
             }
         },
 
+        // --- Desasignar ---
+
+        async desasignar(tr, hab) {
+            // DEFAULT APLICADO (aprobado por el usuario): confirm() nativo, mismo
+            // patrón que autoAsignar() en esta misma página.
+            if (!confirm('¿Quitar la habitación ' + hab.numero + ' de la cola de ' + tr.usuario.nombre + '? Quedará sin asignar.')) return;
+            try {
+                var r = await apiPost('/api/asignaciones/desasignar', {
+                    habitacion_id: hab.habitacion_id,
+                    fecha: this.fechaHoy
+                });
+                if (r && r.ok) {
+                    this.mostrarToast('exito', 'Habitación ' + hab.numero + ' desasignada.');
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos desasignar.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            }
+        },
+
         // --- Helpers de UI ---
 
         etiquetaEstadoHab(estado) {
@@ -667,13 +699,16 @@ function asignacionesApp() {
         },
 
         claseBadgeHab(estado) {
+            // Colores por estado: clases semánticas .chip-estado-* (editables en
+            // Ajustes → Colores). Unifica esta vista con el resto de la app
+            // (antes 'sucia' era gris y 'por auditar' ámbar solo acá).
             var map = {
-                'sucia': 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100',
-                'en_progreso': 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200',
-                'completada_pendiente_auditoria': 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200',
-                'aprobada': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                'aprobada_con_observacion': 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200',
-                'rechazada': 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200'
+                'sucia': 'chip-estado-sucia',
+                'en_progreso': 'chip-estado-en_progreso',
+                'completada_pendiente_auditoria': 'chip-estado-completada_pendiente_auditoria',
+                'aprobada': 'chip-estado-aprobada',
+                'aprobada_con_observacion': 'chip-estado-aprobada_con_observacion',
+                'rechazada': 'chip-estado-rechazada'
             };
             return map[estado] || 'bg-gray-200 text-gray-800';
         },

@@ -71,6 +71,8 @@ return [
 
     ['ajustes.acceder', 'Acceder al módulo de Ajustes', 'Ajustes', 'global'],
 
+    ['apariencia.editar', 'Editar los colores de las tarjetas de la aplicación', 'Apariencia', 'global'],
+
     ['logs.ver', 'Ver el visor de logs', 'Logs', 'global'],
 
     ['reportes.ver', 'Ver el módulo de reportes y KPIs exportables', 'Reportes', 'global'],

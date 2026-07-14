@@ -7,7 +7,7 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6'; // v6: clases semánticas de colores configurables en custom.css
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 

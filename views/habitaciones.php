@@ -238,19 +238,17 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
             return codigo || '';
         },
 
-        // Acento por hotel para distinguir las tarjetas de un vistazo (borde izquierdo + tinte).
-        // DEFAULT APLICADO (aprobado por Nicolás): teal = Atankalama (1_sur), violeta = Atankalama INN.
-        // Elegidos para NO chocar con los colores de estado (amarillo/azul/índigo/verde/rojo).
+        // Acento por hotel (borde izquierdo + tinte + etiqueta): clases semánticas
+        // .hotel-accent-* / .hotel-chip-* de custom.css. Los colores son editables
+        // en Ajustes → Colores (variables inyectadas por el layout desde ui_config).
         colorHotel(codigo) {
-            if (codigo === '1_sur') return 'bg-teal-50 dark:bg-teal-900/15 border-l-teal-500 dark:border-l-teal-400';
-            if (codigo === 'inn') return 'bg-violet-50 dark:bg-violet-900/15 border-l-violet-500 dark:border-l-violet-400';
+            if (codigo === '1_sur' || codigo === 'inn') return 'hotel-accent-' + codigo;
             return 'bg-white dark:bg-gray-800 border-l-gray-200 dark:border-l-gray-700';
         },
 
         // Color del texto de la etiqueta del hotel, a juego con el acento de la tarjeta.
         etiquetaHotel(codigo) {
-            if (codigo === '1_sur') return 'text-teal-700 dark:text-teal-300';
-            if (codigo === 'inn') return 'text-violet-700 dark:text-violet-300';
+            if (codigo === '1_sur' || codigo === 'inn') return 'hotel-chip-' + codigo;
             return 'text-gray-500 dark:text-gray-400';
         },
 
@@ -262,14 +260,15 @@ function habitacionesApp(puedeVerTodas, usuarioId) {
             // 'aprobada_con_observacion' se muestra como "Aprobada" a secas al trabajador
             // (sin habitaciones.ver_todas): no debe distinguirla de una aprobada normal.
             // Solo supervisora/auditor ven "c/obs.". Ver CLAUDE.md y docs/auditoria.md.
+            // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
             var textoConObs = this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada';
             var configs = {
-                'sucia': { texto: 'Pendiente', clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
-                'en_progreso': { texto: 'En progreso', clase: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
-                'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200' },
-                'aprobada': { texto: 'Aprobada', clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'aprobada_con_observacion': { texto: textoConObs, clase: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
-                'rechazada': { texto: 'Rechazada', clase: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' }
+                'sucia': { texto: 'Pendiente', clase: 'chip-estado-sucia' },
+                'en_progreso': { texto: 'En progreso', clase: 'chip-estado-en_progreso' },
+                'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'chip-estado-completada_pendiente_auditoria' },
+                'aprobada': { texto: 'Aprobada', clase: 'chip-estado-aprobada' },
+                'aprobada_con_observacion': { texto: textoConObs, clase: 'chip-estado-aprobada_con_observacion' },
+                'rechazada': { texto: 'Rechazada', clase: 'chip-estado-rechazada' }
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
             return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + c.clase + '">' + escapeHtml(c.texto) + '</span>';

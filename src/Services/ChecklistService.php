@@ -344,6 +344,28 @@ final class ChecklistService
     }
 
     /**
+     * Rechaza operar sobre una ejecución HUÉRFANA: si su asignación fue desactivada
+     * (activa=0), la habitación fue reasignada a otra persona o desasignada por la
+     * supervisora, y quien tenía la ejecución en curso ya no debe poder marcar ni
+     * completar (pisaría el estado que dejó el reasignar/desasignar). Ver
+     * AsignacionService::desasignar y el comentario del candado en iniciarEjecucion.
+     */
+    private function exigirAsignacionActiva(EjecucionChecklist $ejec): void
+    {
+        $activa = Database::fetchOne(
+            'SELECT 1 FROM #__asignaciones WHERE id = ? AND activa = 1',
+            [$ejec->asignacionId]
+        );
+        if ($activa === null) {
+            throw new ChecklistException(
+                'ASIGNACION_INACTIVA',
+                'Esta habitación ya no está asignada a ti.',
+                409
+            );
+        }
+    }
+
+    /**
      * Devuelve el id de la ejecución 'en_progreso' más reciente para una habitación
      * y trabajador específicos, o null si no existe.
      */
@@ -392,6 +414,37 @@ final class ChecklistService
             [$habitacionId]
         );
         return $fila === null ? null : EjecucionChecklist::desdeFila($fila);
+    }
+
+    /**
+     * Historial de limpiezas de una habitación: ejecuciones (quién, cuándo, en qué
+     * quedó) con su veredicto de auditoría si existe. Más recientes primero.
+     *
+     * Para la vista de detalle con permiso `habitaciones.ver_historial` (Supervisora
+     * y Admin; Recepción NO lo tiene). OJO: incluye timestamps de inicio/fin — el
+     * trabajador NUNCA debe recibir esta respuesta (su rol no tiene el permiso; el
+     * endpoint lo exige).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function historialDeHabitacion(int $habitacionId, int $limite = 30): array
+    {
+        $limite = max(1, min(100, $limite));
+        return Database::fetchAll(
+            "SELECT ec.id, ec.estado, ec.timestamp_inicio, ec.timestamp_fin,
+                    u.nombre AS trabajador_nombre,
+                    a.veredicto, a.comentario AS auditoria_comentario,
+                    a.created_at AS auditoria_at,
+                    au.nombre AS auditor_nombre
+               FROM #__ejecuciones_checklist ec
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+          LEFT JOIN #__usuarios au ON au.id = a.auditor_id
+              WHERE ec.habitacion_id = ?
+              ORDER BY ec.id DESC
+              LIMIT {$limite}",
+            [$habitacionId]
+        );
     }
 
     /**
@@ -445,6 +498,7 @@ final class ChecklistService
         if ($ejec->estado !== EjecucionChecklist::ESTADO_EN_PROGRESO) {
             throw new ChecklistException('EJECUCION_NO_EDITABLE', 'No se puede modificar una ejecución ya completada.', 409);
         }
+        $this->exigirAsignacionActiva($ejec);
 
         $item = Database::fetchOne(
             'SELECT id FROM #__items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
@@ -499,6 +553,7 @@ final class ChecklistService
         if ($ejec->estado !== EjecucionChecklist::ESTADO_EN_PROGRESO) {
             throw new ChecklistException('EJECUCION_NO_EDITABLE', 'Ejecución ya completada.', 409);
         }
+        $this->exigirAsignacionActiva($ejec);
 
         $progreso = $this->calcularProgreso($ejecucionId, $ejec->templateId);
         if ($progreso['obligatorios_pendientes'] > 0) {

@@ -23,6 +23,7 @@ use Atankalama\Limpieza\Controllers\SistemaController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
 use Atankalama\Limpieza\Controllers\TurnosImportController;
+use Atankalama\Limpieza\Controllers\UiConfigController;
 use Atankalama\Limpieza\Controllers\UsuariosController;
 use Atankalama\Limpieza\Middleware\AuthCheck;
 use Atankalama\Limpieza\Middleware\OptionalAuth;
@@ -63,11 +64,13 @@ final class Kernel
         $router->get('/ajustes/alertas', [$paginas, 'ajustesAlertas'], [$optionalAuth]);
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
         $router->get('/ajustes/checklists', [$paginas, 'ajustesChecklists'], [$optionalAuth]);
+        $router->get('/ajustes/colores', [$paginas, 'ajustesColores'], [$optionalAuth]);
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
         $router->post('/api/auth/login', [$auth, 'login']);
+        $router->post('/api/auth/recuperar', [$auth, 'recuperar']);
 
         // Auth autenticado
         $router->post('/api/auth/logout', [$auth, 'logout'], [$authCheck]);
@@ -120,6 +123,10 @@ final class Kernel
             new PermissionCheck('habitaciones.ver_todas'),
         ]);
         $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [$authCheck]);
+        $router->get('/api/habitaciones/{id}/historial', [$habitaciones, 'historial'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_historial'),
+        ]);
         $router->get('/api/habitaciones/{id}/auditoria', [$habitaciones, 'auditoriaActual'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
@@ -188,6 +195,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('asignaciones.asignar_manual'),
         ]);
+        $router->post('/api/asignaciones/desasignar', [$asignaciones, 'desasignar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
         $router->put('/api/asignaciones/orden', [$asignaciones, 'reordenar'], [
             $authCheck,
             new PermissionCheck('asignaciones.reordenar_cola_trabajador'),
@@ -196,6 +207,17 @@ final class Kernel
         $router->get('/api/asignaciones/vista', [$asignaciones, 'vista'], [
             $authCheck,
             new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+
+        // Apariencia (Ajustes → Colores) — colores de tarjetas por estado y hotel
+        $uiConfig = new UiConfigController();
+        $router->get('/api/ui-config/colores', [$uiConfig, 'obtenerColores'], [
+            $authCheck,
+            new PermissionCheck('apariencia.editar'),
+        ]);
+        $router->put('/api/ui-config/colores', [$uiConfig, 'guardarColores'], [
+            $authCheck,
+            new PermissionCheck('apariencia.editar'),
         ]);
 
         // Espacios (áreas comunes) — ver docs/areas-comunes.md

@@ -84,6 +84,12 @@ su template y nunca caiga al checklist genérico de piezas.
 
 Todos los ítems de un espacio son **obligatorios** en el MVP (no hay opcionales).
 
+**Créditos por ítem (julio 2026):** al crear/editar un espacio, cada ítem lleva su
+peso en `items_checklist.creditos` (0–100, default 1, mismo clamp que el editor de
+checklists por tipo). La API acepta `items: [{descripcion, creditos}]` (o strings
+pelados, compat → créditos 1). Como todos los ítems de espacio son obligatorios,
+su peso siempre cuenta.
+
 ---
 
 ## 4. Exclusiones (para no contaminar lo existente)
@@ -96,7 +102,8 @@ Los espacios se filtran de los flujos de piezas con `es_espacio_comun = 0`:
 | Vista de asignaciones "sin asignar" (`vistaConsolidada`) | Solo piezas — los espacios viven en su pantalla |
 | Bandeja de auditoría | Solo piezas — los espacios no se auditan |
 | Listado de habitaciones (`HabitacionService::listar`) | Solo piezas por defecto |
-| KPIs de ocupación / tasas de piezas (`ReportesService`) | Solo piezas |
+| KPIs de tiempos / tasas de piezas (`ReportesService::hotelCond`) | Solo piezas |
+| **KPIs de CRÉDITOS** (`kpiCreditos`, `resumenMensual`, `trabajadoras`) | **Piezas + espacios** desde jul-2026 (`hotelCondCreditos`): los créditos de los ítems de áreas comunes suman al total del trabajador. El conteo `habitaciones` del resumen sigue siendo solo piezas |
 | Sync + escritura Cloudbeds | Natural: exigen `cloudbeds_room_id` (los espacios lo tienen NULL) |
 | Lista de templates (`listarTemplates`) | Solo `habitacion_id IS NULL` (templates de tipo) |
 

@@ -177,6 +177,75 @@ final class AsignacionService
     }
 
     /**
+     * Desasigna la habitación: la saca de la cola del trabajador sin asignársela
+     * a nadie (activa = 0), y vuelve al pool "Sin asignar" de la vista.
+     *
+     * Solo estados no terminales (sucia / en_progreso / rechazada): una pieza ya
+     * completada o aprobada no se desasigna (409) — su asignación es el registro
+     * de quién la limpió hoy.
+     *
+     * Si estaba en_progreso vuelve a 'sucia' (nadie la está limpiando ya); la
+     * ejecución en curso queda huérfana, igual que al reasignar (ver comentario
+     * en ChecklistService::iniciarEjecucion), y la próxima asignación arranca
+     * una ejecución nueva desde cero.
+     */
+    public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null): void
+    {
+        $this->validarFecha($fecha);
+
+        $asignacion = Database::fetchOne(
+            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
+            [$habitacionId, $fecha]
+        );
+        if ($asignacion === null) {
+            throw new AsignacionException(
+                'ASIGNACION_NO_ENCONTRADA',
+                'La habitación no tiene una asignación activa para esa fecha.',
+                404
+            );
+        }
+
+        $hab = Database::fetchOne('SELECT numero, estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+        if ($hab === null) {
+            throw new AsignacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+        $desasignables = [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_RECHAZADA];
+        if (!in_array($hab['estado'], $desasignables, true)) {
+            throw new AsignacionException(
+                'ESTADO_NO_DESASIGNABLE',
+                'La habitación ya fue completada: no se puede desasignar.',
+                409
+            );
+        }
+
+        Database::transaction(function () use ($habitacionId, $hab): void {
+            Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
+            if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
+                Database::execute(
+                    "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    [$habitacionId]
+                );
+            }
+        });
+
+        Logger::audit($actorId, 'asignacion.desasignar', 'asignacion', (int) $asignacion['id'], [
+            'habitacion_id' => $habitacionId,
+            'usuario_id' => (int) $asignacion['usuario_id'],
+            'fecha' => $fecha,
+            'estado_previo' => $hab['estado'],
+        ]);
+
+        // Simetría con asignarManual: el trabajador se entera de que la pieza salió de su cola.
+        $this->notificaciones->crear(
+            (int) $asignacion['usuario_id'],
+            'asignacion',
+            'Habitación retirada de tu cola',
+            "La habitación #{$hab['numero']} ya no está asignada a ti.",
+            Url::a('/home')
+        );
+    }
+
+    /**
      * Reordena la cola de un trabajador (array de habitacion_ids en orden deseado).
      *
      * @param list<int> $ordenHabitaciones

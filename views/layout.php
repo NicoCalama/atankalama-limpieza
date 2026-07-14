@@ -41,6 +41,12 @@
     <!-- App CSS -->
     <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>">
 
+    <!-- Colores configurables (Ajustes → Colores): variables consumidas por las
+         clases semánticas .chip-estado-* / .hotel-accent-* de custom.css -->
+    <style id="ui-colores">
+<?= (new \Atankalama\Limpieza\Services\UiConfigService())->cssVars() . "\n" ?>
+    </style>
+
     <!-- PWA -->
     <link rel="manifest" href="<?= u('/manifest') ?>">
     <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
