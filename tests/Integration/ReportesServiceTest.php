@@ -83,7 +83,9 @@ final class ReportesServiceTest extends TestCase
 
     public function testKpiCreditosSeRepartePorPersonaYCastigaElError(): void
     {
-        $hoy = gmdate('Y-m-d');
+        // Fecha LOCAL: es lo que la supervisora elige en el filtro y lo que espera la API
+        // (antes acá iba gmdate() para compensar que los KPIs filtraban por día UTC).
+        $hoy = date('Y-m-d');
         $creditosAna = $this->totalOblig - 2; // 7
 
         // Ana: 7 créditos de 9 intentos (los 2 desmarcados cuentan en su denominador).
@@ -112,7 +114,7 @@ final class ReportesServiceTest extends TestCase
         $ph = implode(',', array_fill(0, count($this->falla), '?'));
         Database::execute("UPDATE items_checklist SET creditos = 5 WHERE id IN ({$ph})", $this->falla);
 
-        $hoy   = gmdate('Y-m-d');
+        $hoy   = date('Y-m-d');
         $kept  = $this->totalOblig - 2;   // 7 ítems que Ana conservó (peso 1)
         $fall  = 2 * 5;                    // 2 ítems fallidos * peso 5 = 10
 

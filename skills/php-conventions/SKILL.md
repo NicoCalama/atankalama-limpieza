@@ -116,6 +116,33 @@ $router->post('/api/habitaciones/{id}/asignar', [
 
 El middleware `PermissionCheck` lee el permiso del parámetro y chequea `$usuario->tienePermiso('habitaciones.asignar')`.
 
+## Fechas: la BD habla UTC, el negocio habla Santiago
+
+Los timestamps (`timestamp_inicio`, `created_at`, …) se guardan en **UTC** con formato
+ISO `YYYY-MM-DDTHH:MM:SS.sssZ`. Las fechas del negocio (el filtro "hoy" de un reporte,
+`asignaciones.fecha`) son **locales de Santiago**. Mezclarlas silenciosamente es un bug
+real que ya pasó una vez: el trabajo del turno de tarde (termina 22:00, que en UTC ya es
+el día siguiente) se acreditaba al día equivocado.
+
+```php
+// ❌ NUNCA: DATE(col) es el día UTC; compararlo con una fecha local desfasa 4 horas
+"WHERE DATE(ec.timestamp_inicio) BETWEEN ? AND ?", [$desde, $hasta]
+
+// ✅ SIEMPRE: convertí el RANGO en PHP y compará el timestamp crudo
+[$desde, $hasta] = Fechas::rangoUtc($desde, $hasta);   // o rangoUtcDelDia($fecha)
+"WHERE ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?", [$desde, $hasta]
+```
+
+- El límite superior es **exclusivo** (`<`, no `BETWEEN`): si no, se pierden los últimos
+  milisegundos del día.
+- La conversión va en PHP porque `DateTimeZone` conoce el horario de verano (Chile alterna
+  UTC-4 / UTC-3); un offset fijo en SQL se rompe dos veces al año, y SQLite y MariaDB no
+  comparten una función de conversión portable.
+- Para **agrupar** por día (`COUNT(DISTINCT DATE(...))`) no alcanza el rango: usá
+  `Fechas::fechaLocalDeUtc()` sobre las filas en PHP.
+- Ojo con las columnas que **ya son fechas locales** (`asignaciones.fecha`): esas se
+  comparan directo, sin convertir.
+
 ## Reglas
 
 - Siempre `declare(strict_types=1);`
@@ -126,3 +153,4 @@ El middleware `PermissionCheck` lee el permiso del parámetro y chequea `$usuari
 - Errores con excepciones, no `return false`
 - Excepciones del dominio en `src/Exceptions/`
 - **NUNCA** chequear rol directamente, SIEMPRE chequear permisos con `$usuario->tienePermiso('codigo')`
+- **NUNCA** comparar `DATE(<columna_timestamp>)` contra una fecha local: convertí el rango con `Helpers\Fechas`

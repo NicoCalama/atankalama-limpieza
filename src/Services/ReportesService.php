@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Helpers\Fechas;
 
 final class ReportesService
 {
@@ -25,7 +26,7 @@ final class ReportesService
     /** @return list<array<string, mixed>> */
     public function trabajadoras(string $desde, string $hasta, string $hotel): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         // Incluye a quien solo limpió áreas comunes: sus créditos cuentan (jul-2026),
         // así que debe aparecer en el listado por trabajadora (sus KPIs de piezas
         // saldrán 'sin_datos', lo cual es honesto).
@@ -37,7 +38,7 @@ final class ReportesService
                JOIN #__usuarios u ON u.id = ec.usuario_id
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+              WHERE ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hotelCond}
               ORDER BY u.nombre",
             $params
@@ -53,7 +54,7 @@ final class ReportesService
     {
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-t', strtotime($desde));
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         // Créditos incluyen áreas comunes desde jul-2026 (hotelCondCreditos); el conteo
         // 'habitaciones' sigue siendo SOLO piezas de huésped (filtro dentro del CASE).
         $hotelCond = $this->hotelCondCreditos($hotel, $params);
@@ -88,7 +89,7 @@ final class ReportesService
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND ei.marcado_por IS NOT NULL
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
               ORDER BY u.nombre",
@@ -193,7 +194,7 @@ final class ReportesService
     {
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-t', strtotime($desde));
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $hotelCond = $this->hotelCond($hotel, $params);
 
         return Database::fetchAll(
@@ -207,7 +208,7 @@ final class ReportesService
                JOIN #__usuarios u ON u.id = a.auditor_id
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE DATE(a.created_at) BETWEEN ? AND ?
+              WHERE a.created_at >= ? AND a.created_at < ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
               ORDER BY u.nombre",
@@ -331,7 +332,7 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiTiempoPromedio(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = $this->userCond($usuarioId, $params, 'ec');
 
@@ -343,7 +344,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_fin IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}",
             $params
         );
@@ -364,7 +365,7 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiTasaRechazo(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         // Filtro por la trabajadora que limpió (no el auditor)
         $u = '';
@@ -380,7 +381,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
-              WHERE DATE(a.created_at) BETWEEN ? AND ?
+              WHERE a.created_at >= ? AND a.created_at < ?
                     {$h}{$u}",
             $params
         );
@@ -406,6 +407,9 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiEficiencia(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
+        // OJO: acá NO va la conversión a UTC. Este KPI filtra por asignaciones.fecha,
+        // que es un DATE con la fecha LOCAL del turno (no un timestamp UTC): comparar
+        // fecha local contra fecha local ya es correcto.
         $params = [$desde, $hasta];
         $h = $this->hotelCond($hotel, $params);
         $u = '';
@@ -451,7 +455,7 @@ final class ReportesService
         // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
         // Numerador = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones
         //             NO rechazadas (así los ítems heredados en la re-limpieza no se doble-cuentan).
-        $pC = [$desde, $hasta];
+        $pC = Fechas::rangoUtc($desde, $hasta);
         $hC = $this->hotelCondCreditos($hotel, $pC); // incluye áreas comunes (jul-2026)
         $uC = $this->marcadoPorCond($usuarioId, $pC);
         $creditos = (int) Database::fetchColumn(
@@ -466,14 +470,14 @@ final class ReportesService
                 AND ic.obligatorio = 1
                 AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
                 AND ec.estado IN ('completada', 'auditada')
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hC}{$uC}",
             $pC
         );
 
         // Intentos fallidos = créditos de obligatorios desmarcados por el auditor (atribuidos a
         // quien los marcó mal). El denominador = créditos + fallidos → el % castiga el error.
-        $pD = [$desde, $hasta];
+        $pD = Fechas::rangoUtc($desde, $hasta);
         $hD = $this->hotelCondCreditos($hotel, $pD); // simetría con el numerador
         $uD = $this->marcadoPorCond($usuarioId, $pD);
         $desmarcados = (int) Database::fetchColumn(
@@ -486,7 +490,7 @@ final class ReportesService
               WHERE ei.desmarcado_por_auditor = 1 AND ic.obligatorio = 1
                 AND ei.marcado_por IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hD}{$uD}",
             $pD
         );
@@ -511,7 +515,7 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiAprobacionPrimera(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = '';
         if ($usuarioId !== null) {
@@ -526,7 +530,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
-              WHERE DATE(a.created_at) BETWEEN ? AND ?
+              WHERE a.created_at >= ? AND a.created_at < ?
                     {$h}{$u}",
             $params
         );
@@ -552,26 +556,36 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiProductividad(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = $this->userCond($usuarioId, $params, 'ec');
 
-        $fila = Database::fetchOne(
-            "SELECT COUNT(ec.id)                       AS completadas,
-                    COUNT(DISTINCT ec.usuario_id)       AS trabajadoras,
-                    COUNT(DISTINCT DATE(ec.timestamp_inicio)) AS dias
+        // Los días con actividad se cuentan en PHP, no con COUNT(DISTINCT DATE(...)):
+        // DATE() sobre la columna da el día UTC, así que una limpieza a las 18:00 y otra
+        // a las 21:00 del MISMO día local caían en dos días UTC distintos y le partían la
+        // productividad a la mitad. Agrupar por día local necesita conocer la zona horaria
+        // (y su horario de verano), cosa que SQLite y MariaDB no comparten de forma portable.
+        $filas = Database::fetchAll(
+            "SELECT ec.usuario_id, ec.timestamp_inicio
                FROM #__ejecuciones_checklist ec
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado IN ('completada', 'auditada')
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}",
             $params
         );
 
-        $trabajadoras = (int) ($fila['trabajadoras'] ?? 0);
-        $dias         = (int) ($fila['dias'] ?? 0);
-        $completadas  = (int) ($fila['completadas'] ?? 0);
+        $diasLocales   = [];
+        $trabajadorIds = [];
+        foreach ($filas as $f) {
+            $diasLocales[Fechas::fechaLocalDeUtc((string) $f['timestamp_inicio'])] = true;
+            $trabajadorIds[(int) $f['usuario_id']] = true;
+        }
+
+        $trabajadoras = count($trabajadorIds);
+        $dias         = count($diasLocales);
+        $completadas  = count($filas);
 
         if ($trabajadoras === 0 || $dias === 0) {
             return ['valor' => null, 'unidad' => 'hab/día', 'meta' => null, 'contexto' => '0 completadas', 'estado' => 'sin_datos'];
@@ -591,7 +605,7 @@ final class ReportesService
     /** @return array<string, mixed> */
     private function kpiTasaDesmarcados(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
     {
-        $params = [$desde, $hasta];
+        $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = $this->userCond($usuarioId, $params, 'ec');
 
@@ -603,7 +617,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
-                AND DATE(ec.timestamp_inicio) BETWEEN ? AND ?
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}",
             $params
         );

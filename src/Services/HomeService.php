@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Helpers\Changelog;
+use Atankalama\Limpieza\Helpers\Fechas;
 
 /**
  * Servicio de datos para las cuatro homes (trabajador, supervisora, recepción, admin).
@@ -224,13 +225,14 @@ final class HomeService
         )['c'] ?? 0);
 
         // Auditorías del día agrupadas por veredicto
+        [$diaDesde, $diaHasta] = Fechas::rangoUtcDelDia($fecha);
         $auditoriasFila = Database::fetchAll(
             'SELECT au.veredicto, COUNT(*) AS c
                FROM #__auditorias au
                JOIN #__habitaciones h ON h.id = au.habitacion_id
-              WHERE h.hotel_id = ? AND DATE(au.created_at) = ?
+              WHERE h.hotel_id = ? AND au.created_at >= ? AND au.created_at < ?
            GROUP BY au.veredicto',
-            [$hotelId, $fecha]
+            [$hotelId, $diaDesde, $diaHasta]
         );
         $audAprobadas = 0;
         $audObs = 0;
@@ -279,8 +281,8 @@ final class HomeService
               WHERE h.hotel_id = ?
                 AND h.es_espacio_comun = 0
                 AND e.timestamp_fin IS NOT NULL
-                AND DATE(e.timestamp_fin) = ?',
-            [$hotelId, $fecha]
+                AND e.timestamp_fin >= ? AND e.timestamp_fin < ?',
+            [$hotelId, $diaDesde, $diaHasta]
         );
         $tiempoPromMin = ($tiempoProm !== null && $tiempoProm['prom'] !== null)
             ? (int) round((float) $tiempoProm['prom'])
@@ -592,14 +594,15 @@ final class HomeService
      */
     public function sistemaErroresLogs(string $fecha): array
     {
+        [$diaDesde, $diaHasta] = Fechas::rangoUtcDelDia($fecha);
         $fila = Database::fetchOne(
             "SELECT
                 SUM(CASE WHEN nivel = 'ERROR' THEN 1 ELSE 0 END) AS errores,
                 SUM(CASE WHEN nivel = 'WARNING' THEN 1 ELSE 0 END) AS warnings,
                 MAX(created_at) AS ultimo
                FROM #__logs_eventos
-              WHERE DATE(created_at) = ? AND nivel IN ('ERROR','WARNING')",
-            [$fecha]
+              WHERE created_at >= ? AND created_at < ? AND nivel IN ('ERROR','WARNING')",
+            [$diaDesde, $diaHasta]
         );
         $errores = (int) ($fila['errores'] ?? 0);
         $warnings = (int) ($fila['warnings'] ?? 0);
