@@ -65,6 +65,7 @@ final class Kernel
         $router->get('/ajustes/rbac', [$paginas, 'ajustesRbac'], [$optionalAuth]);
         $router->get('/ajustes/checklists', [$paginas, 'ajustesChecklists'], [$optionalAuth]);
         $router->get('/ajustes/colores', [$paginas, 'ajustesColores'], [$optionalAuth]);
+        $router->get('/ajustes/versiones', [$paginas, 'ajustesVersiones'], [$optionalAuth]);
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 

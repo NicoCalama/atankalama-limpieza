@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Helpers\Changelog;
 
 /**
  * Servicio de datos para las cuatro homes (trabajador, supervisora, recepción, admin).
@@ -682,11 +683,17 @@ final class HomeService
     /**
      * Versión de la app, ambiente, commit y timestamp aproximado de deploy.
      *
+     * La versión sale de CHANGELOG.md (la última publicada), no de una config: así
+     * el badge no puede contradecir al historial de /ajustes/versiones. Si el
+     * changelog no se puede leer, va null y la vista esconde el dato — mejor no
+     * decir nada que inventar un número.
+     *
      * @return array<string, mixed>
      */
     public function sistemaVersionApp(): array
     {
-        $version = (string) Config::get('APP_VERSION', '1.0.0');
+        $actual = Changelog::actual();
+        $version = $actual !== null ? $actual['version'] : null;
         $ambiente = (string) Config::get('APP_ENV', 'produccion');
         $commit = $this->leerCommitCorto();
         $deployTs = null;

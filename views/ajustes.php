@@ -56,6 +56,13 @@ $secciones = [
         'descripcion' => 'Umbrales y recálculo de alertas predictivas',
         'visible' => $usuario->tienePermiso('alertas.configurar_umbrales'),
     ],
+    [
+        'ruta' => '/ajustes/versiones',
+        'icono' => 'git-branch',
+        'label' => 'Versiones',
+        'descripcion' => 'Qué cambió en cada versión de la app',
+        'visible' => true,
+    ],
 ];
 
 $visibles = array_filter($secciones, fn($s) => $s['visible']);

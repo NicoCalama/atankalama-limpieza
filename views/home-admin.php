@@ -397,7 +397,11 @@ if ($hora < 12) {
                                     <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Versión</span>
                                 </div>
                                 <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                                    <span x-text="'v' + data.sistema.version_app.actual"></span>
+                                    <!-- La versión sale del CHANGELOG.md; si no se pudo leer, no se muestra -->
+                                    <template x-if="data.sistema.version_app.actual">
+                                        <a href="<?= u('/ajustes/versiones') ?>" class="text-blue-600 dark:text-blue-400 hover:underline"
+                                           x-text="'v' + data.sistema.version_app.actual"></a>
+                                    </template>
                                     <template x-if="data.sistema.version_app.commit_hash">
                                         <span x-text="'#' + data.sistema.version_app.commit_hash"></span>
                                     </template>

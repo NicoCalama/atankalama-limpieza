@@ -36,6 +36,7 @@ Header común: breadcrumb "Ajustes > {sección}", botón volver (móvil).
 | Alertas | `alertas.configurar_umbrales` | §4 |
 | Cloudbeds | `cloudbeds.configurar_credenciales` | §5 |
 | Logs | `logs.ver` | delega a [logs.md](logs.md) |
+| Versiones | (todos) | §8 |
 
 ---
 
@@ -148,7 +149,38 @@ Permiso: `logs.ver`. Ver [logs.md](logs.md) §4 para UI del viewer.
 
 ---
 
-## 8. Endpoints
+## 8. Versiones (todos los usuarios)
+
+Historial de versiones de la app: qué cambió en cada una. Sin permiso — no expone
+nada sensible y la gracia es que el equipo y la empresa vean qué trajo cada deploy.
+
+**Fuente única:** `CHANGELOG.md` en la raíz del repo. No hay tabla ni endpoint: la
+página se renderiza en servidor y `Helpers\Changelog` parsea el archivo. De la
+misma fuente sale el badge de versión del home del Admin (`version_app.actual` en
+[home-admin.md](home-admin.md) §14.2), que **linkea acá**, para que la app no pueda
+contradecir al historial.
+
+**Formato** (una fila por versión, la más nueva arriba; el propio `CHANGELOG.md` lo
+documenta):
+
+```
+| **v1.1** · 07/07/2026 | Cambio uno · Cambio dos |
+```
+
+- Izquierda: versión y fecha en DD/MM/YYYY, o `sin publicar` si ya está en `main`
+  pero no salió a producción. Derecha: los cambios enumerados, separados por ` · `.
+- **La versión "en uso" es la última publicada** — una `sin publicar` se muestra
+  marcada pero no cuenta como la que corre.
+- Numeración: deploy chico sube el segundo número (v1 → v1.1), cambio grande sube
+  el primero (v1.x → v2). Un cambio que no sube código no es una versión. El paso
+  de release está en [deploy-cpanel.md](deploy-cpanel.md) §10 paso 0.
+- Si el archivo falta o el formato se rompe, la página muestra su estado vacío y el
+  badge se esconde (no se inventa un número). `ChangelogTest` parsea el archivo
+  real del repo para que eso no pase en silencio.
+
+---
+
+## 9. Endpoints
 
 Los endpoints de Ajustes delegan a los módulos de dominio. Este doc no define endpoints propios — solo orquesta.
 
@@ -164,7 +196,7 @@ Referencia rápida:
 
 ---
 
-## 9. Referencias cruzadas
+## 10. Referencias cruzadas
 
 - [roles-permisos.md](roles-permisos.md) — catálogo
 - [auth.md](auth.md) — cambio de pwd

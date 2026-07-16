@@ -778,7 +778,10 @@ Content-Type: application/json
         "ultimo_turno": 8
       },
       "version_app": {
-        "actual": "1.0.0",
+        // Última versión PUBLICADA del CHANGELOG.md (fuente única, ver ajustes.md §8).
+        // null si el changelog falta o rompió formato → la UI esconde el dato.
+        // El badge linkea a /ajustes/versiones.
+        "actual": "1.1",
         "ambiente": "produccion", // "desarrollo" | "staging" | "produccion"
         "timestamp_deploy": "2026-04-10T14:30:00Z",
         "commit_hash": "a3f8e2c"

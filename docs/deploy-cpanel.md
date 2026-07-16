@@ -216,6 +216,14 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 
 ## 10. Actualizaciones futuras (deploy delta)
 
+0. **Cerrar la versión en `CHANGELOG.md` ANTES de buildear.** Cada deploy es una
+   versión: los chicos suben el segundo número (v1 → v1.1), un cambio grande sube
+   el primero (v1.x → v2); un cambio que no sube código (editar el `.env`, por
+   ejemplo) **no** es una versión. Poner la fecha real del deploy en DD/MM/YYYY
+   en lugar de `sin publicar` — el badge del home del Admin y
+   `/ajustes/versiones` muestran **la última versión con fecha**, así que si te
+   olvidás, prod dice que sigue en la versión anterior. El ZIP se arma después
+   porque copia el `CHANGELOG.md` adentro.
 1. Re-correr `php scripts/build-cpanel-zip.php` y subir/extraer el ZIP completo
    (2 MB — más simple y seguro que armar deltas a mano), o subir archivos
    sueltos por FTP si el cambio es puntual. El `.env` del server NO se toca
@@ -256,7 +264,7 @@ adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
 |---|---|---|
 | 2026-07-07 | **Deploy inicial** | App publicada en `atankalama.com/limpieza`. Código (`main` `08410de`) + `.env` (600) + dump limpio (156 hab reales, sin test rooms) + 4 cron. Fix VAPID en `generate-vapid-keys.php`. RUT admin → real por phpMyAdmin. |
 | 2026-07-07 | **Editor de checklist + créditos por peso** (`822bc2b`) | Deploy delta, ZIP completo. **Migración:** `ALTER TABLE limpieza_items_checklist ADD COLUMN creditos INT NOT NULL DEFAULT 1;` por phpMyAdmin, corrida **antes** de extraer el ZIP (aditiva, backfill a 1 → reportes históricos idénticos). Sin cambios de dependencias (vendor sin tocar). Permiso `checklists.editar` **ya estaba** en prod (venía en el dump inicial + rol Admin `__ALL__`, que init-db/seed expanden a todos los códigos) → no se sembró nada. Smokes verdes: `/api/health` ok, `app_core/.env` 403, Ajustes → Checklists carga/edita/guarda, Reportes calcula bien. |
-| PENDIENTE | **Solicitudes de la empresa julio** (7 features) | Deploy delta, ZIP completo. **Pasos previos al ZIP (phpMyAdmin, aditivos, sin downtime):** correr el SQL de abajo (§11.1). **Después de extraer el ZIP:** editar `app_core/.env` y agregar `MAIL_TRANSPORT=mail` + completar `SMTP_FROM=sistema@atankalama.com` y `SMTP_FROM_NAME="Atankalama Limpieza"` (la casilla debe existir en cPanel → Email Accounts; con mail() nativo NO hacen falta SMTP_HOST/USER/PASS) — esto activa además el pendiente de correo para usuarios nuevos. **Smokes:** login, "¿Olvidaste tu contraseña?" con un RUT de prueba CON email (llega el correo, la clave vieja muere), botón Salir en bottom-nav, contador en home del trabajador, desasignar una pieza, crear área común con créditos, historial en detalle de habitación (Supervisora), Ajustes → Colores carga/edita/guarda y las tarjetas cambian. Nota: el SW pasó a v6 (custom.css nuevo). |
+| PENDIENTE | **Solicitudes de la empresa julio** (7 features) → **v2** | Deploy delta, ZIP completo. **Pasos previos al ZIP (phpMyAdmin, aditivos, sin downtime):** correr el SQL de abajo (§11.1). **Antes de buildear:** en `CHANGELOG.md`, cambiar el `sin publicar` de la v2 por la fecha real del deploy (§10 paso 0). **Después de extraer el ZIP:** editar `app_core/.env` y agregar `MAIL_TRANSPORT=mail` + completar `SMTP_FROM=sistema@atankalama.com` y `SMTP_FROM_NAME="Atankalama Limpieza"` (la casilla debe existir en cPanel → Email Accounts; con mail() nativo NO hacen falta SMTP_HOST/USER/PASS) — esto activa además el pendiente de correo para usuarios nuevos. **Smokes:** login, "¿Olvidaste tu contraseña?" con un RUT de prueba CON email (llega el correo, la clave vieja muere), botón Salir en bottom-nav, contador en home del trabajador, desasignar una pieza, crear área común con créditos, historial en detalle de habitación (Supervisora), Ajustes → Colores carga/edita/guarda y las tarjetas cambian. Nota: el SW pasó a v6 (custom.css nuevo). |
 
 ### 11.1 SQL del release "solicitudes de la empresa julio" (phpMyAdmin)
 

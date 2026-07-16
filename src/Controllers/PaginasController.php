@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Core\View;
+use Atankalama\Limpieza\Helpers\Changelog;
 use Atankalama\Limpieza\Services\AuthService;
 
 final class PaginasController
@@ -186,6 +187,23 @@ final class PaginasController
         return View::conLayout('ajustes-colores', [
             'usuario' => $request->usuario,
             'titulo' => 'Colores',
+        ]);
+    }
+
+    public function ajustesVersiones(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        // Sin permiso: el historial no expone nada sensible y la gracia es que todo el
+        // equipo (y la empresa) vea qué cambió en cada versión.
+        return View::conLayout('ajustes-versiones', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Versiones',
+            'versiones' => Changelog::versiones(),
         ]);
     }
 

@@ -110,6 +110,7 @@ rcopy($root . '/database/seeds', $coreDir . '/database/seeds');
 rcopy($root . '/docs/database-schema.sql', $coreDir . '/docs/database-schema.sql');
 rcopy($root . '/docs/database-schema.mariadb.sql', $coreDir . '/docs/database-schema.mariadb.sql');
 rcopy($root . '/public', $coreDir . '/public');           // front controller real (el stub lo requiere)
+rcopy($root . '/CHANGELOG.md', $coreDir . '/CHANGELOG.md');   // fuente de /ajustes/versiones y del badge de versión
 rcopy($root . '/composer.json', $coreDir . '/composer.json');
 rcopy($root . '/composer.lock', $coreDir . '/composer.lock');
 rcopy($root . '/.env.production.example', $coreDir . '/.env.production.example');
