@@ -58,9 +58,9 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
                     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Hotel por defecto</label>
                     <select x-model="form.hotel_default" <?= $puedeEditarSe ? '' : 'disabled' ?>
                             class="w-full min-h-[44px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 <?= $puedeEditarSe ? '' : 'cursor-not-allowed opacity-70' ?>">
-                        <option value="">Ambos</option>
-                        <option value="1sur">1 Sur</option>
-                        <option value="inn">Inn</option>
+                        <option value="ambos">Ambos</option>
+                        <option value="1_sur">Atankalama</option>
+                        <option value="inn">Atankalama Inn</option>
                     </select>
                 </div>
 
@@ -168,7 +168,7 @@ function miCuentaApp() {
         form: {
             nombre: <?= json_encode($usuario->nombre) ?>,
             email: <?= json_encode($usuario->email ?? '') ?>,
-            hotel_default: <?= json_encode($usuario->hotelDefault ?? '') ?>,
+            hotel_default: <?= json_encode($usuario->hotelDefault ?: 'ambos') ?>,
         },
         original: null,
         guardando: false,

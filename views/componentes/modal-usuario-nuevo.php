@@ -179,11 +179,11 @@ function modalUsuarioNuevo() {
             rut: '',
             nombre: '',
             email: '',
-            hotel_default: '',
+            hotel_default: 'ambos',
             roles: [],
         },
         hoteles: [
-            { valor: '', label: 'Ninguno' },
+            { valor: 'ambos', label: 'Ambos' },
             { valor: '1_sur', label: 'Atankalama' },
             { valor: 'inn', label: 'Atankalama Inn' },
         ],
@@ -200,7 +200,7 @@ function modalUsuarioNuevo() {
         },
 
         reset() {
-            this.form = { rut: '', nombre: '', email: '', hotel_default: '', roles: [] };
+            this.form = { rut: '', nombre: '', email: '', hotel_default: 'ambos', roles: [] };
             this.error = null;
             this.errores = {};
             this.enviando = false;

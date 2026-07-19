@@ -213,7 +213,7 @@ function modalUsuarioDetalle() {
         passwordReseteada: null,
         copiado: false,
         hoteles: [
-            { valor: '', label: 'Ninguno' },
+            { valor: 'ambos', label: 'Ambos' },
             { valor: '1_sur', label: 'Atankalama' },
             { valor: 'inn', label: 'Atankalama Inn' },
         ],
@@ -225,7 +225,10 @@ function modalUsuarioDetalle() {
             this.form = {
                 nombre: this.usuario.nombre || '',
                 email: this.usuario.email || '',
-                hotel_default: this.usuario.hotel_default || '',
+                // Los usuarios viejos con hotel sin definir (null/'') se muestran
+                // como 'Ambos': quitamos la opción 'Ninguno' y todo usuario queda
+                // con un hotel real al guardar.
+                hotel_default: this.usuario.hotel_default || 'ambos',
             };
             this.mensaje = '';
             this.passwordReseteada = null;
