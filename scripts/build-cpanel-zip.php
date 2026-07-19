@@ -181,25 +181,44 @@ if (is_dir($coreDir . '/vendor/phpunit')) {
     fallar('el vendor del stage incluye phpunit (¿install sin --no-dev?)');
 }
 
-// ── 4. ZIP con tar.exe (libarchive → separadores '/') ─────────────────────
+// ── 4. ZIP con .NET (System.IO.Compression) vía PowerShell ────────────────
+// NO usar tar.exe: bsdtar de este Windows NO escribe zip (cae a tar/pax
+// disfrazado de .zip que el unzip de cPanel rechaza). NO usar Compress-Archive:
+// mete separadores '\'. El .ps1 usa ZipArchive forzando '/'. (Lección 18/07/2026.)
 
-echo "4/5 Empaquetando con tar.exe ...\n";
+echo "4/5 Empaquetando con .NET ZipArchive (scripts/zip-stage.ps1) ...\n";
 $cmd = sprintf(
-    'tar.exe -a -cf %s -C %s limpieza 2>&1',
-    escapeshellarg($zipPath),
-    escapeshellarg($stage)
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -File %s -Stage %s -Zip %s 2>&1',
+    escapeshellarg($root . '/scripts/zip-stage.ps1'),
+    escapeshellarg($stage),
+    escapeshellarg($zipPath)
 );
 exec($cmd, $out2, $rc2);
 if ($rc2 !== 0 || !file_exists($zipPath)) {
-    fallar("tar.exe falló:\n" . implode("\n", $out2));
+    fallar("empaquetado falló:\n" . implode("\n", $out2));
+}
+
+// Guard: el artefacto DEBE ser un zip real (firma local-file-header 'PK\x03\x04').
+// Si bsdtar produjo un tar disfrazado de .zip, el unzip del hosting lo rechaza.
+$firma = (string) file_get_contents($zipPath, false, null, 0, 4);
+if ($firma !== "PK\x03\x04") {
+    fallar("el artefacto no es un zip válido (firma: " . bin2hex($firma) . "). "
+        . "Esperado 504b0304. Revisá el comando de tar.exe (--format=zip).");
 }
 
 // ── 5. Auditoría del artefacto ────────────────────────────────────────────
 
 echo "5/5 Auditando el ZIP ...\n";
-exec(sprintf('tar.exe -tf %s 2>&1', escapeshellarg($zipPath)), $entradas, $rc3);
-if ($rc3 !== 0) {
-    fallar('no se pudo listar el ZIP');
+// Listar con .NET (mismo motor que empaqueta): tar.exe no lee de forma
+// confiable los zip de System.IO.Compression (data descriptors).
+exec(sprintf(
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -File %s -Zip %s 2>&1',
+    escapeshellarg($root . '/scripts/zip-list.ps1'),
+    escapeshellarg($zipPath)
+), $entradas, $rc3);
+$entradas = array_values(array_filter(array_map('trim', $entradas), static fn($e) => $e !== ''));
+if ($rc3 !== 0 || $entradas === []) {
+    fallar("no se pudo listar el ZIP:\n" . implode("\n", $entradas));
 }
 
 // La única variante de .env permitida en el ZIP es la plantilla de ejemplo.

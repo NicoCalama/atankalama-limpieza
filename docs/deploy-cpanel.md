@@ -41,13 +41,20 @@
 php scripts/build-cpanel-zip.php     # o: composer build-cpanel
 ```
 
-Produce `build/limpieza-cpanel.zip` (~2 MB) con la estructura `limpieza/{index.php,
+Produce `build/limpieza-cpanel.zip` (~1.5 MB) con la estructura `limpieza/{index.php,
 .htaccess, assets, sw.js, offline.html, uploads, app_core/...}` y **vendor de
 producción fresco** (`--no-dev --prefer-dist`). El script audita el artefacto:
-sin `.env`, sin `*.db`, sin `tests/`, sin `.git`, separadores `/` (el ZIP se
-genera con `tar.exe`/libarchive porque Compress-Archive mete `\` y rompe la
-extracción en Linux — lección real de Maisterchef). Si la auditoría falla, el
-build sale con error y NO hay ZIP.
+sin `.env`, sin `*.db`, sin `tests/`, sin `.git`, separadores `/`. Si la auditoría
+falla, el build sale con error y NO hay ZIP.
+
+> **El ZIP se genera con .NET `System.IO.Compression` vía PowerShell**
+> (`scripts/zip-stage.ps1`, listado de auditoría con `zip-list.ps1`), forzando
+> separadores `/`. NO con `tar.exe` ni `Compress-Archive` (lección real
+> 18/07/2026): el `bsdtar` de Windows NO escribe formato zip real — con `-a`
+> cae a tar/pax disfrazado de `.zip` y el `unzip` de cPanel lo rechaza con
+> *"End-of-central-directory signature not found"*; `Compress-Archive` (PS 5.1)
+> mete separadores `\` que rompen la extracción en Linux. El build valida la
+> firma `PK\x03\x04` del artefacto antes de darlo por bueno.
 
 ## 2. Ensayo local (recomendado antes de cada deploy)
 
@@ -264,7 +271,18 @@ adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
 |---|---|---|
 | 2026-07-07 | **Deploy inicial** | App publicada en `atankalama.com/limpieza`. Código (`main` `08410de`) + `.env` (600) + dump limpio (156 hab reales, sin test rooms) + 4 cron. Fix VAPID en `generate-vapid-keys.php`. RUT admin → real por phpMyAdmin. |
 | 2026-07-07 | **Editor de checklist + créditos por peso** (`822bc2b`) | Deploy delta, ZIP completo. **Migración:** `ALTER TABLE limpieza_items_checklist ADD COLUMN creditos INT NOT NULL DEFAULT 1;` por phpMyAdmin, corrida **antes** de extraer el ZIP (aditiva, backfill a 1 → reportes históricos idénticos). Sin cambios de dependencias (vendor sin tocar). Permiso `checklists.editar` **ya estaba** en prod (venía en el dump inicial + rol Admin `__ALL__`, que init-db/seed expanden a todos los códigos) → no se sembró nada. Smokes verdes: `/api/health` ok, `app_core/.env` 403, Ajustes → Checklists carga/edita/guarda, Reportes calcula bien. |
-| PENDIENTE | **Solicitudes de la empresa julio** (7 features) → **v2** | Deploy delta, ZIP completo. **Pasos previos al ZIP (phpMyAdmin, aditivos, sin downtime):** correr el SQL de abajo (§11.1). **Antes de buildear:** en `CHANGELOG.md`, cambiar el `sin publicar` de la v2 por la fecha real del deploy (§10 paso 0). **Después de extraer el ZIP:** editar `app_core/.env` y agregar `MAIL_TRANSPORT=mail` + completar `SMTP_FROM=sistema@atankalama.com` y `SMTP_FROM_NAME="Atankalama Limpieza"` (la casilla debe existir en cPanel → Email Accounts; con mail() nativo NO hacen falta SMTP_HOST/USER/PASS) — esto activa además el pendiente de correo para usuarios nuevos. **Smokes:** login, "¿Olvidaste tu contraseña?" con un RUT de prueba CON email (llega el correo, la clave vieja muere), botón Salir en bottom-nav, contador en home del trabajador, desasignar una pieza, crear área común con créditos, historial en detalle de habitación (Supervisora), Ajustes → Colores carga/edita/guarda y las tarjetas cambian. Nota: el SW pasó a v6 (custom.css nuevo). |
+| 2026-07-18 | **Solicitudes de la empresa julio + versiones + zona horaria** → **v2** | Deploy delta, ZIP completo (`main` `bca9a8d`). SQL previo de §11.1 corrido en phpMyAdmin (tabla `limpieza_ui_config` + `apariencia.editar` a Supervisora y Admin). `.env` editado: `MAIL_TRANSPORT=mail` + `SMTP_FROM=sistema@atankalama.com` + `SMTP_FROM_NAME` (correo verificado: la recuperación de clave llega). Smokes verdes contra rutas NUEVAS (`/api/auth/recuperar` 200, `/ajustes/versiones` 302, `sw.js` v6, `custom.css` 200). **Aviso a supervisora:** el fix de zona horaria re-atribuye el trabajo de 20:00–22:00 al día correcto → los reportes históricos cambian. |
+| 2026-07-18 | **Fix de asignación de hotel en usuarios** → **v2.1** | Deploy delta, ZIP completo. Solo código (3 vistas), sin SQL ni `.env`. Además: `UPDATE limpieza_usuarios SET hotel_default='ambos' WHERE hotel_default IS NULL OR hotel_default=''` en phpMyAdmin para los usuarios ya creados con "Ninguno". |
+
+> **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
+> File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
+> que ya existen**. Si extraés el ZIP sobre un `public_html/limpieza/` existente, los
+> archivos MODIFICADOS (router, `sw.js`, vistas viejas) quedan sin actualizar y las
+> features nuevas dan 404 aunque el health check dé verde (la app vieja corre bien).
+> **Método correcto:** renombrar `limpieza` → `limpieza_old` (queda de rollback),
+> extraer el ZIP sobre `/public_html` (carpeta `limpieza/` inexistente → todo se
+> escribe fresco), copiar `.env` de `limpieza_old/app_core/` al nuevo, smokes contra
+> rutas NUEVAS (no solo `/api/health`), y recién ahí borrar `limpieza_old`.
 
 ### 11.1 SQL del release "solicitudes de la empresa julio" (phpMyAdmin)
 
