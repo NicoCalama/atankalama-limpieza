@@ -27,7 +27,7 @@ medios**.
 
 | Versión | Qué cambió |
 |---|---|
-| **v2.2** · sin publicar | Historial de versiones de cada checklist · Editar un checklist ya no cambia los reportes de días pasados |
+| **v2.2** · 20/07/2026 | Historial de versiones de cada checklist · Editar un checklist ya no cambia los reportes de días pasados |
 | **v2.1** · 18/07/2026 | Corrección de la asignación de hotel al crear y editar usuarios (opción «Ambos» por defecto, misma lista en todas las pantallas) |
 | **v2** · 18/07/2026 | Recuperación de clave por email · Botón de cerrar sesión en toda la app · Contador de habitaciones en la barra del trabajador · Desasignar habitaciones · Créditos por ítem en áreas comunes · Historial de limpiezas por habitación · Colores de las tarjetas editables · Historial de versiones de la app · Corrección de fechas en los reportes |
 | **v1.1** · 07/07/2026 | Editor de checklists por tipo · Créditos por peso de cada ítem |
