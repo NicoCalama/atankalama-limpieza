@@ -272,7 +272,7 @@ adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
 | 2026-07-07 | **Deploy inicial** | App publicada en `atankalama.com/limpieza`. Código (`main` `08410de`) + `.env` (600) + dump limpio (156 hab reales, sin test rooms) + 4 cron. Fix VAPID en `generate-vapid-keys.php`. RUT admin → real por phpMyAdmin. |
 | 2026-07-07 | **Editor de checklist + créditos por peso** (`822bc2b`) | Deploy delta, ZIP completo. **Migración:** `ALTER TABLE limpieza_items_checklist ADD COLUMN creditos INT NOT NULL DEFAULT 1;` por phpMyAdmin, corrida **antes** de extraer el ZIP (aditiva, backfill a 1 → reportes históricos idénticos). Sin cambios de dependencias (vendor sin tocar). Permiso `checklists.editar` **ya estaba** en prod (venía en el dump inicial + rol Admin `__ALL__`, que init-db/seed expanden a todos los códigos) → no se sembró nada. Smokes verdes: `/api/health` ok, `app_core/.env` 403, Ajustes → Checklists carga/edita/guarda, Reportes calcula bien. |
 | 2026-07-18 | **Solicitudes de la empresa julio + versiones + zona horaria** → **v2** | Deploy delta, ZIP completo (`main` `bca9a8d`). SQL previo de §11.1 corrido en phpMyAdmin (tabla `limpieza_ui_config` + `apariencia.editar` a Supervisora y Admin). `.env` editado: `MAIL_TRANSPORT=mail` + `SMTP_FROM=sistema@atankalama.com` + `SMTP_FROM_NAME` (correo verificado: la recuperación de clave llega). Smokes verdes contra rutas NUEVAS (`/api/auth/recuperar` 200, `/ajustes/versiones` 302, `sw.js` v6, `custom.css` 200). **Aviso a supervisora:** el fix de zona horaria re-atribuye el trabajo de 20:00–22:00 al día correcto → los reportes históricos cambian. |
-| 2026-07-20 | **Versionado de checklists (copy-on-write)** → **v2.2** (`dce4da9`) | Deploy delta, ZIP completo. **Migración:** SQL de §11.2 en phpMyAdmin (3 columnas en `limpieza_checklists_template` + FK + backfill a v1 + índice UNIQUE), corrida **antes** de extraer. Sin permisos nuevos. Smoke de código nuevo hecho **por contraste de rutas**: `/api/checklists/templates/1/historial` → 401 (existe) vs. una ruta inventada → 404. |
+| 2026-07-20 | **Versionado de checklists (copy-on-write)** → **v2.2** (`dce4da9`) | Deploy delta, ZIP completo. **El SQL de §11.2 se corrió DESPUÉS del código** (orden invertido, ver gotcha abajo): el editor y el historial quedaron rotos hasta que se aplicó. Sin permisos nuevos. Smoke de código nuevo por **contraste de rutas**: `/api/checklists/templates/1/historial` → 401 (existe) vs. ruta inventada → 404. La fecha de la v2.2 se puso editando `app_core/CHANGELOG.md` a mano (el ZIP se había armado con "sin publicar"). |
 | 2026-07-18 | **Fix de asignación de hotel en usuarios** → **v2.1** | Deploy delta, ZIP completo. Solo código (3 vistas), sin SQL ni `.env`. Además: `UPDATE limpieza_usuarios SET hotel_default='ambos' WHERE hotel_default IS NULL OR hotel_default=''` en phpMyAdmin para los usuarios ya creados con "Ninguno". |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
@@ -366,3 +366,17 @@ toast «guardado como v2» y la tarjeta pasar de `v1` a `v2`; el botón **Histor
 debe listar las dos versiones (la v1 como no vigente). **No hacerlo con un checklist
 real en horario de trabajo:** una limpieza en curso termina con su versión, pero las
 que empiecen después usan la nueva.
+
+> **⚠️ Que la pantalla de Checklists cargue NO prueba que este SQL haya corrido**
+> (falso positivo real del 20/07/2026). La lista se arma con un `SELECT ct.*`, que
+> funciona igual sin las columnas nuevas, y el badge del front dice `t.version || 1`
+> → **muestra "v1" aunque el dato no exista**. Mismo error de razonamiento que dar por
+> bueno un `/api/health` verde. **El chequeo que sí sirve es el botón "Historial"**:
+> su consulta pide `version`, `raiz_id` y `creado_por` por nombre, así que sin la
+> migración devuelve lista vacía + toast rojo. Es de solo lectura: se puede tocar en
+> cualquier momento, incluso con gente limpiando.
+>
+> Si el código sube antes que el SQL (lo que pasó), **nada se rompe para la
+> operación**: limpiar, marcar ítems, auditar, asignar y los reportes no tocan esas
+> columnas. Solo quedan caídos el editor de checklists, su historial y el alta/edición
+> de áreas comunes, hasta que se aplique la migración.
