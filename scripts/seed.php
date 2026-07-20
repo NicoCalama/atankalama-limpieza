@@ -142,6 +142,8 @@ function seedChecklistTemplates(string $seedDir): void
             [$tipo['id'], 'Checklist estándar — ' . $tipo['nombre']]
         );
         $templateId = Database::lastInsertId();
+        // El template sembrado es la v1 de su propia raíz (ver plan.md §8.6, copy-on-write).
+        Database::execute('UPDATE #__checklists_template SET raiz_id = ?, version = 1 WHERE id = ?', [$templateId, $templateId]);
 
         foreach ($items as $item) {
             Database::execute(

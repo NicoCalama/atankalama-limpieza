@@ -105,9 +105,14 @@ final class ReportesServiceTest extends TestCase
 
     /**
      * Con peso configurable por ítem, los créditos SUMAN ic.creditos en vez de contar ítems.
-     * Subimos a 5 el peso de los 2 ítems que Berta re-limpió: se re-valúan en vivo (la query
-     * lee items_checklist al momento, no un snapshot) → Berta acredita 10 y el denominador de
-     * Ana se infla por lo que arruinó (7 / 17).
+     * El fixture sube a 5 el peso de los 2 ítems que Berta re-limpió con un UPDATE DIRECTO a la
+     * tabla (no por el editor) solo para ejercitar la suma ponderada: Berta acredita 10 y el
+     * denominador de Ana se infla por lo que arruinó (7 / 17).
+     *
+     * OJO: por la app esto ya no puede pasar. Desde el versionado copy-on-write, editar un
+     * checklist crea ítems nuevos y deja los viejos intactos, así que los reportes de días
+     * cerrados siguen leyendo los pesos que estaban vigentes cuando se limpió
+     * (ver ChecklistServiceTest::testEditarTemplateNoMueveLosCreditosYaAcreditados).
      */
     public function testCreditosPonderadosPorPesoDeItem(): void
     {

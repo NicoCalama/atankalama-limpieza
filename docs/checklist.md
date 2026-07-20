@@ -47,9 +47,23 @@ Admin edita desde **Ajustes → Checklists** (`/ajustes/checklists`, `ChecklistS
 - Fijar el **peso de créditos** por item (input visible solo en items obligatorios; ver [creditos-rework.md](creditos-rework.md)).
 - Toggle `es_cambio_sabanas` (etiqueta de sábanas).
 - Agregar items nuevos.
-- Quitar un item → se **desactiva** (`activo=0`), no se elimina, para preservar el histórico de ejecuciones (FK RESTRICT desde `ejecuciones_items`).
+- Quitar un item → simplemente no viaja en la versión nueva; el item viejo queda intacto en su versión.
 
-Los items se actualizan **in-place por id**: los conservados mantienen su `id`, los nuevos se insertan y los quitados se desactivan (primero se desactiva, después se inserta, para no apagar los recién creados). Como la ejecución lee el template en vivo filtrando `activo=1`, **una edición se refleja en las ejecuciones en progreso**: una descripción renombrada aparece al instante, un item quitado desaparece, y los items ya marcados conservan su estado por mantener el `id`. Solo se editan acá los templates de **tipo** (piezas de huésped); los de **espacio** (áreas comunes, `habitacion_id != NULL`) se editan desde `/espacios`.
+Solo se editan acá los templates de **tipo** (piezas de huésped); los de **espacio** (áreas comunes, `habitacion_id != NULL`) se editan desde `/espacios`.
+
+### 2.4 Versionado — copy-on-write (plan.md §8.6) — IMPLEMENTADO
+
+**Guardar nunca modifica lo que ya existe.** Cada edición inserta una fila nueva en `checklists_template` —la `v(N+1)` de la misma raíz— con **todos** los items como filas nuevas, y deja la versión anterior en `activo=0`. Una raíz = un checklist a lo largo del tiempo; la agrupa `raiz_id` (en la v1 es igual al propio `id`) y `version` la numera.
+
+Por qué, y no in-place: `ReportesService` suma `items_checklist.creditos` con un JOIN **en vivo** contra la tabla. Mientras los items se editaban in-place, cambiarle el peso o el `obligatorio` a un item **reescribía los KPIs de meses ya cerrados** — el puntaje que un trabajador sacó en junio se movía solo. Con copy-on-write cada ejecución sigue apuntando a los items tal como eran cuando se limpió.
+
+Consecuencias:
+- **Una limpieza en curso termina con la versión con la que empezó.** La ejecución queda clavada a su `template_id`: no le desaparecen items a mitad de camino ni le aparecen nuevos sin marcar. Las limpiezas que empiecen después usan la versión nueva.
+- **El `template_id` cambia en cada guardado**, y los `id` de los items también. El `PUT` devuelve `{template_id, version}` y la UI recarga la lista; ningún cliente debe reusar los ids viejos.
+- **Historial navegable:** el botón *Historial* de cada tarjeta lista las versiones (vigente + anteriores) con fecha, autor, cantidad de items y créditos, y permite ver los items de una versión vieja **en solo lectura** (`GET /api/checklists/templates/{id}/historial`, permiso `checklists.ver`). Restaurar una versión anterior no está implementado: si hace falta, se re-edita a mano y sale una versión nueva.
+- Nada se borra nunca (FK RESTRICT desde `ejecuciones_items`).
+
+Las **áreas comunes** quedan fuera de este esquema por ahora: `EspacioService::editar` da de baja sus items e inserta filas nuevas, así que sus históricos tampoco se pisan, pero sus versiones no son navegables. Unificar es pendiente.
 
 ---
 
@@ -176,10 +190,11 @@ Detalle en [auditoria.md](auditoria.md) §4.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo (con `items_count`, `creditos_total`) |
-| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template |
+| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo vigentes (con `version`, `items_count`, `creditos_total`) |
+| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template (también de una versión vieja) |
+| GET | `/api/checklists/templates/{id}/historial` | `checklists.ver` | Versiones del checklist, de la más nueva a la más vieja |
 | POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
-| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems (descripción, orden, obligatorio, peso de créditos, sábanas) |
+| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems (descripción, orden, obligatorio, peso de créditos, sábanas). Copy-on-write: devuelve el `template_id` **nuevo** |
 | GET | `/api/ejecuciones/{id}` | asignada a mí OR `habitaciones.ver_todas` | Estado actual de ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada a mí | Marcar/desmarcar item |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada a mí | Crear ejecución (409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso) |

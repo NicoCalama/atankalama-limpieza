@@ -56,22 +56,41 @@ final class ChecklistService
 
     /**
      * Edita los ítems de un template de TIPO (pieza de huésped): descripción, orden, obligatorio,
-     * peso de créditos y la etiqueta de sábanas. Los ítems con id se actualizan IN-PLACE (así las
-     * ejecuciones en progreso, que leen el template en vivo filtrando activo=1, quedan coherentes),
-     * los nuevos se insertan y los quitados se desactivan (nunca DELETE: FK RESTRICT desde
+     * peso de créditos y la etiqueta de sábanas.
+     *
+     * COPY-ON-WRITE (plan.md §8.6): editar NUNCA muta la versión vigente. Se inserta una versión
+     * nueva —v(N+1) de la misma raíz— con TODOS los ítems como filas nuevas, y la anterior queda
+     * en activo=0. Es la única forma de no reescribir el pasado: ReportesService suma
+     * items_checklist.creditos con un JOIN en vivo, así que mutar un ítem in-place le cambiaba los
+     * créditos a meses ya cerrados. Con esto, cada ejecución sigue apuntando a los ítems tal como
+     * eran cuando se limpió, y una limpieza en curso TERMINA con la versión con la que empezó.
+     *
+     * Los ítems de las versiones viejas quedan intactos (nunca DELETE: FK RESTRICT desde
      * ejecuciones históricas). Los templates de espacio (habitacion_id != NULL) se editan desde
      * áreas comunes, no acá. Requiere permiso checklists.editar (gateado en el Kernel).
      *
      * @param list<array<string, mixed>> $items cada uno: {id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}
+     * @return array{template_id:int, version:int} la versión recién creada (la que ya está vigente)
      */
-    public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null): void
+    public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null): array
     {
         $template = Database::fetchOne(
-            'SELECT id FROM #__checklists_template WHERE id = ? AND habitacion_id IS NULL AND activo = 1',
+            'SELECT id, tipo_habitacion_id, nombre, raiz_id, activo FROM #__checklists_template
+              WHERE id = ? AND habitacion_id IS NULL',
             [$templateId]
         );
         if ($template === null) {
             throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'El checklist no existe o no se edita desde acá.', 404);
+        }
+        // Editar sobre una versión que ya no es la vigente sería pisar el trabajo de quien guardó
+        // antes (dos pestañas abiertas, dos admins a la vez). Se rechaza con un código propio para
+        // que la UI pueda decir "recargá" en vez de "no existe".
+        if ((int) $template['activo'] !== 1) {
+            throw new ChecklistException(
+                'VERSION_DESACTUALIZADA',
+                'Alguien guardó una versión más nueva de este checklist. Recargá la página para editar sobre la última.',
+                409
+            );
         }
 
         $normalizados = $this->normalizarItemsTemplate($items);
@@ -101,52 +120,97 @@ final class ChecklistService
             }
         }
 
-        Database::transaction(function () use ($templateId, $nombre, $normalizados, $idsEnviados): void {
-            if ($nombre !== null && trim($nombre) !== '') {
-                Database::execute(
-                    "UPDATE #__checklists_template SET nombre = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                    [trim($nombre), $templateId]
-                );
-            }
+        // Raíz que agrupa las versiones. Si la fila es anterior a la migración del versionado y
+        // quedó sin raiz_id, ella misma es su raíz (y se la fija de paso, ver más abajo).
+        $raizId = isset($template['raiz_id']) && $template['raiz_id'] !== null
+            ? (int) $template['raiz_id']
+            : $templateId;
+        $tipoId = (int) $template['tipo_habitacion_id'];
+        $nombreFinal = ($nombre !== null && trim($nombre) !== '') ? trim($nombre) : (string) $template['nombre'];
 
-            // Primero se desactivan los ítems activos que ya no vienen en el payload (los quitados).
-            // Va ANTES de insertar los nuevos: si se hiciera después, la cláusula "id NOT IN
-            // ($idsEnviados)" apagaría a los recién insertados (sus ids no están en la lista enviada).
-            if ($idsEnviados === []) {
-                Database::execute('UPDATE #__items_checklist SET activo = 0 WHERE template_id = ? AND activo = 1', [$templateId]);
-            } else {
-                $ph = implode(',', array_fill(0, count($idsEnviados), '?'));
-                Database::execute(
-                    "UPDATE #__items_checklist SET activo = 0 WHERE template_id = ? AND activo = 1 AND id NOT IN ($ph)",
-                    array_merge([$templateId], $idsEnviados)
-                );
-            }
+        /** @var array{template_id:int, version:int} $creada */
+        $creada = Database::transaction(function () use ($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId): array {
+            Database::execute(
+                'UPDATE #__checklists_template SET raiz_id = ? WHERE id = ? AND raiz_id IS NULL',
+                [$raizId, $templateId]
+            );
 
-            // Luego se actualizan in-place los conservados y se insertan los nuevos, en el orden
-            // del arreglo (la posición fija el campo orden).
+            $version = 1 + (int) Database::fetchColumn(
+                'SELECT COALESCE(MAX(version), 0) FROM #__checklists_template WHERE raiz_id = ?',
+                [$raizId]
+            );
+
+            // Solo una versión activa por raíz: la vigente. Se apaga la anterior ANTES de insertar
+            // la nueva para no dejar dos activas ni un instante (templateParaTipo toma la activa).
+            Database::execute(
+                'UPDATE #__checklists_template SET activo = 0 WHERE raiz_id = ? AND activo = 1',
+                [$raizId]
+            );
+
+            Database::execute(
+                'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, creado_por, activo)
+                 VALUES (?, NULL, ?, ?, ?, ?, 1)',
+                [$tipoId, $nombreFinal, $version, $raizId, $actorId]
+            );
+            $nuevoId = Database::lastInsertId();
+
+            // TODOS los ítems se insertan como filas nuevas, también los "conservados": son ítems de
+            // la versión nueva. Los de la versión anterior no se tocan — las ejecuciones viejas (y
+            // las en curso) los siguen leyendo tal cual. El orden lo fija la posición en el arreglo.
             $orden = 1;
             foreach ($normalizados as $it) {
-                if (isset($it['id'])) {
-                    Database::execute(
-                        'UPDATE #__items_checklist
-                            SET orden = ?, descripcion = ?, obligatorio = ?, creditos = ?, es_cambio_sabanas = ?, activo = 1
-                          WHERE id = ? AND template_id = ?',
-                        [$orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas'], $it['id'], $templateId]
-                    );
-                } else {
-                    Database::execute(
-                        'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
-                         VALUES (?, ?, ?, ?, ?, ?, 1)',
-                        [$templateId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
-                    );
-                }
+                Database::execute(
+                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, 1)',
+                    [$nuevoId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
+                );
                 $orden++;
             }
+
+            return ['template_id' => $nuevoId, 'version' => $version];
         });
 
-        Logger::audit($actorId, 'checklist.editar_template', 'checklists_template', $templateId, [
+        Logger::audit($actorId, 'checklist.editar_template', 'checklists_template', $creada['template_id'], [
             'items' => count($normalizados),
+            'version' => $creada['version'],
+            'version_anterior_id' => $templateId,
         ]);
+
+        return $creada;
+    }
+
+    /**
+     * Historial de versiones de un checklist de tipo: la vigente y todas las anteriores, de la más
+     * nueva a la más vieja. Se puede pedir por el id de cualquier versión de la raíz.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function historialDeTemplate(int $templateId): array
+    {
+        $template = Database::fetchOne(
+            'SELECT id, raiz_id FROM #__checklists_template WHERE id = ? AND habitacion_id IS NULL',
+            [$templateId]
+        );
+        if ($template === null) {
+            throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'El checklist no existe o no se edita desde acá.', 404);
+        }
+        $raizId = isset($template['raiz_id']) && $template['raiz_id'] !== null
+            ? (int) $template['raiz_id']
+            : $templateId;
+
+        return Database::fetchAll(
+            'SELECT ct.id, ct.version, ct.nombre, ct.activo, ct.created_at, ct.creado_por,
+                    u.nombre AS creado_por_nombre,
+                    (SELECT COUNT(*) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1) AS items_count,
+                    (SELECT COALESCE(SUM(ic.creditos), 0) FROM #__items_checklist ic
+                      WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.obligatorio = 1) AS creditos_total
+               FROM #__checklists_template ct
+          LEFT JOIN #__usuarios u ON u.id = ct.creado_por
+              WHERE ct.raiz_id = ? OR ct.id = ?
+              ORDER BY ct.version DESC, ct.id DESC',
+            [$raizId, $raizId]
+        );
     }
 
     /**
@@ -790,15 +854,45 @@ final class ChecklistService
             return 0;
         }
 
-        // Copia los ítems marcados del intento rechazado (que siguen activos en el template),
-        // preservando marcado_por. Los desmarcados por el auditor NO se copian: quedan pendientes.
-        return Database::execute(
-            'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, marcado_por)
-             SELECT ?, ei.item_id, 1, ei.marcado_por
+        // Ítems que quedaron marcados en el intento rechazado, con su descripción. La descripción
+        // es la que hace de puente: si entre el rechazo y la re-limpieza alguien editó el checklist,
+        // el intento viejo apunta a los ítems de SU versión y esta ejecución corre con los de la
+        // versión nueva (ids distintos). Emparejar por id daría cero herencias en silencio y le
+        // haría remarcar todo al segundo trabajador, robándole los créditos al primero.
+        $marcados = Database::fetchAll(
+            'SELECT ei.item_id, ei.marcado_por, ic.descripcion
                FROM #__ejecuciones_items ei
                JOIN #__items_checklist ic ON ic.id = ei.item_id
-              WHERE ei.ejecucion_id = ? AND ei.marcado = 1 AND ic.template_id = ? AND ic.activo = 1',
-            [$nuevaEjecucionId, (int) $anterior['id'], $templateId]
+              WHERE ei.ejecucion_id = ? AND ei.marcado = 1',
+            [(int) $anterior['id']]
         );
+        if ($marcados === []) {
+            return 0;
+        }
+
+        // Ítems vigentes de la ejecución nueva, indexados por descripción (si hubiera dos ítems con
+        // el mismo texto, gana el primero: alcanza uno solo para no violar el UNIQUE de la tabla).
+        $porDescripcion = [];
+        foreach ($this->itemsDelTemplate($templateId) as $item) {
+            $porDescripcion[$item['descripcion']] ??= (int) $item['id'];
+        }
+
+        $heredados = 0;
+        $usados = [];
+        foreach ($marcados as $m) {
+            $destino = $porDescripcion[$m['descripcion']] ?? null;
+            // Un ítem que ya no existe en la versión vigente (lo quitaron o lo renombraron) no se
+            // hereda: en el checklist de hoy ese trabajo ya no está.
+            if ($destino === null || isset($usados[$destino])) {
+                continue;
+            }
+            $usados[$destino] = true;
+            $heredados += Database::execute(
+                'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, marcado_por) VALUES (?, ?, 1, ?)',
+                [$nuevaEjecucionId, $destino, $m['marcado_por']]
+            );
+        }
+
+        return $heredados;
     }
 }

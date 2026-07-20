@@ -166,6 +166,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('checklists.ver'),
         ]);
+        $router->get('/api/checklists/templates/{id}/historial', [$checklists, 'historialDeTemplate'], [
+            $authCheck,
+            new PermissionCheck('checklists.ver'),
+        ]);
         $router->put('/api/checklists/templates/{id}', [$checklists, 'editarTemplate'], [
             $authCheck,
             new PermissionCheck('checklists.editar'),

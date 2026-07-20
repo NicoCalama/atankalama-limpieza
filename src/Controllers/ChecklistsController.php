@@ -31,9 +31,28 @@ final class ChecklistsController
     }
 
     /**
+     * GET /api/checklists/templates/{id}/historial — versiones de un checklist de tipo.
+     * Sirve con el id de cualquier versión de la raíz. Requiere checklists.ver.
+     */
+    public function historialDeTemplate(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'template_id inválido.', 400);
+        }
+        try {
+            $versiones = $this->svc->historialDeTemplate($id);
+        } catch (ChecklistException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['versiones' => $versiones]);
+    }
+
+    /**
      * PUT /api/checklists/templates/{id} — editar el checklist de un tipo.
      * Body: { nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }.
-     * Requiere checklists.editar (gateado en el Kernel).
+     * Copy-on-write: no muta la versión enviada, crea la siguiente y la devuelve (el id cambia,
+     * el cliente TIENE que quedarse con el nuevo). Requiere checklists.editar (gateado en el Kernel).
      */
     public function editarTemplate(Request $request): Response
     {
@@ -51,14 +70,15 @@ final class ChecklistsController
         }
 
         try {
-            $this->svc->editarTemplate($id, $nombre, $items, $request->usuario?->id);
+            $creada = $this->svc->editarTemplate($id, $nombre, $items, $request->usuario?->id);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
         return Response::ok([
-            'template_id' => $id,
-            'items' => $this->svc->itemsDelTemplate($id),
+            'template_id' => $creada['template_id'],
+            'version' => $creada['version'],
+            'items' => $this->svc->itemsDelTemplate($creada['template_id']),
         ]);
     }
 

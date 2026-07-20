@@ -540,78 +540,159 @@ final class ChecklistServiceTest extends TestCase
         return (int) $this->svc->templateParaTipo($tipoId);
     }
 
-    public function testEditarTemplateActualizaInPlaceConservandoIds(): void
+    /** Reenvía los ítems actuales del template tal cual, con su id, para armar un payload base. */
+    private function payloadDe(int $templateId): array
+    {
+        $payload = [];
+        foreach ($this->svc->itemsDelTemplate($templateId) as $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => $i['descripcion'],
+                'obligatorio' => (int) $i['obligatorio'] === 1,
+                'creditos' => (int) $i['creditos'],
+            ];
+        }
+        return $payload;
+    }
+
+    public function testEditarTemplateCreaVersionNuevaYDejaLaAnteriorIntacta(): void
     {
         $tid = $this->templateDelTipo();
         $items = $this->svc->itemsDelTemplate($tid);
-        $ids = array_map(static fn($i) => (int) $i['id'], $items);
+        $idsViejos = array_map(static fn($i) => (int) $i['id'], $items);
 
-        // Reenvía TODOS los ítems con su id, cambiando descripción y peso del primero.
-        $payload = [];
-        foreach ($items as $i) {
-            $payload[] = [
-                'id' => (int) $i['id'],
-                'descripcion' => (int) $i['id'] === $ids[0] ? 'Descripción editada' : $i['descripcion'],
-                'obligatorio' => (int) $i['obligatorio'] === 1,
-                'creditos' => (int) $i['id'] === $ids[0] ? 3 : (int) $i['creditos'],
-            ];
-        }
-        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+        $payload = $this->payloadDe($tid);
+        $payload[0]['descripcion'] = 'Descripción editada';
+        $payload[0]['creditos'] = 3;
 
-        $despues = $this->svc->itemsDelTemplate($tid);
-        // Mismos ids en el mismo orden (se actualizaron in-place, no se recrearon).
-        $this->assertSame($ids, array_map(static fn($i) => (int) $i['id'], $despues));
-        $this->assertSame('Descripción editada', $despues[0]['descripcion']);
-        $this->assertSame(3, (int) $despues[0]['creditos']);
+        $creada = $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        // Copy-on-write: la edición devuelve una versión NUEVA, no el mismo template.
+        $this->assertNotSame($tid, $creada['template_id']);
+        $this->assertSame(2, $creada['version']);
+
+        // La versión vieja queda inactiva; la nueva es la vigente para el tipo.
+        $viejo = Database::fetchOne('SELECT activo, raiz_id FROM checklists_template WHERE id = ?', [$tid]);
+        $this->assertSame(0, (int) $viejo['activo']);
+        $this->assertSame($tid, (int) $viejo['raiz_id']);
+        $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
+        $this->assertSame($creada['template_id'], $this->svc->templateParaTipo($tipoId));
+
+        // Los ítems de la versión nueva son filas nuevas con el contenido editado...
+        $nuevos = $this->svc->itemsDelTemplate($creada['template_id']);
+        $this->assertSame('Descripción editada', $nuevos[0]['descripcion']);
+        $this->assertSame(3, (int) $nuevos[0]['creditos']);
+        $this->assertSame([], array_intersect($idsViejos, array_map(static fn($i) => (int) $i['id'], $nuevos)));
+
+        // ...y los de la versión vieja siguen exactamente como estaban (esto es lo que leen los
+        // reportes de días ya cerrados).
+        $antes = $this->svc->itemsDelTemplate($tid);
+        $this->assertSame($idsViejos, array_map(static fn($i) => (int) $i['id'], $antes));
+        $this->assertSame($items[0]['descripcion'], $antes[0]['descripcion']);
+        $this->assertSame((int) $items[0]['creditos'], (int) $antes[0]['creditos']);
     }
 
-    public function testEditarTemplateAgregaYDesactivaItemsSinBorrar(): void
+    public function testEditarTemplateAgregaYQuitaItemsSinBorrarNada(): void
     {
         $tid = $this->templateDelTipo();
         $items = $this->svc->itemsDelTemplate($tid);
         $total = count($items);
 
         // Conserva todos menos el último, y agrega uno nuevo (sin id).
-        $payload = [];
-        foreach (array_slice($items, 0, $total - 1) as $i) {
-            $payload[] = ['id' => (int) $i['id'], 'descripcion' => $i['descripcion'], 'obligatorio' => (int) $i['obligatorio'] === 1, 'creditos' => (int) $i['creditos']];
-        }
+        $payload = array_slice($this->payloadDe($tid), 0, $total - 1);
         $payload[] = ['descripcion' => 'Ítem nuevo', 'obligatorio' => true, 'creditos' => 2];
 
-        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+        $creada = $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
 
-        $activos = $this->svc->itemsDelTemplate($tid);
+        $activos = $this->svc->itemsDelTemplate($creada['template_id']);
         $this->assertCount($total, $activos); // -1 quitado + 1 nuevo
         $this->assertContains('Ítem nuevo', array_map(static fn($i) => $i['descripcion'], $activos));
+        $this->assertNotContains($items[$total - 1]['descripcion'], array_map(static fn($i) => $i['descripcion'], $activos));
 
-        // El quitado NO se borró: sigue en la tabla con activo=0 (preserva histórico, FK RESTRICT).
-        $quitadoId = (int) $items[$total - 1]['id'];
-        $fila = Database::fetchOne('SELECT activo FROM items_checklist WHERE id = ?', [$quitadoId]);
+        // El quitado NO se borró ni se desactivó: sigue vivo en su versión (FK RESTRICT desde
+        // ejecuciones históricas, y los reportes viejos lo necesitan tal cual).
+        $fila = Database::fetchOne('SELECT activo FROM items_checklist WHERE id = ?', [(int) $items[$total - 1]['id']]);
         $this->assertNotNull($fila);
-        $this->assertSame(0, (int) $fila['activo']);
+        $this->assertSame(1, (int) $fila['activo']);
+    }
+
+    public function testEditarTemplateDosVecesNumeraLasVersiones(): void
+    {
+        $tid = $this->templateDelTipo();
+        $v2 = $this->svc->editarTemplate($tid, null, $this->payloadDe($tid), $this->usuarioId);
+        $v3 = $this->svc->editarTemplate($v2['template_id'], null, $this->payloadDe($v2['template_id']), $this->usuarioId);
+
+        $this->assertSame(2, $v2['version']);
+        $this->assertSame(3, $v3['version']);
+
+        // Todas las versiones comparten la raíz y solo una queda activa.
+        $activas = Database::fetchAll('SELECT id FROM checklists_template WHERE raiz_id = ? AND activo = 1', [$tid]);
+        $this->assertCount(1, $activas);
+        $this->assertSame($v3['template_id'], (int) $activas[0]['id']);
+    }
+
+    public function testHistorialDeTemplateListaLasVersionesDeLaMasNuevaALaMasVieja(): void
+    {
+        $tid = $this->templateDelTipo();
+        $v2 = $this->svc->editarTemplate($tid, 'Checklist renombrado', $this->payloadDe($tid), $this->usuarioId);
+
+        // Se puede pedir por el id de cualquier versión de la raíz: da lo mismo.
+        $desdeNueva = $this->svc->historialDeTemplate($v2['template_id']);
+        $desdeVieja = $this->svc->historialDeTemplate($tid);
+        $this->assertSame(
+            array_map(static fn($v) => (int) $v['id'], $desdeNueva),
+            array_map(static fn($v) => (int) $v['id'], $desdeVieja)
+        );
+
+        $this->assertCount(2, $desdeNueva);
+        $this->assertSame(2, (int) $desdeNueva[0]['version']);
+        $this->assertSame(1, (int) $desdeNueva[1]['version']);
+        $this->assertSame(1, (int) $desdeNueva[0]['activo']);
+        $this->assertSame(0, (int) $desdeNueva[1]['activo']);
+        $this->assertSame('Checklist renombrado', $desdeNueva[0]['nombre']);
+        $this->assertSame($this->usuarioId, (int) $desdeNueva[0]['creado_por']);
+        $this->assertGreaterThan(0, (int) $desdeNueva[0]['items_count']);
     }
 
     public function testEditarTemplateOpcionalNoGuardaCreditosAunqueSeEnvien(): void
     {
         $tid = $this->templateDelTipo();
-        $items = $this->svc->itemsDelTemplate($tid);
 
         // Reenvía todos; el primero pasa a OPCIONAL pero con un peso "sucio" de 50.
-        $payload = [];
-        foreach ($items as $idx => $i) {
-            $payload[] = [
-                'id' => (int) $i['id'],
-                'descripcion' => $i['descripcion'],
-                'obligatorio' => $idx !== 0,
-                'creditos' => $idx === 0 ? 50 : (int) $i['creditos'],
-            ];
-        }
-        $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+        $payload = $this->payloadDe($tid);
+        $payload[0]['obligatorio'] = false;
+        $payload[0]['creditos'] = 50;
 
-        $primero = Database::fetchOne('SELECT obligatorio, creditos FROM items_checklist WHERE id = ?', [(int) $items[0]['id']]);
+        $creada = $this->svc->editarTemplate($tid, null, $payload, $this->usuarioId);
+
+        $primero = $this->svc->itemsDelTemplate($creada['template_id'])[0];
         $this->assertSame(0, (int) $primero['obligatorio']);
         // El servidor normaliza a 0: los opcionales no llevan crédito, aunque el cliente mande 50.
         $this->assertSame(0, (int) $primero['creditos']);
+    }
+
+    public function testEditarSobreUnaVersionViejaLanzaConflicto(): void
+    {
+        // Dos pestañas abiertas: la primera guarda y crea la v2; la segunda todavía tiene la v1
+        // en pantalla. Guardar desde ahí NO debe pisar la v2, y el error tiene que ser
+        // distinguible para que la UI diga "recargá" en vez de "no existe".
+        $tid = $this->templateDelTipo();
+        $payloadViejo = $this->payloadDe($tid);
+        $this->svc->editarTemplate($tid, null, $payloadViejo, $this->usuarioId);
+
+        try {
+            $this->svc->editarTemplate($tid, null, $payloadViejo, $this->usuarioId);
+            $this->fail('Debía lanzar');
+        } catch (ChecklistException $e) {
+            $this->assertSame('VERSION_DESACTUALIZADA', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+
+        // No se creó una v3 ni quedaron dos versiones activas.
+        $versiones = $this->svc->historialDeTemplate($tid);
+        $this->assertCount(2, $versiones);
+        $activas = array_filter($versiones, static fn($v) => (int) $v['activo'] === 1);
+        $this->assertCount(1, $activas);
     }
 
     public function testEditarTemplateVacioLanza(): void
@@ -658,34 +739,78 @@ final class ChecklistServiceTest extends TestCase
         }
     }
 
-    public function testEditarTemplateSeReflejaEnEjecucionEnProgreso(): void
+    public function testEditarTemplateNoAfectaUnaEjecucionEnCurso(): void
     {
-        // Ejecución en curso; editar el template debe verse en vivo (la ejecución filtra activo=1).
+        // Una limpieza en curso TERMINA con la versión con la que empezó: si el checklist cambiara
+        // debajo del trabajador, ítems que ya marcó desaparecerían o aparecerían nuevos a mitad de
+        // camino. La ejecución queda clavada a su template_id (plan.md §8.6).
         $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
         $items = $this->svc->itemsDelTemplate($ejec->templateId);
         $primeroId = (int) $items[0]['id'];
         $this->svc->marcarItem($ejec->id, $primeroId, true, $this->usuarioId);
 
-        // Renombra el primero (mismo id) y quita el último.
-        $payload = [];
-        foreach (array_slice($items, 0, count($items) - 1) as $i) {
-            $payload[] = [
-                'id' => (int) $i['id'],
-                'descripcion' => (int) $i['id'] === $primeroId ? 'Renombrado' : $i['descripcion'],
-                'obligatorio' => (int) $i['obligatorio'] === 1,
-                'creditos' => (int) $i['creditos'],
-            ];
+        // Renombra el primero y quita el último: sale una versión nueva.
+        $payload = array_slice($this->payloadDe($ejec->templateId), 0, count($items) - 1);
+        $payload[0]['descripcion'] = 'Renombrado';
+        $creada = $this->svc->editarTemplate($ejec->templateId, null, $payload, $this->usuarioId);
+        $this->assertNotSame($ejec->templateId, $creada['template_id']);
+
+        $estado = $this->svc->estadoEjecucion($ejec->id);
+        $porId = [];
+        foreach ($estado['items'] as $it) {
+            $porId[(int) $it['id']] = $it;
+        }
+        // Ve su versión: misma cantidad de ítems, descripción original y su marca intacta.
+        $this->assertCount(count($items), $estado['items']);
+        $this->assertArrayHasKey($primeroId, $porId);
+        $this->assertSame($items[0]['descripcion'], $porId[$primeroId]['descripcion']);
+        $this->assertSame(1, (int) $porId[$primeroId]['marcado']);
+
+        // Y puede completarse normalmente marcando los ítems de SU versión.
+        foreach ($items as $i) {
+            $this->svc->marcarItem($ejec->id, (int) $i['id'], true, $this->usuarioId);
+        }
+        $this->svc->completar($ejec->id, $this->usuarioId);
+        $this->assertSame('completada', $this->svc->obtenerEjecucion($ejec->id)->estado);
+    }
+
+    public function testEditarTemplateNoMueveLosCreditosYaAcreditados(): void
+    {
+        // El bug que motivó el versionado: ReportesService suma items_checklist.creditos con un
+        // JOIN en vivo, así que editar el peso de un ítem in-place reescribía los KPIs de meses
+        // ya cerrados. Con copy-on-write, lo ya ejecutado no se mueve.
+        $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
+        $items = $this->svc->itemsDelTemplate($ejec->templateId);
+        foreach ($items as $i) {
+            $this->svc->marcarItem($ejec->id, (int) $i['id'], true, $this->usuarioId);
+        }
+        $this->svc->completar($ejec->id, $this->usuarioId);
+
+        $creditosAntes = (int) Database::fetchColumn(
+            'SELECT COALESCE(SUM(ic.creditos), 0)
+               FROM ejecuciones_items ei
+               JOIN items_checklist ic ON ic.id = ei.item_id AND ic.obligatorio = 1
+              WHERE ei.ejecucion_id = ? AND ei.marcado = 1',
+            [$ejec->id]
+        );
+        $this->assertGreaterThan(0, $creditosAntes);
+
+        // Se le sube el peso a TODOS los ítems y se quita uno.
+        $payload = array_slice($this->payloadDe($ejec->templateId), 0, count($items) - 1);
+        foreach ($payload as $idx => $_) {
+            $payload[$idx]['obligatorio'] = true;
+            $payload[$idx]['creditos'] = 9;
         }
         $this->svc->editarTemplate($ejec->templateId, null, $payload, $this->usuarioId);
 
-        $porId = [];
-        foreach ($this->svc->estadoEjecucion($ejec->id)['items'] as $it) {
-            $porId[(int) $it['id']] = $it;
-        }
-        // El primero conserva su marca (mismo id) y muestra la nueva descripción.
-        $this->assertArrayHasKey($primeroId, $porId);
-        $this->assertSame('Renombrado', $porId[$primeroId]['descripcion']);
-        $this->assertSame(1, (int) $porId[$primeroId]['marcado']);
+        $creditosDespues = (int) Database::fetchColumn(
+            'SELECT COALESCE(SUM(ic.creditos), 0)
+               FROM ejecuciones_items ei
+               JOIN items_checklist ic ON ic.id = ei.item_id AND ic.obligatorio = 1
+              WHERE ei.ejecucion_id = ? AND ei.marcado = 1',
+            [$ejec->id]
+        );
+        $this->assertSame($creditosAntes, $creditosDespues);
     }
 
     /**

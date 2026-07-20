@@ -296,6 +296,65 @@ final class AuditoriaServiceTest extends TestCase
         }
     }
 
+    public function testRelimpiezaHeredaAunqueSeHayaEditadoElChecklistEnElMedio(): void
+    {
+        // Con el versionado copy-on-write, editar el checklist entre el rechazo y la re-limpieza
+        // cambia los ids de los ítems: el intento viejo apunta a los de la v1 y la re-limpieza
+        // corre con los de la v2. La herencia empareja por descripción, así que igual funciona —
+        // si no, el segundo trabajador tendría que remarcar todo y se quedaría con los créditos
+        // que ganó el primero.
+        $checklist = new ChecklistService();
+        $ejec1 = $checklist->obtenerEjecucion($this->ejecucionId);
+        $itemsV1 = $checklist->itemsDelTemplate($ejec1->templateId);
+        $obligatorios = array_values(array_filter($itemsV1, static fn(array $it) => (int) $it['obligatorio'] === 1));
+        $totalOblig = count($obligatorios);
+        $falla1 = (int) $obligatorios[0]['id'];
+        $falla2 = (int) $obligatorios[1]['id'];
+        $descFallidas = [$obligatorios[0]['descripcion'], $obligatorios[1]['descripcion']];
+
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltaron dos ítems, rehacer.',
+            [$falla1, $falla2]
+        );
+
+        // Un admin edita el checklist (mismos textos): nace la v2 con ids nuevos.
+        $payload = [];
+        foreach ($itemsV1 as $i) {
+            $payload[] = [
+                'id' => (int) $i['id'],
+                'descripcion' => $i['descripcion'],
+                'obligatorio' => (int) $i['obligatorio'] === 1,
+                'creditos' => (int) $i['creditos'],
+            ];
+        }
+        $creada = $checklist->editarTemplate($ejec1->templateId, null, $payload, $this->auditorId);
+        $idsV1 = array_map(static fn(array $i) => (int) $i['id'], $itemsV1);
+
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
+        $this->assertSame($creada['template_id'], $ejec2->templateId);
+
+        $heredados = Database::fetchAll(
+            'SELECT ei.item_id, ei.marcado, ei.marcado_por, ic.descripcion
+               FROM ejecuciones_items ei
+               JOIN items_checklist ic ON ic.id = ei.item_id
+              WHERE ei.ejecucion_id = ?',
+            [$ejec2->id]
+        );
+        $this->assertCount($totalOblig - 2, $heredados);
+        foreach ($heredados as $h) {
+            $this->assertSame(1, (int) $h['marcado']);
+            $this->assertSame($this->trabajadorId, (int) $h['marcado_por']); // sigue siendo de Ana
+            // Los ítems heredados son los de la v2, no los del intento viejo.
+            $this->assertNotContains((int) $h['item_id'], $idsV1);
+            $this->assertNotContains($h['descripcion'], $descFallidas);
+        }
+    }
+
     public function testInmutabilidadRechaza409(): void
     {
         $this->svc->emitirVeredicto($this->habitacionId, $this->auditorId, Auditoria::VEREDICTO_APROBADO);

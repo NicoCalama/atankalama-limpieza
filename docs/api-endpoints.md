@@ -131,10 +131,11 @@ Ver [checklist.md](checklist.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo (con `items_count` y `creditos_total`) |
-| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template |
+| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo **vigentes** (con `version`, `items_count` y `creditos_total`) |
+| GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template (sirve también para ver una versión vieja) |
+| GET | `/api/checklists/templates/{id}/historial` | `checklists.ver` | Versiones del checklist, de la más nueva a la más vieja: `{ versiones: [{id, version, nombre, activo, created_at, creado_por, creado_por_nombre, items_count, creditos_total}] }`. Acepta el id de cualquier versión |
 | POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
-| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems: descripción, orden, `obligatorio`, peso de `creditos`, `es_cambio_sabanas`. Body `{ nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }` |
+| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems: descripción, orden, `obligatorio`, peso de `creditos`, `es_cambio_sabanas`. Body `{ nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }`. **Copy-on-write:** no muta el template enviado — crea la versión siguiente y responde `{ template_id, version, items }` con el id **nuevo** (el cliente debe descartar el viejo) |
 | GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada | Tap-a-tap |
 

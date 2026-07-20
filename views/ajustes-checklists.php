@@ -4,9 +4,15 @@
  * con peso de créditos por ítem. Ver docs/checklist.md §2.3 y docs/creditos-rework.md.
  *
  * Endpoints:
- *  - GET /api/checklists/templates              { templates: [{id, tipo_nombre, nombre, items_count, creditos_total}] }
- *  - GET /api/checklists/templates/{id}/items   { items: [{id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas}] }
- *  - PUT /api/checklists/templates/{id}         { nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }
+ *  - GET /api/checklists/templates                  { templates: [{id, version, tipo_nombre, nombre, items_count, creditos_total}] }
+ *  - GET /api/checklists/templates/{id}/items       { items: [{id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas}] }
+ *  - GET /api/checklists/templates/{id}/historial   { versiones: [{id, version, activo, created_at, creado_por_nombre, items_count, creditos_total}] }
+ *  - PUT /api/checklists/templates/{id}             { nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}] }
+ *
+ * Versionado copy-on-write (plan.md §8.6): guardar NO edita la versión abierta, crea la siguiente.
+ * Por eso el PUT devuelve un template_id NUEVO y la lista se recarga después de guardar. Las
+ * versiones anteriores quedan de solo lectura en el historial: son las que leen los reportes de
+ * meses ya cerrados, y tocarlas reescribiría el pasado.
  *
  * Los templates de espacio (áreas comunes) NO aparecen acá: se editan desde /espacios.
  * Requiere permiso checklists.editar (gateado en PaginasController y en el endpoint PUT).
@@ -86,7 +92,11 @@
                 <template x-for="t in templates" :key="t.id">
                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
                         <div class="min-w-0">
-                            <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.tipo_nombre"></p>
+                            <div class="flex items-center gap-2">
+                                <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.tipo_nombre"></p>
+                                <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                                      x-text="'v' + (t.version || 1)"></span>
+                            </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="t.nombre"></p>
                         </div>
                         <div class="flex items-center gap-2 text-xs">
@@ -99,10 +109,16 @@
                                 <span x-text="t.creditos_total + ' crédito' + (Number(t.creditos_total) === 1 ? '' : 's')"></span>
                             </span>
                         </div>
-                        <button @click="abrirEditor(t)"
-                                class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center justify-center gap-1.5">
-                            <i data-lucide="pencil" class="w-4 h-4"></i> Editar checklist
-                        </button>
+                        <div class="flex gap-2">
+                            <button @click="abrirEditor(t)"
+                                    class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center justify-center gap-1.5">
+                                <i data-lucide="pencil" class="w-4 h-4"></i> Editar checklist
+                            </button>
+                            <button @click="abrirHistorial(t)" :aria-label="'Historial de ' + t.tipo_nombre"
+                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition inline-flex items-center justify-center gap-1.5">
+                                <i data-lucide="history" class="w-4 h-4"></i> Historial
+                            </button>
+                        </div>
                     </div>
                 </template>
             </div>
@@ -201,6 +217,81 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal historial de versiones (solo lectura) -->
+    <div x-show="historial.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/50"
+         @click.self="cerrarHistorial()">
+        <div class="bg-white dark:bg-gray-800 rounded-t-2xl md:rounded-xl max-w-lg w-full shadow-xl max-h-[92vh] md:max-h-[88vh] flex flex-col">
+            <div class="flex items-start justify-between gap-2 p-5 border-b border-gray-200 dark:border-gray-700">
+                <div class="min-w-0">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                        <span x-show="!historial.detalle">Historial de versiones</span>
+                        <span x-show="historial.detalle" x-text="'Versión ' + (historial.detalle ? historial.detalle.version : '')"></span>
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="historial.tipoNombre"></p>
+                </div>
+                <button @click="cerrarHistorial()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 space-y-3">
+                <template x-if="historial.cargando">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-6">Cargando...</p>
+                </template>
+
+                <!-- Listado de versiones -->
+                <template x-if="!historial.cargando && !historial.detalle">
+                    <div class="space-y-2">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Las versiones anteriores son de solo lectura: los reportes de días ya cerrados se calculan con ellas.
+                        </p>
+                        <template x-for="v in historial.versiones" :key="v.id">
+                            <button @click="verVersion(v)"
+                                    class="w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                                <div class="flex items-center gap-2">
+                                    <span class="px-1.5 py-0.5 rounded text-[11px] font-medium"
+                                          :class="Number(v.activo) === 1 ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
+                                          x-text="'v' + v.version"></span>
+                                    <span x-show="Number(v.activo) === 1" class="text-xs font-medium text-green-700 dark:text-green-400">Vigente</span>
+                                    <span class="ml-auto text-xs text-gray-500 dark:text-gray-400" x-text="fechaCorta(v.created_at)"></span>
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <span x-text="v.items_count + ' ítem' + (Number(v.items_count) === 1 ? '' : 's')"></span> ·
+                                    <span x-text="v.creditos_total + ' crédito' + (Number(v.creditos_total) === 1 ? '' : 's')"></span>
+                                    <span x-show="v.creado_por_nombre"> · <span x-text="v.creado_por_nombre"></span></span>
+                                </p>
+                            </button>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Ítems de una versión -->
+                <template x-if="!historial.cargando && historial.detalle">
+                    <div class="space-y-2">
+                        <template x-for="item in historial.detalle.items" :key="item.id">
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                                <p class="text-sm text-gray-900 dark:text-gray-100" x-text="item.descripcion"></p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    <span x-text="Number(item.obligatorio) === 1 ? 'Obligatorio' : 'Opcional'"></span>
+                                    <span x-show="Number(item.obligatorio) === 1"> · <span x-text="item.creditos + ' crédito' + (Number(item.creditos) === 1 ? '' : 's')"></span></span>
+                                    <span x-show="Number(item.es_cambio_sabanas) === 1"> · Sábanas</span>
+                                </p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <div class="flex gap-2 p-5 border-t border-gray-200 dark:border-gray-700">
+                <button @click="historial.detalle ? (historial.detalle = null) : cerrarHistorial()"
+                        class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                    <span x-text="historial.detalle ? 'Volver' : 'Cerrar'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -212,7 +303,9 @@ function checklistsApp() {
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         _seq: 0,
         _loadToken: 0,
+        _histToken: 0,
         editor: { abierto: false, cargandoItems: false, enviando: false, templateId: null, tipoNombre: '', items: [] },
+        historial: { abierto: false, cargando: false, templateId: null, tipoNombre: '', versiones: [], detalle: null },
 
         async cargar() {
             this.cargando = true;
@@ -268,6 +361,71 @@ function checklistsApp() {
         },
         cerrarEditor() {
             this.editor.abierto = false;
+        },
+
+        // ----- Historial de versiones (solo lectura) -----
+
+        async abrirHistorial(t) {
+            var token = ++this._histToken;
+            this.historial = { abierto: true, cargando: true, templateId: t.id, tipoNombre: t.tipo_nombre, versiones: [], detalle: null };
+            this.$nextTick(function () { lucide.createIcons(); });
+            try {
+                var r = await apiFetch('/api/checklists/templates/' + t.id + '/historial');
+                if (token !== this._histToken) return; // se abrió otro historial: descartar
+                if (r && r.ok) {
+                    this.historial.versiones = r.data.versiones || [];
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cargar el historial.');
+                }
+            } catch (e) {
+                if (token !== this._histToken) return;
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                if (token === this._histToken) {
+                    this.historial.cargando = false;
+                    this.$nextTick(function () { lucide.createIcons(); });
+                }
+            }
+        },
+        cerrarHistorial() {
+            this.historial.abierto = false;
+            this.historial.detalle = null;
+        },
+        async verVersion(v) {
+            var token = ++this._histToken;
+            this.historial.cargando = true;
+            try {
+                var r = await apiFetch('/api/checklists/templates/' + v.id + '/items');
+                if (token !== this._histToken) return;
+                if (r && r.ok) {
+                    // Recién acá se entra al detalle: si se seteara antes, el pie diría "Volver"
+                    // mientras todavía dice "Cargando...".
+                    this.historial.detalle = { version: v.version, items: r.data.items || [] };
+                } else {
+                    this.historial.detalle = null;
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cargar los ítems.');
+                }
+            } catch (e) {
+                if (token !== this._histToken) return;
+                this.historial.detalle = null;
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                if (token === this._histToken) {
+                    this.historial.cargando = false;
+                    this.$nextTick(function () { lucide.createIcons(); });
+                }
+            }
+        },
+        // created_at viene en ISO UTC; se muestra en hora de Santiago, formato chileno.
+        fechaCorta(iso) {
+            if (!iso) return '';
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            return new Intl.DateTimeFormat('es-CL', {
+                timeZone: 'America/Santiago',
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            }).format(d);
         },
 
         itemsActivos() {
@@ -330,11 +488,19 @@ function checklistsApp() {
             try {
                 var r = await apiPut('/api/checklists/templates/' + this.editor.templateId, { items: items });
                 if (r && r.ok) {
-                    this.mostrarToast('exito', 'Checklist actualizado.');
+                    // El PUT crea una versión nueva (copy-on-write): el template_id y los ids de los
+                    // ítems cambian, por eso se recarga la lista en vez de reusar el estado local.
+                    var version = r.data && r.data.version;
+                    this.mostrarToast('exito', version ? ('Checklist guardado como v' + version + '.') : 'Checklist actualizado.');
                     this.cerrarEditor();
                     this.cargar();
                 } else {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar.');
+                    // Otro admin guardó una versión más nueva: el editor quedó viejo. Se recarga la
+                    // lista (sin cerrar el modal) para que al reintentar se edite sobre la vigente.
+                    if (r && r.error && r.error.codigo === 'VERSION_DESACTUALIZADA') {
+                        this.cargar();
+                    }
                 }
             } catch (e) {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');

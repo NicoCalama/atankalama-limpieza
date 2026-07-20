@@ -139,6 +139,9 @@ final class EspacioService
                 [$tipoId, $espacioId, 'Checklist — ' . $nombre]
             );
             $templateId = Database::lastInsertId();
+            // Todo template es la v1 de su propia raíz. Los espacios todavía no usan el versionado
+            // copy-on-write (editan reemplazando ítems), pero no deben nacer con raiz_id NULL.
+            Database::execute('UPDATE #__checklists_template SET raiz_id = ?, version = 1 WHERE id = ?', [$templateId, $templateId]);
             $this->insertarItems($templateId, $items);
 
             return $espacioId;
@@ -182,6 +185,7 @@ final class EspacioService
                     [$tipoId, $id, 'Checklist — ' . $nombre]
                 );
                 $templateId = Database::lastInsertId();
+                Database::execute('UPDATE #__checklists_template SET raiz_id = ?, version = 1 WHERE id = ?', [$templateId, $templateId]);
             } else {
                 $templateId = (int) $template['id'];
                 // Desactiva los ítems actuales (no se borran: pueden estar referenciados por

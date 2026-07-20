@@ -314,3 +314,54 @@ SELECT r.id, 'apariencia.editar'
 
 No se insertan colores: sin filas en `limpieza_ui_config` la app usa los defaults
 (paleta idéntica a la actual) — el deploy no cambia nada visual por sí solo.
+
+### 11.2 SQL del release "versionado de checklists" (phpMyAdmin)
+
+Equivalente con prefijo `limpieza_` de `scripts/migrate-add-version-checklists.php`.
+Correr **antes** de extraer el ZIP. Es puramente aditiva: no toca ítems ni
+ejecuciones, así que los reportes dan exactamente lo mismo antes y después.
+
+⚠️ **No es re-corrible a ciegas.** MariaDB no acepta `ADD COLUMN IF NOT EXISTS` en
+todas las versiones, y phpMyAdmin **corta la ejecución en el primer error**: si una
+columna ya existiera, el `ALTER` da error 1060 y todo lo que viene después (el
+backfill y el índice) **no se corre**. Si tenés que reintentar, borrá del bloque las
+sentencias que ya pasaron.
+
+```sql
+ALTER TABLE limpieza_checklists_template ADD COLUMN version    INT NOT NULL DEFAULT 1;
+ALTER TABLE limpieza_checklists_template ADD COLUMN raiz_id    INT NULL;
+ALTER TABLE limpieza_checklists_template ADD COLUMN creado_por INT NULL;
+
+ALTER TABLE limpieza_checklists_template
+  ADD CONSTRAINT fk_checklists_template_creado_por
+  FOREIGN KEY (creado_por) REFERENCES limpieza_usuarios(id) ON DELETE SET NULL;
+
+-- Cada checklist existente es la v1 de su propia raíz.
+UPDATE limpieza_checklists_template SET raiz_id = id, version = 1 WHERE raiz_id IS NULL;
+
+-- UNIQUE (no un índice suelto): impide que dos guardados simultáneos dejen dos
+-- versiones vigentes del mismo checklist. Va DESPUÉS del backfill: antes fallaría
+-- por los raiz_id nulos repetidos.
+CREATE UNIQUE INDEX idx_checklists_template_raiz_version
+  ON limpieza_checklists_template(raiz_id, version);
+```
+
+La FK de `creado_por` no la crea el script de migración (SQLite no agrega FK por
+`ALTER`), pero sí la trae el schema fresco de MariaDB: se agrega acá para que prod y
+una instalación nueva no queden con esquemas distintos.
+
+Verificación después de correrlo (debe dar una fila por checklist, todas con
+`version = 1` y `raiz_id = id`):
+
+```sql
+SELECT id, raiz_id, version, activo, nombre FROM limpieza_checklists_template ORDER BY id;
+```
+
+Sin permisos nuevos: el historial reusa `checklists.ver` y el editor sigue con
+`checklists.editar`.
+
+**Smoke específico:** en Ajustes → Checklists, guardar un checklist debe mostrar el
+toast «guardado como v2» y la tarjeta pasar de `v1` a `v2`; el botón **Historial**
+debe listar las dos versiones (la v1 como no vigente). **No hacerlo con un checklist
+real en horario de trabajo:** una limpieza en curso termina con su versión, pero las
+que empiecen después usan la nueva.

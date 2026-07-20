@@ -232,14 +232,21 @@ CREATE TABLE checklists_template (
     tipo_habitacion_id    INTEGER NOT NULL,
     habitacion_id         INTEGER,                             -- si != NULL, template propio de un espacio (área común); las piezas de huésped lo dejan NULL y se resuelven por tipo. Ver docs/areas-comunes.md
     nombre                TEXT NOT NULL,
-    activo                INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    version               INTEGER NOT NULL DEFAULT 1,          -- versión dentro de la raíz; editar un checklist crea la v(N+1) (copy-on-write). Ver plan.md §8.6
+    raiz_id               INTEGER,                             -- agrupa todas las versiones de un mismo checklist; en la v1 es igual al propio id
+    creado_por            INTEGER,                             -- quién creó esta versión
+    activo                INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),  -- solo UNA versión activa por raíz: la vigente
     created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT,
-    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_checklists_template_habitacion ON checklists_template(habitacion_id);
+-- UNIQUE, no un índice suelto: garantiza que dos guardados simultáneos del mismo checklist no
+-- puedan insertar la misma version (el segundo falla y su transacción se deshace).
+CREATE UNIQUE INDEX idx_checklists_template_raiz_version ON checklists_template(raiz_id, version);
 
 -- Items del template (orden, descripción, obligatoriedad)
 CREATE TABLE items_checklist (
