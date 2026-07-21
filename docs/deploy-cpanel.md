@@ -221,7 +221,7 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
    `CLOUDBEDS_DRY_RUN=false` en el `.env`.
 5. Instalar la PWA en los teléfonos del personal (banner "Instalar app").
 
-## 10. Actualizaciones futuras (deploy delta)
+## 10. Actualizaciones futuras (deploy delta por FTP — método por defecto)
 
 0. **Cerrar la versión en `CHANGELOG.md` ANTES de buildear.** Cada deploy es una
    versión: los chicos suben el segundo número (v1 → v1.1), un cambio grande sube
@@ -229,12 +229,33 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
    ejemplo) **no** es una versión. Poner la fecha real del deploy en DD/MM/YYYY
    en lugar de `sin publicar` — el badge del home del Admin y
    `/ajustes/versiones` muestran **la última versión con fecha**, así que si te
-   olvidás, prod dice que sigue en la versión anterior. El ZIP se arma después
-   porque copia el `CHANGELOG.md` adentro.
-1. Re-correr `php scripts/build-cpanel-zip.php` y subir/extraer el ZIP completo
-   (2 MB — más simple y seguro que armar deltas a mano), o subir archivos
-   sueltos por FTP si el cambio es puntual. El `.env` del server NO se toca
-   (el ZIP no trae `.env` y extraer no lo pisa; verificar igual tras extraer).
+   olvidás, prod dice que sigue en la versión anterior. Editar el `CHANGELOG.md`
+   antes vale para los dos métodos: en el delta se sube ese archivo, y en el ZIP
+   se copia adentro.
+1. **Subir el delta por FTP (método por defecto, decidido el 21/07/2026).** En
+   vez de re-extraer el ZIP completo, subir por FileZilla **solo los archivos que
+   cambiaron**, sobreescribiéndolos en su lugar. FileZilla pisa archivo por
+   archivo, así que **esquiva el gotcha del Extract que mezcla carpetas** (ver §11)
+   y no hace falta el baile de `limpieza_old`. Cómo armar la lista del delta sin
+   olvidarse ninguno:
+   - `git diff --name-only <commit-del-último-deploy> HEAD` — el commit de
+     referencia es el que quedó anotado en la última fila de §11.
+   - **Descartar** de esa lista `docs/**` y `tests/**`: no se despliegan (el build
+     tampoco los copia, salvo los 2 `database-schema*.sql`).
+   - **Mapeo repo → servidor:** la raíz del repo (`src/`, `views/`, `scripts/`,
+     `public/`, `CHANGELOG.md`, `composer.*`) va bajo
+     `public_html/limpieza/app_core/…` con la misma ruta relativa. Los archivos del
+     docroot (`deployment/cpanel/docroot/index.php` y `.htaccess`) van a
+     `public_html/limpieza/…` — rara vez cambian.
+   - **`vendor/` solo si cambió `composer.lock`** (agregar/actualizar dependencias).
+     Si cambió, correr `composer install --no-dev` en local y subir `vendor/`
+     entero — o, más simple, hacer ESE deploy con el ZIP completo. Un cambio de
+     solo-código nunca toca `vendor/`.
+   - El `.env` del server **NO se toca nunca** (nunca está en el delta).
+   - Cuando el cambio toca *muchos* archivos, mueve archivos de lugar, o cambia
+     `vendor/`, hacé el **ZIP completo** en su lugar (`php
+     scripts/build-cpanel-zip.php` + método de §11 con `limpieza_old`): más simple
+     y seguro que un delta grande a mano.
 2. Si el release trae migración de esquema: generar el SQL con prefijo
    `limpieza_` en local y correrlo por phpMyAdmin (no hay consola). **Orden:**
    si la columna es **aditiva** (con `DEFAULT`), correr el `ALTER` **ANTES** de
