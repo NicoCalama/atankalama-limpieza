@@ -111,11 +111,11 @@
                         </div>
                         <div class="flex gap-2">
                             <button @click="abrirEditor(t)"
-                                    class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center justify-center gap-1.5">
+                                    class="flex-1 min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center justify-center gap-1.5">
                                 <i data-lucide="pencil" class="w-4 h-4"></i> Editar checklist
                             </button>
                             <button @click="abrirHistorial(t)" :aria-label="'Historial de ' + t.tipo_nombre"
-                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition inline-flex items-center justify-center gap-1.5">
+                                    class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition inline-flex items-center justify-center gap-1.5">
                                 <i data-lucide="history" class="w-4 h-4"></i> Historial
                             </button>
                         </div>
@@ -171,7 +171,7 @@
                                            :placeholder="'Ítem ' + (idx + 1) + ' — ej: limpiar y desinfectar baño'"
                                            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
                                     <button @click="quitarItem(idx)" aria-label="Quitar ítem"
-                                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition flex-shrink-0">
+                                            class="min-h-[44px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition flex-shrink-0">
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                                     </button>
                                 </div>
@@ -247,6 +247,12 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400">
                             Las versiones anteriores son de solo lectura: los reportes de días ya cerrados se calculan con ellas.
                         </p>
+                        <template x-if="historial.versiones.length === 0">
+                            <div class="text-center py-6">
+                                <i data-lucide="history" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                                <p class="text-sm text-gray-600 dark:text-gray-400">No pudimos leer las versiones de este checklist.</p>
+                            </div>
+                        </template>
                         <template x-for="v in historial.versiones" :key="v.id">
                             <button @click="verVersion(v)"
                                     class="w-full text-left border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
@@ -496,9 +502,11 @@ function checklistsApp() {
                     this.cargar();
                 } else {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar.');
-                    // Otro admin guardó una versión más nueva: el editor quedó viejo. Se recarga la
-                    // lista (sin cerrar el modal) para que al reintentar se edite sobre la vigente.
+                    // Otro admin guardó una versión más nueva: el editor quedó apuntando a un id
+                    // viejo y reintentar daría 409 para siempre. Se CIERRA el modal y se recarga la
+                    // lista; volver a entrar abre la versión vigente.
                     if (r && r.error && r.error.codigo === 'VERSION_DESACTUALIZADA') {
+                        this.cerrarEditor();
                         this.cargar();
                     }
                 }

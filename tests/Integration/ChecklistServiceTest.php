@@ -695,6 +695,22 @@ final class ChecklistServiceTest extends TestCase
         $this->assertCount(1, $activas);
     }
 
+    public function testLaBaseImpideDosVersionesConElMismoNumero(): void
+    {
+        // El UNIQUE (raiz_id, version) es lo que hace segura la carrera de dos guardados
+        // simultáneos: sin él, ambos calcularían el mismo MAX(version)+1 y quedarían dos
+        // versiones vigentes de la misma raíz. Se verifica el comportamiento, no el metadato.
+        $tid = $this->templateDelTipo();
+        $tipoId = (int) Database::fetchOne('SELECT tipo_habitacion_id FROM checklists_template WHERE id = ?', [$tid])['tipo_habitacion_id'];
+
+        $this->expectException(\PDOException::class);
+        Database::execute(
+            'INSERT INTO checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, activo)
+             VALUES (?, NULL, ?, 1, ?, 0)',
+            [$tipoId, 'Duplicada a mano', $tid]
+        );
+    }
+
     public function testEditarTemplateVacioLanza(): void
     {
         try {

@@ -129,46 +129,7 @@ final class ChecklistService
         $nombreFinal = ($nombre !== null && trim($nombre) !== '') ? trim($nombre) : (string) $template['nombre'];
 
         /** @var array{template_id:int, version:int} $creada */
-        $creada = Database::transaction(function () use ($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId): array {
-            Database::execute(
-                'UPDATE #__checklists_template SET raiz_id = ? WHERE id = ? AND raiz_id IS NULL',
-                [$raizId, $templateId]
-            );
-
-            $version = 1 + (int) Database::fetchColumn(
-                'SELECT COALESCE(MAX(version), 0) FROM #__checklists_template WHERE raiz_id = ?',
-                [$raizId]
-            );
-
-            // Solo una versión activa por raíz: la vigente. Se apaga la anterior ANTES de insertar
-            // la nueva para no dejar dos activas ni un instante (templateParaTipo toma la activa).
-            Database::execute(
-                'UPDATE #__checklists_template SET activo = 0 WHERE raiz_id = ? AND activo = 1',
-                [$raizId]
-            );
-
-            Database::execute(
-                'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, creado_por, activo)
-                 VALUES (?, NULL, ?, ?, ?, ?, 1)',
-                [$tipoId, $nombreFinal, $version, $raizId, $actorId]
-            );
-            $nuevoId = Database::lastInsertId();
-
-            // TODOS los ítems se insertan como filas nuevas, también los "conservados": son ítems de
-            // la versión nueva. Los de la versión anterior no se tocan — las ejecuciones viejas (y
-            // las en curso) los siguen leyendo tal cual. El orden lo fija la posición en el arreglo.
-            $orden = 1;
-            foreach ($normalizados as $it) {
-                Database::execute(
-                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
-                     VALUES (?, ?, ?, ?, ?, ?, 1)',
-                    [$nuevoId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
-                );
-                $orden++;
-            }
-
-            return ['template_id' => $nuevoId, 'version' => $version];
-        });
+        $creada = $this->insertarVersion($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId);
 
         Logger::audit($actorId, 'checklist.editar_template', 'checklists_template', $creada['template_id'], [
             'items' => count($normalizados),
@@ -177,6 +138,88 @@ final class ChecklistService
         ]);
 
         return $creada;
+    }
+
+    /**
+     * Inserta la versión nueva en una transacción. El UNIQUE (raiz_id, version) es lo que hace
+     * segura la carrera de dos guardados simultáneos: el segundo choca contra el índice y su
+     * transacción se deshace entera. Esa violación se traduce a VERSION_DESACTUALIZADA para que el
+     * usuario vea el mismo mensaje amable que cuando guarda desde una pestaña vieja, y no un 500.
+     *
+     * @param list<array<string, mixed>> $normalizados
+     * @return array{template_id:int, version:int}
+     */
+    private function insertarVersion(int $templateId, int $raizId, int $tipoId, string $nombreFinal, array $normalizados, ?int $actorId): array
+    {
+        try {
+            return Database::transaction(function () use ($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId): array {
+                Database::execute(
+                    'UPDATE #__checklists_template SET raiz_id = ? WHERE id = ? AND raiz_id IS NULL',
+                    [$raizId, $templateId]
+                );
+
+                $version = 1 + (int) Database::fetchColumn(
+                    'SELECT COALESCE(MAX(version), 0) FROM #__checklists_template WHERE raiz_id = ?',
+                    [$raizId]
+                );
+
+                // Solo una versión activa por raíz: la vigente. Se apaga la anterior ANTES de
+                // insertar la nueva para no dejar dos activas ni un instante (templateParaTipo
+                // toma la activa).
+                Database::execute(
+                    'UPDATE #__checklists_template SET activo = 0 WHERE raiz_id = ? AND activo = 1',
+                    [$raizId]
+                );
+
+                Database::execute(
+                    'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, creado_por, activo)
+                     VALUES (?, NULL, ?, ?, ?, ?, 1)',
+                    [$tipoId, $nombreFinal, $version, $raizId, $actorId]
+                );
+                $nuevoId = Database::lastInsertId();
+
+                // TODOS los ítems se insertan como filas nuevas, también los "conservados": son
+                // ítems de la versión nueva. Los de la versión anterior no se tocan — las
+                // ejecuciones viejas (y las en curso) los siguen leyendo tal cual. El orden lo
+                // fija la posición en el arreglo.
+                $orden = 1;
+                foreach ($normalizados as $it) {
+                    Database::execute(
+                        'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
+                         VALUES (?, ?, ?, ?, ?, ?, 1)',
+                        [$nuevoId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
+                    );
+                    $orden++;
+                }
+
+                return ['template_id' => $nuevoId, 'version' => $version];
+            });
+        } catch (\PDOException $e) {
+            // 23000 = violación de restricción de integridad (el UNIQUE de raiz_id+version), tanto
+            // en SQLite como en MariaDB. Es la carrera de dos guardados a la vez: el que perdió no
+            // escribió nada, y le decimos lo mismo que a la pestaña vieja.
+            if ((string) $e->getCode() === '23000') {
+                throw new ChecklistException(
+                    'VERSION_DESACTUALIZADA',
+                    'Alguien guardó una versión más nueva de este checklist. Recargá la página para editar sobre la última.',
+                    409
+                );
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Raíz que agrupa las versiones de un template. Las filas anteriores a la migración del
+     * versionado (y las que nunca se editaron) pueden tener raiz_id NULL: ahí la raíz es ella misma.
+     */
+    private function raizDeTemplate(int $templateId): int
+    {
+        $fila = Database::fetchOne('SELECT raiz_id FROM #__checklists_template WHERE id = ?', [$templateId]);
+        if ($fila === null || $fila['raiz_id'] === null) {
+            return $templateId;
+        }
+        return (int) $fila['raiz_id'];
     }
 
     /**
@@ -843,7 +886,7 @@ final class ChecklistService
     private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId): int
     {
         $anterior = Database::fetchOne(
-            "SELECT ec.id, a.veredicto
+            "SELECT ec.id, ec.template_id, a.veredicto
                FROM #__ejecuciones_checklist ec
                JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.habitacion_id = ? AND ec.estado = 'auditada'
@@ -851,6 +894,14 @@ final class ChecklistService
             [$habitacionId]
         );
         if ($anterior === null || $anterior['veredicto'] !== 'rechazado') {
+            return 0;
+        }
+
+        // Solo se hereda entre versiones del MISMO checklist. Si a la habitación le cambiaron el
+        // tipo entre el rechazo y la re-limpieza, el intento viejo corrió con otro checklist y
+        // emparejar por descripción cruzaría marcas entre listas distintas (dos checklists pueden
+        // compartir el texto "Limpiar baño" sin ser el mismo trabajo).
+        if ($this->raizDeTemplate((int) $anterior['template_id']) !== $this->raizDeTemplate($templateId)) {
             return 0;
         }
 

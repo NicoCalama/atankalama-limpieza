@@ -87,8 +87,11 @@ try {
     if (stripos($msg, 'already exists') !== false || stripos($msg, 'Duplicate key name') !== false) {
         echo "El índice {$indice} ya existe — omito CREATE.\n";
     } else {
-        echo "  ¡ATENCIÓN! No se pudo crear el índice {$indice}: {$msg}\n";
-        echo "  Creálo a mano antes de usar el editor de checklists.\n";
+        // Sin este índice el editor queda sin su protección contra dos guardados simultáneos:
+        // se corta con exit != 0 para que un runner automatizado no lo dé por bueno.
+        fwrite(STDERR, "¡ATENCIÓN! No se pudo crear el índice {$indice}: {$msg}\n");
+        fwrite(STDERR, "Creálo a mano antes de usar el editor de checklists.\n");
+        exit(1);
     }
 }
 

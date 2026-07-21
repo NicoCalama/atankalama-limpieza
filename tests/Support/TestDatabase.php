@@ -85,6 +85,10 @@ final class TestDatabase
                 [(int) $tipo['id'], 'Checklist ' . (string) $tipo['nombre']]
             );
             $templateId = Database::lastInsertId();
+            // Igual que scripts/seed.php: todo template nace como v1 de su propia raíz. Sin esto
+            // los tests correrían sobre filas con raiz_id NULL, que es el caso legacy y no el que
+            // tiene una instalación real.
+            Database::execute('UPDATE #__checklists_template SET raiz_id = ?, version = 1 WHERE id = ?', [$templateId, $templateId]);
             foreach ($items as $item) {
                 Database::execute(
                     'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, es_cambio_sabanas, activo) VALUES (?, ?, ?, ?, ?, 1)',

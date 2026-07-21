@@ -62,6 +62,16 @@ Consecuencias:
 - **El `template_id` cambia en cada guardado**, y los `id` de los items también. El `PUT` devuelve `{template_id, version}` y la UI recarga la lista; ningún cliente debe reusar los ids viejos.
 - **Historial navegable:** el botón *Historial* de cada tarjeta lista las versiones (vigente + anteriores) con fecha, autor, cantidad de items y créditos, y permite ver los items de una versión vieja **en solo lectura** (`GET /api/checklists/templates/{id}/historial`, permiso `checklists.ver`). Restaurar una versión anterior no está implementado: si hace falta, se re-edita a mano y sale una versión nueva.
 - Nada se borra nunca (FK RESTRICT desde `ejecuciones_items`).
+- **Guardar sobre una versión que ya no es la vigente** (dos pestañas, dos admins) responde **409 `VERSION_DESACTUALIZADA`** y no pisa nada. Pasa en dos casos: la versión abierta ya está inactiva, o dos guardados simultáneos chocan contra el `UNIQUE (raiz_id, version)` — el segundo no escribe nada y recibe el mismo error. La UI cierra el editor y recarga la lista; reintentar sobre el id viejo daría 409 para siempre.
+
+### 2.5 Efecto sobre la herencia de la re-limpieza
+
+Cuando una pieza vuelve a limpiarse tras un **rechazo**, la ejecución nueva hereda los ítems que el auditor NO objetó, con su `marcado_por` original (ver [creditos-rework.md](creditos-rework.md)). Con el versionado, el intento viejo apunta a los ítems de **su** versión y la re-limpieza corre con los de la vigente: ids distintos. Por eso el emparejamiento es **por descripción**, con dos reglas:
+
+- **Solo entre versiones de la misma raíz.** Si a la habitación le cambiaron el tipo en el medio, no se hereda nada: dos checklists distintos pueden compartir el texto "Limpiar baño" sin ser el mismo trabajo.
+- **Un ítem renombrado no se hereda** y hay que remarcarlo. Si le cambiaste el texto, es otro ítem.
+
+Sin esto, la herencia daba **cero ítems en silencio**: el segundo trabajador remarcaba todo y se quedaba con los créditos del primero.
 
 Las **áreas comunes** quedan fuera de este esquema por ahora: `EspacioService::editar` da de baja sus items e inserta filas nuevas, así que sus históricos tampoco se pisan, pero sus versiones no son navegables. Unificar es pendiente.
 

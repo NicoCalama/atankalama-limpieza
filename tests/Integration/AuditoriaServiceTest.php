@@ -355,6 +355,51 @@ final class AuditoriaServiceTest extends TestCase
         }
     }
 
+    public function testRelimpiezaNoHeredaSiLaHabitacionCambioDeTipo(): void
+    {
+        // La herencia empareja por descripción, así que sin un guard heredaría marcas entre
+        // checklists DISTINTOS que compartan textos ("Limpiar baño"). Solo se hereda entre
+        // versiones de la misma raíz.
+        $checklist = new ChecklistService();
+        $ejec1 = $checklist->obtenerEjecucion($this->ejecucionId);
+        $items = $checklist->itemsDelTemplate($ejec1->templateId);
+        $obligatorios = array_values(array_filter($items, static fn(array $it) => (int) $it['obligatorio'] === 1));
+
+        $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'Faltaron dos ítems, rehacer.',
+            [(int) $obligatorios[0]['id'], (int) $obligatorios[1]['id']]
+        );
+
+        // Otro tipo, con su propio checklist y LOS MISMOS TEXTOS: si el guard no existiera, el
+        // emparejamiento por descripción heredaría igual, que es justo lo que no queremos.
+        Database::execute("INSERT INTO tipos_habitacion (nombre) VALUES ('Suite')");
+        $otroTipoId = Database::lastInsertId();
+        Database::execute(
+            "INSERT INTO checklists_template (tipo_habitacion_id, nombre, version, raiz_id, activo) VALUES (?, 'Checklist Suite', 1, NULL, 1)",
+            [$otroTipoId]
+        );
+        $otroTemplateId = Database::lastInsertId();
+        Database::execute('UPDATE checklists_template SET raiz_id = ? WHERE id = ?', [$otroTemplateId, $otroTemplateId]);
+        foreach ($items as $i) {
+            Database::execute(
+                'INSERT INTO items_checklist (template_id, orden, descripcion, obligatorio, creditos, activo) VALUES (?, ?, ?, ?, ?, 1)',
+                [$otroTemplateId, (int) $i['orden'], $i['descripcion'], (int) $i['obligatorio'], (int) $i['creditos']]
+            );
+        }
+        Database::execute('UPDATE habitaciones SET tipo_habitacion_id = ? WHERE id = ?', [$otroTipoId, $this->habitacionId]);
+
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
+        $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
+
+        $this->assertNotSame($ejec1->templateId, $ejec2->templateId);
+        $heredados = Database::fetchAll('SELECT item_id FROM ejecuciones_items WHERE ejecucion_id = ?', [$ejec2->id]);
+        $this->assertSame([], $heredados, 'No se hereda entre checklists distintos');
+    }
+
     public function testInmutabilidadRechaza409(): void
     {
         $this->svc->emitirVeredicto($this->habitacionId, $this->auditorId, Auditoria::VEREDICTO_APROBADO);
