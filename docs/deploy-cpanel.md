@@ -286,7 +286,8 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 ## 11. Historial de deploys
 
 Registro de lo que se desplegó y cómo, para reconstruir el estado de prod sin
-adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
+adivinar. Desde el 21/07/2026 los deploys de solo-código se hacen por **delta
+FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 
 | Fecha | Release | Notas |
 |---|---|---|
@@ -295,6 +296,7 @@ adivinar. Los deploys delta se hacen con el ZIP completo (§10) salvo nota.
 | 2026-07-18 | **Solicitudes de la empresa julio + versiones + zona horaria** → **v2** | Deploy delta, ZIP completo (`main` `bca9a8d`). SQL previo de §11.1 corrido en phpMyAdmin (tabla `limpieza_ui_config` + `apariencia.editar` a Supervisora y Admin). `.env` editado: `MAIL_TRANSPORT=mail` + `SMTP_FROM=sistema@atankalama.com` + `SMTP_FROM_NAME` (correo verificado: la recuperación de clave llega). Smokes verdes contra rutas NUEVAS (`/api/auth/recuperar` 200, `/ajustes/versiones` 302, `sw.js` v6, `custom.css` 200). **Aviso a supervisora:** el fix de zona horaria re-atribuye el trabajo de 20:00–22:00 al día correcto → los reportes históricos cambian. |
 | 2026-07-18 | **Fix de asignación de hotel en usuarios** → **v2.1** | Deploy delta, ZIP completo. Solo código (3 vistas), sin SQL ni `.env`. Además: `UPDATE limpieza_usuarios SET hotel_default='ambos' WHERE hotel_default IS NULL OR hotel_default=''` en phpMyAdmin para los usuarios ya creados con "Ninguno". |
 | 2026-07-20 | **Versionado de checklists (copy-on-write)** → **v2.2** (`dce4da9`) | Deploy delta, ZIP completo. **El SQL de §11.2 se corrió DESPUÉS del código** (orden invertido, ver gotcha abajo): el editor y el historial quedaron rotos hasta que se aplicó. Sin permisos nuevos. Smoke de código nuevo por **contraste de rutas**: `/api/checklists/templates/1/historial` → 401 (existe) vs. ruta inventada → 404. La fecha de la v2.2 se puso editando `app_core/CHANGELOG.md` a mano (el ZIP se había armado con "sin publicar"). |
+| 2026-07-21 | **Arreglos del editor de checklists** → **v2.3** (`bf32d6a`) | **Primer deploy por delta FTP** (nuevo método por defecto, §10). Cierra la brecha main↔prod que dejó v2.2: sube el fix del 409 (carrera de dos guardados + bucle del editor) y el guard de misma raíz en la herencia de la re-limpieza (commit `6950766`). 4 archivos por FileZilla a `app_core/`: `src/Services/ChecklistService.php`, `views/ajustes-checklists.php`, `CHANGELOG.md`, `scripts/migrate-add-version-checklists.php`. Sin SQL, sin permisos, sin `.env`, sin `vendor/`. Smokes verdes (funcionales): badge del home = v2.3, editar+guardar un checklist crea versión, `app_core/.env` → 403. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
