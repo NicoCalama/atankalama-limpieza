@@ -81,6 +81,46 @@
                 Cada ítem obligatorio otorga sus créditos cuando el trabajador lo completa. Los ítems opcionales no dan créditos.
             </p>
 
+            <!-- Ámbito por hotel: toggle + selector -->
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Separar checklists por hotel</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Cada hotel puede tener su propia versión del checklist de un tipo. Si un hotel no tiene la suya, usa la compartida.
+                        </p>
+                    </div>
+                    <button type="button" role="switch" :aria-checked="config.tipos_por_hotel ? 'true' : 'false'"
+                            aria-label="Separar checklists por hotel"
+                            @click="togglePorHotel()" :disabled="config.guardando"
+                            class="relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition disabled:opacity-50"
+                            :class="config.tipos_por_hotel ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'">
+                        <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition mt-0.5"
+                              :class="config.tipos_por_hotel ? 'translate-x-[22px]' : 'translate-x-0.5'"></span>
+                    </button>
+                </div>
+
+                <div x-show="config.tipos_por_hotel" x-cloak class="flex flex-wrap gap-2 pt-1">
+                    <button @click="cambiarHotelScope(null)"
+                            class="min-h-[36px] px-3 py-1.5 text-sm rounded-lg border transition"
+                            :class="hotelScope === null ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'">
+                        Compartido
+                    </button>
+                    <template x-for="h in config.hoteles" :key="h.codigo">
+                        <button @click="cambiarHotelScope(h.codigo)"
+                                class="min-h-[36px] px-3 py-1.5 text-sm rounded-lg border transition"
+                                :class="hotelScope === h.codigo ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
+                                x-text="h.nombre"></button>
+                    </template>
+                </div>
+
+                <p x-show="config.tipos_por_hotel && hotelScope" x-cloak
+                   class="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                    Estás editando el checklist de <span class="font-medium" x-text="nombreHotelScope()"></span>.
+                    Guardar acá crea o actualiza solo la versión de este hotel; la compartida y la del otro hotel no cambian.
+                </p>
+            </div>
+
             <template x-if="templates.length === 0">
                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center">
                     <i data-lucide="list-checks" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
@@ -92,10 +132,14 @@
                 <template x-for="t in templates" :key="t.id">
                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
                         <div class="min-w-0">
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-2 flex-wrap">
                                 <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.tipo_nombre"></p>
                                 <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
                                       x-text="'v' + (t.version || 1)"></span>
+                                <span x-show="Number(t.heredado) === 1" x-cloak
+                                      class="flex-shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    Usa el compartido
+                                </span>
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="t.nombre"></p>
                         </div>
@@ -112,7 +156,8 @@
                         <div class="flex gap-2">
                             <button @click="abrirEditor(t)"
                                     class="flex-1 min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center justify-center gap-1.5">
-                                <i data-lucide="pencil" class="w-4 h-4"></i> Editar checklist
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                                <span x-text="Number(t.heredado) === 1 ? 'Personalizar' : 'Editar checklist'"></span>
                             </button>
                             <button @click="abrirHistorial(t)" :aria-label="'Historial de ' + t.tipo_nombre"
                                     class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition inline-flex items-center justify-center gap-1.5">
@@ -310,6 +355,8 @@ function checklistsApp() {
         _seq: 0,
         _loadToken: 0,
         _histToken: 0,
+        config: { tipos_por_hotel: false, hoteles: [], guardando: false },
+        hotelScope: null, // null = compartido; código de hotel = editando el override de ese hotel
         editor: { abierto: false, cargandoItems: false, enviando: false, templateId: null, tipoNombre: '', items: [] },
         historial: { abierto: false, cargando: false, templateId: null, tipoNombre: '', versiones: [], detalle: null },
 
@@ -317,18 +364,59 @@ function checklistsApp() {
             this.cargando = true;
             this.error = null;
             try {
-                var r = await apiFetch('/api/checklists/templates');
+                var url = '/api/checklists/templates';
+                if (this.hotelScope) url += '?hotel=' + encodeURIComponent(this.hotelScope);
+                var r = await apiFetch(url);
                 if (!r || !r.ok) {
                     this.error = (r && r.error && r.error.mensaje) || 'Error al cargar.';
                     return;
                 }
                 this.templates = r.data.templates || [];
+                this.config.tipos_por_hotel = !!r.data.tipos_por_hotel;
+                this.config.hoteles = r.data.hoteles || [];
+                // Si el toggle está apagado, el backend ignora el scope: sincronizamos a "compartido".
+                if (!this.config.tipos_por_hotel) this.hotelScope = null;
             } catch (e) {
                 this.error = 'No pudimos conectar con el servidor.';
             } finally {
                 this.cargando = false;
                 this.$nextTick(function () { lucide.createIcons(); });
             }
+        },
+
+        async togglePorHotel() {
+            if (this.config.guardando) return;
+            var nuevo = !this.config.tipos_por_hotel;
+            this.config.guardando = true;
+            try {
+                var r = await apiPut('/api/checklists/config', { tipos_por_hotel: nuevo });
+                if (r && r.ok) {
+                    this.config.tipos_por_hotel = !!r.data.tipos_por_hotel;
+                    if (!this.config.tipos_por_hotel) this.hotelScope = null;
+                    this.mostrarToast('exito', this.config.tipos_por_hotel
+                        ? 'Ahora cada hotel puede tener su propio checklist.'
+                        : 'Los checklists vuelven a ser compartidos entre hoteles.');
+                    await this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar el ajuste.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.config.guardando = false;
+            }
+        },
+
+        cambiarHotelScope(codigo) {
+            if (this.hotelScope === codigo) return;
+            this.hotelScope = codigo;
+            this.cargar();
+        },
+
+        nombreHotelScope() {
+            var scope = this.hotelScope;
+            var h = (this.config.hoteles || []).filter(function (x) { return x.codigo === scope; })[0];
+            return h ? h.nombre : '';
         },
 
         async abrirEditor(t) {
@@ -492,7 +580,10 @@ function checklistsApp() {
 
             this.editor.enviando = true;
             try {
-                var r = await apiPut('/api/checklists/templates/' + this.editor.templateId, { items: items });
+                var body = { items: items };
+                // Bajo el ámbito de un hotel, el guardado crea/actualiza el override de ESE hotel.
+                if (this.hotelScope) body.hotel_codigo = this.hotelScope;
+                var r = await apiPut('/api/checklists/templates/' + this.editor.templateId, body);
                 if (r && r.ok) {
                     // El PUT crea una versión nueva (copy-on-write): el template_id y los ids de los
                     // ítems cambian, por eso se recarga la lista en vez de reusar el estado local.

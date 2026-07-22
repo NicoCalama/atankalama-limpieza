@@ -27,10 +27,7 @@ final class InventarioImportServiceTest extends TestCase
         $this->hotel1SurId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
         $this->hotelInnId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='inn'")['id'];
 
-        // Los 3 tipos de limpieza del catálogo real (ver catalogos.php).
-        foreach (['Singular', 'Doble/Matrimonial', 'Suite/Familiar'] as $nombre) {
-            Database::execute('INSERT INTO tipos_habitacion (nombre) VALUES (?)', [$nombre]);
-        }
+        // Los tipos ya NO se pre-siembran: el import los crea on-the-fly por cada roomTypeName real.
 
         $this->transport = new FakeHttpTransport();
         $client = new CloudbedsClient(
@@ -58,12 +55,13 @@ final class InventarioImportServiceTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function room(string $roomId, string $roomName, int $maxGuests, bool $blocked = false): array
+    private function room(string $roomId, string $roomName, int $maxGuests, string $roomTypeName = 'Estándar', bool $blocked = false): array
     {
         return [
             'roomID' => $roomId,
             'roomName' => $roomName,
             'maxGuests' => $maxGuests,
+            'roomTypeName' => $roomTypeName,
             'roomBlocked' => $blocked,
         ];
     }
@@ -76,13 +74,13 @@ final class InventarioImportServiceTest extends TestCase
         )['nombre'];
     }
 
-    public function testCreaHabitacionesYMapeaTipoPorMaxGuests(): void
+    public function testCreaHabitacionesYMapeaTipoPorRoomTypeName(): void
     {
         $this->encolarRooms([
-            $this->room('CB_R1', '101-BOT M', 1),
-            $this->room('CB_R2', '102-BOT2 M', 2),
-            $this->room('CB_R3', '201-EXE3 (3S)', 3),
-            $this->room('CB_R4', '301-CUAD (4s)', 4),
+            $this->room('CB_R1', '101-BOT M', 1, 'Premium single'),
+            $this->room('CB_R2', '102-BOT2 M', 2, 'Premium doble'),
+            $this->room('CB_R3', '201-EXE3 (3S)', 3, 'Premium triple'),
+            $this->room('CB_R4', '301-CUAD (4s)', 4, 'Premium triple'),
         ]);
 
         $res = $this->servicio->importar('1_sur');
@@ -90,10 +88,33 @@ final class InventarioImportServiceTest extends TestCase
         $this->assertSame(4, $res['totales']['creadas']);
         $this->assertSame(4, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones')['c']);
 
-        $this->assertSame('Singular', $this->tipoDe('101'));
-        $this->assertSame('Doble/Matrimonial', $this->tipoDe('102'));
-        $this->assertSame('Suite/Familiar', $this->tipoDe('201'));
-        $this->assertSame('Suite/Familiar', $this->tipoDe('301'));
+        // El tipo sale del roomTypeName real de Cloudbeds, no de maxGuests.
+        $this->assertSame('Premium single', $this->tipoDe('101'));
+        $this->assertSame('Premium doble', $this->tipoDe('102'));
+        $this->assertSame('Premium triple', $this->tipoDe('201'));
+        $this->assertSame('Premium triple', $this->tipoDe('301'));
+
+        // Se crearon 3 tipos (las dos 'Premium triple' comparten uno).
+        $this->assertSame(3, (int) Database::fetchOne("SELECT COUNT(*) c FROM tipos_habitacion")['c']);
+    }
+
+    public function testCadaTipoNuevoObtieneChecklistDefaultCompartido(): void
+    {
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2, 'Premium doble')]);
+        $this->servicio->importar('1_sur');
+
+        $tipoId = (int) Database::fetchOne("SELECT id FROM tipos_habitacion WHERE nombre = 'Premium doble'")['id'];
+        $tpl = Database::fetchOne(
+            'SELECT id FROM checklists_template
+              WHERE tipo_habitacion_id = ? AND hotel_id IS NULL AND habitacion_id IS NULL AND activo = 1',
+            [$tipoId]
+        );
+        $this->assertNotNull($tpl, 'el tipo nuevo debe tener un checklist default compartido');
+        $items = (int) Database::fetchOne(
+            'SELECT COUNT(*) c FROM items_checklist WHERE template_id = ?',
+            [$tpl['id']]
+        )['c'];
+        $this->assertGreaterThan(0, $items, 'el checklist default debe tener ítems');
     }
 
     public function testParseaPrefijoNumericoDelRoomName(): void
@@ -202,14 +223,15 @@ final class InventarioImportServiceTest extends TestCase
 
     public function testVinculaPiezaLegadaPorNumeroSinRoomId(): void
     {
-        // Pieza preexistente con numero pero sin cloudbeds_room_id (dato legado).
-        $tipoId = (int) Database::fetchOne("SELECT id FROM tipos_habitacion WHERE nombre = 'Singular'")['id'];
+        // Pieza preexistente con numero pero sin cloudbeds_room_id (dato legado), con un tipo viejo.
+        Database::execute("INSERT INTO tipos_habitacion (nombre) VALUES ('Tipo viejo')");
+        $tipoViejoId = (int) Database::fetchOne("SELECT id FROM tipos_habitacion WHERE nombre = 'Tipo viejo'")['id'];
         Database::execute(
             'INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id) VALUES (?, ?, ?, NULL)',
-            [$this->hotel1SurId, '101', $tipoId]
+            [$this->hotel1SurId, '101', $tipoViejoId]
         );
 
-        $this->encolarRooms([$this->room('CB_R1', '101-A', 2)]);
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2, 'Premium doble')]);
         $res = $this->servicio->importar('1_sur');
 
         $this->assertSame(0, $res['totales']['creadas']);
@@ -218,8 +240,8 @@ final class InventarioImportServiceTest extends TestCase
 
         $fila = Database::fetchOne("SELECT cloudbeds_room_id, tipo_habitacion_id FROM habitaciones WHERE numero = '101'");
         $this->assertSame('CB_R1', $fila['cloudbeds_room_id']);
-        // Se remapeó al tipo por maxGuests=2.
-        $this->assertSame('Doble/Matrimonial', $this->tipoDe('101'));
+        // Se re-tipó al roomTypeName real de Cloudbeds.
+        $this->assertSame('Premium doble', $this->tipoDe('101'));
     }
 
     public function testDryRunNoEscribeNada(): void
@@ -233,8 +255,9 @@ final class InventarioImportServiceTest extends TestCase
 
         $this->assertTrue($res['dry_run']);
         $this->assertSame(2, $res['totales']['creadas']);
-        // Nada tocó la BD.
+        // Nada tocó la BD: ni habitaciones ni tipos nuevos (get-or-create solo escribe al aplicar).
         $this->assertSame(0, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones')['c']);
+        $this->assertSame(0, (int) Database::fetchOne('SELECT COUNT(*) c FROM tipos_habitacion')['c']);
     }
 
     public function testImportaLosDosHotelesEnUnaCorrida(): void

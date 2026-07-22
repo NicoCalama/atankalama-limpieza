@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Services;
 
+use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Models\AlertaActiva;
@@ -22,12 +23,66 @@ final class ChecklistService
 
     // ----- Templates -----
 
-    /** @return list<array<string, mixed>> */
-    public function listarTemplates(): array
+    /**
+     * Templates de tipo (piezas de huésped) para el editor. Los de espacio (habitacion_id != NULL)
+     * se editan desde áreas comunes, no acá. Ver docs/areas-comunes.md
+     *
+     * Ámbito por hotel (docs/checklist.md):
+     *  - $hotelCodigo === null → los checklists COMPARTIDOS del tipo (hotel_id IS NULL). Vista normal.
+     *  - $hotelCodigo dado → para cada tipo, el override de ESE hotel si existe; si no, el compartido
+     *    marcado `heredado=1` (la pieza de ese hotel usa el compartido hasta que se cree su override).
+     *
+     * items_count / creditos_total (solo obligatorios activos) alimentan las tarjetas del editor.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listarTemplates(?string $hotelCodigo = null): array
     {
-        // Solo templates de tipo (piezas de huésped). Los de espacio (habitacion_id != NULL)
-        // se editan desde la pantalla de áreas comunes, no acá. Ver docs/areas-comunes.md
-        // items_count / creditos_total (solo obligatorios activos) alimentan las tarjetas del editor.
+        $compartidos = $this->queryTemplatesTipo('ct.hotel_id IS NULL');
+        foreach ($compartidos as &$c) {
+            $c['heredado'] = 0;
+            $c['hotel_codigo'] = null;
+        }
+        unset($c);
+
+        if ($hotelCodigo === null || $hotelCodigo === '' || $hotelCodigo === 'ambos') {
+            return $compartidos;
+        }
+
+        $hotelId = $this->hotelIdPorCodigo($hotelCodigo);
+        $overridesPorTipo = [];
+        foreach ($this->queryTemplatesTipo('ct.hotel_id = ?', [$hotelId]) as $o) {
+            $overridesPorTipo[(int) $o['tipo_habitacion_id']] = $o;
+        }
+
+        $out = [];
+        foreach ($compartidos as $c) {
+            $tipoId = (int) $c['tipo_habitacion_id'];
+            if (isset($overridesPorTipo[$tipoId])) {
+                $row = $overridesPorTipo[$tipoId];
+                $row['heredado'] = 0;
+                $row['hotel_codigo'] = $hotelCodigo;
+                $out[] = $row;
+            } else {
+                // No hay override para este hotel: se muestra el compartido, editable como punto de
+                // partida. Guardar bajo este hotel creará el override (ver editarTemplate).
+                $c['heredado'] = 1;
+                $c['hotel_codigo'] = $hotelCodigo;
+                $out[] = $c;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Lista de templates de tipo (habitacion_id IS NULL, activos) con su tipo y contadores, filtrada
+     * por una condición sobre el ámbito de hotel (hotel_id).
+     *
+     * @param list<mixed> $params
+     * @return list<array<string, mixed>>
+     */
+    private function queryTemplatesTipo(string $condicionHotel, array $params = []): array
+    {
         return Database::fetchAll(
             'SELECT ct.*, th.nombre AS tipo_nombre,
                     (SELECT COUNT(*) FROM #__items_checklist ic
@@ -36,8 +91,9 @@ final class ChecklistService
                       WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.obligatorio = 1) AS creditos_total
                FROM #__checklists_template ct
                JOIN #__tipos_habitacion th ON th.id = ct.tipo_habitacion_id
-              WHERE ct.activo = 1 AND ct.habitacion_id IS NULL
-              ORDER BY th.nombre'
+              WHERE ct.activo = 1 AND ct.habitacion_id IS NULL AND ' . $condicionHotel . '
+              ORDER BY th.nombre',
+            $params
         );
     }
 
@@ -69,13 +125,20 @@ final class ChecklistService
      * ejecuciones históricas). Los templates de espacio (habitacion_id != NULL) se editan desde
      * áreas comunes, no acá. Requiere permiso checklists.editar (gateado en el Kernel).
      *
+     * ÁMBITO POR HOTEL (docs/checklist.md): si $hotelCodigo apunta a un hotel y el toggle
+     * tipos_checklist_por_hotel está activo, el guardado afecta SOLO el override de ese hotel:
+     *  - Si el template cargado es el compartido (se estaba editando el heredado) y el hotel aún no
+     *    tiene override, se crea el override como su propio root sin tocar el compartido.
+     *  - Si el hotel ya tiene override, se versiona ese (no el compartido).
+     * Sin hotel (o con el toggle apagado) se versiona el template tal cual (compartido u override propio).
+     *
      * @param list<array<string, mixed>> $items cada uno: {id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}
      * @return array{template_id:int, version:int} la versión recién creada (la que ya está vigente)
      */
-    public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null): array
+    public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null, ?string $hotelCodigo = null): array
     {
         $template = Database::fetchOne(
-            'SELECT id, tipo_habitacion_id, nombre, raiz_id, activo FROM #__checklists_template
+            'SELECT id, tipo_habitacion_id, hotel_id, nombre, raiz_id, activo FROM #__checklists_template
               WHERE id = ? AND habitacion_id IS NULL',
             [$templateId]
         );
@@ -98,6 +161,38 @@ final class ChecklistService
             throw new ChecklistException('CHECKLIST_VACIO', 'El checklist debe tener al menos un ítem.', 400);
         }
 
+        $tipoId = (int) $template['tipo_habitacion_id'];
+
+        // ¿Se está editando bajo el ámbito de un hotel específico? Solo aplica con el toggle activo.
+        $hotelId = null;
+        if ($hotelCodigo !== null && $hotelCodigo !== '' && $hotelCodigo !== 'ambos' && $this->tiposPorHotelActivo()) {
+            $hotelId = $this->hotelIdPorCodigo($hotelCodigo);
+        }
+
+        // Editar el compartido (heredado) bajo el ámbito de un hotel ⇒ apunta al OVERRIDE de ese
+        // hotel, no al compartido (que sigue sirviendo a las demás propiedades).
+        if ($hotelId !== null && $template['hotel_id'] === null) {
+            $override = Database::fetchOne(
+                'SELECT id, tipo_habitacion_id, hotel_id, nombre, raiz_id, activo FROM #__checklists_template
+                  WHERE tipo_habitacion_id = ? AND hotel_id = ? AND habitacion_id IS NULL AND activo = 1
+                  ORDER BY id LIMIT 1',
+                [$tipoId, $hotelId]
+            );
+            if ($override === null) {
+                // Primer override del hotel para este tipo: nace como su propio root, seedeado con lo
+                // enviado. No se validan ids (venían del compartido; acá son ítems nuevos).
+                $nombreFinal = ($nombre !== null && trim($nombre) !== '') ? trim($nombre) : (string) $template['nombre'];
+                $creada = $this->crearOverride($tipoId, $hotelId, $nombreFinal, $normalizados, $actorId);
+                Logger::audit($actorId, 'checklist.crear_override_hotel', 'checklists_template', $creada['template_id'], [
+                    'tipo_id' => $tipoId, 'hotel_id' => $hotelId, 'items' => count($normalizados),
+                ]);
+                return $creada;
+            }
+            // Ya hay override activo (cliente con vista vieja): se versiona ese. Sin validar ids.
+            return $this->finalizarVersion($override, $nombre, $normalizados, $actorId);
+        }
+
+        // Camino normal: versionar el template cargado (compartido u override propio del hotel).
         // Ids que el cliente conserva: deben pertenecer a este template (activos o no) para no
         // pisar ítems de otro checklist por un id inyectado.
         $idsEnviados = [];
@@ -120,16 +215,27 @@ final class ChecklistService
             }
         }
 
+        return $this->finalizarVersion($template, $nombre, $normalizados, $actorId);
+    }
+
+    /**
+     * Computa raíz/tipo/hotel/nombre a partir de la fila del template y crea la versión siguiente.
+     *
+     * @param array<string, mixed> $template fila con id, tipo_habitacion_id, hotel_id, nombre, raiz_id
+     * @param list<array<string, mixed>> $normalizados
+     * @return array{template_id:int, version:int}
+     */
+    private function finalizarVersion(array $template, ?string $nombre, array $normalizados, ?int $actorId): array
+    {
+        $templateId = (int) $template['id'];
         // Raíz que agrupa las versiones. Si la fila es anterior a la migración del versionado y
-        // quedó sin raiz_id, ella misma es su raíz (y se la fija de paso, ver más abajo).
-        $raizId = isset($template['raiz_id']) && $template['raiz_id'] !== null
-            ? (int) $template['raiz_id']
-            : $templateId;
+        // quedó sin raiz_id, ella misma es su raíz (y se la fija de paso en insertarVersion).
+        $raizId = ($template['raiz_id'] ?? null) !== null ? (int) $template['raiz_id'] : $templateId;
         $tipoId = (int) $template['tipo_habitacion_id'];
+        $hotelId = ($template['hotel_id'] ?? null) !== null ? (int) $template['hotel_id'] : null;
         $nombreFinal = ($nombre !== null && trim($nombre) !== '') ? trim($nombre) : (string) $template['nombre'];
 
-        /** @var array{template_id:int, version:int} $creada */
-        $creada = $this->insertarVersion($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId);
+        $creada = $this->insertarVersion($templateId, $raizId, $tipoId, $hotelId, $nombreFinal, $normalizados, $actorId);
 
         Logger::audit($actorId, 'checklist.editar_template', 'checklists_template', $creada['template_id'], [
             'items' => count($normalizados),
@@ -141,6 +247,37 @@ final class ChecklistService
     }
 
     /**
+     * Crea el PRIMER override de un tipo para un hotel: un root nuevo (version 1, raiz = él mismo)
+     * con hotel_id seteado y los ítems enviados. No toca el compartido.
+     *
+     * @param list<array<string, mixed>> $normalizados
+     * @return array{template_id:int, version:int}
+     */
+    private function crearOverride(int $tipoId, int $hotelId, string $nombre, array $normalizados, ?int $actorId): array
+    {
+        return Database::transaction(function () use ($tipoId, $hotelId, $nombre, $normalizados, $actorId): array {
+            Database::execute(
+                'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, hotel_id, nombre, version, creado_por, activo)
+                 VALUES (?, NULL, ?, ?, 1, ?, 1)',
+                [$tipoId, $hotelId, $nombre, $actorId]
+            );
+            $nuevoId = Database::lastInsertId();
+            Database::execute('UPDATE #__checklists_template SET raiz_id = ? WHERE id = ?', [$nuevoId, $nuevoId]);
+
+            $orden = 1;
+            foreach ($normalizados as $it) {
+                Database::execute(
+                    'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, creditos, es_cambio_sabanas, activo)
+                     VALUES (?, ?, ?, ?, ?, ?, 1)',
+                    [$nuevoId, $orden, $it['descripcion'], $it['obligatorio'], $it['creditos'], $it['es_cambio_sabanas']]
+                );
+                $orden++;
+            }
+            return ['template_id' => $nuevoId, 'version' => 1];
+        });
+    }
+
+    /**
      * Inserta la versión nueva en una transacción. El UNIQUE (raiz_id, version) es lo que hace
      * segura la carrera de dos guardados simultáneos: el segundo choca contra el índice y su
      * transacción se deshace entera. Esa violación se traduce a VERSION_DESACTUALIZADA para que el
@@ -149,10 +286,10 @@ final class ChecklistService
      * @param list<array<string, mixed>> $normalizados
      * @return array{template_id:int, version:int}
      */
-    private function insertarVersion(int $templateId, int $raizId, int $tipoId, string $nombreFinal, array $normalizados, ?int $actorId): array
+    private function insertarVersion(int $templateId, int $raizId, int $tipoId, ?int $hotelId, string $nombreFinal, array $normalizados, ?int $actorId): array
     {
         try {
-            return Database::transaction(function () use ($templateId, $raizId, $tipoId, $nombreFinal, $normalizados, $actorId): array {
+            return Database::transaction(function () use ($templateId, $raizId, $tipoId, $hotelId, $nombreFinal, $normalizados, $actorId): array {
                 Database::execute(
                     'UPDATE #__checklists_template SET raiz_id = ? WHERE id = ? AND raiz_id IS NULL',
                     [$raizId, $templateId]
@@ -171,10 +308,11 @@ final class ChecklistService
                     [$raizId]
                 );
 
+                // La versión nueva conserva el hotel_id de su raíz (compartido = NULL, u override).
                 Database::execute(
-                    'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, creado_por, activo)
-                     VALUES (?, NULL, ?, ?, ?, ?, 1)',
-                    [$tipoId, $nombreFinal, $version, $raizId, $actorId]
+                    'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, hotel_id, nombre, version, raiz_id, creado_por, activo)
+                     VALUES (?, NULL, ?, ?, ?, ?, ?, 1)',
+                    [$tipoId, $hotelId, $nombreFinal, $version, $raizId, $actorId]
                 );
                 $nuevoId = Database::lastInsertId();
 
@@ -311,11 +449,30 @@ final class ChecklistService
         return in_array(strtolower((string) $valor), ['1', 'true', 'yes', 'on'], true);
     }
 
-    public function templateParaTipo(int $tipoHabitacionId): ?int
+    /**
+     * Template vigente del checklist de un TIPO. Cadena de resolución (docs/checklist.md):
+     *   override del hotel (solo si el toggle tipos_checklist_por_hotel está activo y se pasa $hotelId)
+     *   → checklist compartido del tipo (hotel_id IS NULL).
+     * Devuelve null si el tipo aún no tiene ningún checklist (el llamador decide el fallback).
+     */
+    public function templateParaTipo(int $tipoHabitacionId, ?int $hotelId = null): ?int
     {
         // habitacion_id IS NULL: solo templates "de tipo" (piezas), no los propios de un espacio.
+        if ($hotelId !== null && $this->tiposPorHotelActivo()) {
+            $override = Database::fetchOne(
+                'SELECT id FROM #__checklists_template
+                  WHERE tipo_habitacion_id = ? AND hotel_id = ? AND habitacion_id IS NULL AND activo = 1
+                  ORDER BY id LIMIT 1',
+                [$tipoHabitacionId, $hotelId]
+            );
+            if ($override !== null) {
+                return (int) $override['id'];
+            }
+        }
         $fila = Database::fetchOne(
-            'SELECT id FROM #__checklists_template WHERE tipo_habitacion_id = ? AND habitacion_id IS NULL AND activo = 1 ORDER BY id LIMIT 1',
+            'SELECT id FROM #__checklists_template
+              WHERE tipo_habitacion_id = ? AND hotel_id IS NULL AND habitacion_id IS NULL AND activo = 1
+              ORDER BY id LIMIT 1',
             [$tipoHabitacionId]
         );
         return $fila === null ? null : (int) $fila['id'];
@@ -323,7 +480,8 @@ final class ChecklistService
 
     /**
      * Resuelve el template de una habitación: primero el propio del espacio (área común), y si no
-     * tiene, cae al template de su tipo (pieza de huésped). Ver docs/areas-comunes.md
+     * tiene, cae al template de su tipo (pieza de huésped), respetando el override por hotel si está
+     * activo. Ver docs/areas-comunes.md y docs/checklist.md
      */
     public function templateParaHabitacion(Habitacion $habitacion): ?int
     {
@@ -334,7 +492,116 @@ final class ChecklistService
         if ($fila !== null) {
             return (int) $fila['id'];
         }
-        return $this->templateParaTipo($habitacion->tipoHabitacionId);
+        return $this->templateParaTipo($habitacion->tipoHabitacionId, $habitacion->hotelId);
+    }
+
+    // ----- Tipos, defaults y toggle por hotel -----
+
+    /** Clave del toggle "separar checklists por hotel" en la bolsa de config operativa. */
+    private const FLAG_POR_HOTEL = 'tipos_checklist_por_hotel';
+
+    /**
+     * ¿El toggle "separar por hotel" está activo? Cuando lo está, la resolución consulta primero el
+     * override del hotel; cuando no, todos los hoteles comparten el checklist del tipo. Resiliente:
+     * si la tabla/clave no existe (deploy sin migración) devuelve false (comportamiento compartido).
+     */
+    public function tiposPorHotelActivo(): bool
+    {
+        try {
+            $fila = Database::fetchOne(
+                'SELECT valor FROM #__cloudbeds_config WHERE clave = ?',
+                [self::FLAG_POR_HOTEL]
+            );
+        } catch (\Throwable $e) {
+            return false;
+        }
+        return $fila !== null && in_array(strtolower((string) $fila['valor']), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** Activa o desactiva el toggle. Idempotente (upsert). Requiere checklists.editar (gateado en el Kernel). */
+    public function setTiposPorHotel(bool $activo, ?int $actorId = null): void
+    {
+        $valor = $activo ? '1' : '0';
+        $existe = Database::fetchOne('SELECT clave FROM #__cloudbeds_config WHERE clave = ?', [self::FLAG_POR_HOTEL]);
+        if ($existe === null) {
+            Database::execute(
+                'INSERT INTO #__cloudbeds_config (clave, valor, descripcion) VALUES (?, ?, ?)',
+                [self::FLAG_POR_HOTEL, $valor, 'Separar los checklists de tipo por hotel (override por propiedad)']
+            );
+        } else {
+            Database::execute(
+                "UPDATE #__cloudbeds_config SET valor = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ? WHERE clave = ?",
+                [$valor, $actorId, self::FLAG_POR_HOTEL]
+            );
+        }
+        Logger::audit($actorId, 'checklist.toggle_por_hotel', 'cloudbeds_config', null, ['activo' => $activo]);
+    }
+
+    /**
+     * Crea el checklist default de un tipo (los ítems canónicos de database/seeds/checklists.php) y
+     * devuelve su template_id. Lo usan el import (proactivo, por cada roomTypeName nuevo) y el
+     * lazy-ensure de iniciarEjecucion (red anti-500). $hotelId NULL = checklist compartido del tipo;
+     * != NULL = override para ese hotel. No abre transacción propia (participa de la ambiente).
+     */
+    public function crearTemplateDefaultParaTipo(int $tipoId, string $nombreTipo, ?int $hotelId = null, ?int $actorId = null): int
+    {
+        Database::execute(
+            'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, hotel_id, nombre, creado_por) VALUES (?, NULL, ?, ?, ?)',
+            [$tipoId, $hotelId, 'Checklist estándar — ' . $nombreTipo, $actorId]
+        );
+        $templateId = Database::lastInsertId();
+        // Todo template nace como v1 de su propia raíz (versionado copy-on-write, plan.md §8.6).
+        Database::execute('UPDATE #__checklists_template SET raiz_id = ?, version = 1 WHERE id = ?', [$templateId, $templateId]);
+
+        $orden = 1;
+        foreach (self::itemsDefault() as $item) {
+            Database::execute(
+                'INSERT INTO #__items_checklist (template_id, orden, descripcion, obligatorio, es_cambio_sabanas) VALUES (?, ?, ?, ?, ?)',
+                [$templateId, $orden++, $item['descripcion'], $item['obligatorio'], $item['es_cambio_sabanas'] ?? 0]
+            );
+        }
+        return $templateId;
+    }
+
+    /**
+     * Ítems canónicos del checklist default. Fuente única: database/seeds/checklists.php (los mismos
+     * que siembra scripts/seed.php). Se leen del archivo para no duplicar la lista.
+     *
+     * @return list<array{orden:int, descripcion:string, obligatorio:int, es_cambio_sabanas?:int}>
+     */
+    public static function itemsDefault(): array
+    {
+        /** @var array{template_default_items: list<array<string, mixed>>} $data */
+        $data = require Config::basePath() . '/database/seeds/checklists.php';
+        return $data['template_default_items'];
+    }
+
+    private function nombreDeTipo(int $tipoId): string
+    {
+        $fila = Database::fetchOne('SELECT nombre FROM #__tipos_habitacion WHERE id = ?', [$tipoId]);
+        return $fila !== null ? (string) $fila['nombre'] : 'Tipo ' . $tipoId;
+    }
+
+    private function hotelIdPorCodigo(string $codigo): int
+    {
+        $fila = Database::fetchOne('SELECT id FROM #__hoteles WHERE codigo = ?', [$codigo]);
+        if ($fila === null) {
+            throw new ChecklistException('HOTEL_INVALIDO', 'Hotel no encontrado.', 400);
+        }
+        return (int) $fila['id'];
+    }
+
+    /**
+     * Hoteles activos para el selector de ámbito del editor (cuando el toggle por hotel está activo).
+     *
+     * @return list<array{codigo: string, nombre: string}>
+     */
+    public function hotelesDisponibles(): array
+    {
+        return array_map(
+            static fn(array $f): array => ['codigo' => (string) $f['codigo'], 'nombre' => (string) $f['nombre']],
+            Database::fetchAll('SELECT codigo, nombre FROM #__hoteles WHERE activo = 1 ORDER BY id')
+        );
     }
 
     // ----- Ejecución -----
@@ -417,6 +684,17 @@ final class ChecklistService
         }
 
         $templateId = $this->templateParaHabitacion($habitacion);
+        if ($templateId === null && !$habitacion->esEspacioComun) {
+            // Red anti-500: un tipo real sin checklist (p.ej. recién detectado en Cloudbeds y aún no
+            // importado) no debe bloquear al trabajador. Se crea el checklist default COMPARTIDO del
+            // tipo al vuelo y se sigue; el import lo hace de forma proactiva. Ver docs/checklist.md
+            $templateId = $this->crearTemplateDefaultParaTipo(
+                $habitacion->tipoHabitacionId,
+                $this->nombreDeTipo($habitacion->tipoHabitacionId),
+                null,
+                $usuarioId
+            );
+        }
         if ($templateId === null) {
             throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'No hay checklist template para esta habitación.', 500);
         }

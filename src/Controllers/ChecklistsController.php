@@ -18,7 +18,39 @@ final class ChecklistsController
 
     public function listarTemplates(Request $request): Response
     {
-        return Response::ok(['templates' => $this->svc->listarTemplates()]);
+        // Ámbito por hotel: solo se aplica con el toggle activo. Sin toggle, ?hotel se ignora y se
+        // devuelven los checklists compartidos. Ver docs/checklist.md.
+        $porHotel = $this->svc->tiposPorHotelActivo();
+        $hotelParam = $request->query['hotel'] ?? null;
+        $hotel = ($porHotel && is_string($hotelParam) && $hotelParam !== '' && $hotelParam !== 'ambos')
+            ? $hotelParam
+            : null;
+
+        return Response::ok([
+            'templates' => $this->svc->listarTemplates($hotel),
+            'tipos_por_hotel' => $porHotel,
+            'hoteles' => $this->svc->hotelesDisponibles(),
+            'hotel' => $hotel,
+        ]);
+    }
+
+    /** GET /api/checklists/config — estado del toggle "separar por hotel" + hoteles. Requiere checklists.ver. */
+    public function config(Request $request): Response
+    {
+        return Response::ok([
+            'tipos_por_hotel' => $this->svc->tiposPorHotelActivo(),
+            'hoteles' => $this->svc->hotelesDisponibles(),
+        ]);
+    }
+
+    /** PUT /api/checklists/config — activa/desactiva el toggle. Requiere checklists.editar (gateado en el Kernel). */
+    public function guardarConfig(Request $request): Response
+    {
+        $raw = $request->input('tipos_por_hotel', false);
+        $activo = $raw === true || $raw === 1
+            || (is_string($raw) && in_array(strtolower($raw), ['1', 'true', 'yes', 'on'], true));
+        $this->svc->setTiposPorHotel($activo, $request->usuario?->id);
+        return Response::ok(['tipos_por_hotel' => $activo]);
     }
 
     public function itemsDelTemplate(Request $request): Response
@@ -69,8 +101,13 @@ final class ChecklistsController
             $items = [];
         }
 
+        // Ámbito por hotel opcional: si viene, el guardado afecta el override de ese hotel (solo con
+        // el toggle activo; el service lo valida). Ver docs/checklist.md.
+        $hotelCodigo = $request->input('hotel_codigo');
+        $hotelCodigo = is_string($hotelCodigo) && $hotelCodigo !== '' ? $hotelCodigo : null;
+
         try {
-            $creada = $this->svc->editarTemplate($id, $nombre, $items, $request->usuario?->id);
+            $creada = $this->svc->editarTemplate($id, $nombre, $items, $request->usuario?->id, $hotelCodigo);
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

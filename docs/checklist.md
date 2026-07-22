@@ -75,6 +75,23 @@ Sin esto, la herencia daba **cero ítems en silencio**: el segundo trabajador re
 
 Las **áreas comunes** quedan fuera de este esquema por ahora: `EspacioService::editar` da de baja sus items e inserta filas nuevas, así que sus históricos tampoco se pisan, pero sus versiones no son navegables. Unificar es pendiente.
 
+### 2.6 Tipo real, override por hotel y red anti-500 — IMPLEMENTADO
+
+**El tipo de una pieza es su `roomTypeName` real de Cloudbeds, no `maxGuests`.** El import de inventario (`InventarioImportService`) crea un `tipos_habitacion` por cada `roomTypeName` (get-or-create por nombre) y, apenas nace un tipo, le crea su **checklist default compartido** (los items canónicos de `database/seeds/checklists.php`). Así dos piezas de igual capacidad pero limpieza distinta tienen checklists distintos. `roomTypeName` es `UNIQUE` global: si ambos hoteles tienen "Premium triple", comparten un tipo.
+
+**Cadena de resolución** (`ChecklistService::templateParaHabitacion` → `templateParaTipo`):
+
+1. Template propio del **espacio** (área común, `habitacion_id != NULL`).
+2. **Override del hotel** — solo si el toggle `tipos_checklist_por_hotel` está activo: `checklists_template` con ese `tipo_habitacion_id` + `hotel_id` de la pieza.
+3. **Checklist compartido del tipo** (`hotel_id IS NULL`).
+4. **Red anti-500**: si el tipo aún no tiene ningún checklist (p.ej. detectado en Cloudbeds pero todavía sin importar), `iniciarEjecucion` crea el default compartido al vuelo y sigue. Nunca lanza `TEMPLATE_NO_ENCONTRADO` para una pieza de huésped.
+
+**Override por hotel (toggle en Ajustes → Checklists).** Por defecto **apagado**: todos los hoteles comparten el checklist del tipo. Al activarlo aparece un selector de hotel; editar un tipo bajo el ámbito de un hotel **crea/actualiza el override de ESE hotel** (`checklists_template.hotel_id = ese hotel`), sin tocar el compartido. Un hotel sin override **hereda** el compartido (la tarjeta sale marcada "Usa el compartido"). El toggle es **no-destructivo**: apagarlo hace que la resolución ignore los overrides y todos vuelvan al compartido; los overrides quedan guardados y reviven si se reactiva. Cada override es su propia raíz de versionado copy-on-write (§2.4).
+
+Guardar bajo un hotel viaja con `hotel_codigo` en el `PUT`; el flag vive en `cloudbeds_config` (`tipos_checklist_por_hotel`), se lee con `ChecklistService::tiposPorHotelActivo()` y se cambia con `PUT /api/checklists/config`.
+
+> **Nota de migración.** Re-tipar de los baldes viejos (`maxGuests`) a los `roomTypeName` reales no rompe el histórico: cada `ejecuciones_checklist` guarda su `template_id` en snapshot y los reportes no agrupan por tipo. Pero la **primera** corrida del import re-tipa todas las piezas; hay que correr el import (aplicar) en el deploy **antes** de que el chequeo diario de inventario levante una alerta con 150 "Cambio". Ver deploy runbook.
+
 ---
 
 ## 3. Ejecución — flujo del trabajador
@@ -200,11 +217,13 @@ Detalle en [auditoria.md](auditoria.md) §4.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo vigentes (con `version`, `items_count`, `creditos_total`) |
+| GET | `/api/checklists/templates` | `checklists.ver` | Lista templates de tipo vigentes (con `version`, `items_count`, `creditos_total`, `heredado`). Query opcional `?hotel=<codigo>` (con el toggle activo): devuelve el override del hotel o el compartido marcado `heredado=1`. Incluye `tipos_por_hotel` y `hoteles` |
 | GET | `/api/checklists/templates/{id}/items` | `checklists.ver` | Ítems de un template (también de una versión vieja) |
 | GET | `/api/checklists/templates/{id}/historial` | `checklists.ver` | Versiones del checklist, de la más nueva a la más vieja |
+| GET | `/api/checklists/config` | `checklists.ver` | Estado del toggle `tipos_por_hotel` + hoteles |
+| PUT | `/api/checklists/config` | `checklists.editar` | Activa/desactiva separar checklists por hotel (`{tipos_por_hotel}`) |
 | POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
-| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems (descripción, orden, obligatorio, peso de créditos, sábanas). Copy-on-write: devuelve el `template_id` **nuevo** |
+| PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems (descripción, orden, obligatorio, peso de créditos, sábanas). Body opcional `hotel_codigo`: crea/actualiza el override de ese hotel. Copy-on-write: devuelve el `template_id` **nuevo** |
 | GET | `/api/ejecuciones/{id}` | asignada a mí OR `habitaciones.ver_todas` | Estado actual de ejecución |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada a mí | Marcar/desmarcar item |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada a mí | Crear ejecución (409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso) |

@@ -208,6 +208,7 @@ CREATE TABLE #__checklists_template (
     id                    INT AUTO_INCREMENT PRIMARY KEY,
     tipo_habitacion_id    INT NOT NULL,
     habitacion_id         INT,                                 -- si != NULL, template propio de un espacio (área común); las piezas de huésped lo dejan NULL y se resuelven por tipo. Ver docs/areas-comunes.md
+    hotel_id              INT,                                 -- NULL = checklist compartido del tipo (ambos hoteles); si != NULL, override del tipo para ESE hotel. Solo se consulta si tipos_checklist_por_hotel está activo. Ver docs/checklist.md
     nombre                VARCHAR(150) NOT NULL,
     version               INT NOT NULL DEFAULT 1,              -- versión dentro de la raíz; editar un checklist crea la v(N+1) (copy-on-write). Ver plan.md §8.6
     raiz_id               INT,                                 -- agrupa todas las versiones de un mismo checklist; en la v1 es igual al propio id
@@ -217,10 +218,12 @@ CREATE TABLE #__checklists_template (
     updated_at            VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (tipo_habitacion_id) REFERENCES #__tipos_habitacion(id) ON DELETE RESTRICT,
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (hotel_id) REFERENCES #__hoteles(id) ON DELETE CASCADE,
     FOREIGN KEY (creado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_checklists_template_habitacion ON #__checklists_template(habitacion_id);
+CREATE INDEX idx_checklists_template_tipo_hotel ON #__checklists_template(tipo_habitacion_id, hotel_id);
 -- UNIQUE, no un índice suelto: garantiza que dos guardados simultáneos del mismo checklist no
 -- puedan insertar la misma version (el segundo falla y su transacción se deshace).
 CREATE UNIQUE INDEX idx_checklists_template_raiz_version ON #__checklists_template(raiz_id, version);

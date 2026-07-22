@@ -21,8 +21,9 @@ use Atankalama\Limpieza\Models\Hotel;
  *  - numero = prefijo numérico del roomName ('101-BOT2 M' -> '101'). Verificado único por
  *    hotel en el inventario real (0 colisiones). Si algún día colisionan, se reportan y se
  *    saltan (nunca se viola el UNIQUE(hotel_id, numero)).
- *  - tipo de limpieza mapeado por maxGuests a un set chico (Singular / Doble/Matrimonial /
- *    Suite/Familiar). Cada tipo tiene su checklist template default (seed.php).
+ *  - tipo = el TIPO real de la habitación en Cloudbeds (roomTypeName), no maxGuests: dos piezas de
+ *    igual capacidad pueden tener limpiezas distintas. Los tipos se crean on-the-fly (get-or-create
+ *    por nombre) y cada tipo nuevo obtiene su checklist default (ChecklistService). Ver docs/checklist.md.
  *  - roomBlocked -> se importa con activa=0 (se conserva el mapeo y el histórico).
  *  - Upsert por (hotel_id, cloudbeds_room_id) resuelto en código (portable SQLite/MariaDB).
  *  - Las piezas de la app cuyo cloudbeds_room_id ya no venga de Cloudbeds se desactivan
@@ -33,6 +34,7 @@ final class InventarioImportService
     public function __construct(
         private readonly CloudbedsClient $client,
         private readonly HotelService $hoteles = new HotelService(),
+        private readonly ChecklistService $checklists = new ChecklistService(),
     ) {
     }
 
@@ -75,10 +77,11 @@ final class InventarioImportService
     }
 
     /**
-     * @param array<string, int> $tiposPorNombre
+     * @param array<string, int> $tiposPorNombre nombre => id (se amplía por referencia con los tipos
+     *        que se crean on-the-fly; en dry-run NO se crea ninguno)
      * @return array<string, mixed>
      */
-    private function importarHotel(Hotel $hotel, array $tiposPorNombre, bool $dryRun): array
+    private function importarHotel(Hotel $hotel, array &$tiposPorNombre, bool $dryRun): array
     {
         $res = [
             'codigo' => $hotel->codigo,
@@ -164,13 +167,14 @@ final class InventarioImportService
             $roomIdsVistos[$roomId] = true;
 
             $numero = $numeroPorRoomId[$roomId];
-            $tipoNombre = $this->tipoNombrePorHuespedes((int) ($room['maxGuests'] ?? 0));
-            $tipoId = $tiposPorNombre[$tipoNombre] ?? null;
-            if ($tipoId === null) {
-                throw new \RuntimeException(
-                    "Falta el tipo_habitacion '{$tipoNombre}' en el catálogo. Corré `php scripts/seed.php` primero."
-                );
+            $tipoNombre = $this->tipoNombreDeRoom($room);
+            // Get-or-create del tipo real + su checklist default. Solo escribe al APLICAR: en dry-run
+            // el tipo nuevo queda sin id ($tipoId = null) y el room se computa igual como cambio
+            // (crear/actualizar), sin tocar la BD.
+            if (!$dryRun && !isset($tiposPorNombre[$tipoNombre])) {
+                $tiposPorNombre[$tipoNombre] = $this->crearTipoConTemplate($tipoNombre);
             }
+            $tipoId = $tiposPorNombre[$tipoNombre] ?? null;
             $bloqueada = !empty($room['roomBlocked']);
             $activaDeseada = $bloqueada ? 0 : 1;
 
@@ -331,15 +335,42 @@ final class InventarioImportService
     }
 
     /**
-     * maxGuests -> nombre del tipo de limpieza (set chico). Ver catalogos.php.
+     * Tipo real de la habitación en Cloudbeds (roomTypeName). Fallback en cascada para no perder la
+     * pieza: roomTypeName -> roomTypeNameShort -> 'Sin tipo'. Se acota a 100 chars (tipos_habitacion.nombre).
+     *
+     * @param array<string, mixed> $room
      */
-    private function tipoNombrePorHuespedes(int $maxGuests): string
+    private function tipoNombreDeRoom(array $room): string
     {
-        return match (true) {
-            $maxGuests <= 1 => 'Singular',
-            $maxGuests === 2 => 'Doble/Matrimonial',
-            default => 'Suite/Familiar', // 3+
-        };
+        $nombre = trim((string) ($room['roomTypeName'] ?? ''));
+        if ($nombre === '') {
+            $nombre = trim((string) ($room['roomTypeNameShort'] ?? ''));
+        }
+        if ($nombre === '') {
+            $nombre = 'Sin tipo';
+        }
+        return mb_substr($nombre, 0, 100);
+    }
+
+    /**
+     * Crea un tipo_habitacion por su nombre (roomTypeName) + su checklist default compartido, y
+     * devuelve el id. Get-or-create defensivo: si otro proceso lo creó en el ínterin, reusa el existente.
+     */
+    private function crearTipoConTemplate(string $nombre): int
+    {
+        $existe = Database::fetchOne('SELECT id FROM #__tipos_habitacion WHERE nombre = ?', [$nombre]);
+        if ($existe !== null) {
+            return (int) $existe['id'];
+        }
+        Database::execute(
+            'INSERT INTO #__tipos_habitacion (nombre, descripcion) VALUES (?, ?)',
+            [$nombre, 'Tipo importado desde Cloudbeds']
+        );
+        $tipoId = Database::lastInsertId();
+        // Cada tipo nuevo nace con su checklist default compartido: así el trabajador nunca queda sin
+        // checklist y la supervisora lo puede personalizar desde Ajustes → Checklists.
+        $this->checklists->crearTemplateDefaultParaTipo($tipoId, $nombre, null, null);
+        return $tipoId;
     }
 
     /**

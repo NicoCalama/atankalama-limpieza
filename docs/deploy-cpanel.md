@@ -459,3 +459,52 @@ aplicar (falta el permiso → 403) hasta correr la migración.
 eso prueba que el permiso llegó. Y forzar un chequeo con
 `php scripts/check-inventario-cloudbeds.php --force` debe imprimir "sin cambios" o
 "alerta levantada" sin error de CHECK.
+
+### 11.4 SQL del release "checklist por tipo real + override por hotel" (phpMyAdmin)
+
+El tipo de cada pieza pasa a ser el `roomTypeName` real de Cloudbeds (no `maxGuests`), y
+se agrega el toggle "separar checklists por hotel" con override por propiedad. Ver
+[checklist.md](checklist.md) §2.6 y [cloudbeds-import-inventario.md](cloudbeds-import-inventario.md).
+
+**Un cambio de esquema** (columna `hotel_id` en `checklists_template`) + **un re-import obligatorio**.
+
+**Vía recomendada (PHP CLI), idempotente, no borra nada:**
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-checklist-por-hotel.php   # columna hotel_id + flag
+# ⚠️ PASO CRÍTICO — re-tipar el inventario ANTES de que el cron de inventario levante alerta:
+/opt/alt/php84/usr/bin/php scripts/import-inventario-cloudbeds.php --dry-run   # revisar el plan
+/opt/alt/php84/usr/bin/php scripts/import-inventario-cloudbeds.php             # aplicar: re-tipa + crea tipos+checklists
+```
+
+> **Por qué el re-import es obligatorio y va primero.** El import re-tipa las piezas de los
+> baldes viejos (`Singular`/`Doble/Matrimonial`/`Suite/Familiar`) a sus `roomTypeName` reales y
+> crea un checklist default por cada tipo nuevo. El histórico queda intacto (cada ejecución guarda
+> su `template_id` en snapshot; los reportes no agrupan por tipo). **Pero** el chequeo diario de
+> inventario (`check-inventario-cloudbeds.php`) compara el tipo actual contra el de Cloudbeds: si
+> el re-import no corrió, la primera corrida vería las ~150 piezas como "Cambio" y le levantaría a
+> la supervisora una alerta enorme. Correr el import (aplicar) en el deploy lo evita.
+
+**Fallback phpMyAdmin** (correr **antes** de extraer el ZIP; el re-import igual hay que correrlo por CLI o botón):
+
+```sql
+-- 1) Columna hotel_id (NULL = checklist compartido; != NULL = override de ese hotel) + índice.
+ALTER TABLE limpieza_checklists_template ADD COLUMN hotel_id INT NULL;
+CREATE INDEX idx_checklists_template_tipo_hotel
+  ON limpieza_checklists_template (tipo_habitacion_id, hotel_id);
+
+-- 2) Flag del toggle (default apagado = checklists compartidos).
+INSERT IGNORE INTO limpieza_cloudbeds_config (clave, valor, descripcion)
+VALUES ('tipos_checklist_por_hotel', '0',
+        'Separar los checklists de tipo por hotel (override por propiedad)');
+```
+
+Si el código sube antes que el SQL: la app falla al leer `checklists_template` (la columna
+`hotel_id` no existe todavía) — por eso el ALTER va **antes** de extraer el ZIP.
+
+**Smoke específico** (toca lo que cambió): en incógnito, con Admin/Supervisora, entrar a
+**Ajustes → Checklists**; las tarjetas deben mostrar los `roomTypeName` reales (no los 3 baldes
+viejos). Activar el toggle "Separar por hotel", elegir un hotel, "Personalizar" un tipo y guardar:
+la tarjeta pasa de "Usa el compartido" a mostrar el override; la vista Compartido y el otro hotel
+quedan intactos. `POST /api/habitaciones/{id}/iniciar` de una pieza cualquiera no debe dar 500
+`TEMPLATE_NO_ENCONTRADO`.

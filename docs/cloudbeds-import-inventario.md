@@ -26,11 +26,14 @@
 > - **#2 → `numero` = prefijo numérico del `roomName`** (`101-BOT2 M` → `101`). Verificado
 >   contra los datos reales: **0 colisiones** (99 prefijos únicos en 1_sur, 57 en INN). Si algún
 >   día colisionan, el import los reporta y salta (no viola el `UNIQUE(hotel_id, numero)`).
-> - **#3 → Tipos mapeados por `maxGuests` a un set chico** (`Singular` / `Doble/Matrimonial` /
->   `Suite/Familiar`, redefinido en `catalogos.php`). Dato real: no hay piezas de 1 huésped, así
->   que `Singular` hoy queda en 0 piezas.
-> - **#4 → NO era bloqueante.** `seed.php` crea un checklist template default por cada tipo, así
->   que las piezas son usables desde el arranque; la supervisora personaliza por UI después.
+> - **#3 → SUPERSEDIDO (22/07/2026): el tipo es el `roomTypeName` real de Cloudbeds, no `maxGuests`.**
+>   El import hace get-or-create de un `tipos_habitacion` por cada `roomTypeName` y le crea su checklist
+>   default. `maxGuests` colapsaba dos piezas de igual capacidad pero limpieza distinta en un mismo
+>   balde; el tipo real las separa. Ver [checklist.md](checklist.md) §2.6. (El mapeo viejo por
+>   `maxGuests` — `Singular`/`Doble/Matrimonial`/`Suite/Familiar` — quedó retirado de `catalogos.php`.)
+> - **#4 → NO era bloqueante.** Cada tipo nuevo obtiene su checklist default compartido al importarlo
+>   (auto-create en `InventarioImportService` + red anti-500 en `iniciarEjecucion`), así que las piezas
+>   son usables desde el arranque; la supervisora personaliza por UI después.
 > - **#5 → `roomBlocked` se importa con `activa=0`** (conserva el mapeo y el histórico). Hoy: 2 piezas.
 > - **#6 → Upsert idempotente, corrida on-demand.** Match por `(hotel_id, cloudbeds_room_id)` en
 >   código (portable SQLite/MariaDB). Las piezas cuyo room_id desaparece de Cloudbeds → `activa=0`,

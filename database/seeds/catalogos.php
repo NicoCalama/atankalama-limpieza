@@ -13,17 +13,11 @@ return [
         ['nombre' => 'mañana', 'hora_inicio' => '08:00', 'hora_fin' => '16:00'],
         ['nombre' => 'tarde', 'hora_inicio' => '14:00', 'hora_fin' => '22:00'],
     ],
-    // Tipos de LIMPIEZA (no de venta): se mapean desde Cloudbeds por maxGuests en el
-    // import de inventario (ver InventarioImportService). El protocolo de limpieza no
-    // cambia por sub-tipo comercial, así que colapsamos los ~16 roomTypeName de Cloudbeds
-    // a este set chico. Cada tipo obtiene su checklist template default en seed.php.
-    //   maxGuests=1 -> Singular | =2 -> Doble/Matrimonial | =3-4 -> Suite/Familiar
-    // (El inventario real actual no tiene piezas de 1 huésped: 'Singular' queda disponible
-    //  para el futuro pero hoy no se le asigna ninguna habitación.)
+    // Tipos de habitación: los REALES los crea el import de inventario on-the-fly, uno por cada
+    // roomTypeName de Cloudbeds (ver InventarioImportService), con su checklist default. Acá solo
+    // se siembra el tipo técnico de áreas comunes; una instalación fresca queda sin tipos de huésped
+    // hasta correr el import. Ver docs/checklist.md.
     'tipos_habitacion' => [
-        ['nombre' => 'Singular', 'descripcion' => 'Individual — 1 huésped'],
-        ['nombre' => 'Doble/Matrimonial', 'descripcion' => 'Doble o matrimonial — 2 huéspedes'],
-        ['nombre' => 'Suite/Familiar', 'descripcion' => 'Suite, triple o familiar — 3 a 4 huéspedes'],
         // Tipo técnico para áreas comunes (piscina, pasillos, patio, bodega…). No viene de Cloudbeds;
         // rellena el FK NOT NULL de las filas-espacio. Su checklist es propio de cada espacio, no de
         // este tipo (por eso seed.php NO le crea template estándar). Ver docs/areas-comunes.md
@@ -41,5 +35,7 @@ return [
         ['clave' => 'sync_intervalo_minutos', 'valor' => '30', 'descripcion' => 'Cadencia del sync automático (minutos)'],
         ['clave' => 'reintentos_max', 'valor' => '3', 'descripcion' => 'Número de reintentos'],
         ['clave' => 'timeout_segundos', 'valor' => '10', 'descripcion' => 'Timeout por request'],
+        // Toggle Ajustes → Checklists: separar los checklists de tipo por hotel (override por propiedad).
+        ['clave' => 'tipos_checklist_por_hotel', 'valor' => '0', 'descripcion' => 'Separar los checklists de tipo por hotel (override por propiedad)'],
     ],
 ];

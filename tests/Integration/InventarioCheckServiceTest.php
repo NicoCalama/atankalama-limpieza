@@ -58,9 +58,9 @@ final class InventarioCheckServiceTest extends TestCase
     }
 
     /** @return array<string, mixed> */
-    private function room(string $roomId, string $roomName, int $maxGuests): array
+    private function room(string $roomId, string $roomName, int $maxGuests, string $roomTypeName = 'Estándar'): array
     {
-        return ['roomID' => $roomId, 'roomName' => $roomName, 'maxGuests' => $maxGuests, 'roomBlocked' => false];
+        return ['roomID' => $roomId, 'roomName' => $roomName, 'maxGuests' => $maxGuests, 'roomTypeName' => $roomTypeName, 'roomBlocked' => false];
     }
 
     private function contarAlertas(): int
@@ -104,9 +104,9 @@ final class InventarioCheckServiceTest extends TestCase
 
     public function testSinCambiosNoLevantaAlerta(): void
     {
-        // La app ya está sincronizada: las piezas de Cloudbeds ya existen igualitas.
+        // La app ya está sincronizada: las piezas de Cloudbeds ya existen igualitas (mismo tipo real).
         $this->sembrarPieza('CB_R1', '101', 'Doble/Matrimonial');
-        $this->encolarRooms([$this->room('CB_R1', '101-A', 2)]);
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2, 'Doble/Matrimonial')]);
 
         $res = $this->check->revisar(true);
 
