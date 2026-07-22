@@ -163,6 +163,23 @@ final class InventarioCheckServiceTest extends TestCase
         $this->assertSame(1, $this->contarAlertas());
     }
 
+    public function testHotelConErrorNoResuelveAlertaPendiente(): void
+    {
+        // 1) Se detecta y levanta la alerta.
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2)]);
+        $this->check->revisar(true);
+        $this->assertSame(1, $this->contarAlertas());
+
+        // 2) Chequeo posterior donde Cloudbeds FALLA para el hotel (getRooms sin success=true).
+        //    Un fallo transitorio NO debe confundirse con "estado limpio".
+        $this->transport->encolarOk(200, ['success' => false, 'message' => 'error transitorio']);
+        $res = $this->check->revisar(true);
+
+        $this->assertSame('incompleto', $res['accion']);
+        // La alerta pendiente sigue viva (no se auto-resolvió por el fallo externo).
+        $this->assertSame(1, $this->contarAlertas());
+    }
+
     public function testThrottleOmiteElSegundoChequeo(): void
     {
         $this->encolarRooms([$this->room('CB_R1', '101-A', 2)]);

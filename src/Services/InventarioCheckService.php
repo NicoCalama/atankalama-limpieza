@@ -53,12 +53,25 @@ final class InventarioCheckService
 
         $resultado = $this->import->importar(null, true); // dry-run, todos los hoteles activos
 
-        // Marca el chequeo aunque no haya cambios (para el throttle).
-        $this->guardarConfig(self::CFG_ULTIMO_CHEQUEO, gmdate('Y-m-d\TH:i:s\Z'));
+        $huboError = $this->algunHotelConError($resultado);
+
+        // El throttle diario solo avanza en un chequeo COMPLETO (sin hoteles caídos): así un
+        // fallo transitorio de Cloudbeds se reintenta en el próximo tick del cron en vez de
+        // esperar 24 h (misma filosofía que el sync entrante: los errores no throttlean).
+        if (!$huboError) {
+            $this->guardarConfig(self::CFG_ULTIMO_CHEQUEO, gmdate('Y-m-d\TH:i:s\Z'));
+        }
 
         $cambios = $this->cambiosAccionables($resultado);
 
         if ($cambios === []) {
+            if ($huboError) {
+                // Chequeo INCOMPLETO: un hotel no respondió (getRooms falló). No confundir con
+                // "estado limpio": un fallo externo transitorio NO debe auto-resolver una alerta
+                // pendiente ni olvidar el rechazo. Se deja todo como está hasta un chequeo completo.
+                Logger::warning('inventario', 'chequeo de inventario incompleto (hotel con error): no se toca la alerta', []);
+                return ['omitido' => false, 'cambios' => 0, 'accion' => 'incompleto'];
+            }
             // Estado limpio: la condición desapareció. Resolver alerta activa y olvidar el rechazo.
             $this->resolverActivaSiHay(BitacoraAlerta::RESOLUCION_AUTO);
             $this->guardarConfig(self::CFG_HUELLA_RECHAZADA, '');
@@ -142,7 +155,7 @@ final class InventarioCheckService
      * inalcanzable) se saltan: así un fallo transitorio de la API no fabrica "bajas".
      *
      * @param array{hoteles: list<array<string, mixed>>, totales: array<string, int>} $resultado
-     * @return list<array{hotel_codigo: string, hotel_nombre: string, accion: string, numero: string, room_id: string}>
+     * @return list<array{hotel_codigo: string, hotel_nombre: string, accion: string, numero: string, room_id: string, tipo: string, activa: string}>
      */
     private function cambiosAccionables(array $resultado): array
     {
@@ -158,6 +171,11 @@ final class InventarioCheckService
                     'accion' => (string) $c['accion'],
                     'numero' => (string) ($c['numero'] ?? ''),
                     'room_id' => (string) ($c['room_id'] ?? ''),
+                    // tipo/activa distinguen cambios sucesivos sobre la MISMA pieza (p.ej.
+                    // rechazar Singular→Doble y que luego cambie a Doble→Suite): sin esto la
+                    // huella colisionaría por igual accion/numero/room_id y no re-alertaría.
+                    'tipo' => (string) ($c['tipo'] ?? ''),
+                    'activa' => (string) ($c['activa'] ?? ''),
                 ];
             }
         }
@@ -168,11 +186,22 @@ final class InventarioCheckService
     private function huella(array $cambios): string
     {
         $keys = array_map(
-            static fn(array $c): string => $c['hotel_codigo'] . '|' . $c['accion'] . '|' . $c['numero'] . '|' . $c['room_id'],
+            static fn(array $c): string => $c['hotel_codigo'] . '|' . $c['accion'] . '|' . $c['numero'] . '|' . $c['room_id'] . '|' . $c['tipo'] . '|' . $c['activa'],
             $cambios
         );
         sort($keys);
         return hash('sha256', implode("\n", $keys));
+    }
+
+    /** @param array{hoteles: list<array<string, mixed>>} $resultado */
+    private function algunHotelConError(array $resultado): bool
+    {
+        foreach ($resultado['hoteles'] as $h) {
+            if (($h['error'] ?? null) !== null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
