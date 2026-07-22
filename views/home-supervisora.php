@@ -170,6 +170,9 @@ if ($hora < 12) {
                                             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1" x-text="al.descripcion"></p>
                                         </div>
                                     </div>
+                                    <template x-if="al.tipo === 'inventario_cambios_pendientes' && botonesAlerta(al).length > 0">
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mt-2 pl-11">¿Estás de acuerdo con estos cambios?</p>
+                                    </template>
                                     <template x-if="botonesAlerta(al).length > 0">
                                         <div class="flex gap-2 mt-3 pl-11">
                                             <template x-for="btn in botonesAlerta(al)" :key="btn.accion">
@@ -574,7 +577,8 @@ function homeSupervisora() {
                 'fin_turno_pendientes': 'clock',
                 'trabajador_disponible': 'user-check',
                 'ticket_nuevo': 'wrench',
-                'habitacion_saltada': 'skip-forward'
+                'habitacion_saltada': 'skip-forward',
+                'inventario_cambios_pendientes': 'refresh-cw'
             };
             return map[tipo] || 'bell';
         },
@@ -587,7 +591,8 @@ function homeSupervisora() {
                 'fin_turno_pendientes': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
                 'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
-                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+                'inventario_cambios_pendientes': 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -624,6 +629,14 @@ function homeSupervisora() {
             if (al.tipo === 'ticket_nuevo') {
                 return [{ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario }];
             }
+            if (al.tipo === 'inventario_cambios_pendientes') {
+                var puedeImportar = this.data && this.data.permisos && this.data.permisos.habitaciones_importar_inventario;
+                if (!puedeImportar) return [];
+                return [
+                    { accion: 'inventario_rechazar', etiqueta: 'Rechazar', clase: btnSecundario },
+                    { accion: 'inventario_aceptar', etiqueta: 'Aceptar', clase: btnPrimario }
+                ];
+            }
             return [];
         },
 
@@ -648,6 +661,34 @@ function homeSupervisora() {
             }
             if (accion === 'asignar') {
                 window.location.href = u('/asignaciones');
+                return;
+            }
+            if (accion === 'inventario_aceptar') {
+                try {
+                    var ra = await apiPost('/api/inventario/aplicar', { alerta_id: al.id });
+                    if (ra && ra.ok) {
+                        this.mostrarToast('exito', 'Inventario actualizado.');
+                        this.cargar();
+                    } else {
+                        this.mostrarToast('error', (ra && ra.error && ra.error.mensaje) || 'No pudimos actualizar el inventario.');
+                    }
+                } catch (e) {
+                    this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                }
+                return;
+            }
+            if (accion === 'inventario_rechazar') {
+                try {
+                    var rr = await apiPost('/api/inventario/rechazar', { alerta_id: al.id });
+                    if (rr && rr.ok) {
+                        this.mostrarToast('exito', 'Cambios descartados.');
+                        this.cargar();
+                    } else {
+                        this.mostrarToast('error', (rr && rr.error && rr.error.mensaje) || 'No pudimos descartar los cambios.');
+                    }
+                } catch (e) {
+                    this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                }
                 return;
             }
             // Acciones "genéricas" que resuelven la alerta en bitácora (cloudbeds retry, marcar atendido)

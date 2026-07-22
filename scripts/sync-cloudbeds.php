@@ -23,6 +23,8 @@ use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HotelService;
+use Atankalama\Limpieza\Services\InventarioCheckService;
+use Atankalama\Limpieza\Services\InventarioImportService;
 
 Config::load(dirname(__DIR__));
 
@@ -56,3 +58,18 @@ echo $hotelId !== null
 $syncId = $sync->sincronizar($hotelId, 'auto_cron', null);
 
 echo "Sync completada. sync_historial.id = {$syncId}\n";
+
+// Chequeo de inventario (altas/bajas de piezas en Cloudbeds). Se throttlea a 1 vez por día
+// dentro del propio servicio, así viaja en este mismo cron sin agregar otra entrada de crontab.
+// No es crítico: si falla, el sync ya está registrado; el próximo tick reintenta.
+try {
+    $check = new InventarioCheckService(new InventarioImportService(CloudbedsClient::desdeConfig()));
+    $rev = $check->revisar($force);
+    if ($rev['omitido'] ?? false) {
+        echo "Chequeo de inventario omitido (throttle diario).\n";
+    } else {
+        echo "Chequeo de inventario: {$rev['accion']} ({$rev['cambios']} cambios detectados).\n";
+    }
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Chequeo de inventario falló (no crítico): {$e->getMessage()}\n");
+}

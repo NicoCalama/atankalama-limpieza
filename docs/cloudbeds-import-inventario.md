@@ -1,5 +1,22 @@
 # Import del inventario real de habitaciones desde Cloudbeds
 
+> **Detección automática por alerta (21/07/2026).** Ya no hace falta acordarse de correr
+> el import a mano ni tener consola en el hosting. El cron de sync (`scripts/sync-cloudbeds.php`)
+> dispara un **chequeo throttleado a 1 vez por día** (`InventarioCheckService`) que corre el
+> import en **dry-run** (solo lee de Cloudbeds) y, si detecta altas/bajas de piezas, levanta la
+> alerta `inventario_cambios_pendientes` (P2) para la supervisora, con el detalle **hotel + número**
+> de cada cambio. En la Home de la supervisora aparece con dos botones:
+> - **Aceptar** → `POST /api/inventario/aplicar` aplica el import (crea/da de baja las piezas) y
+>   resuelve la alerta.
+> - **Rechazar** → `POST /api/inventario/rechazar` descarta los cambios y guarda su "huella"; **no
+>   se vuelve a molestar hasta que el set cambie** (si Cloudbeds cambia de nuevo, avisa otra vez).
+>
+> Ambos endpoints exigen el permiso `habitaciones.importar_inventario` (Admin + Supervisora). Si
+> en un chequeo ya no hay diferencias, la alerta se auto-resuelve. Piezas: `InventarioCheckService`,
+> `InventarioController`, `scripts/check-inventario-cloudbeds.php` (chequeo manual con `--force`),
+> tipo de alerta en `AlertaActiva` + `scripts/migrate-add-inventario-alerta.php` (CHECK).
+> Esto NO cambia el import en sí: sigue siendo el mismo `InventarioImportService` idempotente.
+
 > **Estado:** IMPLEMENTADO (30/06/2026). Script `scripts/import-inventario-cloudbeds.php` +
 > `src/Services/InventarioImportService.php` + `tests/Integration/InventarioImportServiceTest.php`.
 >
@@ -124,4 +141,6 @@ Pendiente operativo (no de código):
 - Correr el import real en baja ocupación: `php scripts/import-inventario-cloudbeds.php --dry-run`
   para revisar el plan, y luego sin `--dry-run` para aplicarlo.
 - La supervisora personaliza los checklist templates por tipo desde la UI si el default no alcanza.
-- Evaluar si el import pasa a cron periódico (hoy es on-demand).
+- ~~Evaluar si el import pasa a cron periódico (hoy es on-demand).~~ **Resuelto (21/07/2026):**
+  detección automática diaria + alerta con Aceptar/Rechazar (ver bloque de estado arriba). El
+  import a mano por CLI sigue disponible para casos puntuales.

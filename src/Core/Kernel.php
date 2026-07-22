@@ -16,6 +16,7 @@ use Atankalama\Limpieza\Controllers\CopilotController;
 use Atankalama\Limpieza\Controllers\EspaciosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
+use Atankalama\Limpieza\Controllers\InventarioController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\PushController;
@@ -154,6 +155,18 @@ final class Kernel
         $router->put('/api/cloudbeds/config', [$cloudbeds, 'actualizarConfig'], [
             $authCheck,
             new PermissionCheck('cloudbeds.configurar_credenciales'),
+        ]);
+
+        // Inventario — aplicar/rechazar las altas/bajas de piezas detectadas en Cloudbeds
+        // (la detección + alerta vive en InventarioCheckService, disparada por el cron).
+        $inventario = new InventarioController();
+        $router->post('/api/inventario/aplicar', [$inventario, 'aplicar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.importar_inventario'),
+        ]);
+        $router->post('/api/inventario/rechazar', [$inventario, 'rechazar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.importar_inventario'),
         ]);
 
         // Checklists y ejecuciones

@@ -13,6 +13,7 @@ final class AlertaActiva
     public const TIPO_TRABAJADOR_DISPONIBLE = 'trabajador_disponible';
     public const TIPO_TICKET_NUEVO = 'ticket_nuevo';
     public const TIPO_HABITACION_SALTADA = 'habitacion_saltada';
+    public const TIPO_INVENTARIO_CAMBIOS = 'inventario_cambios_pendientes';
 
     public const TIPOS_VALIDOS = [
         self::TIPO_CLOUDBEDS_SYNC_FAILED,
@@ -22,6 +23,7 @@ final class AlertaActiva
         self::TIPO_TRABAJADOR_DISPONIBLE,
         self::TIPO_TICKET_NUEVO,
         self::TIPO_HABITACION_SALTADA,
+        self::TIPO_INVENTARIO_CAMBIOS,
     ];
 
     public const PRIORIDAD_POR_TIPO = [
@@ -32,6 +34,7 @@ final class AlertaActiva
         self::TIPO_TRABAJADOR_DISPONIBLE => 2,
         self::TIPO_TICKET_NUEVO => 2,
         self::TIPO_HABITACION_SALTADA => 2,
+        self::TIPO_INVENTARIO_CAMBIOS => 2,
     ];
 
     public function __construct(

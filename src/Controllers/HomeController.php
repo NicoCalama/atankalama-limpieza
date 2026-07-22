@@ -292,6 +292,7 @@ final class HomeController
                 'alertas_recibir_predictivas' => $usuario->tienePermiso('alertas.recibir_predictivas'),
                 'auditoria_ver_bandeja' => $usuario->tienePermiso('auditoria.ver_bandeja'),
                 'tickets_ver_todos' => $usuario->tienePermiso('tickets.ver_todos'),
+                'habitaciones_importar_inventario' => $usuario->tienePermiso('habitaciones.importar_inventario'),
             ],
         ]);
     }

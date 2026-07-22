@@ -403,3 +403,58 @@ que empiecen después usan la nueva.
 > operación**: limpiar, marcar ítems, auditar, asignar y los reportes no tocan esas
 > columnas. Solo quedan caídos el editor de checklists, su historial y el alta/edición
 > de áreas comunes, hasta que se aplique la migración.
+
+### 11.3 SQL del release "alerta de inventario Cloudbeds" (phpMyAdmin)
+
+Detección automática de altas/bajas de piezas en Cloudbeds → alerta a la supervisora
+con Aceptar/Rechazar (ver `docs/cloudbeds-import-inventario.md`). Dos cambios en prod:
+un **tipo de alerta nuevo** (CHECK) y un **permiso nuevo**.
+
+**Vía recomendada (prod tiene PHP CLI):** correr los dos, son idempotentes y no borran
+nada:
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-inventario-alerta.php   # amplía el CHECK
+/opt/alt/php84/usr/bin/php scripts/init-db.php                         # sync RBAC: agrega el permiso + rol_permisos
+```
+
+`init-db.php` detecta que el schema ya está y **solo** corre el sync idempotente de
+permisos (INSERT OR IGNORE); no toca datos. `migrate-add-inventario-alerta.php` es
+re-corrible (si el tipo ya está, no hace nada).
+
+**Fallback phpMyAdmin** (si no se quiere tocar la CLI). Correr **antes** de extraer el ZIP:
+
+```sql
+-- 1) Tipo de alerta nuevo: ampliar el CHECK de `tipo`. El CHECK tiene nombre
+--    autogenerado; ubicalo primero (suele ser 'CONSTRAINT_1' o similar):
+SELECT CONSTRAINT_NAME FROM information_schema.CHECK_CONSTRAINTS
+ WHERE CONSTRAINT_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'limpieza_alertas_activas'
+   AND CHECK_CLAUSE LIKE '%cloudbeds_sync_failed%';
+
+-- ...y con ese nombre (reemplazá <NOMBRE>):
+ALTER TABLE limpieza_alertas_activas
+  DROP CONSTRAINT `<NOMBRE>`,
+  ADD  CONSTRAINT `<NOMBRE>` CHECK (tipo IN (
+    'cloudbeds_sync_failed','trabajador_en_riesgo','habitacion_rechazada',
+    'fin_turno_pendientes','trabajador_disponible','ticket_nuevo',
+    'habitacion_saltada','inventario_cambios_pendientes'));
+
+-- 2) Permiso nuevo + otorgarlo a Supervisora y Admin (Admin materializa __ALL__ en filas).
+INSERT IGNORE INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+VALUES ('habitaciones.importar_inventario',
+        'Aplicar altas/bajas de habitaciones detectadas en Cloudbeds', 'Cloudbeds', 'global');
+
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'habitaciones.importar_inventario' FROM limpieza_roles WHERE nombre IN ('Supervisora','Admin');
+```
+
+Si el código sube antes que el SQL: la operación normal no se entera; solo que la
+alerta de inventario no se puede levantar (el `INSERT` de la alerta viola el CHECK) ni
+aplicar (falta el permiso → 403) hasta correr la migración.
+
+**Smoke específico** (toca lo que cambió, no un health verde): con un usuario Supervisora,
+`POST /api/inventario/rechazar` sin body debe dar **400** (`ALERTA_REQUERIDA`), no 403 —
+eso prueba que el permiso llegó. Y forzar un chequeo con
+`php scripts/check-inventario-cloudbeds.php --force` debe imprimir "sin cambios" o
+"alerta levantada" sin error de CHECK.

@@ -35,6 +35,7 @@ return [
             'espacios.ver',
             'espacios.crear_editar',
             'espacios.pedir_limpieza',
+            'habitaciones.importar_inventario',
             'auditoria.ver_bandeja',
             'auditoria.aprobar',
             'auditoria.aprobar_con_observacion',

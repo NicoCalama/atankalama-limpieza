@@ -59,6 +59,7 @@ return [
     ['cloudbeds.ver_estado_sincronizacion', 'Ver estado de sincronización Cloudbeds', 'Cloudbeds', 'global'],
     ['cloudbeds.forzar_sincronizacion', 'Disparar sincronización manual', 'Cloudbeds', 'global'],
     ['cloudbeds.configurar_credenciales', 'Editar configuración Cloudbeds', 'Cloudbeds', 'global'],
+    ['habitaciones.importar_inventario', 'Aplicar altas/bajas de habitaciones detectadas en Cloudbeds', 'Cloudbeds', 'global'],
 
     ['kpis.ver_propios', 'Ver KPIs personales', 'KPIs', 'propio'],
     ['kpis.ver_operativas', 'Ver KPIs operativos del equipo', 'KPIs', 'global'],
