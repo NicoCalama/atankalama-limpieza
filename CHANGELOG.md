@@ -27,6 +27,7 @@ medios**.
 
 | Versión | Qué cambió |
 |---|---|
+| **v2.6** · 25/07/2026 | Corrección interna del service worker que evitaba un error en la consola al abrir la app (no afectaba el uso) |
 | **v2.5** · 22/07/2026 | Los checklists ahora se guían por el tipo real de cada habitación en Cloudbeds (antes se agrupaban por capacidad de forma aproximada) · Nueva opción para separar los checklists por hotel: podés personalizar un tipo en una propiedad sin afectar la otra |
 | **v2.4** · 21/07/2026 | Aviso automático a la supervisora cuando se agregan o quitan habitaciones en Cloudbeds, con opción de aceptar o rechazar el cambio |
 | **v2.3** · 21/07/2026 | Corrección al editar un mismo checklist desde dos sesiones a la vez (antes daba un error genérico y el editor se trababa) · Corrección al heredar el trabajo previo en una re-limpieza cuando cambia el tipo de la habitación |

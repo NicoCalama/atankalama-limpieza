@@ -7,7 +7,7 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v6'; // v6: clases semánticas de colores configurables en custom.css
+const CACHE_VERSION = 'v7'; // v7: fix clone de Response en cacheFirst (evita el throw "body already used")
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
@@ -94,8 +94,14 @@ async function cacheFirst(request, cacheName) {
 
     var fetchPromise = fetch(new Request(request.url, { cache: 'reload' })).then(function(response) {
         if (response && response.ok) {
+            // Clonar ACÁ, sincrónico, mientras el body sigue intacto. Si esto es un cache
+            // miss, `response` (el original) se devuelve abajo y el respondWith empieza a
+            // consumir su body en paralelo; clonar recién dentro del then async de
+            // caches.open llegaría tarde → "Failed to execute 'clone' on 'Response': body
+            // already used". El clon guardado en cache es una copia aparte del original.
+            var copia = response.clone();
             caches.open(cacheName).then(function(cache) {
-                cache.put(request, response.clone());
+                cache.put(request, copia);
             });
         }
         return response;
