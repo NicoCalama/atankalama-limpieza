@@ -45,6 +45,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('habitacion.detalle', 'habitacion-detalle', ['habitacionId' => 1]);
     }
 
+    public function test_anclas_de_auditoria_bandeja(): void
+    {
+        // /auditoria → 'auditoria.bandeja' (ruta fija en MAP).
+        $this->verificarAnclas('auditoria.bandeja', 'auditoria-bandeja');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
@@ -105,6 +111,7 @@ final class ToursAnchorTest extends TestCase
                 'asignaciones.auto_asignar',
                 'alertas.recibir_predictivas',
                 'habitaciones.marcar_completada',
+                'auditoria.ver_bandeja',
             ],
             roles: ['Supervisora'],
         );

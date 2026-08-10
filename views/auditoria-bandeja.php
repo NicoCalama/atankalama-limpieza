@@ -36,7 +36,7 @@
 
     <main class="pb-24 md:pb-8 px-4 py-4 max-w-5xl mx-auto">
 
-        <div class="mb-4">
+        <div class="mb-4" data-tour="aud.hotel">
             <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Hotel</p>
             <div class="flex gap-2 flex-wrap">
                 <template x-for="h in hotelOpciones" :key="h.valor">
@@ -88,7 +88,7 @@
         </template>
 
         <template x-if="pendientes.length > 0">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div data-tour="aud.lista" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in pendientes" :key="hab.id">
                     <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
                        class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex flex-col gap-2">

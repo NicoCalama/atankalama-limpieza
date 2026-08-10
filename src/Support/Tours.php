@@ -300,6 +300,51 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  AUDITORÍA · BANDEJA — vista: views/auditoria-bandeja.php
+            //  Ruta /auditoria (fija). Es un lanzador: lista las piezas «Por
+            //  auditar» y entra a cada una a dar el veredicto (eso vive en el
+            //  detalle /auditoria/{id}, otra pantalla). Por eso solo 2 tareas.
+            // ════════════════════════════════════════════════════════════
+            'auditoria.bandeja' => [
+                'nombre'    => 'Auditoría',
+                'capacidad' => 'auditoria.ver_bandeja',
+                'recorridos' => [
+
+                    // ── 1. El trabajo: revisar lo terminado. ──
+                    [
+                        'id'       => 'auditar',
+                        'v'        => 1,
+                        'titulo'   => 'Auditar una habitación',
+                        'pregunta' => '¿Cómo reviso lo que se limpió?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="aud.lista"]',
+                                'titulo' => 'Lo que espera tu revisión',
+                                'texto'  => 'Cada tarjeta es una pieza que un trabajador dio por terminada y espera tu revisión. Tócala para abrir su checklist y dar tu veredicto.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Filtrar la vista. ──
+                    [
+                        'id'       => 'hotel',
+                        'v'        => 1,
+                        'titulo'   => 'Filtrar por hotel',
+                        'pregunta' => '¿Cómo veo un solo hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="aud.hotel"]',
+                                'titulo' => 'Un hotel o los dos',
+                                'texto'  => 'Con estos botones ves solo un hotel o los dos juntos. Lo que elijas se recuerda para la próxima vez que entres.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════
