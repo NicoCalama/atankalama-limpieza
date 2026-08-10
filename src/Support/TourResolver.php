@@ -36,6 +36,7 @@ final class TourResolver
         '/auditoria'    => 'auditoria.bandeja',
         '/espacios'     => 'espacios',
         '/tickets'      => 'tickets',
+        '/habitaciones' => 'habitaciones',
     ];
 
     /**

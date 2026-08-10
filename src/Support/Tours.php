@@ -530,6 +530,56 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  HABITACIONES · LISTA — vista: views/habitaciones.php
+            //  Ruta /habitaciones (fija). Role-aware: con habitaciones.ver_todas
+            //  muestra la grilla completa + filtros (gateados por PHP). Gate de
+            //  pantalla por ver_todas (la vista de panorama de la supervisora).
+            // ════════════════════════════════════════════════════════════
+            'habitaciones' => [
+                'nombre'    => 'Habitaciones',
+                'capacidad' => 'habitaciones.ver_todas',
+                'recorridos' => [
+
+                    // ── 1. Leer el panorama. ──
+                    [
+                        'id'       => 'panorama',
+                        'v'        => 1,
+                        'titulo'   => 'Ver el panorama',
+                        'pregunta' => '¿Qué me dice cada tarjeta?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hb.grid"]',
+                                'titulo' => 'Una tarjeta por pieza',
+                                'texto'  => 'Cada tarjeta es una pieza con su estado (pendiente, en progreso, por auditar, lista…) y su hotel. Tócala para entrar a su detalle.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="hb.grid"]',
+                                'titulo' => 'Los avisos de la tarjeta',
+                                'texto'  => 'Algunas traen avisos: «Llega hoy», «Se va hoy», «Día/noche» o «Sábanas hoy», según la ocupación que llega de Cloudbeds.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Filtrar la lista. ──
+                    [
+                        'id'       => 'filtrar',
+                        'v'        => 1,
+                        'titulo'   => 'Filtrar la lista',
+                        'pregunta' => '¿Cómo veo solo las sucias?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hb.filtros"]',
+                                'titulo' => 'Por hotel y por estado',
+                                'texto'  => 'Filtra por hotel y por estado (sucias, por auditar, rechazadas…). Lo que elijas se recuerda para la próxima vez.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

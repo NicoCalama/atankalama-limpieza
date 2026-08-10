@@ -69,6 +69,13 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('tickets', 'tickets');
     }
 
+    public function test_anclas_de_habitaciones(): void
+    {
+        // /habitaciones → 'habitaciones' (ruta fija en MAP). Los filtros están
+        // gateados por PHP (habitaciones.ver_todas), que el stub tiene.
+        $this->verificarAnclas('habitaciones', 'habitaciones');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
@@ -129,6 +136,7 @@ final class ToursAnchorTest extends TestCase
                 'asignaciones.auto_asignar',
                 'alertas.recibir_predictivas',
                 'habitaciones.marcar_completada',
+                'habitaciones.ver_todas',
                 'auditoria.ver_bandeja',
                 'espacios.ver',
                 'espacios.crear_editar',

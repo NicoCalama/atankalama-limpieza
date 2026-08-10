@@ -42,7 +42,7 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
 
         <?php if ($puedeVerTodas): ?>
         <!-- Filtros (solo roles con habitaciones.ver_todas) -->
-        <div class="mb-4 space-y-3">
+        <div class="mb-4 space-y-3" data-tour="hb.filtros">
             <!-- Hotel -->
             <div>
                 <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Hotel</p>
@@ -120,7 +120,7 @@ $puedeVerTodas = $usuario->tienePermiso('habitaciones.ver_todas');
 
         <!-- Grid de tarjetas -->
         <template x-if="habitaciones.length > 0">
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div data-tour="hb.grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 <template x-for="hab in habitaciones" :key="hab.id">
                     <a :href="u('/habitaciones/' + hab.id)"
                        class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 p-4 hover:shadow-md transition shadow-sm flex flex-col gap-2"
