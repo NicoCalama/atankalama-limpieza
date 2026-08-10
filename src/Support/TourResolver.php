@@ -44,6 +44,7 @@ final class TourResolver
      */
     private const PATRONES = [
         '#^/habitaciones/\d+$#' => 'habitacion.detalle',
+        '#^/auditoria/\d+$#'    => 'auditoria.detalle',
     ];
 
     /**

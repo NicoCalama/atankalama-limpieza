@@ -178,7 +178,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
             <!-- Checklist -->
             <template x-if="items.length > 0">
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div data-tour="aud2.checklist" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Checklist ejecutado</p>
                     </div>
@@ -237,7 +237,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
             <!-- Botones de acción (modo inicial) -->
             <template x-if="!esAuditada && modo === null">
-                <div class="space-y-2">
+                <div class="space-y-2" data-tour="aud2.acciones">
                     <template x-if="puedeAprobar">
                         <button @click="pedirConfirmacionAprobar()"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">

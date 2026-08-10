@@ -345,6 +345,62 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  AUDITORÍA · DETALLE — vista: views/auditoria-detalle.php
+            //  Ruta /auditoria/{id} (TourResolver por patrón). Pendiente:
+            //  3 veredictos (aprobar / con observación / rechazar). Ya auditada:
+            //  read-only (inmutable). Recorridos explicativos; los botones solo
+            //  existen en el estado pendiente → fallback honesto si no están.
+            // ════════════════════════════════════════════════════════════
+            'auditoria.detalle' => [
+                'nombre'    => 'Auditar una habitación',
+                'capacidad' => 'auditoria.ver_bandeja',
+                'recorridos' => [
+
+                    // ── 1. El corazón de la pantalla: los 3 veredictos. ──
+                    [
+                        'id'       => 'veredicto',
+                        'v'        => 1,
+                        'titulo'   => 'Dar el veredicto',
+                        'pregunta' => '¿Aprobar, con obs. o rechazar?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="aud2.acciones"]',
+                                'titulo' => 'Tres caminos, no dos',
+                                'texto'  => 'Tres veredictos: «Aprobar» (todo bien), «Aprobar con observación» (algo menor, queda anotado) y «Rechazar» (a re-limpiar). El trabajador no ve la observación como un rechazo.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="aud2.acciones"]',
+                                'titulo' => 'Con observación no es rechazar',
+                                'texto'  => '«Con observación» deja la pieza limpia igual, con una nota; «Rechazar» la manda de vuelta a sucia para re-limpiarla.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="aud2.acciones"]',
+                                'titulo' => 'No hay vuelta atrás',
+                                'texto'  => 'Cuando das un veredicto, la pieza queda auditada y no se puede volver a auditar. Revísala bien antes de confirmar.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. El checklist ejecutado (ver + desmarcar). ──
+                    [
+                        'id'       => 'checklist',
+                        'v'        => 1,
+                        'titulo'   => 'Revisar lo hecho',
+                        'pregunta' => '¿Cómo marco lo que quedó mal?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="aud2.checklist"]',
+                                'titulo' => 'Lo que marcó el trabajador',
+                                'texto'  => 'Acá ves lo que el trabajador marcó. En «con observación» o «rechazo», desmarca los ítems que quedaron mal antes de confirmar.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

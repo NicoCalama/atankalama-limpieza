@@ -51,6 +51,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('auditoria.bandeja', 'auditoria-bandeja');
     }
 
+    public function test_anclas_de_auditoria_detalle(): void
+    {
+        // /auditoria/{id} → 'auditoria.detalle' (TourResolver por patrón).
+        $this->verificarAnclas('auditoria.detalle', 'auditoria-detalle', ['habitacionId' => 1]);
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
