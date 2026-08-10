@@ -580,6 +580,53 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  AJUSTES · TURNOS — vista: views/ajustes-turnos.php
+            //  Ruta /ajustes/turnos (fija). Dos pestañas: «Catálogo» (los turnos)
+            //  y «Asignación» (calendario semanal). Como las pestañas son x-show
+            //  (ambas en el DOM), el recorrido de asignación ancla a las PESTAÑAS
+            //  (siempre visibles), no al calendario oculto en la otra pestaña.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.turnos' => [
+                'nombre'    => 'Turnos',
+                'capacidad' => 'turnos.ver',
+                'recorridos' => [
+
+                    // ── 1. El catálogo de turnos. ──
+                    [
+                        'id'       => 'catalogo',
+                        'v'        => 1,
+                        'titulo'   => 'Definir los turnos',
+                        'pregunta' => '¿Cómo defino un turno?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tur.catalogo"]',
+                                'titulo' => 'Los turnos y su horario',
+                                'texto'  => 'En «Catálogo» ves los turnos con su horario (mañana, tarde…). Con «Nuevo turno» creas uno y el lápiz lo edita.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Asignar la semana. Solo con permiso. ──
+                    [
+                        'id'        => 'asignar',
+                        'v'         => 1,
+                        'titulo'    => 'Armar la semana',
+                        'pregunta'  => '¿Cómo pongo quién trabaja?',
+                        'capacidad' => 'turnos.asignar_a_usuario',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tur.tabs"]',
+                                'titulo' => 'El calendario de la semana',
+                                'texto'  => 'Cambia a la pestaña «Asignación»: es un calendario con cada trabajador y cada día. Tocas una celda para ponerle un turno.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

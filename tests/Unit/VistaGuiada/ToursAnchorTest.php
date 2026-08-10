@@ -76,6 +76,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('habitaciones', 'habitaciones');
     }
 
+    public function test_anclas_de_ajustes_turnos(): void
+    {
+        // /ajustes/turnos → 'ajustes.turnos' (ruta fija en MAP).
+        $this->verificarAnclas('ajustes.turnos', 'ajustes-turnos');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
@@ -142,6 +148,9 @@ final class ToursAnchorTest extends TestCase
                 'espacios.crear_editar',
                 'tickets.ver_todos',
                 'tickets.crear',
+                'turnos.ver',
+                'turnos.crear_editar',
+                'turnos.asignar_a_usuario',
             ],
             roles: ['Supervisora'],
         );

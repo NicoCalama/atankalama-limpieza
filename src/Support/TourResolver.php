@@ -37,6 +37,7 @@ final class TourResolver
         '/espacios'     => 'espacios',
         '/tickets'      => 'tickets',
         '/habitaciones' => 'habitaciones',
+        '/ajustes/turnos' => 'ajustes.turnos',
     ];
 
     /**

@@ -38,7 +38,7 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
             </div>
         </div>
         <!-- Tabs -->
-        <div class="max-w-6xl mx-auto mt-3 flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-3">
+        <div class="max-w-6xl mx-auto mt-3 flex gap-1 border-b border-gray-200 dark:border-gray-700 -mb-3" data-tour="tur.tabs">
             <button type="button" @click="cambiarTab('catalogo')"
                     :class="tab === 'catalogo'
                         ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -75,7 +75,7 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                 <p class="text-sm text-gray-500 dark:text-gray-400">No hay turnos configurados.</p>
             </div>
 
-            <div x-show="!cargandoCatalogo && catalogo.length > 0" x-cloak class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div x-show="!cargandoCatalogo && catalogo.length > 0" x-cloak data-tour="tur.catalogo" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <template x-for="t in catalogo" :key="t.id">
                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                         <div class="flex items-start justify-between gap-3">
