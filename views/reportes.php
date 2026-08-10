@@ -25,7 +25,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-                <button @click="exportar()"
+                <button @click="exportar()" data-tour="rep.exportar"
                         :disabled="cargando || exportando"
                         class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
                                text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
@@ -40,7 +40,7 @@
     <main class="max-w-5xl mx-auto p-4 pb-24 md:pb-6 space-y-4">
 
         <!-- Filtros -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4" data-tour="rep.filtros">
 
             <!-- Presets de período -->
             <div class="flex flex-wrap gap-2 mb-3">
@@ -124,7 +124,7 @@
             <div class="space-y-4">
 
                 <!-- Grid de KPIs -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-tour="rep.kpis">
                     <template x-for="kpi in tarjetasKpi()" :key="kpi.clave">
                         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-2">
                             <!-- Título + indicador estado -->
@@ -183,7 +183,7 @@
 
                 <!-- Tabla por trabajadora (solo si no hay filtro por persona) -->
                 <template x-if="data.por_trabajadora && data.por_trabajadora.length > 0 && !usuarioId">
-                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.tabla">
                         <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Detalle por trabajadora</h2>
                             <span class="text-xs text-gray-400 dark:text-gray-500" x-text="data.por_trabajadora.length + ' trabajadoras'"></span>
@@ -246,7 +246,7 @@
         </template>
 
         <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0">
                     <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
@@ -309,7 +309,7 @@
         </section>
 
         <!-- Resumen mensual de auditorías por auditor (Supervisora / Recepción) -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.auditorias">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0">
                     <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0"></i>

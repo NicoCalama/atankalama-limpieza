@@ -77,12 +77,12 @@
     <!-- Lista de templates -->
     <template x-if="templates">
         <main class="pb-32 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-4">
-            <p class="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded-lg px-3 py-2">
+            <p class="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded-lg px-3 py-2" data-tour="chk.intro">
                 Cada ítem obligatorio otorga sus créditos cuando el trabajador lo completa. Los ítems opcionales no dan créditos.
             </p>
 
             <!-- Ámbito por hotel: toggle + selector -->
-            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3" data-tour="chk.por-hotel">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Separar checklists por hotel</p>
@@ -128,7 +128,7 @@
                 </div>
             </template>
 
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid gap-3 sm:grid-cols-2" data-tour="chk.tarjetas">
                 <template x-for="t in templates" :key="t.id">
                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
                         <div class="min-w-0">

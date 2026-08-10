@@ -27,7 +27,7 @@ require_once __DIR__ . '/componentes/avatar.php';
             <div class="flex items-center gap-2">
                 <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
                 <button type="button"
-                        @click="abrirCrear()"
+                        @click="abrirCrear()" data-tour="usr.nuevo"
                         class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
                     <i data-lucide="user-plus" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Nuevo usuario</span>
@@ -55,7 +55,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <!-- Filtros -->
         <div class="space-y-3 mb-4">
             <!-- Búsqueda -->
-            <div class="relative">
+            <div class="relative" data-tour="usr.buscar">
                 <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 <input type="text"
                        x-model="busqueda"
@@ -65,7 +65,7 @@ require_once __DIR__ . '/componentes/avatar.php';
             </div>
 
             <!-- Rol -->
-            <div class="flex items-center gap-2 overflow-x-auto pb-1">
+            <div class="flex items-center gap-2 overflow-x-auto pb-1" data-tour="usr.filtro-rol">
                 <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">Rol:</span>
                 <template x-for="opt in filtrosRol" :key="opt.valor">
                     <button type="button"
@@ -77,7 +77,7 @@ require_once __DIR__ . '/componentes/avatar.php';
             </div>
 
             <!-- Activo -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2" data-tour="usr.filtro-estado">
                 <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado:</span>
                 <template x-for="opt in filtrosActivo" :key="opt.valor">
                     <button type="button"
@@ -111,7 +111,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         </template>
 
         <!-- Lista -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" x-show="usuarios.length > 0">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" data-tour="usr.lista" x-show="usuarios.length > 0">
             <template x-for="u in usuarios" :key="u.id">
                 <button type="button"
                         @click="abrirDetalle(u)"

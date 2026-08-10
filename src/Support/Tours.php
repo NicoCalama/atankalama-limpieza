@@ -818,6 +818,283 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  USUARIOS — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'usuarios' => [
+                'nombre' => 'Usuarios',
+                'capacidad' => 'usuarios.ver',
+                'recorridos' => [
+                    [
+                        'id' => 'crear-usuario', 'v' => 1,
+                        'titulo' => 'Crear una cuenta',
+                        'pregunta' => '¿Cómo agrego a alguien nuevo al equipo?',
+                        'capacidad' => 'usuarios.crear',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="usr.nuevo"]', 'titulo' => 'Dar de alta a una persona',
+                             'texto' => 'Con «Nuevo usuario» se abre un formulario para cargar RUT, nombre y al menos un rol. Al crear, la app genera una contraseña temporal que anotas y le entregas; la deberá cambiar al entrar.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'buscar-usuario', 'v' => 1,
+                        'titulo' => 'Buscar a una persona',
+                        'pregunta' => '¿Cómo encuentro a una persona en la lista?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="usr.buscar"]', 'titulo' => 'Buscar por nombre o RUT',
+                             'texto' => 'Escribe un nombre o un RUT y la lista se va filtrando sola mientras escribes. Quedan solo las personas que coinciden.'],
+                            ['sel' => '[data-tour="usr.filtro-rol"]', 'titulo' => 'Acotar por rol',
+                             'texto' => 'Estos botones acotan por rol: «Trabajadores», «Supervisoras», «Recepción» o «Admins». Toca uno y la lista muestra solo ese grupo.'],
+                            ['sel' => '[data-tour="usr.filtro-estado"]', 'titulo' => 'Activos o inactivos',
+                             'texto' => 'Con «Activos» ves a quién puede entrar a la app y con «Inactivos» a quién está deshabilitado. «Todos» los muestra juntos.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'editar-usuario', 'v' => 1,
+                        'titulo' => 'Editar datos y roles',
+                        'pregunta' => '¿Cómo cambio los datos o el rol de alguien?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="usr.lista"]', 'titulo' => 'Abrir la ficha de una persona',
+                             'texto' => 'Cada tarjeta es una persona con su nombre, RUT y roles. Al tocarla se abre su ficha, donde puedes cambiar nombre, email y hotel, y agregar o quitar roles según tus permisos.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'resetear-desactivar', 'v' => 1,
+                        'titulo' => 'Resetear clave o desactivar',
+                        'pregunta' => '¿Cómo reseteo la clave o desactivo a alguien?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="usr.lista"]', 'titulo' => 'Acciones desde la ficha',
+                             'texto' => 'Al abrir la ficha de una persona puedes generar una nueva contraseña temporal si la olvidó, o desactivarla para que no entre a la app. Ambas acciones dependen de tus permisos.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  REPORTES — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'reportes' => [
+                'nombre' => 'Reportes y KPIs',
+                'capacidad' => 'reportes.ver',
+                'recorridos' => [
+                    [
+                        'id' => 'filtrar', 'v' => 1,
+                        'titulo' => 'Filtrar los indicadores',
+                        'pregunta' => '¿Cómo veo los KPIs del período?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rep.filtros"]', 'titulo' => 'Elige período y hotel',
+                             'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango «Desde»–«Hasta». Los selectores de hotel y trabajadora afinan los datos, que se recalculan al elegir.'],
+                            ['sel' => '[data-tour="rep.kpis"]', 'titulo' => 'Los KPIs del equipo',
+                             'texto' => 'Cada tarjeta resume un indicador del período: tiempo promedio, tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
+                            ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
+                             'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'descargar', 'v' => 1,
+                        'titulo' => 'Descargar los reportes',
+                        'pregunta' => '¿Cómo exporto los datos a una planilla?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Bajar los KPIs del período',
+                             'texto' => 'El botón «Exportar Excel» genera un archivo con los indicadores del período y los filtros elegidos, listo para abrir en Excel.'],
+                            ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Bajar el mes por trabajador',
+                             'texto' => 'Dentro de «Resumen mensual por trabajador», «Exportar» descarga la planilla del mes elegido con las habitaciones y créditos de cada persona.'],
+                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Bajar el mes de auditorías',
+                             'texto' => 'En «Resumen mensual de auditorías», «Exportar» descarga la planilla del mes con el total y el desglose por auditor.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'mensuales', 'v' => 1,
+                        'titulo' => 'Consultar los resúmenes',
+                        'pregunta' => '¿Cómo veo los totales de cada mes?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
+                             'texto' => 'Elige un mes arriba y la tabla muestra, por trabajador, cuántas habitaciones limpió y sus créditos frente al máximo posible.'],
+                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Auditorías del mes',
+                             'texto' => 'Aquí ves, por auditor, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.RBAC — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.rbac' => [
+                'nombre' => 'Roles y permisos',
+                'capacidad' => 'permisos.asignar_a_rol',
+                'recorridos' => [
+                    [
+                        'id' => 'editar-matriz', 'v' => 1,
+                        'titulo' => 'Cambiar los permisos',
+                        'pregunta' => '¿Cómo doy o quito permisos a un rol?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rbac.matriz"]', 'titulo' => 'La matriz de roles y permisos',
+                             'texto' => 'Cada fila es un permiso y cada columna un rol. Toca la casilla del cruce para darle o quitarle ese permiso al rol; la que cambies queda con un borde ámbar hasta que guardes.'],
+                            ['sel' => '[data-tour="rbac.guardar"]', 'titulo' => 'Guardar o descartar',
+                             'texto' => 'Al cambiar algo aparece esta franja con los cambios sin guardar. «Guardar cambios» los aplica y «Descartar» los deshace; si te quitas «permisos.asignar_a_rol» te avisa que perderás el acceso.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'crear-rol', 'v' => 1,
+                        'titulo' => 'Crear un rol',
+                        'pregunta' => '¿Cómo creo un rol nuevo?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rbac.nuevo-rol"]', 'titulo' => 'Crear un rol nuevo',
+                             'texto' => 'El botón «Nuevo rol» abre un formulario para crear un rol. Cuando lo guardas aparece como una columna más en la matriz, lista para asignarle permisos.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'editar-borrar-rol', 'v' => 1,
+                        'titulo' => 'Editar o borrar roles',
+                        'pregunta' => '¿Cómo edito o elimino un rol?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rbac.cabecera"]', 'titulo' => 'Editar un rol',
+                             'texto' => 'En la cabecera de cada columna, el lápiz abre el rol para cambiar su nombre o descripción. En los roles de sistema (etiqueta «sys») el lápiz solo deja editar la descripción.'],
+                            ['sel' => '[data-tour="rbac.cabecera"]', 'titulo' => 'Eliminar un rol',
+                             'texto' => 'El tacho rojo borra el rol, previa confirmación. Solo aparece en los roles que no son de sistema, y si el rol tiene usuarios asignados la operación falla.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.CHECKLISTS — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.checklists' => [
+                'nombre' => 'Editor de checklists',
+                'capacidad' => 'checklists.editar',
+                'recorridos' => [
+                    [
+                        'id' => 'editar', 'v' => 1,
+                        'titulo' => 'Editar el checklist',
+                        'pregunta' => '¿Cómo cambio los ítems y créditos de un tipo?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cada tipo, su checklist',
+                             'texto' => 'Cada tarjeta es un tipo de habitación con sus ítems y créditos. Al tocar «Editar checklist» se abre el editor para agregar, quitar y reordenar ítems, y ponerles créditos.'],
+                            ['sel' => '[data-tour="chk.intro"]', 'titulo' => 'Qué ítems dan créditos',
+                             'texto' => 'Solo los ítems marcados «Obligatorio» suman créditos cuando el trabajador los completa. Los opcionales no dan créditos, así que el total premia lo que de verdad importa.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'por-hotel', 'v' => 1,
+                        'titulo' => 'Separar por hotel',
+                        'pregunta' => '¿Cómo le doy su propio checklist a cada hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="chk.por-hotel"]', 'titulo' => 'Un checklist por hotel',
+                             'texto' => 'Al activar «Separar checklists por hotel», cada hotel puede tener su propia versión de un tipo; si no la tiene, usa la compartida. Aparece un selector «Compartido» y un botón por hotel para elegir cuál editas.'],
+                            ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cambios solo de ese hotel',
+                             'texto' => 'Con un hotel elegido, la tarjeta dice «Personalizar» cuando ese tipo todavía usa el compartido. Al guardar ahí, se crea o actualiza solo la versión de ese hotel; la compartida y la del otro hotel no cambian.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'ver-versiones', 'v' => 1,
+                        'titulo' => 'Ver versiones pasadas',
+                        'pregunta' => '¿Dónde veo las versiones pasadas de un checklist?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Abrir el historial',
+                             'texto' => 'El botón «Historial» de cada tarjeta abre las versiones anteriores del checklist, de solo lectura. No se pueden editar porque los reportes de días ya cerrados se calculan con ellas.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.ALERTAS — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.alertas' => [
+                'nombre' => 'Alertas',
+                'capacidad' => 'alertas.configurar_umbrales',
+                'recorridos' => [
+                    [
+                        'id' => 'ajustar', 'v' => 1,
+                        'titulo' => 'Ajustar los umbrales',
+                        'pregunta' => '¿Cómo cambio los umbrales de las alertas?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="alt.explicacion"]', 'titulo' => 'Qué controlan estos valores',
+                             'texto' => 'Estos minutos definen cuándo saltan las alertas predictivas, como la de «trabajador en riesgo». Si los subes o bajas, cambias qué tan pronto avisa el sistema.'],
+                            ['sel' => '[data-tour="alt.campos"]', 'titulo' => 'Los cuatro valores',
+                             'texto' => 'Cada valor es un tiempo en minutos y trae su «default» al lado. Si cambias uno, el campo se resalta en amarillo para que veas qué tocaste antes de guardar.'],
+                            ['sel' => '[data-tour="alt.cambios"]', 'titulo' => 'Cambios sin guardar',
+                             'texto' => 'Cuando editas algo aparece este aviso con el número de «cambios sin guardar». Es solo un recordatorio: todavía no se aplicó nada.'],
+                            ['sel' => '[data-tour="alt.acciones"]', 'titulo' => 'Guardar o descartar',
+                             'texto' => 'Con «Guardar» quedan aplicados los nuevos valores y el sistema recalcula las alertas al toque. Con «Descartar» vuelves a los valores que tenías al abrir.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'recalcular', 'v' => 1,
+                        'titulo' => 'Recalcular las alertas',
+                        'pregunta' => '¿Cómo fuerzo el recálculo de las alertas?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="alt.recalcular"]', 'titulo' => 'Recalcular al instante',
+                             'texto' => 'El botón «Recalcular ahora» vuelve a evaluar todas las alertas en el momento, sin esperar el intervalo automático. Úsalo para ver el efecto de un cambio recién guardado.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.IMPORTAR_TURNOS — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.importar_turnos' => [
+                'nombre' => 'Importar turnos desde Breik',
+                'capacidad' => 'turnos.importar',
+                'recorridos' => [
+                    [
+                        'id' => 'subir', 'v' => 1,
+                        'titulo' => 'Subir el CSV de Breik',
+                        'pregunta' => '¿Cómo cargo el archivo de turnos?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="imp.instrucciones"]', 'titulo' => 'De dónde sale el archivo',
+                             'texto' => 'Acá están los pasos para sacar el CSV desde Breik: entra a «Reportes», elige «Turnos planificados», marca el rango de fechas y usa «Exportar → CSV». Ese archivo es el que subes aquí.'],
+                            ['sel' => '[data-tour="imp.dropzone"]', 'titulo' => 'Carga el CSV aquí',
+                             'texto' => 'Arrastra el archivo a este recuadro o tócalo para elegirlo desde tu equipo. Acepta el CSV de Breik de hasta 5 MB; cuando queda cargado, ves su nombre en azul.'],
+                            ['sel' => '[data-tour="imp.analizar"]', 'titulo' => 'Analiza el archivo',
+                             'texto' => 'Con «Analizar archivo» el sistema lee el CSV y arma una vista previa, sin guardar nada todavía. Recién ahí pasas a revisar qué personas y turnos trae.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'revisar', 'v' => 1,
+                        'titulo' => 'Revisar la previsualización',
+                        'pregunta' => '¿Qué se va a importar exactamente?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="imp.resumen"]', 'titulo' => 'El resumen de un vistazo',
+                             'texto' => 'Estas tarjetas te muestran cuántos «Turnos nuevos» entrarían, cuántas «Personas» se reconocieron y el rango de fechas «Desde» y «Hasta» que cubre el archivo.'],
+                            ['sel' => '[data-tour="imp.no-encontrados"]', 'titulo' => 'Personas que se omiten',
+                             'texto' => 'Si alguien del archivo no está registrado en el sistema, aparece en este bloque «Personas no encontradas» y sus turnos no se importan. Créales antes su usuario si quieres incluirlos.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'confirmar', 'v' => 1,
+                        'titulo' => 'Confirmar la importación',
+                        'pregunta' => '¿Cómo confirmo y evito duplicados?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="imp.duplicados"]', 'titulo' => 'Turnos que ya existen',
+                             'texto' => 'Cuando algunos turnos ya están cargados para esas fechas, eliges qué hacer: «Saltar» los deja como están o «Reemplazar» los sobrescribe con los del archivo.'],
+                            ['sel' => '[data-tour="imp.confirmar"]', 'titulo' => 'Confirma y termina',
+                             'texto' => 'Con «Confirmar importación» se guardan los turnos nuevos y llegas a la pantalla de resultado, que te dice cuántos «turnos importados» quedaron y cuántos duplicados se omitieron.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

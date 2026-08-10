@@ -108,6 +108,36 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('home.admin', 'home-admin');
     }
 
+    public function test_anclas_de_usuarios(): void
+    {
+        $this->verificarAnclas('usuarios', 'usuarios');
+    }
+
+    public function test_anclas_de_reportes(): void
+    {
+        $this->verificarAnclas('reportes', 'reportes');
+    }
+
+    public function test_anclas_de_ajustes_rbac(): void
+    {
+        $this->verificarAnclas('ajustes.rbac', 'ajustes-rbac');
+    }
+
+    public function test_anclas_de_ajustes_checklists(): void
+    {
+        $this->verificarAnclas('ajustes.checklists', 'ajustes-checklists');
+    }
+
+    public function test_anclas_de_ajustes_alertas(): void
+    {
+        $this->verificarAnclas('ajustes.alertas', 'ajustes-alertas');
+    }
+
+    public function test_anclas_de_ajustes_importar_turnos(): void
+    {
+        $this->verificarAnclas('ajustes.importar_turnos', 'ajustes/importar-turnos');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
@@ -175,6 +205,7 @@ final class ToursAnchorTest extends TestCase
                 'espacios.crear_editar',
                 'tickets.ver_todos',
                 'tickets.crear',
+                'usuarios.crear',
                 'turnos.ver',
                 'turnos.crear_editar',
                 'turnos.asignar_a_usuario',

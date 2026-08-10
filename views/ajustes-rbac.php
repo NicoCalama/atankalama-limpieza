@@ -31,7 +31,7 @@ $usuarioActualId = $usuario->id;
             </div>
             <div class="flex items-center gap-2">
                 <button type="button"
-                        @click="abrirCrearRol()"
+                        @click="abrirCrearRol()" data-tour="rbac.nuevo-rol"
                         class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Nuevo rol</span>
@@ -48,7 +48,7 @@ $usuarioActualId = $usuario->id;
     </header>
 
     <!-- Banner cambios pendientes -->
-    <div x-show="totalCambios() > 0" x-cloak
+    <div x-show="totalCambios() > 0" x-cloak data-tour="rbac.guardar"
          class="sticky top-[60px] z-30 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 px-4 py-3">
         <div class="max-w-7xl mx-auto flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-2 min-w-0">
@@ -96,9 +96,9 @@ $usuarioActualId = $usuario->id;
         </template>
 
         <!-- Matriz -->
-        <div x-show="roles.length > 0 && permisos.length > 0" class="overflow-x-auto -mx-4 md:mx-0 md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700">
+        <div x-show="roles.length > 0 && permisos.length > 0" data-tour="rbac.matriz" class="overflow-x-auto -mx-4 md:mx-0 md:rounded-xl md:border md:border-gray-200 md:dark:border-gray-700">
             <table class="min-w-full border-collapse bg-white dark:bg-gray-800">
-                <thead>
+                <thead data-tour="rbac.cabecera">
                     <tr>
                         <th class="sticky left-0 z-20 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide border-b border-gray-200 dark:border-gray-700 min-w-[260px]">
                             Permiso

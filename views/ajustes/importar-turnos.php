@@ -50,7 +50,7 @@
         <template x-if="step === 1">
             <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
 
-                <div>
+                <div data-tour="imp.instrucciones">
                     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">¿Cómo exportar desde Breik?</h2>
                     <ol class="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside">
                         <li>En Breik → Reportes → Turnos planificados</li>
@@ -61,7 +61,7 @@
                 </div>
 
                 <!-- Zona drag & drop -->
-                <label
+                <label data-tour="imp.dropzone"
                     class="block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
                     :class="archivoNombre ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/30'"
                     @dragover.prevent
@@ -88,7 +88,7 @@
                          x-text="error"></div>
                 </template>
 
-                <button @click="analizarArchivo()"
+                <button @click="analizarArchivo()" data-tour="imp.analizar"
                         :disabled="!archivo || cargando"
                         class="w-full min-h-[48px] bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition flex items-center justify-center gap-2">
                     <template x-if="cargando">
@@ -107,7 +107,7 @@
             <div class="space-y-5">
 
                 <!-- Cards resumen -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" data-tour="imp.resumen">
                     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
                         <p class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="preview.a_importar"></p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Turnos nuevos</p>
@@ -157,7 +157,7 @@
 
                 <!-- Usuarios NO encontrados (si hay) -->
                 <template x-if="preview.usuarios_no_encontrados.length > 0">
-                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 overflow-hidden">
+                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 overflow-hidden" data-tour="imp.no-encontrados">
                         <div class="px-4 py-3 border-b border-amber-200 dark:border-amber-700 flex items-center gap-2">
                             <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
                             <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-200">
@@ -210,7 +210,7 @@
 
                 <!-- Ya existentes -->
                 <template x-if="preview.ya_existentes > 0">
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4" data-tour="imp.duplicados">
                         <div class="flex items-start gap-3">
                             <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5"></i>
                             <div class="flex-1">
@@ -244,7 +244,7 @@
                             class="flex-1 min-h-[48px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Volver
                     </button>
-                    <button @click="confirmar()"
+                    <button @click="confirmar()" data-tour="imp.confirmar"
                             :disabled="preview.a_importar === 0 || cargando"
                             class="flex-1 min-h-[48px] bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition flex items-center justify-center gap-2">
                         <template x-if="cargando">

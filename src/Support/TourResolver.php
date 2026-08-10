@@ -36,7 +36,13 @@ final class TourResolver
         '/auditoria'    => 'auditoria.bandeja',
         '/espacios'     => 'espacios',
         '/tickets'      => 'tickets',
-        '/ajustes/turnos' => 'ajustes.turnos',
+        '/usuarios'     => 'usuarios',
+        '/reportes'     => 'reportes',
+        '/ajustes/turnos'          => 'ajustes.turnos',
+        '/ajustes/rbac'            => 'ajustes.rbac',
+        '/ajustes/checklists'      => 'ajustes.checklists',
+        '/ajustes/alertas'         => 'ajustes.alertas',
+        '/ajustes/importar-turnos' => 'ajustes.importar_turnos',
         // /habitaciones NO va acá: se resuelve por rol en forCurrentRequest.
     ];
 

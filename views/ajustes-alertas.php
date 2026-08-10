@@ -26,7 +26,7 @@
     <main class="max-w-3xl mx-auto p-4 pb-24 md:pb-6 space-y-4">
 
         <!-- Explicación -->
-        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4" data-tour="alt.explicacion">
             <div class="flex gap-2">
                 <i data-lucide="info" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"></i>
                 <div class="text-sm text-blue-900 dark:text-blue-200 space-y-1">
@@ -45,7 +45,7 @@
         </div>
 
         <!-- Form -->
-        <section x-show="!cargando" x-cloak class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6 space-y-5">
+        <section x-show="!cargando" x-cloak data-tour="alt.campos" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6 space-y-5">
 
             <template x-for="campo in campos" :key="campo.clave">
                 <div>
@@ -64,7 +64,7 @@
             </template>
 
             <!-- Banner cambios -->
-            <div x-show="totalCambios() > 0" x-cloak
+            <div x-show="totalCambios() > 0" x-cloak data-tour="alt.cambios"
                  class="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
                 <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0"></i>
                 <p class="text-xs text-amber-900 dark:text-amber-100">
@@ -74,8 +74,8 @@
             </div>
 
             <!-- Acciones -->
-            <div class="flex items-center justify-between gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                <button type="button" @click="recalcularAhora()" :disabled="recalculando"
+            <div class="flex items-center justify-between gap-2 pt-2 border-t border-gray-200 dark:border-gray-700" data-tour="alt.acciones">
+                <button type="button" @click="recalcularAhora()" :disabled="recalculando" data-tour="alt.recalcular"
                         class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-sm font-medium transition">
                     <i data-lucide="refresh-cw" class="w-4 h-4" :class="recalculando ? 'animate-spin' : ''"></i>
                     <span x-text="recalculando ? 'Recalculando...' : 'Recalcular ahora'"></span>
