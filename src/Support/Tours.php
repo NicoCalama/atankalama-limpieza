@@ -401,6 +401,73 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  ÁREAS COMUNES — vista: views/espacios.php
+            //  Ruta /espacios (fija). Espacios que no son piezas de huésped
+            //  (piscina, pasillos…), servicio on-demand, SIN auditoría (se
+            //  auto-cierran al completar). Ver docs/areas-comunes.md
+            // ════════════════════════════════════════════════════════════
+            'espacios' => [
+                'nombre'    => 'Áreas comunes',
+                'capacidad' => 'espacios.ver',
+                'recorridos' => [
+
+                    // ── 1. El trabajo diario: pedir una limpieza. ──
+                    [
+                        'id'       => 'pedir',
+                        'v'        => 1,
+                        'titulo'   => 'Pedir una limpieza',
+                        'pregunta' => '¿Cómo mando a limpiar un área?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="esp.lista"]',
+                                'titulo' => 'Cada tarjeta es un área',
+                                'texto'  => 'Cada tarjeta es un área común (piscina, pasillos…). Con «Pedir limpieza» eliges a un trabajador y se la asignas para hoy.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="esp.lista"]',
+                                'titulo' => 'No pasan por auditoría',
+                                'texto'  => 'El badge te dice si está lista, pendiente o en limpieza. Las áreas no se auditan: se cierran solas cuando el trabajador termina.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Armar un área y su checklist. Solo con permiso. ──
+                    [
+                        'id'        => 'crear',
+                        'v'         => 1,
+                        'titulo'    => 'Crear o editar un área',
+                        'pregunta'  => '¿Cómo armo un área nueva?',
+                        'capacidad' => 'espacios.crear_editar',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="esp.nueva"]',
+                                'titulo' => 'Un espacio y su checklist',
+                                'texto'  => 'Con «Nueva área» creas un espacio y su checklist (qué hacer al limpiarlo). Cada tarjeta también se puede editar o archivar.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Filtrar la vista. ──
+                    [
+                        'id'       => 'hotel',
+                        'v'        => 1,
+                        'titulo'   => 'Cambiar de hotel',
+                        'pregunta' => '¿Cómo veo un solo hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="esp.hotel"]',
+                                'titulo' => 'Un hotel o los dos',
+                                'texto'  => 'Acá eliges Atankalama, el Inn, o los dos juntos. Lo que elijas se recuerda para la próxima vez.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

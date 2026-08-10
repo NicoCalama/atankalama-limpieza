@@ -30,7 +30,7 @@
                 </a>
                 <div class="min-w-0">
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">Áreas comunes</p>
-                    <div class="relative" x-data="{ abierto: false }" @click.outside="abierto = false">
+                    <div class="relative" data-tour="esp.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
                         <button @click="abierto = !abierto"
                                 class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
@@ -109,7 +109,7 @@
                           x-text="data.espacios.length"></span>
                 </h2>
                 <template x-if="puedeEditar">
-                    <button @click="abrirCrear()"
+                    <button @click="abrirCrear()" data-tour="esp.nueva"
                             class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition inline-flex items-center gap-1.5">
                         <i data-lucide="plus" class="w-4 h-4"></i> Nueva área
                     </button>
@@ -131,7 +131,7 @@
 
             <!-- Lista -->
             <template x-if="data.espacios.length > 0">
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2">
                     <template x-for="esp in data.espacios" :key="esp.id">
                         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
                             <div class="flex items-start justify-between gap-2">
