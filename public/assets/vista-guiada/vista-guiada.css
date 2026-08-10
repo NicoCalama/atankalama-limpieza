@@ -1,0 +1,265 @@
+/* Vista Guiada v3.0 — estilos del motor. Compañero de vista-guiada.js.
+ * ---------------------------------------------------------------------------
+ * - Theme-aware: claro por defecto + variables que se re-pintan en modo oscuro
+ *   por prefers-color-scheme Y por la clase/atributo que use tu app
+ *   (.dark en <html> o :root[data-theme="dark"]). Ajusta el selector a tu app.
+ * - Contraste del botón medido >= 4.5:1 en AMBOS temas (el naranja del motor
+ *   original daba 2.25:1 en oscuro — inaccesible).
+ * - Capas de z-index pensadas para convivir con drawer (z-30) y modales (z-50):
+ *       botón "?"      z-index: 20   -> queda BAJO el velo del menú lateral
+ *       panel selector z-index: 60
+ *       velo + anillo  z-index: 70   -> SOBRE los modales (para spotlight en diálogo)
+ *       burbuja        z-index: 71
+ *       franja         z-index: 72
+ *
+ * Si usas Tailwind v4: este archivo va como CSS literal (import directo o
+ * pegado en app.css FUERA de @layer components — Tailwind pisa en silencio las
+ * reglas de esa capa). Ver README.
+ */
+
+:root {
+    --vg-fab-bg:      #b45309;   /* ámbar 700 — 4.9:1 sobre blanco */
+    --vg-fab-fg:      #ffffff;
+    --vg-fab-bg-hov:  #92400e;
+    --vg-punto:       #ef4444;
+    --vg-panel-bg:    #ffffff;
+    --vg-panel-fg:    #1f2937;
+    --vg-panel-sub:   #6b7280;
+    --vg-panel-bord:  rgba(0, 0, 0, 0.08);
+    --vg-fila-hov:    #f3f4f6;
+    --vg-marca:       #b45309;
+    --vg-caja-bg:     #ffffff;
+    --vg-caja-fg:     #111827;
+    --vg-caja-sub:    #4b5563;
+    --vg-btn-bg:      #b45309;
+    --vg-btn-fg:      #ffffff;
+    --vg-btn2-bg:     #e5e7eb;
+    --vg-btn2-fg:     #1f2937;
+    --vg-velo:        rgba(15, 23, 42, 0.55);
+    --vg-anillo:      #fbbf24;
+    --vg-sombra:      0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+/* ADAPTACIÓN Atankalama: el tema NO se decide por prefers-color-scheme.
+   Esta app togglea `.dark` en <html> a mano (Tailwind darkMode:'class') y esa
+   clase es la ÚNICA fuente de verdad (en el primer arranque se pone desde
+   localStorage O la preferencia del SO; después manda lo que el usuario elija).
+   Un @media (prefers-color-scheme: dark) acá pintaría el motor oscuro cuando el
+   SO está oscuro AUNQUE el usuario haya forzado modo claro. Por eso se omite y
+   el modo oscuro vive solo en :root.dark de abajo. */
+
+/* Modo oscuro por clase en <html> (así lo togglea la app). */
+:root.dark, :root[data-theme="dark"] {
+    --vg-fab-bg: #f59e0b; --vg-fab-fg: #1f2937; --vg-fab-bg-hov: #fbbf24;
+    --vg-panel-bg: #1f2937; --vg-panel-fg: #f3f4f6; --vg-panel-sub: #9ca3af;
+    --vg-panel-bord: rgba(255,255,255,0.10); --vg-fila-hov: #374151; --vg-marca: #fbbf24;
+    --vg-caja-bg: #1f2937; --vg-caja-fg: #f9fafb; --vg-caja-sub: #cbd5e1;
+    --vg-btn-bg: #f59e0b; --vg-btn-fg: #1f2937; --vg-btn2-bg: #374151; --vg-btn2-fg: #e5e7eb;
+    --vg-velo: rgba(0,0,0,0.66); --vg-anillo: #fbbf24; --vg-sombra: 0 12px 40px rgba(0,0,0,0.55);
+}
+:root[data-theme="light"] {
+    --vg-fab-bg: #b45309; --vg-fab-fg: #ffffff; --vg-fab-bg-hov: #92400e;
+    --vg-panel-bg: #ffffff; --vg-panel-fg: #1f2937; --vg-panel-sub: #6b7280;
+    --vg-panel-bord: rgba(0,0,0,0.08); --vg-fila-hov: #f3f4f6; --vg-marca: #b45309;
+    --vg-caja-bg: #ffffff; --vg-caja-fg: #111827; --vg-caja-sub: #4b5563;
+    --vg-btn-bg: #b45309; --vg-btn-fg: #ffffff; --vg-btn2-bg: #e5e7eb; --vg-btn2-fg: #1f2937;
+    --vg-velo: rgba(15,23,42,0.55); --vg-anillo: #fbbf24; --vg-sombra: 0 12px 40px rgba(0,0,0,0.28);
+}
+
+/* ── Botón flotante "?" ───────────────────────────────────────────────── */
+.vg-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;                 /* BAJO el drawer (z-30) y los modales (z-50) */
+    width: 48px;
+    height: 48px;
+    border-radius: 9999px;
+    border: 0;
+    background: var(--vg-fab-bg);
+    color: var(--vg-fab-fg);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: var(--vg-sombra);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.vg-fab:hover { background: var(--vg-fab-bg-hov); }
+.vg-fab:focus-visible { outline: 3px solid var(--vg-anillo); outline-offset: 2px; }
+
+.vg-fab-punto {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--vg-punto);
+    box-shadow: 0 0 0 2px var(--vg-fab-bg);
+    animation: vg-pulso 1.6s ease-out infinite;
+}
+@keyframes vg-pulso {
+    0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55), 0 0 0 2px var(--vg-fab-bg); }
+    70%  { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0), 0 0 0 2px var(--vg-fab-bg); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0), 0 0 0 2px var(--vg-fab-bg); }
+}
+
+/* ── Panel selector (anclado sobre el botón) ─────────────────────────── */
+.vg-panel {
+    position: fixed;
+    right: 16px;
+    bottom: 76px;               /* justo sobre el FAB */
+    z-index: 60;
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    background: var(--vg-panel-bg);
+    color: var(--vg-panel-fg);
+    border: 1px solid var(--vg-panel-bord);
+    border-radius: 14px;
+    box-shadow: var(--vg-sombra);
+    overflow: hidden;
+}
+.vg-panel-cab {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 0.9rem 0.35rem;
+}
+.vg-panel-titulo { font-weight: 700; font-size: 0.95rem; }
+.vg-panel-sub { padding: 0 0.9rem 0.5rem; font-size: 0.8rem; color: var(--vg-panel-sub); }
+.vg-panel-x {
+    border: 0; background: transparent; color: var(--vg-panel-sub);
+    font-size: 1.25rem; line-height: 1; cursor: pointer; padding: 0 0.2rem;
+}
+
+.vg-fila {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    width: 100%; text-align: left;
+    padding: 0.6rem 0.9rem;
+    border: 0; border-top: 1px solid var(--vg-panel-bord);
+    background: transparent; color: inherit; cursor: pointer;
+}
+.vg-fila:hover { background: var(--vg-fila-hov); }
+.vg-fila:focus-visible { outline: 2px solid var(--vg-anillo); outline-offset: -2px; }
+.vg-fila-bloq { cursor: default; opacity: 0.72; }
+.vg-fila-marca { color: var(--vg-marca); font-size: 0.7rem; line-height: 1.5; width: 0.9rem; flex-shrink: 0; }
+.vg-fila-cuerpo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.vg-fila-titulo { font-weight: 650; font-size: 0.9rem; }
+.vg-fila-pregunta, .vg-fila-motivo { font-size: 0.8rem; color: var(--vg-panel-sub); }
+.vg-fila-flecha { color: var(--vg-panel-sub); font-size: 1rem; flex-shrink: 0; }
+
+.vg-plegado { border-top: 1px solid var(--vg-panel-bord); }
+.vg-plegado-toggle {
+    width: 100%; text-align: left; border: 0; background: transparent;
+    color: var(--vg-panel-sub); font-size: 0.8rem; cursor: pointer;
+    padding: 0.55rem 0.9rem;
+}
+.vg-plegado-toggle:hover { background: var(--vg-fila-hov); }
+
+/* ── Velo de 4 paneles + anillo ──────────────────────────────────────── */
+.vg-velo {
+    position: fixed;
+    z-index: 70;
+    background: var(--vg-velo);
+    display: none;
+    pointer-events: auto;       /* bloquea toques FUERA del hueco */
+}
+.vg-anillo {
+    position: fixed;
+    z-index: 70;
+    border-radius: 8px;
+    box-shadow: 0 0 0 3px var(--vg-anillo), 0 0 0 6px rgba(251, 191, 36, 0.35);
+    pointer-events: none;       /* el elemento en el hueco queda tocable */
+    display: none;
+    transition: top .18s ease, left .18s ease, width .18s ease, height .18s ease;
+}
+body.vg-activo .vg-anillo { display: block; }
+
+/* ── Burbuja del paso ────────────────────────────────────────────────── */
+.vg-caja {
+    position: fixed;
+    z-index: 71;
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    background: var(--vg-caja-bg);
+    color: var(--vg-caja-fg);
+    border-radius: 14px;
+    box-shadow: var(--vg-sombra);
+    padding: 0.95rem 1.05rem;
+    display: none;
+}
+.vg-caja:focus-visible { outline: 2px solid var(--vg-anillo); outline-offset: 2px; }
+.vg-caja-x {
+    position: absolute; top: 0.5rem; right: 0.6rem;
+    border: 0; background: transparent; color: var(--vg-caja-sub);
+    font-size: 1.2rem; line-height: 1; cursor: pointer;
+}
+.vg-caja-titulo { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.35rem; padding-right: 1.4rem; }
+.vg-caja-texto { font-size: 0.86rem; color: var(--vg-caja-sub); margin-bottom: 0.8rem; line-height: 1.45; }
+.vg-caja-texto strong { color: var(--vg-caja-fg); font-weight: 700; }
+.vg-caja-pie { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.vg-caja-contador { font-size: 0.75rem; color: var(--vg-panel-sub); }
+.vg-caja-acciones { display: flex; gap: 0.4rem; }
+
+.vg-btn {
+    border: 0; border-radius: 8px; cursor: pointer;
+    padding: 0.4rem 0.8rem; font-size: 0.82rem; font-weight: 650;
+    background: var(--vg-btn-bg); color: var(--vg-btn-fg);
+}
+.vg-btn:hover { filter: brightness(0.95); }
+.vg-btn:focus-visible { outline: 2px solid var(--vg-anillo); outline-offset: 2px; }
+.vg-btn-2 { background: var(--vg-btn2-bg); color: var(--vg-btn2-fg); }
+
+/* ── Franja de mini-tour de diálogo ─────────────────────────────────── */
+.vg-franja {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 16px;
+    z-index: 72;                /* sobre la burbuja, bajo nada */
+    max-width: calc(100vw - 32px);
+    display: flex; align-items: center; gap: 0.75rem;
+    background: var(--vg-caja-bg);
+    color: var(--vg-caja-fg);
+    border-radius: 12px;
+    box-shadow: var(--vg-sombra);
+    padding: 0.7rem 0.9rem;
+}
+.vg-franja-texto { font-size: 0.86rem; }
+.vg-franja-texto strong { font-weight: 700; }
+.vg-franja-salir {
+    border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--vg-btn2-bg); color: var(--vg-btn2-fg);
+    padding: 0.35rem 0.7rem; font-size: 0.8rem; font-weight: 650; flex-shrink: 0;
+}
+
+/* ── Móvil / tablet vertical: burbuja fija abajo, a lo ancho ─────────── */
+/* OJO: este umbral (575.98px) DEBE calzar con el de colocarCaja() en el JS
+   (vw <= 575.98 → burbuja fija abajo). No lo muevas sin mover el otro. */
+@media (max-width: 575.98px) {
+    .vg-caja {
+        left: 16px !important; right: 16px;
+        bottom: 140px; top: auto !important;   /* Atankalama: despeja FAB(80)+bottom-nav */
+        width: auto; max-width: none;
+    }
+    .vg-panel { left: 16px; right: 16px; width: auto; }
+    /* La franja va a lo ancho y ARRIBA del botón "?", para no taparlo. */
+    .vg-franja {
+        left: 16px; right: 16px;
+        transform: none;
+        justify-content: space-between;
+    }
+}
+
+/* ── ADAPTACIÓN Atankalama: el FAB sube sobre la bottom-nav ──────────────
+   La barra inferior (views/componentes/bottom-nav.php) es fixed bottom-0,
+   ~60px de alto, z-30, visible solo <768px (md:hidden). El FAB "?" por defecto
+   vive en bottom:16px → quedaría TAPADO por la nav. Lo subimos a 80px, el mismo
+   criterio que el FAB del copilot (Tailwind bottom-20). Panel y franja lo
+   despejan. En ≥768px no hay bottom-nav (sidebar a la izquierda) → sin cambios. */
+@media (max-width: 767.98px) {
+    .vg-fab    { bottom: 80px; }
+    .vg-panel  { bottom: 140px; }
+    .vg-franja { bottom: 140px; }
+}

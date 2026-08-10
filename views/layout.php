@@ -222,5 +222,33 @@
             </button>
         </div>
     </div>
+
+    <?php
+    // ─── Vista Guiada (ayuda por tarea) ───────────────────────────────────────
+    // Motor portado del kit "vista-guiada". Se inyecta SOLO si:
+    //   1. hay usuario autenticado,
+    //   2. el flag VISTA_GUIADA_HABILITADA está ON (default OFF: se sube apagado,
+    //      se verifica salud, y se enciende con un flip del .env), y
+    //   3. esta pantalla declara ayuda (TourResolver la resuelve por path).
+    // El botón «?» lo crea el propio motor (vista-guiada.js) al arrancar; no se
+    // escribe a mano. El catálogo filtrado por permiso viaja en un atributo
+    // data-* (no en <script>), y las claves sensibles del usuario nunca viajan.
+    if (isset($usuario) && \Atankalama\Limpieza\Core\Config::getBool('VISTA_GUIADA_HABILITADA', false)):
+        $vgPayload = \Atankalama\Limpieza\Support\TourResolver::forCurrentRequest($usuario);
+        if ($vgPayload !== null):
+            $vgCssFile = __DIR__ . '/../public/assets/vista-guiada/vista-guiada.css';
+            $vgJsFile  = __DIR__ . '/../public/assets/vista-guiada/vista-guiada.js';
+            $vgCssV = @filemtime($vgCssFile) ?: '1';
+            $vgJsV  = @filemtime($vgJsFile) ?: '1';
+    ?>
+        <link rel="stylesheet" href="<?= u('/assets/vista-guiada/vista-guiada.css') ?>?v=<?= $vgCssV ?>">
+        <div id="vg-root"
+             data-vg-payload="<?= htmlspecialchars(json_encode($vgPayload, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>"
+             hidden></div>
+        <script defer src="<?= u('/assets/vista-guiada/vista-guiada.js') ?>?v=<?= $vgJsV ?>"></script>
+    <?php
+        endif;
+    endif;
+    ?>
 </body>
 </html>

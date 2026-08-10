@@ -37,7 +37,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                 </a>
                 <div class="min-w-0">
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">Asignaciones</p>
-                    <div class="relative" x-data="{ abierto: false }" @click.outside="abierto = false">
+                    <div class="relative" data-tour="asig.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
                         <button @click="abierto = !abierto"
                                 class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
@@ -115,7 +115,7 @@ require_once __DIR__ . '/componentes/avatar.php';
         <main class="pb-32 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-6">
 
             <!-- Sección: Sin asignar -->
-            <section>
+            <section data-tour="asig.sin-asignar">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                         <i data-lucide="clipboard-list" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i>
@@ -124,7 +124,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                               x-text="data.sin_asignar.length"></span>
                     </h2>
                     <template x-if="puedeAutoAsignar && data.sin_asignar.length > 0 && data.trabajadores.length > 0">
-                        <button @click="autoAsignar()" :disabled="autoEjecutando"
+                        <button @click="autoAsignar()" :disabled="autoEjecutando" data-tour="asig.auto"
                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center gap-1.5 disabled:opacity-50">
                             <i data-lucide="shuffle" class="w-4 h-4"></i>
                             <span x-text="autoEjecutando ? 'Asignando...' : 'Auto-asignar'"></span>
@@ -193,7 +193,7 @@ require_once __DIR__ . '/componentes/avatar.php';
             </template>
 
             <!-- Sección: Equipo -->
-            <section>
+            <section data-tour="asig.equipo">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                         <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
