@@ -468,6 +468,68 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  TICKETS — vista: views/tickets.php
+            //  Ruta /tickets (fija). Tickets de mantención. Gate por
+            //  tickets.ver_todos (la vista de gestión de la supervisora); el
+            //  trabajador que solo reporta usa el modal desde otras pantallas.
+            // ════════════════════════════════════════════════════════════
+            'tickets' => [
+                'nombre'    => 'Tickets',
+                'capacidad' => 'tickets.ver_todos',
+                'recorridos' => [
+
+                    // ── 1. Reportar. ──
+                    [
+                        'id'        => 'reportar',
+                        'v'         => 1,
+                        'titulo'    => 'Reportar un problema',
+                        'pregunta'  => '¿Cómo aviso una avería?',
+                        'capacidad' => 'tickets.crear',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.nuevo"]',
+                                'titulo' => 'Deja constancia de la avería',
+                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (una avería, algo roto). Queda registrado para que alguien lo resuelva.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Gestionar el ciclo del ticket. ──
+                    [
+                        'id'       => 'gestionar',
+                        'v'        => 1,
+                        'titulo'   => 'Gestionar un ticket',
+                        'pregunta' => '¿Cómo lo tomo y lo cierro?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.lista"]',
+                                'titulo' => 'Del reporte al cierre',
+                                'texto'  => 'Toca un ticket para ver su detalle y las acciones: «Tomar», «Marcar resuelto», «Cerrar» y «Reabrir». Así lo mueves hasta resolverlo.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Filtrar la lista. ──
+                    [
+                        'id'       => 'filtrar',
+                        'v'        => 1,
+                        'titulo'   => 'Filtrar los tickets',
+                        'pregunta' => '¿Cómo veo solo los abiertos?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.filtros"]',
+                                'titulo' => 'Por estado y por hotel',
+                                'texto'  => 'Filtra por estado (abiertos, en progreso, resueltos, cerrados) y por hotel. Lo que elijas se recuerda para la próxima vez.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

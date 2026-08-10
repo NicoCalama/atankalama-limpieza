@@ -34,7 +34,7 @@ require_once __DIR__ . '/componentes/avatar.php';
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
                 <template x-if="puedeCrear">
-                    <button @click="$dispatch('abrir-modal-ticket', {})"
+                    <button @click="$dispatch('abrir-modal-ticket', {})" data-tour="tk.nuevo"
                             class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         <span class="hidden sm:inline">Nuevo</span>
@@ -68,7 +68,7 @@ require_once __DIR__ . '/componentes/avatar.php';
     <main class="pb-24 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-4">
 
         <!-- Filtros -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+        <section data-tour="tk.filtros" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
             <div class="flex flex-wrap gap-2 items-center">
                 <div class="flex items-center gap-1 flex-wrap">
                     <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
@@ -131,7 +131,7 @@ require_once __DIR__ . '/componentes/avatar.php';
 
         <!-- Listado -->
         <template x-if="tickets.length > 0">
-            <ul class="space-y-2">
+            <ul class="space-y-2" data-tour="tk.lista">
                 <template x-for="t in tickets" :key="t.id">
                     <li class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition"
                         :class="claseBordePrioridad(t.prioridad)"

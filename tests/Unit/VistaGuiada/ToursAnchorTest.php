@@ -63,6 +63,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('espacios', 'espacios');
     }
 
+    public function test_anclas_de_tickets(): void
+    {
+        // /tickets → 'tickets' (ruta fija en MAP).
+        $this->verificarAnclas('tickets', 'tickets');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
@@ -126,6 +132,8 @@ final class ToursAnchorTest extends TestCase
                 'auditoria.ver_bandeja',
                 'espacios.ver',
                 'espacios.crear_editar',
+                'tickets.ver_todos',
+                'tickets.crear',
             ],
             roles: ['Supervisora'],
         );
