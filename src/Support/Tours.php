@@ -232,6 +232,74 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  CHECKLIST DEL TRABAJADOR — vista: views/habitacion-detalle.php
+            //  Ruta /habitaciones/{id} (TourResolver la matchea por patrón).
+            //  La pantalla cambia de estado: sucia → «Comenzar limpieza»;
+            //  en_progreso → checklist + «Habitación terminada» + «No puedo
+            //  terminar». Los recorridos son EXPLICATIVOS: si el ancla de un
+            //  paso no está en el estado actual, el motor ofrece salir (honesto).
+            // ════════════════════════════════════════════════════════════
+            'habitacion.detalle' => [
+                'nombre'    => 'Limpiar una habitación',
+                'capacidad' => 'habitaciones.marcar_completada',
+                'recorridos' => [
+
+                    // ── 1. Arrancar (estado sucia). ──
+                    [
+                        'id'       => 'comenzar',
+                        'v'        => 1,
+                        'titulo'   => 'Comenzar la limpieza',
+                        'pregunta' => '¿Cómo empiezo a limpiar?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hab.comenzar"]',
+                                'titulo' => 'Abre la lista de tareas',
+                                'texto'  => 'Con «Comenzar limpieza» se abre la lista de tareas de esta pieza. Recién ahí puedes empezar a marcar.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. El trabajo diario: marcar y terminar. ──
+                    [
+                        'id'       => 'marcar',
+                        'v'        => 1,
+                        'titulo'   => 'Marcar la limpieza',
+                        'pregunta' => '¿Cómo voy marcando lo que limpio?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hab.checklist"]',
+                                'titulo' => 'Se guarda sola',
+                                'texto'  => 'Marca cada tarea a medida que la haces; la que marcas se tacha. Se guarda sola al toque, aunque se corte el internet.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="hab.terminar"]',
+                                'titulo' => 'Cuándo se habilita terminar',
+                                'texto'  => '«Habitación terminada» se prende solo cuando marcaste todas las tareas obligatorias. Las que dicen «Opcional» no hacen falta.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. La válvula de escape. ──
+                    [
+                        'id'       => 'saltar',
+                        'v'        => 1,
+                        'titulo'   => 'No puedo terminar',
+                        'pregunta' => '¿Y si no la puedo terminar?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hab.saltar"]',
+                                'titulo' => 'Avisa y sigue con otra',
+                                'texto'  => 'Si algo lo impide (el huésped no salió, falta un insumo), toca acá y elige un motivo; se avisa a tu supervisora. Ojo: lo que marcaste se pierde y al retomarla empiezas de cero.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

@@ -36,6 +36,16 @@ final class TourResolver
     ];
 
     /**
+     * PATHS con parámetro: regex de path → clave de pantalla. Se prueban solo si
+     * no hubo match exacto en MAP. (El router usa {id}; acá lo matcheamos con \d+.)
+     *
+     * @var array<string, string>
+     */
+    private const PATRONES = [
+        '#^/habitaciones/\d+$#' => 'habitacion.detalle',
+    ];
+
+    /**
      * Punto de entrada para el layout. El layout ya tiene $usuario en scope.
      *
      * Uso en views/layout.php:
@@ -92,7 +102,15 @@ final class TourResolver
     /** PATH de la app -> clave de pantalla del catálogo (o null si no hay ayuda). */
     public static function resolvePantalla(string $path): ?string
     {
-        return self::MAP[$path] ?? null;
+        if (isset(self::MAP[$path])) {
+            return self::MAP[$path];
+        }
+        foreach (self::PATRONES as $regex => $pantalla) {
+            if (preg_match($regex, $path) === 1) {
+                return $pantalla;
+            }
+        }
+        return null;
     }
 
     /**

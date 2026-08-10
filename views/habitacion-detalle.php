@@ -113,7 +113,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                 <!-- CTA: Comenzar limpieza (sucia + asignada) -->
                 <template x-if="habitacion.estado === 'sucia' && estaAsignada && !esAuditada">
-                    <button @click="iniciar()" :disabled="iniciando"
+                    <button @click="iniciar()" :disabled="iniciando" data-tour="hab.comenzar"
                             class="w-full min-h-[56px] mt-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white text-lg font-semibold rounded-xl transition shadow-sm">
                         <span x-text="iniciando ? 'Iniciando...' : 'Comenzar limpieza'"></span>
                     </button>
@@ -156,7 +156,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <?php include __DIR__ . '/componentes/progreso-checklist.php'; ?>
 
                     <!-- Lista de items -->
-                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div data-tour="hab.checklist" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <template x-for="item in items" :key="item.id">
                             <label class="flex items-start gap-3 px-4 py-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
                                    :class="puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default'">
@@ -199,7 +199,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                     <!-- Botón "Habitación terminada" -->
                     <template x-if="puedeEditar">
-                        <button @click="confirmarCompletar()"
+                        <button @click="confirmarCompletar()" data-tour="hab.terminar"
                                 :disabled="progreso.obligatorios_pendientes > 0 || completando"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-xl transition shadow-sm">
                             <span x-text="completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada')"></span>
@@ -208,7 +208,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                     <!-- Válvula de escape: no puedo terminar esta habitación ahora -->
                     <template x-if="puedeEditar">
-                        <button @click="mostrarSaltar = true"
+                        <button @click="mostrarSaltar = true" data-tour="hab.saltar"
                                 class="w-full min-h-[48px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
                             No puedo terminar esta ahora
                         </button>

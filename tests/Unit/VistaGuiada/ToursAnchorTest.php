@@ -38,15 +38,24 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('home.supervisora', 'home-supervisora');
     }
 
+    public function test_anclas_de_habitacion_detalle(): void
+    {
+        // /habitaciones/{id} → 'habitacion.detalle' (TourResolver por patrón).
+        // La vista necesita $habitacionId además de $usuario.
+        $this->verificarAnclas('habitacion.detalle', 'habitacion-detalle', ['habitacionId' => 1]);
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
+     *
+     * @param array<string, mixed> $datosExtra
      */
-    private function verificarAnclas(string $pantalla, string $template): void
+    private function verificarAnclas(string $pantalla, string $template, array $datosExtra = []): void
     {
         $catalogo = Tours::catalog();
         $this->assertArrayHasKey($pantalla, $catalogo, "El catálogo no tiene la pantalla $pantalla");
 
-        $html = View::renderizar($template, ['usuario' => $this->usuarioStub()])->cuerpo;
+        $html = View::renderizar($template, ['usuario' => $this->usuarioStub()] + $datosExtra)->cuerpo;
         $entrada = $catalogo[$pantalla];
 
         // 1) Cada ancla NO-diálogo del catálogo existe en el HTML.
@@ -95,6 +104,7 @@ final class ToursAnchorTest extends TestCase
                 'asignaciones.asignar_manual',
                 'asignaciones.auto_asignar',
                 'alertas.recibir_predictivas',
+                'habitaciones.marcar_completada',
             ],
             roles: ['Supervisora'],
         );
