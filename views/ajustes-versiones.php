@@ -25,7 +25,7 @@ foreach ($versiones as $v) {
             <a href="<?= u('/ajustes') ?>" class="min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver a Ajustes">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
             </a>
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1" data-tour="ver.encabezado">
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Versiones</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                     <?php if ($actual !== null): ?>
@@ -48,7 +48,7 @@ foreach ($versiones as $v) {
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">No pudimos leer el historial de versiones.</p>
             </div>
         <?php else: ?>
-            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-200 dark:divide-gray-700">
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-200 dark:divide-gray-700" data-tour="ver.lista">
                 <?php foreach ($versiones as $v): ?>
                     <div class="grid grid-cols-[4.5rem,1fr] md:grid-cols-[9rem,1fr] gap-3 md:gap-5 p-4">
                         <!-- Izquierda: versión -->

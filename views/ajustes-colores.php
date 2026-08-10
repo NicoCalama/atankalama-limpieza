@@ -77,7 +77,7 @@
             </p>
 
             <!-- Estados -->
-            <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-tour="col.estados">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                         <i data-lucide="tag" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
@@ -102,7 +102,7 @@
             </section>
 
             <!-- Hoteles -->
-            <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" data-tour="col.hoteles">
                 <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                         <i data-lucide="building-2" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
@@ -129,12 +129,12 @@
 
             <!-- Acciones -->
             <div class="flex flex-col sm:flex-row gap-2">
-                <button @click="guardar()" :disabled="guardando"
+                <button @click="guardar()" :disabled="guardando" data-tour="col.guardar"
                         class="flex-1 min-h-[48px] px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50 inline-flex items-center justify-center gap-2">
                     <i data-lucide="save" class="w-4 h-4"></i>
                     <span x-text="guardando ? 'Guardando...' : 'Guardar colores'"></span>
                 </button>
-                <button @click="restaurar()"
+                <button @click="restaurar()" data-tour="col.restaurar"
                         class="min-h-[48px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center justify-center gap-2">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                     Restaurar originales

@@ -1095,6 +1095,143 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  AJUSTES — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes' => [
+                'nombre' => 'Ajustes',
+                'recorridos' => [
+                    [
+                        'id' => 'navegar', 'v' => 1,
+                        'titulo' => 'Recorrer los ajustes',
+                        'pregunta' => '¿Qué puedo configurar acá?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="aj.secciones"]', 'titulo' => 'Las secciones de la app',
+                             'texto' => 'Cada tarjeta te lleva a una sección para configurar la app, como «Mi cuenta», «Checklists» o «Turnos». Solo aparecen las que tus permisos permiten, así que puedes ver más o menos opciones que otra persona.'],
+                            ['sel' => '[data-tour="aj.contador"]', 'titulo' => 'Cuántas tienes disponibles',
+                             'texto' => 'Arriba dice cuántas «secciones disponibles» tienes según tu rol. Si te falta una que necesitas, pídele a un administrador que te dé el permiso.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'activar', 'v' => 1,
+                        'titulo' => 'Activar los avisos',
+                        'pregunta' => '¿Cómo recibo alertas con la app cerrada?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="aj.push"]', 'titulo' => 'Notificaciones en el celular',
+                             'texto' => 'Al activar el interruptor, este dispositivo recibe alertas aunque la app esté cerrada y queda como «Activadas en este dispositivo». Si el navegador las bloqueó, verás «Bloqueado» y hay que habilitarlas ahí.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.COLORES — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.colores' => [
+                'nombre' => 'Colores',
+                'capacidad' => 'apariencia.editar',
+                'recorridos' => [
+                    [
+                        'id' => 'estados', 'v' => 1,
+                        'titulo' => 'Pintar los estados',
+                        'pregunta' => '¿Cómo cambio el color de cada estado?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="col.estados"]', 'titulo' => 'Un color por estado',
+                             'texto' => 'Cada estado de la pieza tiene su color. Toca el cuadrito de color de la fila y elige uno nuevo; la muestra de al lado te anticipa cómo se verá esa etiqueta en las tarjetas.'],
+                            ['sel' => '[data-tour="col.guardar"]', 'titulo' => 'Aplica para todo el equipo',
+                             'texto' => 'Al tocar «Guardar colores» el cambio queda aplicado para todo el equipo al instante. La app deriva sola las versiones para modo claro y oscuro, no tienes que hacer nada más.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'hoteles', 'v' => 1,
+                        'titulo' => 'Marcar cada hotel',
+                        'pregunta' => '¿Cómo distingo las piezas de cada hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="col.hoteles"]', 'titulo' => 'El acento de cada hotel',
+                             'texto' => 'Cada hotel tiene un color de acento que pinta el borde de sus tarjetas. Elige el color y la mini-tarjeta de muestra te enseña cómo quedan el borde y el tinte resultantes.'],
+                            ['sel' => '[data-tour="col.guardar"]', 'titulo' => 'Guarda para que se vea',
+                             'texto' => 'El acento nuevo se aplica en toda la app recién cuando tocas «Guardar colores». Antes de eso solo lo ves en la muestra de esta pantalla.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'restaurar', 'v' => 1,
+                        'titulo' => 'Restaurar la paleta',
+                        'pregunta' => '¿Cómo vuelvo a los colores originales?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="col.restaurar"]', 'titulo' => 'Volver a los originales',
+                             'texto' => '«Restaurar originales» recarga la paleta inicial de la app en el editor. Ojo: todavía no se aplica, tienes que tocar «Guardar colores» para que el equipo la vea.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.MI_CUENTA — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.mi_cuenta' => [
+                'nombre' => 'Mi cuenta',
+                'recorridos' => [
+                    [
+                        'id' => 'editar', 'v' => 1,
+                        'titulo' => 'Editar tus datos',
+                        'pregunta' => '¿Cómo cambio mi nombre o email?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="cta.datos"]', 'titulo' => 'Tus datos personales',
+                             'texto' => 'Tu «RUT» queda fijo, pero puedes cambiar tu nombre, email y hotel por defecto. Al tocar «Guardar cambios» se guardan y la pantalla se actualiza; si los campos aparecen bloqueados es que no tienes permiso para editarlos.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'tema', 'v' => 1,
+                        'titulo' => 'Elegir el tema',
+                        'pregunta' => '¿Cómo pongo la app en modo oscuro?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="cta.tema"]', 'titulo' => 'Claro, oscuro o automático',
+                             'texto' => 'Eliges entre «Automático», «Claro» u «Oscuro». El cambio se aplica al instante y queda recordado en este dispositivo; «Automático» sigue lo que use tu teléfono o computador.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'seguridad', 'v' => 1,
+                        'titulo' => 'Cerrar sesión o clave',
+                        'pregunta' => '¿Cómo cambio mi clave o cierro sesión?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="cta.seguridad"]', 'titulo' => 'Cambiar tu contraseña',
+                             'texto' => 'Al tocar «Cambiar contraseña» se abre una ventana para poner una clave nueva. Así mantienes tu cuenta protegida.'],
+                            ['sel' => '[data-tour="cta.sesion"]', 'titulo' => 'Cerrar tu sesión',
+                             'texto' => 'Al tocar «Cerrar sesión» te pedimos confirmar y luego te lleva de vuelta al inicio de sesión. Úsalo cuando termines, sobre todo en un equipo compartido.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  AJUSTES.VERSIONES — generada del borrador (workflow), revisada.
+            // ════════════════════════════════════════════════════════════
+            'ajustes.versiones' => [
+                'nombre' => 'Versiones',
+                'recorridos' => [
+                    [
+                        'id' => 'entender-historial', 'v' => 1,
+                        'titulo' => 'Leer el historial',
+                        'pregunta' => '¿Qué muestra el historial de versiones?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ver.encabezado"]', 'titulo' => 'En qué versión estás',
+                             'texto' => 'Acá arriba te decimos qué versión de la app estás usando ahora mismo. Es solo informativo: esta pantalla no cambia nada, únicamente muestra los cambios que ha tenido la app.'],
+                            ['sel' => '[data-tour="ver.lista"]', 'titulo' => 'Cada versión y sus cambios',
+                             'texto' => 'Cada fila es una versión: a la izquierda su número y su fecha, a la derecha lo que se cambió en ella. La versión que estás usando aparece en azul con «En uso»; las que todavía no salen dicen «Sin publicar».'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

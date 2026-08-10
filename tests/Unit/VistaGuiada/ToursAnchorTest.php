@@ -138,6 +138,29 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('ajustes.importar_turnos', 'ajustes/importar-turnos');
     }
 
+    public function test_anclas_de_ajustes(): void
+    {
+        $this->verificarAnclas('ajustes', 'ajustes');
+    }
+
+    public function test_anclas_de_ajustes_colores(): void
+    {
+        $this->verificarAnclas('ajustes.colores', 'ajustes-colores');
+    }
+
+    public function test_anclas_de_ajustes_mi_cuenta(): void
+    {
+        $this->verificarAnclas('ajustes.mi_cuenta', 'ajustes-mi-cuenta');
+    }
+
+    public function test_anclas_de_ajustes_versiones(): void
+    {
+        // La vista necesita $versiones (del Changelog) para renderizar la lista.
+        $this->verificarAnclas('ajustes.versiones', 'ajustes-versiones', [
+            'versiones' => \Atankalama\Limpieza\Helpers\Changelog::versiones(),
+        ]);
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *

@@ -76,7 +76,7 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
             </a>
             <i data-lucide="settings" class="w-6 h-6 text-gray-700 dark:text-gray-300 flex-shrink-0 hidden md:block"></i>
-            <div class="min-w-0">
+            <div class="min-w-0" data-tour="aj.contador">
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Ajustes</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400"><?= count($visibles) ?> <?= count($visibles) === 1 ? 'sección disponible' : 'secciones disponibles' ?></p>
             </div>
@@ -85,7 +85,7 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
     </header>
 
     <main class="max-w-5xl mx-auto p-4 pb-24 md:pb-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3" data-tour="aj.secciones">
             <?php foreach ($visibles as $s): ?>
                 <a href="<?= htmlspecialchars(u((string) $s['ruta']), ENT_QUOTES, 'UTF-8') ?>"
                    class="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-sm transition min-h-[80px]">
@@ -102,7 +102,7 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
         </div>
 
         <!-- Notificaciones push -->
-        <div x-data="pushToggle()" x-init="init()" class="mt-4">
+        <div x-data="pushToggle()" x-init="init()" class="mt-4" data-tour="aj.push">
             <template x-if="soportado">
                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
                     <div class="w-11 h-11 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">

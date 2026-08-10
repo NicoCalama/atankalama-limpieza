@@ -28,7 +28,7 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
     <main class="max-w-3xl mx-auto p-4 pb-24 md:pb-6 space-y-6">
 
         <!-- Datos personales -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6" data-tour="cta.datos">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <i data-lucide="user" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                 Datos personales
@@ -101,7 +101,7 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
         </section>
 
         <!-- Tema -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6" data-tour="cta.tema">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <i data-lucide="palette" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                 Tema
@@ -125,7 +125,7 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
         </section>
 
         <!-- Seguridad -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6" data-tour="cta.seguridad">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <i data-lucide="lock" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                 Seguridad
@@ -139,7 +139,7 @@ $puedeEditarSe = $usuario->tienePermiso('usuarios.editar');
         </section>
 
         <!-- Sesión -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6" data-tour="cta.sesion">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <i data-lucide="log-out" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                 Sesión

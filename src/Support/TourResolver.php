@@ -38,10 +38,14 @@ final class TourResolver
         '/tickets'      => 'tickets',
         '/usuarios'     => 'usuarios',
         '/reportes'     => 'reportes',
+        '/ajustes'                 => 'ajustes',
+        '/ajustes/mi-cuenta'       => 'ajustes.mi_cuenta',
         '/ajustes/turnos'          => 'ajustes.turnos',
         '/ajustes/rbac'            => 'ajustes.rbac',
         '/ajustes/checklists'      => 'ajustes.checklists',
         '/ajustes/alertas'         => 'ajustes.alertas',
+        '/ajustes/colores'         => 'ajustes.colores',
+        '/ajustes/versiones'       => 'ajustes.versiones',
         '/ajustes/importar-turnos' => 'ajustes.importar_turnos',
         // /habitaciones NO va acá: se resuelve por rol en forCurrentRequest.
     ];
