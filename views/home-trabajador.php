@@ -118,7 +118,7 @@ if ($hora < 12) {
                     <i data-lucide="coffee" class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"></i>
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No tienes habitaciones asignadas todavía</h2>
                     <p class="text-base text-gray-600 dark:text-gray-400 max-w-xs mx-auto mb-6">Espera a que tu supervisora te asigne, o avísale que estás disponible.</p>
-                    <button @click="avisarDisponibilidad()"
+                    <button @click="avisarDisponibilidad()" data-tour="htr.disponible"
                             :disabled="data.aviso_disponibilidad_enviado_hoy || enviandoAviso"
                             class="min-h-[44px] px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100
                                    border border-gray-300 dark:border-gray-600 rounded-lg font-medium transition
@@ -166,7 +166,7 @@ if ($hora < 12) {
                     <!-- Sección 3: Habitación actual (única que ve el trabajador) -->
                     <template x-if="data.habitacion_actual">
                         <div class="px-4 mt-4">
-                            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5" data-tour="htr.actual">
                                 <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Habitación actual</p>
                                 <div class="mb-4">
                                     <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
@@ -198,7 +198,7 @@ if ($hora < 12) {
             <!-- Reportar problema -->
             <div class="px-4 mt-6">
                 <button type="button"
-                        @click="reportarProblema()"
+                        @click="reportarProblema()" data-tour="htr.reportar"
                         class="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-2
                                bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600
                                text-gray-700 dark:text-gray-200 rounded-xl font-medium

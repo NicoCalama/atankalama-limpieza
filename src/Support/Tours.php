@@ -627,6 +627,68 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  HOME TRABAJADOR — vista: views/home-trabajador.php
+            //  Ruta /home (home.php lo incluye para el encargado de limpieza;
+            //  TourResolver::resolveHome() lo mapea a 'home.trabajador' —es el
+            //  fallback: sin ajustes/supervisora/recepción). Filosofía «una
+            //  habitación a la vez»: ve SOLO su pieza actual, nunca la lista.
+            // ════════════════════════════════════════════════════════════
+            'home.trabajador' => [
+                'nombre'    => 'Inicio',
+                'recorridos' => [
+
+                    // ── 1. El trabajo: su pieza actual. Va primero. ──
+                    [
+                        'id'       => 'empezar',
+                        'v'        => 1,
+                        'titulo'   => 'Empezar a limpiar',
+                        'pregunta' => '¿Por dónde empiezo?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="htr.actual"]',
+                                'titulo' => 'Tu pieza de ahora',
+                                'texto'  => 'Acá está la pieza que te toca ahora, de a una. Toca «Comenzar limpieza» (o «Continuar») para abrir su checklist.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Avisar que estás libre (cuando no hay piezas). ──
+                    [
+                        'id'       => 'avisar',
+                        'v'        => 1,
+                        'titulo'   => 'Avisar que estás libre',
+                        'pregunta' => '¿Y si no tengo piezas hoy?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="htr.disponible"]',
+                                'titulo' => 'Que sepan que puedes más',
+                                'texto'  => 'Si no tienes piezas asignadas, toca «Avisar que estoy disponible» y tu supervisora sabrá que puede darte más.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Reportar un problema. Solo si puede crear tickets. ──
+                    [
+                        'id'        => 'reportar',
+                        'v'         => 1,
+                        'titulo'    => 'Reportar un problema',
+                        'pregunta'  => '¿Cómo aviso una avería?',
+                        'capacidad' => 'tickets.crear',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="htr.reportar"]',
+                                'titulo' => 'Algo roto o que falta',
+                                'texto'  => 'Si algo está roto o necesita mantención, toca «Reportar un problema». Se crea un ticket para que lo revisen.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

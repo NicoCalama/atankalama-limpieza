@@ -82,6 +82,14 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('ajustes.turnos', 'ajustes-turnos');
     }
 
+    public function test_anclas_de_home_trabajador(): void
+    {
+        // /home incluye home-trabajador.php para el encargado (fallback de
+        // resolveHome). El bloque «Reportar» está gateado por PHP (tickets.crear),
+        // que el stub tiene.
+        $this->verificarAnclas('home.trabajador', 'home-trabajador');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
