@@ -90,17 +90,36 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('home.trabajador', 'home-trabajador');
     }
 
+    public function test_anclas_de_habitaciones_trabajador(): void
+    {
+        // /habitaciones para el trabajador (SIN ver_todas): ve la grilla hb.grid;
+        // los filtros hb.filtros están gateados por PHP y NO deben aparecer (por
+        // eso se renderiza con un stub trabajador).
+        $this->verificarAnclas('habitaciones.trabajador', 'habitaciones', [], $this->usuarioTrabajadorStub());
+    }
+
+    public function test_anclas_de_home_recepcion(): void
+    {
+        $this->verificarAnclas('home.recepcion', 'home-recepcion');
+    }
+
+    public function test_anclas_de_home_admin(): void
+    {
+        $this->verificarAnclas('home.admin', 'home-admin');
+    }
+
     /**
      * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
      *
      * @param array<string, mixed> $datosExtra
      */
-    private function verificarAnclas(string $pantalla, string $template, array $datosExtra = []): void
+    private function verificarAnclas(string $pantalla, string $template, array $datosExtra = [], ?Usuario $usuario = null): void
     {
+        $usuario ??= $this->usuarioStub();
         $catalogo = Tours::catalog();
         $this->assertArrayHasKey($pantalla, $catalogo, "El catálogo no tiene la pantalla $pantalla");
 
-        $html = View::renderizar($template, ['usuario' => $this->usuarioStub()] + $datosExtra)->cuerpo;
+        $html = View::renderizar($template, ['usuario' => $usuario] + $datosExtra)->cuerpo;
         $entrada = $catalogo[$pantalla];
 
         // 1) Cada ancla NO-diálogo del catálogo existe en el HTML.
@@ -161,6 +180,27 @@ final class ToursAnchorTest extends TestCase
                 'turnos.asignar_a_usuario',
             ],
             roles: ['Supervisora'],
+        );
+    }
+
+    /** Trabajador: SIN habitaciones.ver_todas (no ve los filtros de la supervisora). */
+    private function usuarioTrabajadorStub(): Usuario
+    {
+        return new Usuario(
+            id: 3,
+            rut: '16000001-5',
+            nombre: 'Ana Trabajadora',
+            email: null,
+            activo: true,
+            requiereCambioPwd: false,
+            hotelDefault: 'inn',
+            temaPreferido: 'claro',
+            permisos: [
+                'habitaciones.ver_asignadas_propias',
+                'habitaciones.marcar_completada',
+                'tickets.crear',
+            ],
+            roles: ['Trabajador'],
         );
     }
 }

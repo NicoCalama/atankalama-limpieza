@@ -689,6 +689,135 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  HABITACIONES · TRABAJADOR — vista: views/habitaciones.php (rama
+            //  sin ver_todas). /habitaciones lo resuelve por rol. Reusa el ancla
+            //  hb.grid (los filtros hb.filtros son solo de la supervisora).
+            // ════════════════════════════════════════════════════════════
+            'habitaciones.trabajador' => [
+                'nombre'    => 'Mis habitaciones',
+                'capacidad' => 'habitaciones.ver_asignadas_propias',
+                'recorridos' => [
+                    [
+                        'id' => 'abrir', 'v' => 1,
+                        'titulo' => 'Abrir una pieza',
+                        'pregunta' => '¿Cómo entro a limpiar una pieza?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hb.grid"]', 'titulo' => 'Tus piezas de hoy',
+                             'texto' => 'Acá aparecen solo las piezas que te toca limpiar hoy: cada tarjeta muestra su número y su tipo. Tócala para abrir la pieza y empezar a limpiarla.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'leer', 'v' => 1,
+                        'titulo' => 'Leer las etiquetas',
+                        'pregunta' => '¿Qué significan los colores y etiquetas?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hb.grid"]', 'titulo' => 'En qué va cada pieza',
+                             'texto' => 'La etiqueta de estado dice cómo va: «Pendiente» si está sucia, «En progreso» si empezaste, «Por auditar» al terminarla, y «Aprobada» o «Rechazada» según la revisión.'],
+                            ['sel' => '[data-tour="hb.grid"]', 'titulo' => 'Huésped y sábanas',
+                             'texto' => 'Otras etiquetas avisan del huésped: «Llega hoy», «Se va hoy», «Día/noche» o «Sigue». Si ves «Sábanas hoy», a esa pieza le toca cambio de sábanas.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  HOME RECEPCIÓN — vista: views/home-recepcion.php. /home por rol
+            //  (resolveHome → 'home.recepcion'). Bandeja de auditoría pendiente.
+            // ════════════════════════════════════════════════════════════
+            'home.recepcion' => [
+                'nombre' => 'Panel de recepción',
+                'recorridos' => [
+                    [
+                        'id' => 'auditar', 'v' => 1,
+                        'titulo' => 'Auditar las piezas',
+                        'pregunta' => '¿Cómo audito una habitación?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hrec.pendientes"]', 'titulo' => 'Piezas por auditar',
+                             'texto' => 'Acá aparecen las piezas que esperan tu auditoría; toca una y se abre su auditoría para revisar el trabajo. Cuando no queda ninguna, ves «No hay habitaciones».'],
+                        ],
+                    ],
+                    [
+                        'id' => 'hotel', 'v' => 1,
+                        'titulo' => 'Filtrar por hotel',
+                        'pregunta' => '¿Cómo veo un solo hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hrec.hotel"]', 'titulo' => 'Elegir el hotel',
+                             'texto' => 'Con este menú eliges «Ambos hoteles», «Atankalama» o «Atankalama INN». La lista se recarga solo con ese hotel y tu preferencia queda guardada.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'novedades', 'v' => 1,
+                        'titulo' => 'Revisar novedades',
+                        'pregunta' => '¿Cómo me entero de lo nuevo?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hrec.notif"]', 'titulo' => 'Tus avisos',
+                             'texto' => 'La campana muestra un globo azul con la cantidad de avisos sin leer. Al tocarla se abren tus notificaciones para ver qué pasó.'],
+                            ['sel' => '[data-tour="hrec.refrescar"]', 'titulo' => 'Traer lo último',
+                             'texto' => 'Con este botón vuelves a pedir la lista al momento. Igual la pantalla se actualiza sola cada pocos minutos y al volver a ella.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  HOME ADMIN — vista: views/home-admin.php. /home por rol
+            //  (resolveHome → 'home.admin'). Dashboard con pestañas (x-show;
+            //  en desktop se ven todas). Recortado a lo esencial.
+            // ════════════════════════════════════════════════════════════
+            'home.admin' => [
+                'nombre' => 'Panel del administrador',
+                'recorridos' => [
+                    [
+                        'id' => 'alertas', 'v' => 1,
+                        'titulo' => 'Revisar las alertas',
+                        'pregunta' => '¿Qué alertas hay?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hadm.alertas"]', 'titulo' => 'Las alertas críticas',
+                             'texto' => 'Acá se juntan las alertas críticas, como una sincronización de Cloudbeds caída o una pieza rechazada. Cada tarjeta trae hasta dos botones para resolverla.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'operativas', 'v' => 1,
+                        'titulo' => 'Ver las operativas',
+                        'pregunta' => '¿Cómo van las operativas de hoy?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hadm.contadores"]', 'titulo' => 'Los cuatro contadores',
+                             'texto' => 'Estos cuatro contadores resumen el día: habitaciones limpias, auditorías, trabajadores en turno y tickets abiertos. Se recalculan según el hotel que elijas.'],
+                            ['sel' => '[data-tour="hadm.kpis"]', 'titulo' => 'Los tres indicadores',
+                             'texto' => 'Estas barras muestran el tiempo promedio por pieza, la tasa de rechazo y la eficiencia del equipo. Cada una se pinta verde, ámbar o roja según su meta.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'sistema', 'v' => 1,
+                        'titulo' => 'Vigilar la salud técnica',
+                        'pregunta' => '¿Está todo bien con el sistema?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hadm.sistema"]', 'titulo' => 'La salud del sistema',
+                             'texto' => 'Esta zona reúne el estado de Cloudbeds, los errores del día, el uso de la base de datos, quién está conectado y la versión de la app.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'hotel', 'v' => 1,
+                        'titulo' => 'Cambiar de hotel',
+                        'pregunta' => '¿Cómo filtro por hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="hadm.hotel"]', 'titulo' => 'Filtrar por hotel',
+                             'texto' => 'Con este menú eliges «Ambos hoteles», «Atankalama» o «Atankalama Inn». Los contadores y los indicadores se recalculan solo para ese hotel.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════

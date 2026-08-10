@@ -42,7 +42,7 @@ if ($hora < 12) {
                               :title="'Sistema: ' + (data?.indicador_estado_sistema || 'OK')"></span>
                     </div>
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate"><?= htmlspecialchars($usuario->nombre) ?></p>
-                    <div class="relative" x-data="{ abierto: false }" @click.outside="abierto = false">
+                    <div class="relative" data-tour="hadm.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
                         <button @click="abierto = !abierto"
                                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
@@ -138,7 +138,7 @@ if ($hora < 12) {
             <div class="md:grid md:grid-cols-2 md:gap-6">
 
                 <!-- ============ TAB INICIO (alertas) ============ -->
-                <section x-show="tabActiva === 'inicio' || esDesktop" class="md:col-span-2 space-y-4 mb-4">
+                <section x-show="tabActiva === 'inicio' || esDesktop" data-tour="hadm.alertas" class="md:col-span-2 space-y-4 mb-4">
                     <template x-if="puedeVerAlertas">
                         <div>
                             <div class="flex items-center justify-between mb-2">
@@ -212,7 +212,7 @@ if ($hora < 12) {
                             </h2>
 
                             <!-- 4 contadores -->
-                            <div class="grid grid-cols-2 gap-3">
+                            <div data-tour="hadm.contadores" class="grid grid-cols-2 gap-3">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
                                     <div class="flex items-center gap-2 mb-1">
                                         <i data-lucide="bed" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
@@ -269,7 +269,7 @@ if ($hora < 12) {
                             </div>
 
                             <!-- 3 KPIs con barras multicolor -->
-                            <div class="space-y-3">
+                            <div data-tour="hadm.kpis" class="space-y-3">
                                 <template x-for="kpi in ['tiempo_promedio', 'tasa_rechazo', 'eficiencia_equipo']" :key="kpi">
                                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                                         <div class="flex items-center justify-between mb-2">
@@ -301,7 +301,7 @@ if ($hora < 12) {
                 </section>
 
                 <!-- ============ TAB TÉCNICAS ============ -->
-                <section x-show="tabActiva === 'tecnicas' || esDesktop" class="space-y-4">
+                <section x-show="tabActiva === 'tecnicas' || esDesktop" data-tour="hadm.sistema" class="space-y-4">
                     <template x-if="puedeVerSistema && data.sistema">
                         <div class="space-y-3">
                             <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">

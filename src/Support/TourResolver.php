@@ -36,8 +36,8 @@ final class TourResolver
         '/auditoria'    => 'auditoria.bandeja',
         '/espacios'     => 'espacios',
         '/tickets'      => 'tickets',
-        '/habitaciones' => 'habitaciones',
         '/ajustes/turnos' => 'ajustes.turnos',
+        // /habitaciones NO va acá: se resuelve por rol en forCurrentRequest.
     ];
 
     /**
@@ -64,11 +64,19 @@ final class TourResolver
         }
 
         $path = Url::rutaActual();
-        // /home sirve un dashboard distinto por rol (ver views/home.php): hay que
-        // resolver la clave de pantalla según permisos, no solo por el path.
-        $pantalla = $path === '/home'
-            ? self::resolveHome($usuario)
-            : self::resolvePantalla($path);
+        // Algunas rutas sirven contenido distinto por rol (mismo path, otra vista):
+        //  - /home: dashboard por rol (ver views/home.php).
+        //  - /habitaciones: lista completa (supervisora, ver_todas) vs las
+        //    asignadas del trabajador (ver views/habitaciones.php).
+        if ($path === '/home') {
+            $pantalla = self::resolveHome($usuario);
+        } elseif ($path === '/habitaciones') {
+            $pantalla = $usuario->tienePermiso('habitaciones.ver_todas')
+                ? 'habitaciones'
+                : 'habitaciones.trabajador';
+        } else {
+            $pantalla = self::resolvePantalla($path);
+        }
         if ($pantalla === null) {
             return null; // esta pantalla no declara ayuda
         }

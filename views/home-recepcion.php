@@ -38,7 +38,7 @@ if ($hora < 12) {
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400"><?= htmlspecialchars($saludo) ?></p>
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate"><?= htmlspecialchars($usuario->nombre) ?></p>
                     <!-- Selector hotel -->
-                    <div class="relative" x-data="{ abierto: false }" @click.outside="abierto = false">
+                    <div class="relative" data-tour="hrec.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
                         <button @click="abierto = !abierto"
                                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
@@ -58,13 +58,13 @@ if ($hora < 12) {
                 </div>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
-                <button @click="cargar()" :disabled="cargando"
+                <button @click="cargar()" :disabled="cargando" data-tour="hrec.refrescar"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">
                     <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
                        :class="cargando ? 'animate-spin' : ''"></i>
                 </button>
-                <button @click="$dispatch('toggle-notif')"
+                <button @click="$dispatch('toggle-notif')" data-tour="hrec.notif"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"
                         aria-label="Notificaciones">
                     <i data-lucide="bell" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -134,7 +134,7 @@ if ($hora < 12) {
 
             <!-- Grid de pendientes -->
             <template x-if="data.total_pendientes > 0">
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div data-tour="hrec.pendientes" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     <template x-for="hab in data.habitaciones_pendientes" :key="hab.id">
                         <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
                            class="min-h-[80px] bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4 flex items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 active:ring-2 active:ring-blue-500 transition">
