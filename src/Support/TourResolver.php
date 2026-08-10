@@ -47,7 +47,12 @@ final class TourResolver
             return null; // sin sesión no hay ayuda
         }
 
-        $pantalla = self::resolvePantalla(Url::rutaActual());
+        $path = Url::rutaActual();
+        // /home sirve un dashboard distinto por rol (ver views/home.php): hay que
+        // resolver la clave de pantalla según permisos, no solo por el path.
+        $pantalla = $path === '/home'
+            ? self::resolveHome($usuario)
+            : self::resolvePantalla($path);
         if ($pantalla === null) {
             return null; // esta pantalla no declara ayuda
         }
@@ -55,6 +60,27 @@ final class TourResolver
         $can = static fn (string $cap): bool => self::userCan($usuario, $cap);
 
         return self::payload($pantalla, $can, $usuario->id);
+    }
+
+    /**
+     * /home sirve un dashboard distinto según permisos (espejo EXACTO de
+     * views/home.php). Devolvemos la clave de pantalla del catálogo. Hoy solo
+     * 'home.supervisora' tiene ayuda escrita; las demás claves resuelven a null
+     * en payload() (sin botón «?») hasta que se les escriba su recorrido.
+     */
+    private static function resolveHome(Usuario $usuario): string
+    {
+        if ($usuario->tienePermiso('ajustes.acceder')) {
+            return 'home.admin';
+        }
+        if ($usuario->tienePermiso('alertas.recibir_predictivas')
+            && $usuario->tienePermiso('asignaciones.asignar_manual')) {
+            return 'home.supervisora';
+        }
+        if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
+            return 'home.recepcion';
+        }
+        return 'home.trabajador';
     }
 
     /** Chequeo de permiso vía RBAC dinámico. Nunca chequees roles: solo permisos. */

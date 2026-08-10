@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  * una vista, en vez de apagarse en silencio (un tour cuyo ancla ya no está).
  *
  * Los pasos `modo => 'dialogo'` viven dentro de un modal cerrado → no se exigen en
- * el HTML inicial. Nuestra vista no los usa (todas las anclas van a contenedores
+ * el HTML inicial. Nuestras vistas no los usan (todas las anclas van a contenedores
  * estables), pero el filtro queda por si un recorrido futuro los agrega.
  *
  * Nota: las anclas viven en markup de Alpine (a veces dentro de <template>), que el
@@ -27,12 +27,26 @@ final class ToursAnchorTest extends TestCase
 {
     public function test_anclas_de_asignaciones(): void
     {
-        $pantalla = 'asignaciones';
+        // La ruta /asignaciones resuelve directo a esta pantalla del catálogo.
+        $this->verificarAnclas('asignaciones', 'asignaciones');
+    }
+
+    public function test_anclas_de_home_supervisora(): void
+    {
+        // /home incluye home-supervisora.php para la supervisora (ver home.php);
+        // TourResolver::resolveHome() mapea ese caso a 'home.supervisora'.
+        $this->verificarAnclas('home.supervisora', 'home-supervisora');
+    }
+
+    /**
+     * Renderiza el template real con un usuario stub y verifica anclas ↔ pasos.
+     */
+    private function verificarAnclas(string $pantalla, string $template): void
+    {
         $catalogo = Tours::catalog();
-        $this->assertArrayHasKey($pantalla, $catalogo);
+        $this->assertArrayHasKey($pantalla, $catalogo, "El catálogo no tiene la pantalla $pantalla");
 
-        $html = View::renderizar($pantalla, ['usuario' => $this->usuarioStub()])->cuerpo;
-
+        $html = View::renderizar($template, ['usuario' => $this->usuarioStub()])->cuerpo;
         $entrada = $catalogo[$pantalla];
 
         // 1) Cada ancla NO-diálogo del catálogo existe en el HTML.
@@ -61,7 +75,7 @@ final class ToursAnchorTest extends TestCase
             $this->assertArrayHasKey(
                 $enHtml,
                 $usadas,
-                "data-tour huérfano en la vista (sin paso que lo use): $enHtml"
+                "data-tour huérfano en la vista $pantalla (sin paso que lo use): $enHtml"
             );
         }
     }
@@ -77,7 +91,11 @@ final class ToursAnchorTest extends TestCase
             requiereCambioPwd: false,
             hotelDefault: null,
             temaPreferido: 'claro',
-            permisos: ['asignaciones.asignar_manual', 'asignaciones.auto_asignar'],
+            permisos: [
+                'asignaciones.asignar_manual',
+                'asignaciones.auto_asignar',
+                'alertas.recibir_predictivas',
+            ],
             roles: ['Supervisora'],
         );
     }

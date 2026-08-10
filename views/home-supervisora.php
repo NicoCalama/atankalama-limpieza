@@ -45,7 +45,7 @@ if ($hora < 12) {
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400"><?= htmlspecialchars($saludo) ?></p>
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate"><?= htmlspecialchars($usuario->nombre) ?></p>
-                    <div class="relative" x-data="{ abierto: false }" @click.outside="abierto = false">
+                    <div class="relative" data-tour="home.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
                         <button @click="abierto = !abierto"
                                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
@@ -139,7 +139,7 @@ if ($hora < 12) {
 
             <!-- Sección Alertas -->
             <template x-if="puedeVerAlertas">
-                <section>
+                <section data-tour="home.alertas">
                     <div class="flex items-center justify-between mb-2">
                         <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                             <i data-lucide="bell-ring" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
@@ -201,7 +201,7 @@ if ($hora < 12) {
             </template>
 
             <!-- Sección Estado del equipo -->
-            <section>
+            <section data-tour="home.equipo">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                         <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
@@ -222,7 +222,7 @@ if ($hora < 12) {
                 </div>
 
                 <!-- Progreso global -->
-                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-3">
+                <div data-tour="home.progreso" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-3">
                     <div class="flex items-baseline justify-between mb-2">
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                             Habitaciones completadas:

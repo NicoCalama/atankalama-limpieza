@@ -144,6 +144,94 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  HOME SUPERVISORA — vista: views/home-supervisora.php
+            //  Ruta /home (home.php incluye este dashboard cuando el usuario
+            //  tiene alertas.recibir_predictivas + asignaciones.asignar_manual
+            //  y NO es admin). TourResolver::resolveHome() espeja ese branching.
+            // ════════════════════════════════════════════════════════════
+            'home.supervisora' => [
+                'nombre'    => 'Inicio · Supervisora',
+                'recorridos' => [
+
+                    // ── 1. Leer el día de un vistazo. Va primero. ──
+                    [
+                        'id'       => 'tablero',
+                        'v'        => 1,
+                        'titulo'   => 'Leer el tablero',
+                        'pregunta' => '¿Cómo veo cómo va el día?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="home.progreso"]',
+                                'titulo' => 'El día, en una barra',
+                                'texto'  => 'La barra resume cuántas piezas van completadas, en progreso, rechazadas y pendientes, sobre el total del turno.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="home.equipo"]',
+                                'titulo' => 'Cómo va cada trabajador',
+                                'texto'  => 'Cada tarjeta muestra su avance y una etiqueta: «En tiempo», «En riesgo» (va lento y podría no alcanzar) o «Disponible» (ya terminó).',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Atender lo urgente. Solo con permiso de alertas. ──
+                    [
+                        'id'        => 'alertas',
+                        'v'         => 1,
+                        'titulo'    => 'Atender las alertas',
+                        'pregunta'  => '¿Qué son las alertas de arriba?',
+                        'capacidad' => 'alertas.recibir_predictivas',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="home.alertas"]',
+                                'titulo' => 'Lo que necesita tu atención ahora',
+                                'texto'  => 'Acá salen las cosas urgentes: un trabajador en riesgo, una pieza rechazada, un ticket nuevo. Se ordenan por prioridad.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="home.alertas"]',
+                                'titulo' => 'No se descartan solas',
+                                'texto'  => 'Cada alerta trae hasta dos botones para resolverla en el momento. Se van cuando resuelves lo que las causó, no antes.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Mover carga sin cambiar de pantalla. Solo si asigna. ──
+                    [
+                        'id'        => 'mover',
+                        'v'         => 1,
+                        'titulo'    => 'Mover carga sin salir',
+                        'pregunta'  => '¿Reasignar sin ir a Asignaciones?',
+                        'capacidad' => 'asignaciones.asignar_manual',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="home.equipo"]',
+                                'titulo' => 'Ver carga y reasignar',
+                                'texto'  => 'En cada trabajador tienes «Ver carga» para mirar sus piezas y «Reasignar» para pasarle una a alguien con menos trabajo.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 4. Filtrar la vista. ──
+                    [
+                        'id'       => 'hotel',
+                        'v'        => 1,
+                        'titulo'   => 'Cambiar de hotel',
+                        'pregunta' => '¿Cómo veo un solo hotel?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="home.hotel"]',
+                                'titulo' => 'Filtra por hotel',
+                                'texto'  => 'Acá eliges Atankalama, el Inn, o los dos juntos. El tablero, el equipo y las alertas se ajustan al hotel que elijas.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  PLANTILLA — copia esto para una pantalla nueva (y bórrala si
             //  no la usas; no la publiques con textos de relleno).
             // ════════════════════════════════════════════════════════════
