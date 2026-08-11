@@ -69,7 +69,7 @@ final class Tours
                     // ── 1. El trabajo diario. Va primero SIEMPRE. ──
                     [
                         'id'       => 'repartir',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Repartir las piezas',
                         'pregunta' => '¿Cómo asigno las habitaciones de hoy?',
                         'requiere' => [],
@@ -77,33 +77,38 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.sin-asignar"]',
                                 'titulo' => 'Las piezas que faltan repartir',
-                                'texto'  => 'Acá están las piezas sucias que todavía no tienen quién las limpie. Tócalas para elegirlas: se marcan en azul y abajo aparece «Asignar a…» para dárselas a alguien.',
+                                'texto'  => 'Acá están las piezas sucias que todavía no tienen quién las limpie. Tócalas para elegir varias y arrástralas hasta un trabajador, o arrastra una sola directo.',
                             ],
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
-                                'titulo' => 'Eliges a quién, según su carga',
-                                'texto'  => 'En «Asignar a…» eliges al trabajador; te los ordena por menor carga. La pieza entra en su cola y la verá en su teléfono.',
+                                'titulo' => 'Suéltala sobre la persona',
+                                'texto'  => 'Al soltarla sobre un trabajador, la pieza entra en su cola y la verá en su teléfono. En cada tarjeta ves su avance y su carga del día.',
                             ],
                         ],
                     ],
 
-                    // ── 2. Las dos acciones que se confunden. ──
+                    // ── 2. Las tres formas de mover una pieza ya asignada. ──
                     [
                         'id'       => 'mover',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Mover una pieza asignada',
-                        'pregunta' => '¿Reasignar o sacarla de la cola?',
+                        'pregunta' => '¿Reasignar, quitar o reordenar una pieza?',
                         'requiere' => [],
                         'pasos' => [
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
-                                'titulo' => 'Cada tarjeta es un trabajador',
-                                'texto'  => 'Ves su cola de piezas y su avance: cuántas lleva completadas y cuántas le quedan. Desde acá equilibras la carga si alguien va muy apretado.',
+                                'titulo' => 'Arrastra de una persona a otra',
+                                'texto'  => 'Cada tarjeta es un trabajador con su cola. Arrastra una pieza de una persona a otra para reasignarla.',
                             ],
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
-                                'titulo' => 'Reasignar no es sacar',
-                                'texto'  => 'En cada pieza que todavía se puede mover hay dos acciones: «Reasignar» la pasa a otra persona; el botón rojo de quitar la deja sin asignar.',
+                                'titulo' => 'Para quitarla del todo',
+                                'texto'  => 'Arrástrala de vuelta al panel de la derecha, o toca la X roja de la pieza: queda sin asignar.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="asig.equipo"]',
+                                'titulo' => 'Ordenar dentro de la persona',
+                                'texto'  => 'Dentro de un mismo trabajador, arrastra sus piezas hacia arriba o abajo para cambiar el orden en que las limpia.',
                             ],
                         ],
                     ],
@@ -111,7 +116,7 @@ final class Tours
                     // ── 3. El atajo para repartir todo. Solo con permiso. ──
                     [
                         'id'        => 'auto',
-                        'v'         => 1,
+                        'v'         => 2,
                         'titulo'    => 'Auto-asignar todo',
                         'pregunta'  => '¿Puedo repartir todo de una vez?',
                         'capacidad' => 'asignaciones.auto_asignar',
@@ -120,7 +125,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.auto"]',
                                 'titulo' => 'Reparte parejo, tú ajustas',
-                                'texto'  => '«Auto-asignar» reparte todas las piezas sucias entre el equipo con turno, en partes parejas. Después puedes reasignar a mano lo que quieras.',
+                                'texto'  => 'El botón de auto-asignar reparte todas las piezas sucias entre el equipo con turno, en partes parejas. Después arrastra a mano lo que quieras ajustar.',
                             ],
                         ],
                     ],

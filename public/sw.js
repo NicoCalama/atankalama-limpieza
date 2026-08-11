@@ -7,7 +7,7 @@
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v8'; // v8: vista guiada — cambió layout.php + assets nuevos; bump para propagar el layout con el botón «?»
+const CACHE_VERSION = 'v9'; // v9: tablero drag&drop de asignaciones — rediseño de asignaciones.php + nuevo asset drag-asignaciones.js; bump para propagar
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
