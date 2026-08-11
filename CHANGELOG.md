@@ -27,6 +27,7 @@ medios**.
 
 | Versión | Qué cambió |
 |---|---|
+| **v4** · 10/08/2026 | Nueva forma visual de asignar habitaciones: un tablero donde arrastras las piezas hasta cada trabajador para asignarlas, las mueves de una persona a otra, las sacas arrastrándolas de vuelta o con la X, y ordenas su cola · Funciona con el mouse y con el dedo, en notebook, tablet y teléfono · El modo de asignación anterior sigue disponible: un botón permite cambiar entre «Tablero» y «Clásico» |
 | **v3** · 10/08/2026 | Ayuda guiada en pantalla: un botón «?» flotante en cada pantalla del sistema que, según la tarea que elijas, te la explica paso a paso resaltando cada parte de la pantalla · Cubre todo el recorrido de trabajadores, supervisoras, recepción y administración |
 | **v2.6** · 25/07/2026 | Corrección interna del service worker que evitaba un error en la consola al abrir la app (no afectaba el uso) |
 | **v2.5** · 22/07/2026 | Los checklists ahora se guían por el tipo real de cada habitación en Cloudbeds (antes se agrupaban por capacidad de forma aproximada) · Nueva opción para separar los checklists por hotel: podés personalizar un tipo en una propiedad sin afectar la otra |
