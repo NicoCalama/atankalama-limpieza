@@ -44,6 +44,8 @@ if ($usuario->tienePermiso('espacios.ver')) {
     ];
 }
 
+
+
 if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     $items[] = [
         'ruta' => '/auditoria',
@@ -64,41 +66,7 @@ if ($usuario->tieneAlgunPermiso(['tickets.ver_propios', 'tickets.ver_todos'])) {
     ];
 }
 
-if ($usuario->tienePermiso('reportes.ver')) {
-    $items[] = [
-        'ruta' => '/reportes',
-        'icono' => 'bar-chart-3',
-        'label' => 'Reportes',
-        'activo' => str_starts_with($rutaActual, '/reportes'),
-    ];
-}
-
-if ($usuario->tienePermiso('usuarios.ver')) {
-    $items[] = [
-        'ruta' => '/usuarios',
-        'icono' => 'user-cog',
-        'label' => 'Usuarios',
-        'activo' => str_starts_with($rutaActual, '/usuarios'),
-    ];
-}
-
-if ($usuario->tienePermiso('permisos.asignar_a_rol')) {
-    $items[] = [
-        'ruta' => '/ajustes/rbac',
-        'icono' => 'shield',
-        'label' => 'Roles y permisos',
-        'activo' => $rutaActual === '/ajustes/rbac',
-    ];
-}
-
-if ($usuario->tienePermiso('turnos.importar')) {
-    $items[] = [
-        'ruta' => '/ajustes/importar-turnos',
-        'icono' => 'file-up',
-        'label' => 'Importar turnos',
-        'activo' => $rutaActual === '/ajustes/importar-turnos',
-    ];
-}
+// Usuarios, Importar turnos y Reportes viven en /ajustes (son configuración, no uso diario).
 
 $items[] = [
     'ruta' => '/ajustes',

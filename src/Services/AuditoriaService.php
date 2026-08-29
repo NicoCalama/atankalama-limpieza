@@ -111,7 +111,7 @@ final class AuditoriaService
             $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
         }
 
-        $itemsJson = $itemsDesmarcados === [] ? null : json_encode(array_values($itemsDesmarcados));
+        $itemsJson = $itemsDesmarcados === [] ? null : json_encode($itemsDesmarcados);
 
         Database::execute(
             'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
@@ -224,7 +224,7 @@ final class AuditoriaService
             "Habitación {$numero} rechazada",
             $comentario ?? 'Revisar y reasignar.',
             ['habitacion_id' => $habitacionId, 'trabajador_id' => $trabajadorId],
-            isset($habFila['hotel_id']) && $habFila['hotel_id'] !== null ? (int) $habFila['hotel_id'] : null,
+            isset($habFila['hotel_id']) ? (int) $habFila['hotel_id'] : null,
             "habitacion:{$habitacionId}",
         );
 

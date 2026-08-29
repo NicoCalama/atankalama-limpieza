@@ -102,6 +102,27 @@ if ($hora < 12) {
          :class="toast.tipo === 'exito' ? 'bg-green-600' : 'bg-red-600'"
          x-text="toast.mensaje"></div>
 
+    <!-- Modal: Confirmar descarte de alerta -->
+    <div x-show="modalDescartar.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
+         @click.self="cerrarModalDescartar()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Descartar esta alerta?</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
+            <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
+            <div class="flex gap-2 justify-end">
+                <button @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
+                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
+                    Cancelar
+                </button>
+                <button @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
+                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
+                    <span x-text="modalDescartar.enviando ? 'Descartando...' : 'Descartar'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Carga inicial -->
     <template x-if="cargando && !data">
         <div class="min-h-[60vh] flex items-center justify-center">
@@ -470,6 +491,7 @@ function homeAdmin() {
         _intervalId: null,
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
+        modalDescartar: { abierto: false, alerta: null, enviando: false },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -734,33 +756,32 @@ function homeAdmin() {
             var btnPrimario = 'bg-blue-600 hover:bg-blue-700 text-white';
             var btnSecundario = 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100';
             var puedeAsignar = this.data && this.data.permisos && this.data.permisos.asignaciones_asignar_manual;
+            var botones = [];
 
             if (al.tipo === 'cloudbeds_sync_failed') {
-                return [{ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario }];
-            }
-            if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
-                var botones = [{ accion: 'ir_asignaciones', etiqueta: 'Ver asignaciones', clase: btnSecundario }];
+                botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+            } else if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
+                botones.push({ accion: 'ir_asignaciones', etiqueta: 'Ver asignaciones', clase: btnSecundario });
                 if (puedeAsignar) botones.push({ accion: 'ir_asignaciones', etiqueta: 'Reasignar', clase: btnPrimario });
-                return botones;
-            }
-            if (al.tipo === 'habitacion_rechazada') {
-                var b = [];
+            } else if (al.tipo === 'habitacion_rechazada') {
                 if (al.contexto && al.contexto.habitacion_id) {
-                    b.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
                 }
-                return b;
+            } else if (al.tipo === 'trabajador_disponible') {
+                if (puedeAsignar) botones.push({ accion: 'ir_asignaciones', etiqueta: 'Asignar', clase: btnPrimario });
+            } else if (al.tipo === 'ticket_nuevo') {
+                botones.push({ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario });
             }
-            if (al.tipo === 'trabajador_disponible') {
-                if (puedeAsignar) return [{ accion: 'ir_asignaciones', etiqueta: 'Asignar', clase: btnPrimario }];
-                return [];
-            }
-            if (al.tipo === 'ticket_nuevo') {
-                return [{ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario }];
-            }
-            return [];
+
+            botones.push({ accion: 'descartar', etiqueta: 'Descartar', clase: btnSecundario });
+            return botones;
         },
 
         async accionAlerta(al, accion) {
+            if (accion === 'descartar') {
+                this.modalDescartar = { abierto: true, alerta: al, enviando: false };
+                return;
+            }
             if (accion === 'ir_asignaciones') {
                 window.location.href = u('/asignaciones');
                 return;
@@ -781,6 +802,29 @@ function homeAdmin() {
             } catch (e) {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             }
+        },
+
+        async confirmarDescartarAlerta() {
+            if (this.modalDescartar.enviando || !this.modalDescartar.alerta) return;
+            this.modalDescartar.enviando = true;
+            try {
+                var r = await apiPost('/api/alertas/' + this.modalDescartar.alerta.id + '/accion', { accion: 'descartar' });
+                if (r && r.ok) {
+                    this.mostrarToast('exito', 'Alerta descartada.');
+                    this.cerrarModalDescartar();
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos descartar la alerta.');
+                    this.modalDescartar.enviando = false;
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                this.modalDescartar.enviando = false;
+            }
+        },
+
+        cerrarModalDescartar() {
+            this.modalDescartar = { abierto: false, alerta: null, enviando: false };
         },
 
         mostrarToast(tipo, mensaje) {

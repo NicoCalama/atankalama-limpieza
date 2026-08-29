@@ -16,7 +16,7 @@
             </a>
             <div>
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Importar turnos desde Breik</h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Reporte de turnos planificados (.csv)</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Reporte de turnos planificados (.csv o .xlsx)</p>
             </div>
             <?php include __DIR__ . '/../componentes/boton-tema.php'; ?>
         </div>
@@ -51,12 +51,10 @@
             <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
 
                 <div data-tour="imp.instrucciones">
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">¿Cómo exportar desde Breik?</h2>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">¿Cómo importar desde Breik?</h2>
                     <ol class="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside">
-                        <li>En Breik → Reportes → Turnos planificados</li>
-                        <li>Selecciona el rango de fechas</li>
-                        <li>Exportar → CSV</li>
-                        <li>Sube ese archivo aquí</li>
+                        <li>Descarga el reporte de turnos desde Breik (CSV) o el calendario semanal (Excel .xlsx)</li>
+                        <li>Sube ese archivo aquí, tal cual</li>
                     </ol>
                 </div>
 
@@ -66,13 +64,13 @@
                     :class="archivoNombre ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/30'"
                     @dragover.prevent
                     @drop.prevent="onDrop($event)">
-                    <input type="file" accept=".csv,.txt" class="sr-only" @change="onFileChange($event)">
+                    <input type="file" accept=".csv,.txt,.xlsx" class="sr-only" @change="onFileChange($event)">
                     <i data-lucide="file-up" class="w-10 h-10 mx-auto mb-3"
                        :class="archivoNombre ? 'text-blue-500' : 'text-gray-400'"></i>
                     <template x-if="!archivoNombre">
                         <div>
-                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Arrastra el CSV aquí o haz clic para seleccionar</p>
-                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Formato: Reporte_turnos_planificados.csv de Breik (máx. 5 MB)</p>
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Arrastra el archivo aquí o haz clic para seleccionar</p>
+                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">CSV de "Turnos planificados" o calendario semanal .xlsx de Breik (máx. 5 MB)</p>
                         </div>
                     </template>
                     <template x-if="archivoNombre">
@@ -208,6 +206,28 @@
                     </div>
                 </template>
 
+                <!-- Turnos del calendario .xlsx que no matchean ningún turno del catálogo (se omiten: ese formato no trae horas para poder crearlos) -->
+                <template x-if="preview.turnos_no_encontrados && preview.turnos_no_encontrados.length > 0">
+                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 overflow-hidden">
+                        <div class="px-4 py-3 border-b border-amber-200 dark:border-amber-700 flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
+                            <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                Turnos sin catálogo, se omiten
+                                <span class="ml-1 text-xs font-normal"
+                                      x-text="'(' + preview.turnos_no_encontrados.length + ')'"></span>
+                            </h3>
+                        </div>
+                        <div class="divide-y divide-amber-100 dark:divide-amber-800 max-h-48 overflow-y-auto">
+                            <template x-for="nombre in preview.turnos_no_encontrados" :key="nombre">
+                                <p class="px-4 py-2 text-sm text-amber-800 dark:text-amber-200" x-text="nombre"></p>
+                            </template>
+                        </div>
+                        <p class="px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+                            No existen en Ajustes → Turnos. Créalos ahí primero (con sus horas) y vuelve a subir el archivo.
+                        </p>
+                    </div>
+                </template>
+
                 <!-- Ya existentes -->
                 <template x-if="preview.ya_existentes > 0">
                     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4" data-tour="imp.duplicados">
@@ -335,7 +355,7 @@ function importarTurnos() {
             this.error = null;
             try {
                 var fd = new FormData();
-                fd.append('csv_file', this.archivo);
+                fd.append('archivo', this.archivo);
                 var resp = await fetch(u('/api/turnos/importar/preview'), { method: 'POST', body: fd });
                 var json = await resp.json();
                 if (!json.ok) { this.error = json.error.mensaje; return; }

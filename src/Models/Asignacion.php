@@ -32,7 +32,7 @@ final class Asignacion
             ordenCola: (int) $fila['orden_cola'],
             fecha: (string) $fila['fecha'],
             activa: ((int) $fila['activa']) === 1,
-            franja: isset($fila['franja']) && $fila['franja'] !== null ? (string) $fila['franja'] : null,
+            franja: isset($fila['franja']) ? (string) $fila['franja'] : null,
         );
     }
 

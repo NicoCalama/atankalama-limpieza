@@ -109,6 +109,27 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
         <?php if ($puedeAsignar): ?>
         <section x-show="tab === 'asignacion'" x-cloak>
 
+            <!-- Búsqueda por nombre -->
+            <div class="relative mb-3" data-tour="tur.buscar">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text"
+                       x-model="busquedaNombre"
+                       placeholder="Buscar por nombre..."
+                       class="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+            </div>
+
+            <!-- Filtro por tipo de trabajador -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 mb-3" data-tour="tur.filtro-rol">
+                <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">Tipo de trabajador:</span>
+                <template x-for="opt in filtrosRol" :key="opt.valor">
+                    <button type="button"
+                            @click="rolFiltro = opt.valor; guardarFiltroRol()"
+                            :class="rolFiltro === opt.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                            class="flex-shrink-0 min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-full border transition"
+                            x-text="opt.label"></button>
+                </template>
+            </div>
+
             <!-- Navegación semana -->
             <div class="flex items-center justify-between gap-2 mb-3">
                 <button type="button" @click="cambiarSemana(-1)"
@@ -155,7 +176,7 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="u in usuariosAsignacion" :key="u.id">
+                            <template x-for="u in usuariosAsignacionFiltrados" :key="u.id">
                                 <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                                     <td class="sticky left-0 bg-white dark:bg-gray-800 px-3 py-2 border-r border-gray-200 dark:border-gray-700">
                                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="u.nombre"></p>
@@ -184,9 +205,9 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                                     </template>
                                 </tr>
                             </template>
-                            <tr x-show="usuariosAsignacion.length === 0" x-cloak>
+                            <tr x-show="usuariosAsignacionFiltrados.length === 0" x-cloak>
                                 <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                    No hay trabajadores activos.
+                                    <span x-text="(rolFiltro || busquedaNombre) ? 'No hay trabajadores que coincidan con el filtro.' : 'No hay trabajadores activos.'"></span>
                                 </td>
                             </tr>
                         </tbody>
@@ -255,6 +276,15 @@ function turnosApp() {
         catalogo: [],
         cargandoAsignacion: false,
         usuariosAsignacion: [],
+        rolFiltro: localStorage.getItem('ajustes_turnos_rol') || '',
+        busquedaNombre: '',
+        filtrosRol: [
+            { valor: '', label: 'Todos' },
+            { valor: 'Trabajador', label: 'Trabajadores' },
+            { valor: 'Supervisora', label: 'Supervisoras' },
+            { valor: 'Recepción', label: 'Recepción' },
+            { valor: 'Admin', label: 'Admins' },
+        ],
         asignacionesPorDia: {},
         lunesSemana: null,
         popoverAbierto: false,
@@ -295,6 +325,22 @@ function turnosApp() {
 
         get catalogoActivos() {
             return this.catalogo.filter(t => t.activo);
+        },
+
+        get usuariosAsignacionFiltrados() {
+            let lista = this.usuariosAsignacion;
+            if (this.rolFiltro) {
+                lista = lista.filter(u => Array.isArray(u.roles) && u.roles.includes(this.rolFiltro));
+            }
+            const q = this.busquedaNombre.trim().toLowerCase();
+            if (q) {
+                lista = lista.filter(u => (u.nombre || '').toLowerCase().includes(q));
+            }
+            return lista;
+        },
+
+        guardarFiltroRol() {
+            localStorage.setItem('ajustes_turnos_rol', this.rolFiltro || '');
         },
 
         get dias() {

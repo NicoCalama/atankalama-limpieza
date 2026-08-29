@@ -61,6 +61,20 @@ final class PaginasController
         ]);
     }
 
+    public function edificios(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if (!$request->usuario->tienePermiso('habitaciones.ver_todas')) {
+            return View::conLayout('error', ['mensaje' => 'No tienes permiso.', 'titulo' => 'Acceso Denegado']);
+        }
+        return View::conLayout('edificios', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Edificios y Mapeo',
+        ]);
+    }
+
     public function habitaciones(Request $request): Response
     {
         if ($request->usuario === null) {

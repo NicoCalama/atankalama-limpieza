@@ -36,6 +36,13 @@ $secciones = [
         'visible' => $usuario->tienePermiso('checklists.editar'),
     ],
     [
+        'ruta' => '/edificios',
+        'icono' => 'layout-dashboard',
+        'label' => 'Edificios',
+        'descripcion' => 'CRUD de edificios y asignación drag-and-drop',
+        'visible' => $usuario->tienePermiso('habitaciones.ver_todas'),
+    ],
+    [
         'ruta' => '/ajustes/colores',
         'icono' => 'palette',
         'label' => 'Colores',
@@ -50,11 +57,25 @@ $secciones = [
         'visible' => $usuario->tienePermiso('turnos.ver'),
     ],
     [
+        'ruta' => '/ajustes/importar-turnos',
+        'icono' => 'file-up',
+        'label' => 'Importar turnos',
+        'descripcion' => 'Carga masiva de turnos desde archivo',
+        'visible' => $usuario->tienePermiso('turnos.importar'),
+    ],
+    [
         'ruta' => '/ajustes/alertas',
         'icono' => 'bell-ring',
         'label' => 'Alertas',
         'descripcion' => 'Umbrales y recálculo de alertas predictivas',
         'visible' => $usuario->tienePermiso('alertas.configurar_umbrales'),
+    ],
+    [
+        'ruta' => '/reportes',
+        'icono' => 'bar-chart-3',
+        'label' => 'Reportes',
+        'descripcion' => 'Indicadores y reportes operativos',
+        'visible' => $usuario->tienePermiso('reportes.ver'),
     ],
     [
         'ruta' => '/ajustes/versiones',

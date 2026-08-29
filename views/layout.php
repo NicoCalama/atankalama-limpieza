@@ -38,8 +38,10 @@
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <!-- App CSS -->
-    <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>">
+    <!-- App CSS. Cache busting con filemtime(): sin esto, el navegador puede seguir
+         sirviendo una copia vieja de custom.css cacheada aunque el archivo cambió. -->
+    <?php $__customCssV = @filemtime(\Atankalama\Limpieza\Core\Config::basePath() . '/public/assets/css/custom.css') ?: '1'; ?>
+    <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>?v=<?= $__customCssV ?>">
 
     <!-- Colores configurables (Ajustes → Colores): variables consumidas por las
          clases semánticas .chip-estado-* / .hotel-accent-* de custom.css -->
@@ -102,6 +104,11 @@
             <?php include __DIR__ . '/componentes/modal-usuario-nuevo.php'; ?>
         <?php endif; ?>
 
+        <!-- Modal reutilizable "Importar usuarios desde Excel" (abrible vía evento abrir-modal-usuario-importar) -->
+        <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
+            <?php include __DIR__ . '/componentes/modal-usuario-importar.php'; ?>
+        <?php endif; ?>
+
         <!-- Modal reutilizable "Detalle de usuario" (abrible vía evento abrir-modal-usuario-detalle) -->
         <?php if ($usuario->tienePermiso('usuarios.ver')): ?>
             <?php include __DIR__ . '/componentes/modal-usuario-detalle.php'; ?>
@@ -122,8 +129,9 @@
         <?php endif; ?>
     <?php endif; ?>
 
-    <!-- App JS -->
-    <script src="<?= u('/assets/js/app.js') ?>"></script>
+    <!-- App JS. Mismo cache busting que custom.css arriba. -->
+    <?php $__appJsV = @filemtime(\Atankalama\Limpieza\Core\Config::basePath() . '/public/assets/js/app.js') ?: '1'; ?>
+    <script src="<?= u('/assets/js/app.js') ?>?v=<?= $__appJsV ?>"></script>
     <script>
         // Store global de notificaciones (badge count)
         document.addEventListener('alpine:init', function() {
@@ -236,8 +244,8 @@
     if (isset($usuario) && \Atankalama\Limpieza\Core\Config::getBool('VISTA_GUIADA_HABILITADA', false)):
         $vgPayload = \Atankalama\Limpieza\Support\TourResolver::forCurrentRequest($usuario);
         if ($vgPayload !== null):
-            $vgCssFile = __DIR__ . '/../public/assets/vista-guiada/vista-guiada.css';
-            $vgJsFile  = __DIR__ . '/../public/assets/vista-guiada/vista-guiada.js';
+            $vgCssFile = __DIR__ . '/../../assets/vista-guiada/vista-guiada.css';
+            $vgJsFile  = __DIR__ . '/../../assets/vista-guiada/vista-guiada.js';
             $vgCssV = @filemtime($vgCssFile) ?: '1';
             $vgJsV  = @filemtime($vgJsFile) ?: '1';
     ?>

@@ -152,12 +152,28 @@ CREATE TABLE tipos_habitacion (
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- Edificios
+-- Representa las estructuras físicas que contienen habitaciones
+CREATE TABLE edificios (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    hotel_id       INTEGER NOT NULL,
+    nombre         TEXT NOT NULL,
+    pisos          INTEGER DEFAULT 1,
+    estado         TEXT NOT NULL DEFAULT 'operativo',
+    orden          INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (hotel_id) REFERENCES hoteles(id) ON DELETE RESTRICT
+);
+
 -- Habitaciones
 -- Estado refleja el ciclo de vida: sucia → en_progreso → completada_pendiente_auditoria → aprobada/aprobada_con_observacion/rechazada
 CREATE TABLE habitaciones (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     hotel_id                INTEGER NOT NULL,
     numero                  TEXT NOT NULL,                    -- '101', '203A', etc.
+    edificio_id             INTEGER,                          -- ID referencial de edificio (existente en BD)
+    edificio                TEXT,                             -- nombre del edificio (opcional)
+    piso                    INTEGER,                          -- número de piso (opcional)
     tipo_habitacion_id      INTEGER NOT NULL,
     cloudbeds_room_id       TEXT,                             -- mapeo con Cloudbeds
     estado                  TEXT NOT NULL DEFAULT 'sucia' CHECK (estado IN (
@@ -462,6 +478,8 @@ CREATE TABLE tickets (
     )),
     levantado_por    INTEGER NOT NULL,
     asignado_a       INTEGER,
+    asignado_at      TEXT,                                  -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
+    idempotency_key  TEXT,                                  -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     resuelto_at      TEXT,
@@ -474,6 +492,25 @@ CREATE TABLE tickets (
 CREATE INDEX idx_tickets_estado ON tickets(estado);
 CREATE INDEX idx_tickets_hotel ON tickets(hotel_id);
 CREATE INDEX idx_tickets_levantado_por ON tickets(levantado_por);
+CREATE UNIQUE INDEX idx_tickets_idempotency_key ON tickets(idempotency_key);
+
+-- Fotos adjuntas a un ticket (al crearlo y/o al cerrarlo). Los archivos físicos
+-- viven en public/uploads/tickets/{AAAA}/{MM}/ — ruta guarda solo el relativo
+-- a esa carpeta, nunca el nombre original del usuario (ver ImagenAdjuntoService).
+CREATE TABLE tickets_adjuntos (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id        INTEGER NOT NULL,
+    ruta             TEXT NOT NULL,                          -- ej: "tickets/2026/08/ab12cd34.webp"
+    nombre_original  TEXT,                                   -- solo para mostrar, nunca para resolver ruta física
+    tamano_bytes     INTEGER NOT NULL,
+    contexto         TEXT NOT NULL DEFAULT 'creacion' CHECK (contexto IN ('creacion', 'cierre')),
+    subido_por       INTEGER NOT NULL,
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (subido_por) REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_tickets_adjuntos_ticket ON tickets_adjuntos(ticket_id);
 
 -- ============================================================================
 -- BLOQUE 7 — LOGS

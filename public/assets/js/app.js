@@ -146,6 +146,55 @@ async function apiPut(url, cuerpo) {
     });
 }
 
+// --- Helper: POST con FormData (multipart, para subir archivos) ---
+// headers: {} pisa el 'Content-Type: application/json' por defecto de apiFetch —
+// con FormData el browser tiene que fijar el Content-Type él solo (multipart +
+// boundary); si lo forzamos a JSON, el servidor no puede leer $_FILES.
+async function apiPostForm(url, formData) {
+    return apiFetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {}
+    });
+}
+
+// --- Helper: comprimir foto en el navegador antes de subirla ---
+// Una foto de cámara de celular pesa 3-10MB a resolución completa; subir eso por una
+// conexión de hotel/celular tarda mucho y encima el servidor tiene que redimensionar/
+// recomprimir un original grande (ImagenAdjuntoService::guardarComoWebp). Redimensionar acá
+// ANTES de armar el FormData achica lo que viaja por red a una fracción. Es una optimización,
+// no una validación: si algo falla (navegador viejo, imagen corrupta), se sube el original tal
+// cual — el servidor igual valida y redimensiona de su lado.
+async function comprimirFotoParaSubir(file, maxLado, calidad) {
+    if (!file || file.type.indexOf('image/') !== 0 || typeof createImageBitmap === 'undefined') {
+        return file;
+    }
+    try {
+        var bitmap = await createImageBitmap(file);
+        var escala = Math.min(1, maxLado / Math.max(bitmap.width, bitmap.height));
+        var w = Math.round(bitmap.width * escala) || 1;
+        var h = Math.round(bitmap.height * escala) || 1;
+
+        var canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        if (bitmap.close) bitmap.close();
+
+        var blob = await new Promise(function (resolve) {
+            canvas.toBlob(resolve, 'image/jpeg', calidad);
+        });
+        // Si comprimir no ayudó (fotos ya chicas) o el navegador no generó el blob, usar el original.
+        if (!blob || blob.size >= file.size) return file;
+
+        var nombre = (file.name || 'foto').replace(/\.\w+$/, '') + '.jpg';
+        return new File([blob], nombre, { type: 'image/jpeg' });
+    } catch (e) {
+        return file;
+    }
+}
+
 // --- Alpine component: homeApp (placeholder, se completa en items 44-47) ---
 function homeApp() {
     return {

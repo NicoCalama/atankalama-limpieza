@@ -82,6 +82,27 @@
                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
                 </div>
 
+                <!-- Fotos (opcional) -->
+                <div>
+                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Fotos (opcional, máx. 3)</label>
+                    <div class="flex flex-wrap gap-2 mb-2" x-show="fotos.length > 0">
+                        <template x-for="(foto, idx) in fotos" :key="foto.url">
+                            <div class="relative w-16 h-16">
+                                <img :src="foto.url" class="w-16 h-16 object-cover rounded-lg border border-gray-300 dark:border-gray-600">
+                                <button type="button" @click="quitarFoto(idx)"
+                                        class="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-red-600 text-white text-xs leading-none"
+                                        aria-label="Quitar foto">×</button>
+                            </div>
+                        </template>
+                    </div>
+                    <label x-show="fotos.length < 3"
+                           class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                        <i data-lucide="camera" class="w-4 h-4"></i>
+                        <span>Agregar foto</span>
+                        <input type="file" accept="image/*" multiple class="hidden" @change="onFotosSeleccionadas($event)">
+                    </label>
+                </div>
+
                 <!-- Error inline -->
                 <template x-if="error">
                     <div class="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm rounded-lg" x-text="error"></div>
@@ -121,6 +142,7 @@ function modalTicketNuevo() {
         busquedaHabitacion: '',
         abrirBuscador: false,
         habitacionSeleccionadaNumero: null,
+        fotos: [], // [{ file, url }] — máx. 3, el server vuelve a validar igual
         form: {
             hotel_id: null,
             habitacion_id: null,
@@ -146,6 +168,7 @@ function modalTicketNuevo() {
         cerrar() {
             this.abierto = false;
             this.abrirBuscador = false;
+            this.limpiarFotos();
         },
 
         reset() {
@@ -155,6 +178,28 @@ function modalTicketNuevo() {
             this.busquedaHabitacion = '';
             this.abrirBuscador = false;
             this.habitacionSeleccionadaNumero = null;
+            this.limpiarFotos();
+        },
+
+        async onFotosSeleccionadas(event) {
+            var espacio = 3 - this.fotos.length;
+            var archivos = Array.from(event.target.files || []).slice(0, espacio);
+            event.target.value = ''; // permite volver a elegir el mismo archivo si se saca y se agrega de nuevo
+            // Comprimir antes de mostrar/subir — ver comprimirFotoParaSubir() en app.js.
+            for (var i = 0; i < archivos.length; i++) {
+                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
+                this.fotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
+            }
+        },
+
+        quitarFoto(idx) {
+            URL.revokeObjectURL(this.fotos[idx].url);
+            this.fotos.splice(idx, 1);
+        },
+
+        limpiarFotos() {
+            this.fotos.forEach(function (f) { URL.revokeObjectURL(f.url); });
+            this.fotos = [];
         },
 
         async asegurarDatos() {
@@ -210,16 +255,23 @@ function modalTicketNuevo() {
                 var descripcion = (this.form.descripcion || '').trim();
                 // Título auto-generado desde la descripción (primeros 80 chars, sin saltos de línea)
                 var titulo = descripcion.replace(/\s+/g, ' ').slice(0, 80);
-                var payload = {
-                    hotel_id: this.form.hotel_id,
-                    titulo: titulo,
-                    descripcion: descripcion,
-                    prioridad: 'normal',
-                };
-                if (this.form.habitacion_id !== null) payload.habitacion_id = this.form.habitacion_id;
-                var r = await apiPost('/api/tickets', payload);
+
+                var datos = new FormData();
+                datos.append('hotel_id', this.form.hotel_id);
+                datos.append('titulo', titulo);
+                datos.append('descripcion', descripcion);
+                datos.append('prioridad', 'normal');
+                if (this.form.habitacion_id !== null) datos.append('habitacion_id', this.form.habitacion_id);
+                this.fotos.forEach(function (f) { datos.append('fotos[]', f.file); });
+
+                var r = await apiPostForm('/api/tickets', datos);
                 if (r && r.ok) {
-                    this.$dispatch('ticket-creado', r.data.ticket);
+                    // adjuntos_fallidos no aborta la creación (ver TicketsController::crear) — se
+                    // relaya en el detail del evento para que la página lo muestre en el toast.
+                    var detalle = Object.assign({}, r.data.ticket, {
+                        _adjuntos_fallidos: r.data.adjuntos_fallidos || [],
+                    });
+                    this.$dispatch('ticket-creado', detalle);
                     this.cerrar();
                 } else {
                     this.error = (r && r.error && r.error.mensaje) || 'No pudimos crear el ticket.';

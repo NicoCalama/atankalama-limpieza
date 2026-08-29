@@ -254,16 +254,16 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     </div>
                                 </template>
 
-                                <!-- Sin asignar, agrupadas por hotel -->
-                                <template x-for="grupo in sinAsignarPorHotel()" :key="grupo.hotel_codigo">
+                                <!-- Sin asignar, agrupadas por hotel -> edificio -> piso -->
+                                <template x-for="grupo in sinAsignarAgrupado()" :key="grupo.key">
                                     <div>
                                         <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
-                                           x-text="grupo.hotel_nombre + ' · ' + grupo.habitaciones.length"></p>
+                                           x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
                                         <div class="flex flex-wrap gap-2">
                                             <template x-for="hab in grupo.habitaciones" :key="hab.id">
                                                 <div class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border inline-flex items-center gap-1.5 select-none transition"
-                                                     :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
-                                                     data-drag-room :data-room-id="hab.id" data-room-estado="sucia" data-room-origin="pool"
+                                                     :class="seleccionadas.includes(hab.id) ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-300 dark:ring-green-500 ring-offset-1 dark:ring-offset-gray-800 shadow-md' : colorEstadoPool(hab.estado)"
+                                                     data-drag-room :data-room-id="hab.id" :data-room-estado="hab.estado" data-room-origin="pool"
                                                      @pointerdown="iniciarDrag($event)">
                                                     <span x-text="hab.numero"></span>
                                                     <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
@@ -280,14 +280,14 @@ require_once __DIR__ . '/componentes/avatar.php';
                                             <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Volver a limpiar
                                         </p>
                                         <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">Al asignarlas se re-abren y la limpieza arranca de cero.</p>
-                                        <template x-for="grupo in reLimpiarPorHotel()" :key="grupo.hotel_codigo">
+                                        <template x-for="grupo in reLimpiarAgrupado()" :key="grupo.key">
                                             <div class="mb-2">
                                                 <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
-                                                   x-text="grupo.hotel_nombre + ' · ' + grupo.habitaciones.length"></p>
+                                                   x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
                                                 <div class="flex flex-wrap gap-2">
                                                     <template x-for="hab in grupo.habitaciones" :key="hab.id">
                                                         <div class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border border-teal-300 dark:border-teal-700 inline-flex items-center gap-1.5 select-none transition"
-                                                             :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'"
+                                                             :class="seleccionadas.includes(hab.id) ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-300 dark:ring-green-500 ring-offset-1 dark:ring-offset-gray-800 shadow-md' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-gray-600 hover:border-blue-300 dark:hover:border-blue-500'"
                                                              data-drag-room :data-room-id="hab.id" data-room-estado="sucia" data-room-origin="pool"
                                                              @pointerdown="iniciarDrag($event)">
                                                             <span x-text="hab.numero"></span>
@@ -343,14 +343,14 @@ require_once __DIR__ . '/componentes/avatar.php';
 
                             <template x-if="data.sin_asignar.length > 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-                                    <template x-for="grupo in sinAsignarPorHotel()" :key="grupo.hotel_codigo">
+                                    <template x-for="grupo in sinAsignarAgrupado()" :key="grupo.key">
                                         <div>
                                             <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
-                                               x-text="grupo.hotel_nombre + ' · ' + grupo.habitaciones.length"></p>
+                                               x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
                                             <div class="flex flex-wrap gap-2">
                                                 <template x-for="hab in grupo.habitaciones" :key="hab.id">
                                                     <button @click="toggleSeleccion(hab.id)"
-                                                            :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
+                                                            :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : colorEstadoPool(hab.estado)"
                                                             class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
                                                         <span x-text="hab.numero"></span>
                                                         <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
@@ -374,10 +374,10 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 </h2>
                                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Piezas ya limpias hoy que necesitan otra pasada (ocupación de día/noche). Al asignarlas se re-abren y la limpieza arranca de cero.</p>
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-                                    <template x-for="grupo in reLimpiarPorHotel()" :key="grupo.hotel_codigo">
+                                    <template x-for="grupo in reLimpiarAgrupado()" :key="grupo.key">
                                         <div>
                                             <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
-                                               x-text="grupo.hotel_nombre + ' · ' + grupo.habitaciones.length"></p>
+                                               x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
                                             <div class="flex flex-wrap gap-2">
                                                 <template x-for="hab in grupo.habitaciones" :key="hab.id">
                                                     <button @click="toggleSeleccion(hab.id)"
@@ -612,7 +612,7 @@ require_once __DIR__ . '/componentes/avatar.php';
 </div>
 
 <!-- Motor de arrastre del tablero (pointer events). Solo se carga en esta pantalla. -->
-<script src="<?= u('/assets/js/drag-asignaciones.js') ?>?v=<?= @filemtime(__DIR__ . '/../public/assets/js/drag-asignaciones.js') ?: '1' ?>"></script>
+<script src="<?= u('/assets/js/drag-asignaciones.js') ?>?v=<?= @filemtime(__DIR__ . '/../../assets/js/drag-asignaciones.js') ?: '1' ?>"></script>
 <script>
 function asignacionesApp() {
     return {
@@ -704,26 +704,32 @@ function asignacionesApp() {
             return op ? op.etiqueta : 'Ambos hoteles';
         },
 
-        sinAsignarPorHotel() {
+        sinAsignarAgrupado() {
             if (!this.data) return [];
             var grupos = {};
             this.data.sin_asignar.forEach(function (h) {
-                var key = h.hotel_codigo;
+                var edificioStr = h.edificio ? h.edificio.toUpperCase() : 'SIN EDIFICIO';
+                var pisoStr = h.piso ? ('PISO ' + h.piso) : '';
+                var key = h.hotel_codigo + '_' + (h.edificio || '') + '_' + (h.piso || '');
                 if (!grupos[key]) {
-                    grupos[key] = { hotel_codigo: key, hotel_nombre: h.hotel_nombre, habitaciones: [] };
+                    var titulo = (h.hotel_nombre + ' · ' + edificioStr + (pisoStr ? ' · ' + pisoStr : '')).toUpperCase();
+                    grupos[key] = { key: key, titulo: titulo, habitaciones: [] };
                 }
                 grupos[key].habitaciones.push(h);
             });
             return Object.values(grupos);
         },
 
-        reLimpiarPorHotel() {
+        reLimpiarAgrupado() {
             if (!this.data || !this.data.re_limpiar) return [];
             var grupos = {};
             this.data.re_limpiar.forEach(function (h) {
-                var key = h.hotel_codigo;
+                var edificioStr = h.edificio ? h.edificio.toUpperCase() : 'SIN EDIFICIO';
+                var pisoStr = h.piso ? ('PISO ' + h.piso) : '';
+                var key = h.hotel_codigo + '_' + (h.edificio || '') + '_' + (h.piso || '');
                 if (!grupos[key]) {
-                    grupos[key] = { hotel_codigo: key, hotel_nombre: h.hotel_nombre, habitaciones: [] };
+                    var titulo = (h.hotel_nombre + ' · ' + edificioStr + (pisoStr ? ' · ' + pisoStr : '')).toUpperCase();
+                    grupos[key] = { key: key, titulo: titulo, habitaciones: [] };
                 }
                 grupos[key].habitaciones.push(h);
             });
@@ -1033,6 +1039,17 @@ function asignacionesApp() {
                 'rechazada': 'Rechazada'
             };
             return map[estado] || estado;
+        },
+
+        // Color sólido por estado en las tarjetas del pool "Sin asignar": sucia (ámbar)
+        // vs rechazada (rojo) — para que la jefa de turno distinga de un vistazo cuál
+        // necesita qué, según el estado real (sincronizado desde Cloudbeds). Reusa las
+        // clases .chip-estado-*-activo (editables en Ajustes → Colores), no inventa color.
+        colorEstadoPool(estado) {
+            var validos = ['sucia', 'rechazada'];
+            return validos.indexOf(estado) !== -1
+                ? 'chip-estado-' + estado + '-activo border-transparent hover:opacity-85'
+                : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600';
         },
 
         claseBadgeHab(estado) {

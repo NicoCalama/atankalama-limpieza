@@ -28,6 +28,28 @@
 .hotel-chip-1_sur { color: var(--ch-1_sur-texto, #0e8174); }
 .hotel-chip-inn { color: var(--ch-inn-texto, #6141ac); }
 
+/* Solo el borde izquierdo por hotel (sin tinte de fondo): usado en la tarjeta de
+   habitaciones, que va con fondo blanco y la franja de estado al pie (ver .banner-estado-*). */
+.hotel-border-1_sur { border-left-color: var(--ch-1_sur-borde, #14b8a6); }
+.hotel-border-inn { border-left-color: var(--ch-inn-borde, #8b5cf6); }
+
+/* Botón de filtro "Estado" cuando está seleccionado: relleno sólido con el color
+   exacto de Ajustes → Colores (--ce-*-solid no cambia entre claro/oscuro). */
+.chip-estado-sucia-activo { background-color: var(--ce-sucia-solid, #eab308); color: #fff; border-color: var(--ce-sucia-solid, #eab308); }
+.chip-estado-en_progreso-activo { background-color: var(--ce-en_progreso-solid, #3b82f6); color: #fff; border-color: var(--ce-en_progreso-solid, #3b82f6); }
+.chip-estado-completada_pendiente_auditoria-activo { background-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); color: #fff; border-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); }
+.chip-estado-aprobada-activo { background-color: var(--ce-aprobada-solid, #22c55e); color: #fff; border-color: var(--ce-aprobada-solid, #22c55e); }
+.chip-estado-rechazada-activo { background-color: var(--ce-rechazada-solid, #ef4444); color: #fff; border-color: var(--ce-rechazada-solid, #ef4444); }
+
+/* Franja de estado al pie de la ficha de habitación: relleno sólido con el color
+   exacto de Ajustes → Colores — la señal más visible de la tarjeta. */
+.banner-estado-sucia { background-color: var(--ce-sucia-solid, #eab308); }
+.banner-estado-en_progreso { background-color: var(--ce-en_progreso-solid, #3b82f6); }
+.banner-estado-completada_pendiente_auditoria { background-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); }
+.banner-estado-aprobada { background-color: var(--ce-aprobada-solid, #22c55e); }
+.banner-estado-aprobada_con_observacion { background-color: var(--ce-aprobada_con_observacion-solid, #22c55e); }
+.banner-estado-rechazada { background-color: var(--ce-rechazada-solid, #ef4444); }
+
 /* Safe area para bottom nav en dispositivos con notch (iOS) */
 .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);

@@ -12,6 +12,7 @@ return [
             'habitaciones.marcar_completada',
             'habitaciones.saltar',
             'tickets.crear',
+            'tickets.ver_propios',
             'copilot.usar_nivel_1_consultas',
             'copilot.usar_nivel_2_acciones',
             'copilot.ver_historial_propio',

@@ -52,7 +52,17 @@ final class HabitacionService
               ORDER BY ho.codigo, h.numero';
 
         $filas = Database::fetchAll($sql, $params);
-        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
+        return array_map(function (array $f) {
+            // Cast explícito: a diferencia de Edificio::desdeFila() (que sí castea su id),
+            // esta fila viaja cruda desde PDO. edificios.php compara edificio_id/piso con
+            // === contra el id tipado de /api/edificios — sin este cast, un driver que
+            // devuelva estas columnas como string rompe esa comparación en silencio.
+            $f['id'] = (int) $f['id'];
+            $f['hotel_id'] = (int) $f['hotel_id'];
+            $f['edificio_id'] = $f['edificio_id'] !== null ? (int) $f['edificio_id'] : null;
+            $f['piso'] = $f['piso'] !== null ? (int) $f['piso'] : null;
+            return $this->sabanas->anotarFila($f);
+        }, $filas);
     }
 
     public function obtener(int $id): ?Habitacion
@@ -106,6 +116,33 @@ final class HabitacionService
         );
     }
 
+    public function actualizarEstructura(int $id, ?int $edificioId, ?string $edificio, ?int $piso, ?int $usuarioId = null): void
+    {
+        $habitacion = $this->obtener($id);
+        if ($habitacion === null) {
+            throw new HabitacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+
+        Database::execute(
+            "UPDATE #__habitaciones
+                SET edificio_id = ?, edificio = ?, piso = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              WHERE id = ?",
+            [
+                $edificioId,
+                $edificio,
+                $piso,
+                $id,
+            ]
+        );
+
+        Logger::info('habitaciones', 'estructura_actualizada', [
+            'habitacion_id' => $id,
+            'edificio_id' => $edificioId,
+            'edificio' => $edificio,
+            'piso' => $piso,
+        ], $usuarioId);
+    }
+
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
     {
         $fila = Database::fetchOne(
@@ -118,14 +155,25 @@ final class HabitacionService
     /**
      * Cambia el estado de una habitación validando la transición.
      * Lanza HabitacionException si la transición no es válida.
+     *
+     * @param bool $forzar Salta la matriz de transiciones (EstadoHabitacionService) y solo
+     *                      valida que $nuevoEstado exista. USO EXCLUSIVO de correcciones desde
+     *                      un sistema externo (ver CloudbedsSyncService::sincronizar() — Cloudbeds
+     *                      como fuente madre del estado real). Nunca desde la UI/controladores.
      */
-    public function cambiarEstado(int $id, string $nuevoEstado, ?int $usuarioId = null, string $origen = 'ui'): Habitacion
+    public function cambiarEstado(int $id, string $nuevoEstado, ?int $usuarioId = null, string $origen = 'ui', bool $forzar = false): Habitacion
     {
         $habitacion = $this->obtener($id);
         if ($habitacion === null) {
             throw new HabitacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
-        $this->estados->aserciarTransicion($habitacion->estado, $nuevoEstado);
+        if ($forzar) {
+            if (!in_array($nuevoEstado, Habitacion::ESTADOS_VALIDOS, true)) {
+                throw new HabitacionException('ESTADO_INVALIDO', "Estado inválido: {$nuevoEstado}.", 400);
+            }
+        } else {
+            $this->estados->aserciarTransicion($habitacion->estado, $nuevoEstado);
+        }
 
         $contexto = [
             'habitacion_id' => $id,
@@ -159,6 +207,8 @@ final class HabitacionService
             id: $habitacion->id,
             hotelId: $habitacion->hotelId,
             numero: $habitacion->numero,
+            edificio: $habitacion->edificio,
+            piso: $habitacion->piso,
             tipoHabitacionId: $habitacion->tipoHabitacionId,
             cloudbedsRoomId: $habitacion->cloudbedsRoomId,
             estado: $nuevoEstado,

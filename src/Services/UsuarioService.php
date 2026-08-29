@@ -66,15 +66,20 @@ final class UsuarioService
     }
 
     /**
-     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,roles?:list<int>} $datos
+     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
      * @return array{usuario:Usuario, password_temporal:string}
      */
     public function crear(array $datos, int $creadoPor, PasswordService $passwords): array
     {
+        // El shape del array no se aplica en runtime; el fallback protege ante un futuro
+        // caller que llame crear() sin la clave 'rut'.
+        // @phpstan-ignore-next-line nullCoalesce.offset
         $rutNorm = Rut::normalizar($datos['rut'] ?? '');
         if (!Rut::validar($rutNorm)) {
             throw new UsuarioException('RUT_INVALIDO', 'RUT inválido.', 400);
         }
+        // Mismo caso que 'rut' arriba.
+        // @phpstan-ignore-next-line nullCoalesce.offset
         $nombre = trim((string) ($datos['nombre'] ?? ''));
         if ($nombre === '' || strlen($nombre) > 200) {
             throw new UsuarioException('NOMBRE_INVALIDO', 'Nombre debe tener entre 1 y 200 caracteres.', 400);
@@ -489,7 +494,7 @@ final class UsuarioService
             $sql .= ' AND u.activo = ?';
             $params[] = $filtros['activo'] ? 1 : 0;
         }
-        if (isset($filtros['busqueda']) && is_string($filtros['busqueda']) && $filtros['busqueda'] !== '') {
+        if (isset($filtros['busqueda']) && $filtros['busqueda'] !== '') {
             $sql .= ' AND (u.nombre LIKE ? OR u.rut LIKE ?)';
             $like = '%' . $filtros['busqueda'] . '%';
             $params[] = $like;
@@ -497,11 +502,17 @@ final class UsuarioService
         }
         $sql .= ' GROUP BY u.id ORDER BY u.nombre';
         $filas = Database::fetchAll($sql, $params);
+        foreach ($filas as &$fila) {
+            $fila['roles'] = empty($fila['roles']) ? [] : explode(',', (string) $fila['roles']);
+            // También casteamos activo a booleano para ser consistentes con toArrayPublico
+            $fila['activo'] = (bool) $fila['activo'];
+        }
+        unset($fila);
+
         $rolFiltro = $filtros['rol'] ?? null;
         if (is_string($rolFiltro) && $rolFiltro !== '') {
             $filas = array_values(array_filter($filas, static function (array $f) use ($rolFiltro): bool {
-                $roles = explode(',', (string) ($f['roles'] ?? ''));
-                return in_array($rolFiltro, $roles, true);
+                return in_array($rolFiltro, $f['roles'], true);
             }));
         }
         return $filas;

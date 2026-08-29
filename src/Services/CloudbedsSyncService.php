@@ -138,9 +138,18 @@ final class CloudbedsSyncService
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
                         $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
                         $actualizadas++;
-                    } elseif ($cleaningStatus === 'clean' && $hab->estado === Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
-                        Logger::warning('cloudbeds', 'inconsistencia: Cloudbeds Clean pero app pendiente auditoría', [
+                    } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [Habitacion::ESTADO_APROBADA, Habitacion::ESTADO_APROBADA_CON_OBSERVACION], true)) {
+                        // Decisión de negocio (2026-08-21): Cloudbeds es la fuente madre del
+                        // estado real. Si ya reporta 'clean' pero acá sigue sucia/en_progreso/
+                        // pendiente auditoría/rechazada, se fuerza a 'aprobada' saltando checklist
+                        // y auditoría (forzar:true — ver HabitacionService::cambiarEstado()). Puede
+                        // cerrar de golpe una limpieza que una trabajadora tenía en curso en la app
+                        // si Cloudbeds ya la marcó clean por fuera de este flujo.
+                        $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_APROBADA, null, 'cron', forzar: true);
+                        $actualizadas++;
+                        Logger::warning('cloudbeds', 'auto-aprobada por Cloudbeds sin checklist/auditoría en la app', [
                             'habitacion_id' => $hab->id,
+                            'estado_previo' => $hab->estado,
                         ]);
                     }
                 }

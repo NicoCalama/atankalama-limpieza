@@ -46,7 +46,7 @@ final class EstadoHabitacionService
         if (!in_array($destino, Habitacion::ESTADOS_VALIDOS, true)) {
             return false;
         }
-        return in_array($destino, self::TRANSICIONES[$actual] ?? [], true);
+        return in_array($destino, self::TRANSICIONES[$actual], true);
     }
 
     public function aserciarTransicion(string $actual, string $destino): void

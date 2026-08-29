@@ -51,7 +51,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        Sincronizando <span x-text="cola.length"></span> <span x-text="cola.length === 1 ? 'cambio' : 'cambios'"></span>...
+        <span x-text="colaTextoBanner"></span>
     </div>
 
     <!-- Banner fallos permanentes -->
@@ -200,9 +200,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <!-- Botón "Habitación terminada" -->
                     <template x-if="puedeEditar">
                         <button @click="confirmarCompletar()" data-tour="hab.terminar"
-                                :disabled="progreso.obligatorios_pendientes > 0 || completando"
+                                :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-xl transition shadow-sm">
-                            <span x-text="completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada')"></span>
+                            <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada'))"></span>
                         </button>
                     </template>
 
@@ -250,6 +250,19 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         </ul>
                     </template>
                 </div>
+            </template>
+
+            <!-- Reportar un problema: visible en cualquier estado de la habitación
+                 (no solo mientras se limpia — un problema puede notarse en una ya terminada). -->
+            <template x-if="puedeReportar">
+                <button type="button" @click="reportarProblema()"
+                        class="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-2
+                               bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600
+                               text-gray-700 dark:text-gray-200 rounded-xl font-medium text-sm
+                               hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500"></i>
+                    Reportar un problema
+                </button>
             </template>
 
             <!-- Modal confirmación completar -->
@@ -332,6 +345,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         puedeVerTodas: false,
         puedeAsignar: false,
         puedeVerHistorial: false,
+        puedeReportar: false,
         historial: [],
 
         cargando: false,
@@ -366,6 +380,18 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             return this.ejecucion ? ('checklist_queue_' + this.ejecucion.id) : null;
         },
 
+        // true si el "completar" está encolado esperando reintento (ver completar()
+        // y encolarCompletar()) — evita que el trabajador dispare otro POST mientras
+        // el pendiente se reintenta solo.
+        get completarPendiente() {
+            return this.cola.some(function (c) { return c.tipo === 'completar'; });
+        },
+
+        get colaTextoBanner() {
+            if (this.completarPendiente) return 'Confirmando que terminaste la habitación...';
+            return 'Sincronizando ' + this.cola.length + ' ' + (this.cola.length === 1 ? 'cambio' : 'cambios') + '...';
+        },
+
         get motivoSaltarValido() {
             if (this.motivoSaltar === 'Otro') return this.motivoOtro.trim().length > 0;
             return !!this.motivoSaltar;
@@ -382,6 +408,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     this.puedeVerTodas = yo.tienePermiso('habitaciones.ver_todas');
                     this.puedeAsignar = yo.tienePermiso('asignaciones.asignar_manual');
                     this.puedeVerHistorial = yo.tienePermiso('habitaciones.ver_historial');
+                    this.puedeReportar = yo.tienePermiso('tickets.crear');
                 }
 
                 var r1 = await apiFetch('/api/habitaciones/' + this.habitacionId);
@@ -472,6 +499,12 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             } finally {
                 this.iniciando = false;
             }
+        },
+
+        reportarProblema() {
+            // Mismo contrato que home-trabajador.php: modal-ticket-nuevo.php (incluido
+            // globalmente en layout.php) escucha este evento y precarga la habitación.
+            window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: { habitacionId: this.habitacionId } }));
         },
 
         esHeredado(item) {
@@ -565,12 +598,33 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             // Dedupe: remover entradas previas para el mismo item
             this.cola = this.cola.filter(function (c) { return c.item_id !== itemId; });
             this.cola.push({
+                tipo: 'item',
                 item_id: itemId,
                 marcado: !!marcado,
                 timestamp_local: new Date().toISOString(),
                 intentos: 0
             });
             this.guardarColaLocal();
+        },
+
+        encolarCompletar() {
+            // Dedupe: solo puede haber un "completar" pendiente por ejecución.
+            this.cola = this.cola.filter(function (c) { return c.tipo !== 'completar'; });
+            this.cola.push({
+                tipo: 'completar',
+                timestamp_local: new Date().toISOString(),
+                intentos: 0
+            });
+            this.guardarColaLocal();
+        },
+
+        async enviarCompletar() {
+            try {
+                var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
+                return !!(json && json.ok);
+            } catch (e) {
+                return false;
+            }
         },
 
         async procesarCola() {
@@ -581,14 +635,23 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             var pendientes = this.cola.slice();
             for (var i = 0; i < pendientes.length; i++) {
                 var entrada = pendientes[i];
-                var exito = await this.enviarMarca(entrada.item_id, entrada.marcado);
+                var tipo = entrada.tipo || 'item';
+                var exito = tipo === 'completar'
+                    ? await this.enviarCompletar()
+                    : await this.enviarMarca(entrada.item_id, entrada.marcado);
+
                 if (exito) {
                     // Quitar de la cola real
-                    this.cola = this.cola.filter(function (c) { return c.item_id !== entrada.item_id || c.timestamp_local !== entrada.timestamp_local; });
+                    this.cola = this.cola.filter(function (c) { return c.timestamp_local !== entrada.timestamp_local; });
                     this.guardarColaLocal();
+                    if (tipo === 'completar') {
+                        // Recién confirmada por el servidor: ahora sí se navega.
+                        window.location.href = u('/home');
+                        return;
+                    }
                 } else {
                     // Incrementar intentos
-                    var idx = this.cola.findIndex(function (c) { return c.item_id === entrada.item_id && c.timestamp_local === entrada.timestamp_local; });
+                    var idx = this.cola.findIndex(function (c) { return c.timestamp_local === entrada.timestamp_local; });
                     if (idx !== -1) {
                         this.cola[idx].intentos = (this.cola[idx].intentos || 0) + 1;
                         if (this.cola[idx].intentos >= 3) {
@@ -628,11 +691,19 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 if (json && json.ok) {
                     this.mostrarConfirmar = false;
                     window.location.href = u('/home');
-                } else {
-                    alert((json && json.error && json.error.mensaje) || 'No pudimos completar.');
+                    return;
                 }
+                // Rechazo real del servidor (ej. checklist incompleto): sí hay que avisar.
+                alert((json && json.error && json.error.mensaje) || 'No pudimos completar.');
             } catch (e) {
-                alert('No pudimos conectar con el servidor.');
+                // Falla de red/timeout, no un rechazo del servidor — el POST puede haber
+                // llegado igual (completar() es idempotente en el backend, ver
+                // ChecklistService::ultimaEjecucionCompletadaPorUsuario). En vez de un
+                // alert() que bloquea y desanima al trabajador, se encola y se reintenta
+                // solo; el aviso queda en el banner de "Confirmando..." en vez de un error.
+                this.mostrarConfirmar = false;
+                this.encolarCompletar();
+                this.procesarCola();
             } finally {
                 this.completando = false;
             }

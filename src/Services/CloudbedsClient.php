@@ -310,10 +310,10 @@ final class CloudbedsClient
         }
 
         Logger::error('cloudbeds', "{$metodo} {$path} agotó reintentos", [
-            'status' => $ultima?->status,
-            'error_red' => $ultima?->errorRed,
+            'status' => $ultima->status,
+            'error_red' => $ultima->errorRed,
         ]);
 
-        return $ultima ?? new HttpResponse(0, '', 'sin respuesta');
+        return $ultima;
     }
 }

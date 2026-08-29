@@ -68,7 +68,7 @@ final class AlertaActiva
             titulo: (string) $fila['titulo'],
             descripcion: (string) $fila['descripcion'],
             contexto: $contexto,
-            hotelId: isset($fila['hotel_id']) && $fila['hotel_id'] !== null ? (int) $fila['hotel_id'] : null,
+            hotelId: isset($fila['hotel_id']) ? (int) $fila['hotel_id'] : null,
             createdAt: (string) $fila['created_at'],
         );
     }

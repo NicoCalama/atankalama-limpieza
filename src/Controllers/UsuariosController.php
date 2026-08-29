@@ -89,8 +89,8 @@ final class UsuariosController
         }
         $datos = [];
         foreach (['nombre', 'email', 'hotel_default', 'tema_preferido'] as $k) {
-            if ($request->input($k) !== null) {
-                $datos[$k] = $request->input($k);
+            if (array_key_exists($k, $request->cuerpo)) {
+                $datos[$k] = $request->cuerpo[$k];
             }
         }
         try {

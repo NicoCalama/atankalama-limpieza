@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="es" class="">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión — Atankalama Limpieza</title>
+    <title>Limpieza Atankalama</title>
 
     <!-- Base path de la app ('' en dev, '/limpieza' en prod). Ver views/layout.php. -->
     <script>
@@ -33,7 +34,7 @@
     <link rel="stylesheet" href="<?= u('/assets/css/custom.css') ?>">
 
     <script>
-        (function() {
+        (function () {
             var tema = localStorage.getItem('tema');
             if (tema === 'dark' || (!tema && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
@@ -41,413 +42,411 @@
         })();
     </script>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
 
-<div x-data="loginApp()" class="w-full max-w-sm">
+<body
+    class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
 
-    <!-- Logo -->
-    <div class="text-center mb-8">
-        <div class="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
-            <i data-lucide="sparkles" class="w-8 h-8 text-white"></i>
+    <div x-data="loginApp()" class="w-full max-w-sm">
+
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="sparkles" class="w-8 h-8 text-white"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Atankalama</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sistema de Limpieza</p>
         </div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Atankalama</h1>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sistema de Limpieza</p>
-    </div>
 
-    <!-- Formulario login -->
-    <div x-show="!requiereCambio" class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <form @submit.prevent="iniciarSesion()">
-            <div class="space-y-4">
-                <!-- RUT -->
-                <div>
-                    <label for="rut" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RUT</label>
-                    <input type="text"
-                           id="rut"
-                           x-model="rut"
-                           @input="formatearRut()"
-                           placeholder="12.345.678-9"
-                           autocomplete="username"
-                           class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+        <!-- Formulario login -->
+        <div x-show="!requiereCambio"
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <form @submit.prevent="iniciarSesion()">
+                <div class="space-y-4">
+                    <!-- RUT -->
+                    <div>
+                        <label for="rut"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RUT</label>
+                        <input type="text" id="rut" x-model="rut" @input="formatearRut()" placeholder="12.345.678-9"
+                            autocomplete="username" class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
                                   border border-gray-300 dark:border-gray-600 rounded-lg
                                   text-gray-900 dark:text-gray-100
                                   placeholder-gray-400 dark:placeholder-gray-500
                                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <p x-show="errores.rut" x-text="errores.rut" class="text-xs text-red-600 dark:text-red-400 mt-1"></p>
-                </div>
+                        <p x-show="errores.rut" x-text="errores.rut"
+                            class="text-xs text-red-600 dark:text-red-400 mt-1"></p>
+                    </div>
 
-                <!-- Contraseña -->
-                <div>
-                    <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
-                    <div class="relative">
-                        <input :type="verPassword ? 'text' : 'password'"
-                               id="password"
-                               x-model="password"
-                               placeholder="Tu contraseña"
-                               autocomplete="current-password"
-                               class="w-full min-h-[44px] px-3 py-2 pr-12 text-base bg-gray-50 dark:bg-gray-700
+                    <!-- Contraseña -->
+                    <div>
+                        <label for="password"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+                        <div class="relative">
+                            <input :type="verPassword ? 'text' : 'password'" id="password" x-model="password"
+                                placeholder="Tu contraseña" autocomplete="current-password" class="w-full min-h-[44px] px-3 py-2 pr-12 text-base bg-gray-50 dark:bg-gray-700
                                       border border-gray-300 dark:border-gray-600 rounded-lg
                                       text-gray-900 dark:text-gray-100
                                       placeholder-gray-400 dark:placeholder-gray-500
                                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <button type="button"
-                                @click="verPassword = !verPassword"
+                            <button type="button" @click="verPassword = !verPassword"
                                 class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <i :data-lucide="verPassword ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
-                        </button>
+                                <i :data-lucide="verPassword ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Error general -->
-                <div x-show="errorGeneral" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <p x-text="errorGeneral" class="text-sm text-red-700 dark:text-red-400"></p>
-                </div>
+                    <!-- Error general -->
+                    <div x-show="errorGeneral"
+                        class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p x-text="errorGeneral" class="text-sm text-red-700 dark:text-red-400"></p>
+                    </div>
 
-                <!-- Botón -->
-                <button type="submit"
-                        :disabled="!puedeEnviar() || cargando"
-                        class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
+                    <!-- Botón -->
+                    <button type="submit" :disabled="!puedeEnviar() || cargando" class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
                                transition-colors flex items-center justify-center gap-2
                                disabled:opacity-50 disabled:cursor-not-allowed">
-                    <template x-if="cargando">
-                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                    </template>
-                    <span x-text="cargando ? 'Ingresando...' : 'Ingresar'"></span>
-                </button>
-            </div>
-        </form>
-
-        <p class="text-center text-xs text-gray-500 dark:text-gray-400 mt-4">
-            ¿Olvidaste tu contraseña?
-            <button type="button"
-                    @click="abrirRecuperar()"
-                    class="text-blue-600 dark:text-blue-400 font-medium hover:underline">
-                Recupérala aquí
-            </button>
-        </p>
-    </div>
-
-    <!-- Modal recuperar contraseña -->
-    <div x-show="recuperarAbierto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="cerrarRecuperar()"></div>
-        <div class="relative bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div class="text-center mb-4">
-                <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-3">
-                    <i data-lucide="mail" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
-                </div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Recuperar contraseña</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Ingresa tu RUT y te enviaremos una contraseña temporal al correo registrado.
-                </p>
-            </div>
-
-            <!-- Mensaje de éxito (genérico) -->
-            <div x-show="recuperarMensaje" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
-                <p x-text="recuperarMensaje" class="text-sm text-green-700 dark:text-green-400"></p>
-            </div>
-
-            <form x-show="!recuperarMensaje" @submit.prevent="enviarRecuperar()">
-                <div class="space-y-4">
-                    <div>
-                        <label for="rut-recuperar" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RUT</label>
-                        <input type="text"
-                               id="rut-recuperar"
-                               x-model="rutRecuperar"
-                               @input="rutRecuperar = formatearRutValor(rutRecuperar)"
-                               placeholder="12.345.678-9"
-                               autocomplete="username"
-                               class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                      border border-gray-300 dark:border-gray-600 rounded-lg
-                                      text-gray-900 dark:text-gray-100
-                                      placeholder-gray-400 dark:placeholder-gray-500
-                                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-
-                    <div x-show="recuperarError" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                        <p x-text="recuperarError" class="text-sm text-red-700 dark:text-red-400"></p>
-                    </div>
-
-                    <button type="submit"
-                            :disabled="rutRecuperar.replace(/\./g, '').trim().length < 3 || recuperarCargando"
-                            class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
-                                   transition-colors flex items-center justify-center gap-2
-                                   disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-text="recuperarCargando ? 'Enviando...' : 'Enviar contraseña temporal'"></span>
+                        <template x-if="cargando">
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="cargando ? 'Ingresando...' : 'Ingresar'"></span>
                     </button>
                 </div>
             </form>
 
-            <button type="button"
-                    @click="cerrarRecuperar()"
+            <p class="text-center text-xs text-gray-500 dark:text-gray-400 mt-4">
+                ¿Olvidaste tu contraseña?
+                <button type="button" @click="abrirRecuperar()"
+                    class="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                    Recupérala aquí
+                </button>
+            </p>
+        </div>
+
+        <!-- Modal recuperar contraseña -->
+        <div x-show="recuperarAbierto" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/50" @click="cerrarRecuperar()"></div>
+            <div
+                class="relative bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                <div class="text-center mb-4">
+                    <div
+                        class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="mail" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Recuperar contraseña</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Ingresa tu RUT y te enviaremos una contraseña temporal al correo registrado.
+                    </p>
+                </div>
+
+                <!-- Mensaje de éxito (genérico) -->
+                <div x-show="recuperarMensaje"
+                    class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
+                    <p x-text="recuperarMensaje" class="text-sm text-green-700 dark:text-green-400"></p>
+                </div>
+
+                <form x-show="!recuperarMensaje" @submit.prevent="enviarRecuperar()">
+                    <div class="space-y-4">
+                        <div>
+                            <label for="rut-recuperar"
+                                class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RUT</label>
+                            <input type="text" id="rut-recuperar" x-model="rutRecuperar"
+                                @input="rutRecuperar = formatearRutValor(rutRecuperar)" placeholder="12.345.678-9"
+                                autocomplete="username" class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+                                      border border-gray-300 dark:border-gray-600 rounded-lg
+                                      text-gray-900 dark:text-gray-100
+                                      placeholder-gray-400 dark:placeholder-gray-500
+                                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+
+                        <div x-show="recuperarError"
+                            class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                            <p x-text="recuperarError" class="text-sm text-red-700 dark:text-red-400"></p>
+                        </div>
+
+                        <button type="submit"
+                            :disabled="rutRecuperar.replace(/\./g, '').trim().length < 3 || recuperarCargando" class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
+                                   transition-colors flex items-center justify-center gap-2
+                                   disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-text="recuperarCargando ? 'Enviando...' : 'Enviar contraseña temporal'"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <button type="button" @click="cerrarRecuperar()"
                     class="w-full min-h-[44px] mt-3 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                <span x-text="recuperarMensaje ? 'Volver al inicio de sesión' : 'Cancelar'"></span>
+                    <span x-text="recuperarMensaje ? 'Volver al inicio de sesión' : 'Cancelar'"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Formulario cambio de contraseña forzado -->
+        <div x-show="requiereCambio" x-cloak
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div class="text-center mb-4">
+                <div
+                    class="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="key-round" class="w-6 h-6 text-amber-600 dark:text-amber-400"></i>
+                </div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Cambiar contraseña</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Debes crear una contraseña nueva antes de
+                    continuar.</p>
+            </div>
+
+            <form @submit.prevent="cambiarContrasena()">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña
+                            temporal</label>
+                        <input type="password" x-model="passwordActual" placeholder="La que te dieron"
+                            autocomplete="current-password" class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+                                  border border-gray-300 dark:border-gray-600 rounded-lg
+                                  text-gray-900 dark:text-gray-100
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva
+                            contraseña</label>
+                        <input type="password" x-model="passwordNueva"
+                            placeholder="Mínimo 8 caracteres, 1 letra y 1 número" autocomplete="new-password" class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+                                  border border-gray-300 dark:border-gray-600 rounded-lg
+                                  text-gray-900 dark:text-gray-100
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p x-show="passwordNueva && !validarPasswordNueva()"
+                            class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            Mínimo 8 caracteres, al menos 1 letra y 1 número
+                        </p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva
+                            contraseña</label>
+                        <input type="password" x-model="passwordConfirm" placeholder="Repite tu nueva contraseña"
+                            autocomplete="new-password" class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
+                                  border border-gray-300 dark:border-gray-600 rounded-lg
+                                  text-gray-900 dark:text-gray-100
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p x-show="passwordConfirm && passwordNueva !== passwordConfirm"
+                            class="text-xs text-red-600 dark:text-red-400 mt-1">
+                            Las contraseñas no coinciden
+                        </p>
+                    </div>
+
+                    <div x-show="errorGeneral"
+                        class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <p x-text="errorGeneral" class="text-sm text-red-700 dark:text-red-400"></p>
+                    </div>
+
+                    <button type="submit" :disabled="!puedeCambiar() || cargando" class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
+                               transition-colors flex items-center justify-center gap-2
+                               disabled:opacity-50 disabled:cursor-not-allowed">
+                        <template x-if="cargando">
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="cargando ? 'Guardando...' : 'Cambiar contraseña'"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Toggle tema -->
+        <div class="flex justify-center mt-6">
+            <button @click="toggleTema()"
+                class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                <i data-lucide="sun" class="w-4 h-4 dark:hidden"></i>
+                <i data-lucide="moon" class="w-4 h-4 hidden dark:inline-block"></i>
+                <span class="dark:hidden">Modo oscuro</span>
+                <span class="hidden dark:inline">Modo claro</span>
             </button>
         </div>
     </div>
 
-    <!-- Formulario cambio de contraseña forzado -->
-    <div x-show="requiereCambio" x-cloak class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div class="text-center mb-4">
-            <div class="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-3">
-                <i data-lucide="key-round" class="w-6 h-6 text-amber-600 dark:text-amber-400"></i>
-            </div>
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Cambiar contraseña</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Debes crear una contraseña nueva antes de continuar.</p>
-        </div>
+    <script src="<?= u('/assets/js/app.js') ?>"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () { lucide.createIcons(); });
 
-        <form @submit.prevent="cambiarContrasena()">
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña temporal</label>
-                    <input type="password"
-                           x-model="passwordActual"
-                           placeholder="La que te dieron"
-                           autocomplete="current-password"
-                           class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                  border border-gray-300 dark:border-gray-600 rounded-lg
-                                  text-gray-900 dark:text-gray-100
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-                    <input type="password"
-                           x-model="passwordNueva"
-                           placeholder="Mínimo 8 caracteres, 1 letra y 1 número"
-                           autocomplete="new-password"
-                           class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                  border border-gray-300 dark:border-gray-600 rounded-lg
-                                  text-gray-900 dark:text-gray-100
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p x-show="passwordNueva && !validarPasswordNueva()" class="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        Mínimo 8 caracteres, al menos 1 letra y 1 número
-                    </p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-                    <input type="password"
-                           x-model="passwordConfirm"
-                           placeholder="Repite tu nueva contraseña"
-                           autocomplete="new-password"
-                           class="w-full min-h-[44px] px-3 py-2 text-base bg-gray-50 dark:bg-gray-700
-                                  border border-gray-300 dark:border-gray-600 rounded-lg
-                                  text-gray-900 dark:text-gray-100
-                                  focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p x-show="passwordConfirm && passwordNueva !== passwordConfirm" class="text-xs text-red-600 dark:text-red-400 mt-1">
-                        Las contraseñas no coinciden
-                    </p>
-                </div>
+        function loginApp() {
+            return {
+                rut: '',
+                password: '',
+                verPassword: false,
+                cargando: false,
+                errorGeneral: '',
+                errores: {},
 
-                <div x-show="errorGeneral" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                    <p x-text="errorGeneral" class="text-sm text-red-700 dark:text-red-400"></p>
-                </div>
+                // Estado cambio de contraseña
+                requiereCambio: false,
+                passwordActual: '',
+                passwordNueva: '',
+                passwordConfirm: '',
+                sessionToken: null,
+                homeTarget: u('/home'),
 
-                <button type="submit"
-                        :disabled="!puedeCambiar() || cargando"
-                        class="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg
-                               transition-colors flex items-center justify-center gap-2
-                               disabled:opacity-50 disabled:cursor-not-allowed">
-                    <template x-if="cargando">
-                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                        </svg>
-                    </template>
-                    <span x-text="cargando ? 'Guardando...' : 'Cambiar contraseña'"></span>
-                </button>
-            </div>
-        </form>
-    </div>
+                // Estado recuperar contraseña
+                recuperarAbierto: false,
+                rutRecuperar: '',
+                recuperarCargando: false,
+                recuperarMensaje: '',
+                recuperarError: '',
 
-    <!-- Toggle tema -->
-    <div class="flex justify-center mt-6">
-        <button @click="toggleTema()"
-                class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
-            <i data-lucide="sun" class="w-4 h-4 dark:hidden"></i>
-            <i data-lucide="moon" class="w-4 h-4 hidden dark:inline-block"></i>
-            <span class="dark:hidden">Modo oscuro</span>
-            <span class="hidden dark:inline">Modo claro</span>
-        </button>
-    </div>
-</div>
+                formatearRutValor(valor) {
+                    // Limpiar a solo dígitos y K
+                    var limpio = valor.replace(/[^0-9kK]/g, '').toUpperCase();
+                    if (limpio.length <= 1) { return limpio; }
 
-<script src="<?= u('/assets/js/app.js') ?>"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() { lucide.createIcons(); });
-
-function loginApp() {
-    return {
-        rut: '',
-        password: '',
-        verPassword: false,
-        cargando: false,
-        errorGeneral: '',
-        errores: {},
-
-        // Estado cambio de contraseña
-        requiereCambio: false,
-        passwordActual: '',
-        passwordNueva: '',
-        passwordConfirm: '',
-        sessionToken: null,
-        homeTarget: u('/home'),
-
-        // Estado recuperar contraseña
-        recuperarAbierto: false,
-        rutRecuperar: '',
-        recuperarCargando: false,
-        recuperarMensaje: '',
-        recuperarError: '',
-
-        formatearRutValor(valor) {
-            // Limpiar a solo dígitos y K
-            var limpio = valor.replace(/[^0-9kK]/g, '').toUpperCase();
-            if (limpio.length <= 1) { return limpio; }
-
-            var cuerpo = limpio.slice(0, -1);
-            var dv = limpio.slice(-1);
-            // Agregar puntos
-            var formateado = '';
-            for (var i = cuerpo.length - 1, c = 0; i >= 0; i--, c++) {
-                if (c > 0 && c % 3 === 0) formateado = '.' + formateado;
-                formateado = cuerpo[i] + formateado;
-            }
-            return formateado + '-' + dv;
-        },
-
-        formatearRut() {
-            this.rut = this.formatearRutValor(this.rut);
-        },
-
-        normalizarRut() {
-            return this.rut.replace(/\./g, '').trim();
-        },
-
-        puedeEnviar() {
-            return this.normalizarRut().length >= 3 && this.password.length >= 1;
-        },
-
-        async iniciarSesion() {
-            this.cargando = true;
-            this.errorGeneral = '';
-            this.errores = {};
-
-            try {
-                var resp = await fetch(u('/api/auth/login'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        rut: this.normalizarRut(),
-                        password: this.password
-                    })
-                });
-                var data = await resp.json();
-
-                if (data.ok) {
-                    if (data.data.requiere_cambio_pwd) {
-                        this.requiereCambio = true;
-                        this.passwordActual = this.password;
-                        // home_target ya llega con prefijo desde el backend (Url::a)
-                        this.homeTarget = data.data.home_target || u('/home');
-                        this.password = '';
-                        this.$nextTick(function() { lucide.createIcons(); });
-                    } else {
-                        window.location.href = data.data.home_target || u('/home');
+                    var cuerpo = limpio.slice(0, -1);
+                    var dv = limpio.slice(-1);
+                    // Agregar puntos
+                    var formateado = '';
+                    for (var i = cuerpo.length - 1, c = 0; i >= 0; i--, c++) {
+                        if (c > 0 && c % 3 === 0) formateado = '.' + formateado;
+                        formateado = cuerpo[i] + formateado;
                     }
-                } else {
-                    this.errorGeneral = data.error?.mensaje || 'Error al iniciar sesión.';
+                    return formateado + '-' + dv;
+                },
+
+                formatearRut() {
+                    this.rut = this.formatearRutValor(this.rut);
+                },
+
+                normalizarRut() {
+                    return this.rut.replace(/\./g, '').trim();
+                },
+
+                puedeEnviar() {
+                    return this.normalizarRut().length >= 3 && this.password.length >= 1;
+                },
+
+                async iniciarSesion() {
+                    this.cargando = true;
+                    this.errorGeneral = '';
+                    this.errores = {};
+
+                    try {
+                        var resp = await fetch(u('/api/auth/login'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                rut: this.normalizarRut(),
+                                password: this.password
+                            })
+                        });
+                        var data = await resp.json();
+
+                        if (data.ok) {
+                            if (data.data.requiere_cambio_pwd) {
+                                this.requiereCambio = true;
+                                this.passwordActual = this.password;
+                                // home_target ya llega con prefijo desde el backend (Url::a)
+                                this.homeTarget = data.data.home_target || u('/home');
+                                this.password = '';
+                                this.$nextTick(function () { lucide.createIcons(); });
+                            } else {
+                                window.location.href = data.data.home_target || u('/home');
+                            }
+                        } else {
+                            this.errorGeneral = data.error?.mensaje || 'Error al iniciar sesión.';
+                        }
+                    } catch (e) {
+                        this.errorGeneral = 'No pudimos conectar con el servidor. Intenta de nuevo.';
+                    } finally {
+                        this.cargando = false;
+                    }
+                },
+
+                abrirRecuperar() {
+                    this.recuperarAbierto = true;
+                    this.recuperarMensaje = '';
+                    this.recuperarError = '';
+                    // Prellenar con lo que ya escribió en el login, si hay algo
+                    this.rutRecuperar = this.rut;
+                    this.$nextTick(function () { lucide.createIcons(); });
+                },
+
+                cerrarRecuperar() {
+                    this.recuperarAbierto = false;
+                },
+
+                async enviarRecuperar() {
+                    this.recuperarCargando = true;
+                    this.recuperarError = '';
+
+                    try {
+                        var resp = await fetch(u('/api/auth/recuperar'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ rut: this.rutRecuperar.replace(/\./g, '').trim() })
+                        });
+                        var data = await resp.json();
+
+                        if (data.ok) {
+                            this.recuperarMensaje = data.data.mensaje;
+                        } else {
+                            this.recuperarError = data.error?.mensaje || 'No pudimos procesar tu solicitud. Intenta de nuevo.';
+                        }
+                    } catch (e) {
+                        this.recuperarError = 'No pudimos conectar con el servidor. Intenta de nuevo.';
+                    } finally {
+                        this.recuperarCargando = false;
+                    }
+                },
+
+                validarPasswordNueva() {
+                    var p = this.passwordNueva;
+                    return p.length >= 8 && /[a-zA-Z]/.test(p) && /[0-9]/.test(p);
+                },
+
+                puedeCambiar() {
+                    return this.passwordActual.length > 0
+                        && this.validarPasswordNueva()
+                        && this.passwordNueva === this.passwordConfirm;
+                },
+
+                async cambiarContrasena() {
+                    this.cargando = true;
+                    this.errorGeneral = '';
+
+                    try {
+                        var resp = await fetch(u('/api/auth/cambiar-contrasena'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                password_actual: this.passwordActual,
+                                password_nueva: this.passwordNueva,
+                                password_nueva_confirmacion: this.passwordConfirm
+                            })
+                        });
+                        var data = await resp.json();
+
+                        if (data.ok) {
+                            window.location.href = this.homeTarget;
+                        } else {
+                            this.errorGeneral = data.error?.mensaje || 'Error al cambiar contraseña.';
+                        }
+                    } catch (e) {
+                        this.errorGeneral = 'No pudimos conectar con el servidor. Intenta de nuevo.';
+                    } finally {
+                        this.cargando = false;
+                    }
+                },
+
+                toggleTema() {
+                    document.documentElement.classList.toggle('dark');
+                    var esDark = document.documentElement.classList.contains('dark');
+                    localStorage.setItem('tema', esDark ? 'dark' : 'light');
                 }
-            } catch (e) {
-                this.errorGeneral = 'No pudimos conectar con el servidor. Intenta de nuevo.';
-            } finally {
-                this.cargando = false;
-            }
-        },
-
-        abrirRecuperar() {
-            this.recuperarAbierto = true;
-            this.recuperarMensaje = '';
-            this.recuperarError = '';
-            // Prellenar con lo que ya escribió en el login, si hay algo
-            this.rutRecuperar = this.rut;
-            this.$nextTick(function() { lucide.createIcons(); });
-        },
-
-        cerrarRecuperar() {
-            this.recuperarAbierto = false;
-        },
-
-        async enviarRecuperar() {
-            this.recuperarCargando = true;
-            this.recuperarError = '';
-
-            try {
-                var resp = await fetch(u('/api/auth/recuperar'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rut: this.rutRecuperar.replace(/\./g, '').trim() })
-                });
-                var data = await resp.json();
-
-                if (data.ok) {
-                    this.recuperarMensaje = data.data.mensaje;
-                } else {
-                    this.recuperarError = data.error?.mensaje || 'No pudimos procesar tu solicitud. Intenta de nuevo.';
-                }
-            } catch (e) {
-                this.recuperarError = 'No pudimos conectar con el servidor. Intenta de nuevo.';
-            } finally {
-                this.recuperarCargando = false;
-            }
-        },
-
-        validarPasswordNueva() {
-            var p = this.passwordNueva;
-            return p.length >= 8 && /[a-zA-Z]/.test(p) && /[0-9]/.test(p);
-        },
-
-        puedeCambiar() {
-            return this.passwordActual.length > 0
-                && this.validarPasswordNueva()
-                && this.passwordNueva === this.passwordConfirm;
-        },
-
-        async cambiarContrasena() {
-            this.cargando = true;
-            this.errorGeneral = '';
-
-            try {
-                var resp = await fetch(u('/api/auth/cambiar-contrasena'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        password_actual: this.passwordActual,
-                        password_nueva: this.passwordNueva,
-                        password_nueva_confirmacion: this.passwordConfirm
-                    })
-                });
-                var data = await resp.json();
-
-                if (data.ok) {
-                    window.location.href = this.homeTarget;
-                } else {
-                    this.errorGeneral = data.error?.mensaje || 'Error al cambiar contraseña.';
-                }
-            } catch (e) {
-                this.errorGeneral = 'No pudimos conectar con el servidor. Intenta de nuevo.';
-            } finally {
-                this.cargando = false;
-            }
-        },
-
-        toggleTema() {
-            document.documentElement.classList.toggle('dark');
-            var esDark = document.documentElement.classList.contains('dark');
-            localStorage.setItem('tema', esDark ? 'dark' : 'light');
+            };
         }
-    };
-}
-</script>
+    </script>
 </body>
+
 </html>

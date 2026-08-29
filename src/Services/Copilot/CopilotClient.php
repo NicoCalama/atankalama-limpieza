@@ -112,6 +112,6 @@ final class CopilotClient
                 'error' => $ultimaResp->errorRed,
             ]);
         }
-        return $ultimaResp ?? new HttpResponse(0, '', 'Sin respuesta');
+        return $ultimaResp;
     }
 }

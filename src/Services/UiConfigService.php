@@ -72,7 +72,7 @@ final class UiConfigService
     /**
      * Guarda un mapa parcial de colores. Solo claves conocidas; valores hex #rrggbb.
      *
-     * @param array<string, string> $colores
+     * @param array<string, mixed> $colores  Puede traer valores no-string desde el JSON del cliente
      */
     public function guardarColores(array $colores, ?int $actorId = null): void
     {
@@ -117,7 +117,9 @@ final class UiConfigService
             if (str_starts_with($clave, 'color_estado_')) {
                 $slug = substr($clave, strlen('color_estado_'));
                 $v = Colores::variantes($hex);
-                $claro[] = "--ce-{$slug}-bg: {$v['bg']}; --ce-{$slug}-fg: {$v['fg']};";
+                // -solid: el hex tal cual (sin variante clara/oscura) — para el botón de
+                // estado seleccionado, que necesita el color exacto en ambos temas.
+                $claro[] = "--ce-{$slug}-bg: {$v['bg']}; --ce-{$slug}-fg: {$v['fg']}; --ce-{$slug}-solid: {$hex};";
                 $oscuro[] = "--ce-{$slug}-bg: {$v['bgDark']}; --ce-{$slug}-fg: {$v['fgDark']};";
             } else { // color_hotel_*
                 $slug = substr($clave, strlen('color_hotel_'));

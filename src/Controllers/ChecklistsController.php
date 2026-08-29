@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
+use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\ChecklistException;
@@ -188,6 +189,10 @@ final class ChecklistsController
 
     public function completar(Request $request): Response
     {
+        // Instrumentación temporal (fase 0 del plan "eliminar No pudimos conectar con el
+        // servidor" — mismo motivo que en TicketsController::crear()).
+        $t0 = microtime(true);
+
         $habitacionId = $request->rutaInt('id');
         if ($habitacionId === null || $request->usuario === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
@@ -195,6 +200,12 @@ final class ChecklistsController
 
         $ejecId = $this->svc->obtenerEjecucionEnProgreso($habitacionId, $request->usuario->id);
         if ($ejecId === null) {
+            // Idempotencia: si ya quedó 'completada', es un reintento cuya respuesta
+            // anterior se perdió por conexión inestable — no un error real. Ver
+            // ChecklistService::ultimaEjecucionCompletadaPorUsuario().
+            if ($this->svc->ultimaEjecucionCompletadaPorUsuario($habitacionId, $request->usuario->id)) {
+                return Response::ok(['completada' => true]);
+            }
             return Response::error('EJECUCION_NO_ENCONTRADA', 'No hay ejecución en progreso para esta habitación.', 404);
         }
 
@@ -203,6 +214,14 @@ final class ChecklistsController
         } catch (ChecklistException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
+
+        $datosTiming = [
+            'habitacion_id' => $habitacionId,
+            'ejecucion_id' => $ejecId,
+            'ms_total_antes_de_responder' => (int) round((microtime(true) - $t0) * 1000),
+        ];
+        Logger::info('checklist_timing', 'completar', $datosTiming);
+
         return Response::ok(['completada' => true]);
     }
 

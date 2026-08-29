@@ -45,11 +45,11 @@ final class BitacoraAlerta
             titulo: (string) $fila['titulo'],
             descripcion: (string) $fila['descripcion'],
             contexto: $contexto,
-            hotelId: isset($fila['hotel_id']) && $fila['hotel_id'] !== null ? (int) $fila['hotel_id'] : null,
+            hotelId: isset($fila['hotel_id']) ? (int) $fila['hotel_id'] : null,
             levantadaAt: (string) $fila['levantada_at'],
             resueltaAt: $fila['resuelta_at'] !== null ? (string) $fila['resuelta_at'] : null,
             resolucion: $fila['resolucion'] !== null ? (string) $fila['resolucion'] : null,
-            resueltaPor: isset($fila['resuelta_por']) && $fila['resuelta_por'] !== null ? (int) $fila['resuelta_por'] : null,
+            resueltaPor: isset($fila['resuelta_por']) ? (int) $fila['resuelta_por'] : null,
             accionTomada: $fila['accion_tomada'] !== null ? (string) $fila['accion_tomada'] : null,
         );
     }

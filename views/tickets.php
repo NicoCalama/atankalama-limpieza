@@ -27,7 +27,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                         <span x-text="total"></span> en total
                         <template x-if="!puedeVerTodos">
-                            <span> · Tus reportes</span>
+                            <span> · <span x-text="alcance === 'sin_asignar' ? 'Sin asignar' : 'Asignados a ti'"></span></span>
                         </template>
                     </p>
                 </div>
@@ -70,6 +70,16 @@ require_once __DIR__ . '/componentes/avatar.php';
         <!-- Filtros -->
         <section data-tour="tk.filtros" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
             <div class="flex flex-wrap gap-2 items-center">
+                <template x-if="!puedeVerTodos">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        <template x-for="a in alcanceFiltro" :key="a.valor">
+                            <button @click="setAlcance(a.valor)"
+                                    :class="alcance === a.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
+                                    class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
+                                    x-text="a.etiqueta"></button>
+                        </template>
+                    </div>
+                </template>
                 <div class="flex items-center gap-1 flex-wrap">
                     <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
                     <template x-for="e in estadosFiltro" :key="e.valor">
@@ -158,6 +168,9 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                     <span x-text="'Por ' + (t.levantado_por_nombre || 'usuario')"></span>
                                     · <span x-text="fechaRelativa(t.created_at)"></span>
+                                    <template x-if="t.asignado_a_nombre">
+                                        <span> · <i data-lucide="user-check" class="w-3 h-3 inline"></i> <span x-text="t.asignado_a_nombre"></span></span>
+                                    </template>
                                 </p>
                             </div>
                             <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-1"></i>
@@ -217,7 +230,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                             <template x-if="detalle.ticket.asignado_a">
                                 <div>
                                     <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Asignado a</p>
-                                    <p class="text-gray-900 dark:text-gray-100" x-text="'#' + detalle.ticket.asignado_a"></p>
+                                    <p class="text-gray-900 dark:text-gray-100" x-text="detalle.ticket.asignado_a_nombre || ('#' + detalle.ticket.asignado_a)"></p>
                                 </div>
                             </template>
                             <template x-if="detalle.ticket.resuelto_at">
@@ -228,15 +241,41 @@ require_once __DIR__ . '/componentes/avatar.php';
                             </template>
                         </div>
 
-                        <!-- Acciones -->
-                        <template x-if="puedeGestionar && detalle.ticket.estado !== 'cerrado'">
+                        <!-- Fotos -->
+                        <template x-if="detalle.ticket.adjuntos && detalle.ticket.adjuntos.length > 0">
+                            <div>
+                                <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Fotos</p>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="foto in detalle.ticket.adjuntos" :key="foto.id">
+                                        <a :href="urlAdjunto(foto.ruta)" target="_blank" rel="noopener">
+                                            <img :src="urlAdjunto(foto.ruta)"
+                                                 class="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                                                 :alt="foto.contexto === 'cierre' ? 'Foto de cierre' : 'Foto del reporte'">
+                                        </a>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Acciones: quien gestiona (ver_todos) las ve todas. Quien solo tiene
+                             tickets.ver_propios puede tomar un ticket sin dueño, y una vez que
+                             lo tiene asignado a sí mismo, marcarlo resuelto — no cierra ni reabre
+                             (esa verificación final queda para quien gestiona). Ver
+                             TicketsController::asignar() y cambiarEstado(). -->
+                        <template x-if="(puedeGestionar || puedeResolverAsignado || puedeTomar) && detalle.ticket.estado !== 'cerrado'">
                             <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                                 <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">Acciones</p>
-                                <div class="flex flex-wrap gap-2">
-                                    <template x-if="detalle.ticket.estado === 'abierto'">
+                                <div class="flex flex-wrap gap-2" x-show="!detalle.mostrarCierre && !detalle.mostrarAsignar">
+                                    <template x-if="puedeTomar">
                                         <button @click="tomar()" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
                                             Tomar
+                                        </button>
+                                    </template>
+                                    <template x-if="puedeGestionar">
+                                        <button @click="abrirAsignar()" :disabled="detalle.enviando"
+                                                class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition">
+                                            Asignar responsable
                                         </button>
                                     </template>
                                     <template x-if="detalle.ticket.estado === 'abierto' || detalle.ticket.estado === 'en_progreso'">
@@ -245,19 +284,77 @@ require_once __DIR__ . '/componentes/avatar.php';
                                             Marcar resuelto
                                         </button>
                                     </template>
-                                    <template x-if="detalle.ticket.estado === 'resuelto'">
-                                        <button @click="cambiarEstado('cerrado')" :disabled="detalle.enviando"
+                                    <template x-if="puedeGestionar && detalle.ticket.estado === 'resuelto'">
+                                        <button @click="detalle.mostrarCierre = true" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-600 hover:bg-gray-700 disabled:opacity-50 text-white transition">
                                             Cerrar
                                         </button>
                                     </template>
-                                    <template x-if="detalle.ticket.estado === 'resuelto' || detalle.ticket.estado === 'en_progreso'">
+                                    <template x-if="puedeGestionar && (detalle.ticket.estado === 'resuelto' || detalle.ticket.estado === 'en_progreso')">
                                         <button @click="cambiarEstado('abierto')" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 transition">
                                             Reabrir
                                         </button>
                                     </template>
                                 </div>
+
+                                <!-- Panel de asignar responsable -->
+                                <template x-if="puedeGestionar && detalle.mostrarAsignar">
+                                    <div class="space-y-2">
+                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Asignar responsable</p>
+                                        <select x-model.number="detalle.asignarUsuarioId"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                            <option :value="null">Selecciona una persona</option>
+                                            <template x-for="u in usuariosAsignables" :key="u.id">
+                                                <option :value="u.id" x-text="u.nombre"></option>
+                                            </template>
+                                        </select>
+                                        <div class="flex justify-end gap-2">
+                                            <button type="button" @click="detalle.mostrarAsignar = false"
+                                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                                                Cancelar
+                                            </button>
+                                            <button type="button" @click="asignarResponsable()"
+                                                    :disabled="detalle.enviando || !detalle.asignarUsuarioId"
+                                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
+                                                Asignar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Panel de cierre: foto opcional antes de confirmar -->
+                                <template x-if="detalle.mostrarCierre">
+                                    <div class="space-y-2">
+                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Foto de cierre (opcional)</p>
+                                        <div class="flex flex-wrap gap-2" x-show="cierreFotos.length > 0">
+                                            <template x-for="(foto, idx) in cierreFotos" :key="foto.url">
+                                                <div class="relative w-16 h-16">
+                                                    <img :src="foto.url" class="w-16 h-16 object-cover rounded-lg border border-gray-300 dark:border-gray-600">
+                                                    <button type="button" @click="quitarCierreFoto(idx)"
+                                                            class="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-red-600 text-white text-xs leading-none"
+                                                            aria-label="Quitar foto">×</button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <label x-show="cierreFotos.length < 3"
+                                               class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                                            <i data-lucide="camera" class="w-4 h-4"></i>
+                                            <span>Agregar foto</span>
+                                            <input type="file" accept="image/*" multiple class="hidden" @change="onCierreFotoSeleccionada($event)">
+                                        </label>
+                                        <div class="flex gap-2 pt-1">
+                                            <button type="button" @click="cancelarCierre()" :disabled="detalle.enviando"
+                                                    class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                                                Cancelar
+                                            </button>
+                                            <button type="button" @click="confirmarCierre()" :disabled="detalle.enviando"
+                                                    class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-600 hover:bg-gray-700 disabled:opacity-50 text-white transition">
+                                                <span x-text="detalle.enviando ? 'Cerrando...' : (cierreFotos.length > 0 ? 'Cerrar con foto' : 'Cerrar sin foto')"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </template>
 
@@ -282,11 +379,14 @@ function ticketsApp() {
         sinConexion: !navigator.onLine,
         estado: localStorage.getItem('tickets_estado') || '',
         hotel: localStorage.getItem('tickets_hotel') || 'ambos',
+        alcance: localStorage.getItem('tickets_alcance') || 'mios',
         _intervalId: null,
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
-        detalle: { abierto: false, ticket: null, enviando: false },
+        detalle: { abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null },
+        cierreFotos: [], // [{ file, url }] — fotos opcionales al cerrar, máx. 3
+        usuariosAsignables: [], // cargados on-demand la primera vez que se abre el panel de asignar
 
         estadosFiltro: [
             { valor: '', etiqueta: 'Todos' },
@@ -302,6 +402,11 @@ function ticketsApp() {
             { valor: 'inn', etiqueta: 'Atankalama INN' }
         ],
 
+        alcanceFiltro: [
+            { valor: 'mios', etiqueta: 'Asignados a mí' },
+            { valor: 'sin_asignar', etiqueta: 'Sin asignar' }
+        ],
+
         get puedeCrear() {
             return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.crear'));
         },
@@ -311,6 +416,18 @@ function ticketsApp() {
         get puedeGestionar() {
             return this.puedeVerTodos;
         },
+        get puedeResolverAsignado() {
+            var yo = Alpine.store('auth') && Alpine.store('auth').usuario;
+            return !!(yo && this.detalle.ticket && Number(this.detalle.ticket.asignado_a) === Number(yo.id));
+        },
+        // "Tomar": autoasignarse un ticket abierto y SIN dueño — "todos los tickets pueden ser
+        // tomados por cualquier persona". Quien gestiona también puede (además de reasignar).
+        get puedeTomar() {
+            if (!this.detalle.ticket || this.detalle.ticket.estado !== 'abierto') return false;
+            if (this.puedeGestionar) return true;
+            var tienePropios = !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.ver_propios'));
+            return tienePropios && !this.detalle.ticket.asignado_a;
+        },
 
         async cargar() {
             this.cargando = true;
@@ -318,6 +435,7 @@ function ticketsApp() {
                 var params = [];
                 if (this.estado) params.push('estado=' + encodeURIComponent(this.estado));
                 if (this.puedeVerTodos && this.hotel && this.hotel !== 'ambos') params.push('hotel=' + encodeURIComponent(this.hotel));
+                if (!this.puedeVerTodos) params.push('alcance=' + encodeURIComponent(this.alcance));
                 var url = '/api/tickets' + (params.length ? '?' + params.join('&') : '');
                 var r = await apiFetch(url);
                 if (r && r.ok) {
@@ -355,18 +473,138 @@ function ticketsApp() {
             this.cargar();
         },
 
-        onTicketCreado(ticket) {
-            this.mostrarToast('exito', 'Ticket creado. Gracias por reportar.');
+        setAlcance(valor) {
+            this.alcance = valor;
+            localStorage.setItem('tickets_alcance', valor);
             this.cargar();
         },
 
-        abrirDetalle(t) {
-            this.detalle = { abierto: true, ticket: t, enviando: false };
+        onTicketCreado(ticket) {
+            var fallidas = (ticket && ticket._adjuntos_fallidos) || [];
+            if (fallidas.length > 0) {
+                this.mostrarToast('error', 'Ticket creado, pero ' + fallidas.length + ' foto(s) no se pudieron subir.');
+            } else {
+                this.mostrarToast('exito', 'Ticket creado. Gracias por reportar.');
+            }
+            this.cargar();
+        },
+
+        async abrirDetalle(t) {
+            this.detalle = { abierto: true, ticket: t, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null };
             this.$nextTick(function () { lucide.createIcons(); });
+            // La fila de la lista no trae adjuntos (listar() no hace ese join) — se
+            // completan acá sin perder hotel_codigo/habitacion_numero/levantado_por_nombre
+            // que sí trae la lista y que obtener() no devuelve.
+            try {
+                var r = await apiFetch('/api/tickets/' + t.id);
+                if (r && r.ok && this.detalle.ticket && this.detalle.ticket.id === t.id) {
+                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, { adjuntos: r.data.adjuntos });
+                }
+            } catch (e) {
+                // Sin adjuntos no bloqueamos el detalle — se ve igual, solo sin fotos.
+            }
         },
 
         cerrarDetalle() {
-            this.detalle = { abierto: false, ticket: null, enviando: false };
+            this.limpiarCierreFotos();
+            this.detalle = { abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null };
+        },
+
+        async abrirAsignar() {
+            this.detalle.asignarUsuarioId = (this.detalle.ticket && this.detalle.ticket.asignado_a) || null;
+            this.detalle.mostrarAsignar = true;
+            if (this.usuariosAsignables.length === 0) {
+                try {
+                    var r = await apiFetch('/api/tickets/usuarios-asignables');
+                    if (r && r.ok) this.usuariosAsignables = r.data.usuarios || [];
+                } catch (e) {
+                    this.mostrarToast('error', 'No pudimos cargar la lista de personas.');
+                }
+            }
+        },
+
+        async asignarResponsable() {
+            if (!this.detalle.ticket || !this.detalle.asignarUsuarioId || this.detalle.enviando) return;
+            this.detalle.enviando = true;
+            try {
+                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/asignar', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario_id: this.detalle.asignarUsuarioId })
+                });
+                if (r && r.ok) {
+                    var nombre = (this.usuariosAsignables.find((u) => u.id === this.detalle.asignarUsuarioId) || {}).nombre;
+                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket, {
+                        asignado_a_nombre: nombre || this.detalle.ticket.asignado_a_nombre,
+                    });
+                    this.detalle.mostrarAsignar = false;
+                    this.mostrarToast('exito', 'Responsable asignado.');
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos asignar el responsable.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.detalle.enviando = false;
+            }
+        },
+
+        urlAdjunto(ruta) {
+            return (window.BASE_PATH || '') + '/uploads/' + ruta;
+        },
+
+        async onCierreFotoSeleccionada(event) {
+            var espacio = 3 - this.cierreFotos.length;
+            var archivos = Array.from(event.target.files || []).slice(0, espacio);
+            event.target.value = '';
+            // Comprimir antes de mostrar/subir — ver comprimirFotoParaSubir() en app.js.
+            for (var i = 0; i < archivos.length; i++) {
+                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
+                this.cierreFotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
+            }
+        },
+
+        quitarCierreFoto(idx) {
+            URL.revokeObjectURL(this.cierreFotos[idx].url);
+            this.cierreFotos.splice(idx, 1);
+        },
+
+        limpiarCierreFotos() {
+            this.cierreFotos.forEach(function (f) { URL.revokeObjectURL(f.url); });
+            this.cierreFotos = [];
+        },
+
+        cancelarCierre() {
+            this.detalle.mostrarCierre = false;
+            this.limpiarCierreFotos();
+        },
+
+        async confirmarCierre() {
+            if (!this.detalle.ticket || this.detalle.enviando) return;
+            this.detalle.enviando = true;
+            try {
+                var datos = new FormData();
+                this.cierreFotos.forEach(function (f) { datos.append('fotos[]', f.file); });
+                var r = await apiPostForm('/api/tickets/' + this.detalle.ticket.id + '/cerrar', datos);
+                if (r && r.ok) {
+                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket, { adjuntos: r.data.adjuntos });
+                    this.detalle.mostrarCierre = false;
+                    this.limpiarCierreFotos();
+                    var fallidas = r.data.adjuntos_fallidos || [];
+                    this.mostrarToast(
+                        fallidas.length > 0 ? 'error' : 'exito',
+                        fallidas.length > 0 ? 'Ticket cerrado, pero ' + fallidas.length + ' foto(s) no se pudieron subir.' : 'Ticket cerrado.'
+                    );
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cerrar el ticket.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.detalle.enviando = false;
+            }
         },
 
         async tomar() {

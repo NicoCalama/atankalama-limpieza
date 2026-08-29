@@ -8,7 +8,6 @@ use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
-use PDOException;
 use Throwable;
 
 final class SistemaController
@@ -42,7 +41,7 @@ final class SistemaController
         try {
             $fila = Database::fetchOne('SELECT 1 AS uno');
             return ['ok' => $fila !== null && (int) $fila['uno'] === 1];
-        } catch (PDOException | Throwable $e) {
+        } catch (Throwable $e) {
             return ['ok' => false, 'mensaje' => 'DB no responde'];
         }
     }

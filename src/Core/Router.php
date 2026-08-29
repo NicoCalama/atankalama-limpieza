@@ -40,10 +40,12 @@ final class Router
     /** @param Middleware[] $middlewares */
     private function agregar(string $metodo, string $patron, callable $handler, array $middlewares): void
     {
+        // {nombre} captura un segmento ([^/]+); {nombre*} captura el resto de la ruta
+        // con slashes incluidos (.+) — lo usan rutas de archivo anidadas (ej. /uploads/{ruta*}).
         $params = [];
-        $regex = preg_replace_callback('/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/', function ($m) use (&$params) {
+        $regex = preg_replace_callback('/\{([a-zA-Z_][a-zA-Z0-9_]*)(\*)?\}/', function ($m) use (&$params) {
             $params[] = $m[1];
-            return '([^/]+)';
+            return isset($m[2]) ? '(.+)' : '([^/]+)';
         }, $patron);
         $regex = '#^' . $regex . '$#';
 

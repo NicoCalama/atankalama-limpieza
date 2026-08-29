@@ -423,6 +423,27 @@ if ($hora < 12) {
             </template>
         </div>
     </div>
+
+    <!-- Modal: Confirmar descarte de alerta -->
+    <div x-show="modalDescartar.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
+         @click.self="cerrarModalDescartar()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Descartar esta alerta?</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
+            <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
+            <div class="flex gap-2 justify-end">
+                <button @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
+                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
+                    Cancelar
+                </button>
+                <button @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
+                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
+                    <span x-text="modalDescartar.enviando ? 'Descartando...' : 'Descartar'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -441,6 +462,7 @@ function homeSupervisora() {
 
         modalVerCarga: { abierto: false, trabajador: null, cola: [], cargando: false },
         modalReasignar: { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, motivo: '', cargando: false, enviando: false },
+        modalDescartar: { abierto: false, alerta: null, enviando: false },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -608,27 +630,8 @@ function homeSupervisora() {
             var btnSecundario = 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100';
             var puedeAsignar = this.data && this.data.permisos && this.data.permisos.asignaciones_asignar_manual;
 
-            if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
-                var botones = [{ accion: 'ver_carga', etiqueta: 'Ver carga', clase: btnSecundario }];
-                if (puedeAsignar) botones.push({ accion: 'reasignar', etiqueta: 'Reasignar', clase: btnPrimario });
-                return botones;
-            }
-            if (al.tipo === 'habitacion_rechazada') {
-                var b = [];
-                if (puedeAsignar) b.push({ accion: 'reasignar_hab', etiqueta: 'Reasignar', clase: btnPrimario });
-                // "Resolver ahora" no implementado en H2d — se hará cuando exista la auditoría express.
-                return b;
-            }
-            if (al.tipo === 'trabajador_disponible') {
-                if (puedeAsignar) return [{ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario }];
-                return [];
-            }
-            if (al.tipo === 'cloudbeds_sync_failed') {
-                return [{ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario }];
-            }
-            if (al.tipo === 'ticket_nuevo') {
-                return [{ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario }];
-            }
+            // Cambios de inventario exigen una decisión explícita (Aceptar/Rechazar); no se
+            // ofrece "Descartar" genérico aquí para no dejar el cambio propuesto sin resolver.
             if (al.tipo === 'inventario_cambios_pendientes') {
                 var puedeImportar = this.data && this.data.permisos && this.data.permisos.habitaciones_importar_inventario;
                 if (!puedeImportar) return [];
@@ -637,10 +640,31 @@ function homeSupervisora() {
                     { accion: 'inventario_aceptar', etiqueta: 'Aceptar', clase: btnPrimario }
                 ];
             }
-            return [];
+
+            var botones = [];
+            if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
+                botones.push({ accion: 'ver_carga', etiqueta: 'Ver carga', clase: btnSecundario });
+                if (puedeAsignar) botones.push({ accion: 'reasignar', etiqueta: 'Reasignar', clase: btnPrimario });
+            } else if (al.tipo === 'habitacion_rechazada') {
+                // "Resolver ahora" no implementado en H2d — se hará cuando exista la auditoría express.
+                if (puedeAsignar) botones.push({ accion: 'reasignar_hab', etiqueta: 'Reasignar', clase: btnPrimario });
+            } else if (al.tipo === 'trabajador_disponible') {
+                if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario });
+            } else if (al.tipo === 'cloudbeds_sync_failed') {
+                botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+            } else if (al.tipo === 'ticket_nuevo') {
+                botones.push({ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario });
+            }
+
+            botones.push({ accion: 'descartar', etiqueta: 'Descartar', clase: btnSecundario });
+            return botones;
         },
 
         async accionAlerta(al, accion) {
+            if (accion === 'descartar') {
+                this.modalDescartar = { abierto: true, alerta: al, enviando: false };
+                return;
+            }
             if (accion === 'ver_carga') {
                 var usuarioId = al.contexto && al.contexto.usuario_id;
                 var tr = this.data.equipo.find(function (t) { return t.usuario.id === usuarioId; });
@@ -703,6 +727,29 @@ function homeSupervisora() {
             } catch (e) {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             }
+        },
+
+        async confirmarDescartarAlerta() {
+            if (this.modalDescartar.enviando || !this.modalDescartar.alerta) return;
+            this.modalDescartar.enviando = true;
+            try {
+                var r = await apiPost('/api/alertas/' + this.modalDescartar.alerta.id + '/accion', { accion: 'descartar' });
+                if (r && r.ok) {
+                    this.mostrarToast('exito', 'Alerta descartada.');
+                    this.cerrarModalDescartar();
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos descartar la alerta.');
+                    this.modalDescartar.enviando = false;
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                this.modalDescartar.enviando = false;
+            }
+        },
+
+        cerrarModalDescartar() {
+            this.modalDescartar = { abierto: false, alerta: null, enviando: false };
         },
 
         // --- Ver carga ---

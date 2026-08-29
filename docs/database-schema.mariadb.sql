@@ -425,9 +425,12 @@ CREATE TABLE #__tickets (
     )),
     levantado_por    INT NOT NULL,
     asignado_a       INT,
+    asignado_at      VARCHAR(30),                            -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
+    idempotency_key  VARCHAR(64),                            -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
     created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     resuelto_at      VARCHAR(30),
+    UNIQUE KEY idx_tickets_idempotency_key (idempotency_key),
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE SET NULL,
     FOREIGN KEY (hotel_id) REFERENCES #__hoteles(id) ON DELETE RESTRICT,
     FOREIGN KEY (levantado_por) REFERENCES #__usuarios(id) ON DELETE RESTRICT,
@@ -437,6 +440,24 @@ CREATE TABLE #__tickets (
 CREATE INDEX idx_tickets_estado ON #__tickets(estado);
 CREATE INDEX idx_tickets_hotel ON #__tickets(hotel_id);
 CREATE INDEX idx_tickets_levantado_por ON #__tickets(levantado_por);
+
+-- Fotos adjuntas a un ticket (al crearlo y/o al cerrarlo). Los archivos físicos
+-- viven en public/uploads/tickets/{AAAA}/{MM}/ — ruta guarda solo el relativo
+-- a esa carpeta, nunca el nombre original del usuario (ver ImagenAdjuntoService).
+CREATE TABLE #__tickets_adjuntos (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id        INT NOT NULL,
+    ruta             VARCHAR(500) NOT NULL,                  -- ej: "tickets/2026/08/ab12cd34.webp"
+    nombre_original  VARCHAR(255),                           -- solo para mostrar, nunca para resolver ruta física
+    tamano_bytes     INT NOT NULL,
+    contexto         VARCHAR(20) NOT NULL DEFAULT 'creacion' CHECK (contexto IN ('creacion', 'cierre')),
+    subido_por       INT NOT NULL,
+    created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    FOREIGN KEY (ticket_id) REFERENCES #__tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (subido_por) REFERENCES #__usuarios(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_tickets_adjuntos_ticket ON #__tickets_adjuntos(ticket_id);
 
 -- ============================================================================
 -- BLOQUE 7 — LOGS

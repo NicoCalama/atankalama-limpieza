@@ -315,7 +315,7 @@ final class AsignacionService
 
         // Habitaciones sucias o rechazadas SIN asignación activa hoy
         // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
-        $sqlSin = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+        $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                      FROM #__habitaciones h
                      JOIN #__hoteles ho ON ho.id = h.hotel_id
                      JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
@@ -429,7 +429,7 @@ final class AsignacionService
     public function colaDelTrabajador(int $usuarioId, string $fecha): array
     {
         $filas = Database::fetchAll(
-            'SELECT a.*, h.numero, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+            'SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id

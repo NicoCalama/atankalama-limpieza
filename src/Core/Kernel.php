@@ -13,6 +13,7 @@ use Atankalama\Limpieza\Controllers\AuthController;
 use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
+use Atankalama\Limpieza\Controllers\EdificiosController;
 use Atankalama\Limpieza\Controllers\EspaciosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
@@ -25,7 +26,9 @@ use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
 use Atankalama\Limpieza\Controllers\TurnosImportController;
 use Atankalama\Limpieza\Controllers\UiConfigController;
+use Atankalama\Limpieza\Controllers\UploadsController;
 use Atankalama\Limpieza\Controllers\UsuariosController;
+use Atankalama\Limpieza\Controllers\UsuariosImportController;
 use Atankalama\Limpieza\Middleware\AuthCheck;
 use Atankalama\Limpieza\Middleware\OptionalAuth;
 use Atankalama\Limpieza\Middleware\PermissionCheck;
@@ -51,6 +54,7 @@ final class Kernel
         $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
         $router->get('/home', [$paginas, 'home'], [$optionalAuth]);
         $router->get('/cambiar-contrasena', [$paginas, 'cambiarContrasena'], [$optionalAuth]);
+        $router->get('/edificios', [$paginas, 'edificios'], [$optionalAuth]);
         $router->get('/habitaciones', [$paginas, 'habitaciones'], [$optionalAuth]);
         $router->get('/habitaciones/{id}', [$paginas, 'habitacionDetalle'], [$optionalAuth]);
         $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
@@ -125,6 +129,10 @@ final class Kernel
             new PermissionCheck('habitaciones.ver_todas'),
         ]);
         $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [$authCheck]);
+        $router->put('/api/habitaciones/{id}/estructura', [$habitaciones, 'actualizarEstructura'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_todas'), // Supervisora/Admin pueden editar
+        ]);
         $router->get('/api/habitaciones/{id}/historial', [$habitaciones, 'historial'], [
             $authCheck,
             new PermissionCheck('habitaciones.ver_historial'),
@@ -133,6 +141,13 @@ final class Kernel
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
         ]);
+
+        // Edificios
+        $edificiosCtrl = new EdificiosController();
+        $router->get('/api/edificios', [$edificiosCtrl, 'listar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
+        $router->post('/api/edificios', [$edificiosCtrl, 'crear'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
+        $router->put('/api/edificios/{id}', [$edificiosCtrl, 'actualizar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
+        $router->delete('/api/edificios/{id}', [$edificiosCtrl, 'eliminar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
 
         // Cloudbeds
         $cloudbeds = new CloudbedsController();
@@ -288,16 +303,26 @@ final class Kernel
         // Tickets
         $tickets = new TicketsController();
         $router->get('/api/tickets', [$tickets, 'listar'], [$authCheck]);
+        // Ruta literal ANTES de /api/tickets/{id}: el router matchea en orden de registro y
+        // {id} es un wildcard — si esta va después, nunca se alcanza (la captura {id} le gana).
+        $router->get('/api/tickets/usuarios-asignables', [$tickets, 'usuariosAsignables'], [
+            $authCheck,
+            new PermissionCheck('tickets.ver_todos'),
+        ]);
         $router->get('/api/tickets/{id}', [$tickets, 'obtener'], [$authCheck]);
         $router->post('/api/tickets', [$tickets, 'crear'], [
             $authCheck,
             new PermissionCheck('tickets.crear'),
         ]);
-        $router->put('/api/tickets/{id}/asignar', [$tickets, 'asignar'], [
-            $authCheck,
-            new PermissionCheck('tickets.ver_todos'),
-        ]);
-        $router->put('/api/tickets/{id}/estado', [$tickets, 'cambiarEstado'], [
+        // Sin PermissionCheck acá a propósito: quien solo tiene tickets.ver_propios puede
+        // "tomar" (autoasignarse) un ticket sin dueño — asignar a un tercero sigue exigiendo
+        // tickets.ver_todos, la regla fina vive en el controller. Ver TicketsController::asignar().
+        $router->put('/api/tickets/{id}/asignar', [$tickets, 'asignar'], [$authCheck]);
+        // Sin PermissionCheck acá a propósito: quien tiene el ticket asignado también puede
+        // marcarlo resuelto (no cerrarlo ni reabrirlo) — la regla fina vive en el controller,
+        // que sí conoce el ticket concreto. Ver TicketsController::cambiarEstado().
+        $router->put('/api/tickets/{id}/estado', [$tickets, 'cambiarEstado'], [$authCheck]);
+        $router->post('/api/tickets/{id}/cerrar', [$tickets, 'cerrar'], [
             $authCheck,
             new PermissionCheck('tickets.ver_todos'),
         ]);
@@ -336,6 +361,18 @@ final class Kernel
         // No usa PermissionCheck: el control vive en el controller porque permite tanto
         // al propio usuario como a un admin con usuarios.editar consultar los datos.
         $router->get('/api/usuarios/{id}/datos-personales', [$usuarios, 'exportarDatos'], [$authCheck]);
+
+        // Carga masiva de usuarios desde el calendario semanal .xlsx (mismo permiso que
+        // crear uno solo: importar N es la misma acción de alta, repetida).
+        $usuariosImport = new UsuariosImportController();
+        $router->post('/api/usuarios/importar/preview', [$usuariosImport, 'preview'], [
+            $authCheck,
+            new PermissionCheck('usuarios.crear'),
+        ]);
+        $router->post('/api/usuarios/importar/confirmar', [$usuariosImport, 'confirmar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.crear'),
+        ]);
 
         // Turnos
         $turnos = new TurnosController();
@@ -463,6 +500,12 @@ final class Kernel
             $authCheck,
             new PermissionCheck('turnos.importar'),
         ]);
+
+        // Adjuntos de tickets — público (sin auth): app_core/ está denegado por web, así
+        // que las fotos se sirven vía PHP. El link se comparte con Recepción (Novedades),
+        // que no tiene cuenta acá. Ver UploadsController para el detalle.
+        $uploads = new UploadsController();
+        $router->get('/uploads/{ruta*}', [$uploads, 'servir']);
 
         // Sistema — health check público (sin auth, para uptime monitors)
         $sistema = new SistemaController();

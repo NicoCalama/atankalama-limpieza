@@ -21,8 +21,8 @@ final class Request
     /**
      * @param array<string, mixed> $cuerpo
      * @param array<string, string> $ruta  Parámetros capturados de la URL (ej. {id})
-     * @param array<string, string> $query
-     * @param array<string, string> $cookies
+     * @param array<string, mixed> $query  Viene directo de $_GET: PHP permite valores no-string (ej. ?a[]=x)
+     * @param array<string, mixed> $cookies  Viene directo de $_COOKIE: mismo caso que $query
      * @param array<string, string> $headers
      */
     public function __construct(

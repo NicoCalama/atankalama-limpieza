@@ -60,7 +60,8 @@ final class HabitacionesController
         }
 
         // Trabajadora: solo puede ver habitaciones que le están asignadas hoy
-        if (!$puedeVerTodas && $puedeVerPropias) {
+        // (llegar acá con !$puedeVerTodas implica $puedeVerPropias, por el guard de arriba)
+        if (!$puedeVerTodas) {
             $hoy = date('Y-m-d');
             if (!$this->asignaciones->esHabitacionAsignadaA($id, $usuario->id, $hoy)) {
                 return Response::error('SIN_PERMISO', 'No tienes esta habitación asignada.', 403);
@@ -68,6 +69,27 @@ final class HabitacionesController
         }
 
         return Response::ok(['habitacion' => $detalle]);
+    }
+
+    public function actualizarEstructura(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ID de habitación inválido.', 400);
+        }
+
+        $edificioId = $request->inputInt('edificio_id');
+        $edificio = $request->input('edificio');
+        $edificio = is_string($edificio) && trim($edificio) !== '' ? trim($edificio) : null;
+        $piso = $request->inputInt('piso');
+
+        try {
+            $this->habitaciones->actualizarEstructura($id, $edificioId, $edificio, $piso, $request->usuario?->id);
+        } catch (HabitacionException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        return Response::ok(['mensaje' => 'Estructura actualizada']);
     }
 
     public function listarHoteles(Request $request): Response

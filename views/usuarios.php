@@ -27,6 +27,13 @@ require_once __DIR__ . '/componentes/avatar.php';
             <div class="flex items-center gap-2">
                 <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
                 <button type="button"
+                        @click="abrirImportar()" data-tour="usr.importar"
+                        class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium transition">
+                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Importar Excel</span>
+                    <span class="sm:hidden">Importar</span>
+                </button>
+                <button type="button"
                         @click="abrirCrear()" data-tour="usr.nuevo"
                         class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
                     <i data-lucide="user-plus" class="w-4 h-4"></i>
@@ -205,12 +212,20 @@ function usuariosApp() {
             window.dispatchEvent(new CustomEvent('abrir-modal-usuario-nuevo'));
         },
 
+        abrirImportar() {
+            window.dispatchEvent(new CustomEvent('abrir-modal-usuario-importar'));
+        },
+
         abrirDetalle(u) {
             window.dispatchEvent(new CustomEvent('abrir-modal-usuario-detalle', { detail: { usuario: u } }));
         },
 
         alUsuarioCreado(detail) {
-            this.mostrarToast('Usuario creado correctamente.');
+            if (detail && Array.isArray(detail.creados)) {
+                this.mostrarToast(detail.creados.length + ' usuarios importados correctamente.');
+            } else {
+                this.mostrarToast('Usuario creado correctamente.');
+            }
             this.cargar();
         },
 

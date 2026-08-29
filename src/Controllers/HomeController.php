@@ -255,8 +255,8 @@ final class HomeController
 
         $ordenEstado = ['en_riesgo' => 0, 'en_tiempo' => 1, 'disponible' => 2];
         usort($equipo, static function (array $a, array $b) use ($ordenEstado): int {
-            $ea = $ordenEstado[$a['estado']] ?? 9;
-            $eb = $ordenEstado[$b['estado']] ?? 9;
+            $ea = $ordenEstado[$a['estado']];
+            $eb = $ordenEstado[$b['estado']];
             if ($ea !== $eb) {
                 return $ea - $eb;
             }

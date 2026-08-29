@@ -132,7 +132,8 @@ final class ChecklistService
      *  - Si el hotel ya tiene override, se versiona ese (no el compartido).
      * Sin hotel (o con el toggle apagado) se versiona el template tal cual (compartido u override propio).
      *
-     * @param list<array<string, mixed>> $items cada uno: {id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}
+     * @param list<mixed> $items cada uno debería ser {id?, descripcion, obligatorio, creditos, es_cambio_sabanas?},
+     *   pero llega crudo del JSON del cliente — se valida elemento por elemento abajo
      * @return array{template_id:int, version:int} la versión recién creada (la que ya está vigente)
      */
     public function editarTemplate(int $templateId, ?string $nombre, array $items, ?int $actorId = null, ?string $hotelCodigo = null): array
@@ -375,7 +376,7 @@ final class ChecklistService
         if ($template === null) {
             throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'El checklist no existe o no se edita desde acá.', 404);
         }
-        $raizId = isset($template['raiz_id']) && $template['raiz_id'] !== null
+        $raizId = isset($template['raiz_id'])
             ? (int) $template['raiz_id']
             : $templateId;
 
@@ -399,7 +400,7 @@ final class ChecklistService
      * descripción (≤255), obligatorio (0/1), creditos (0..100; solo cuenta para créditos si es
      * obligatorio) y es_cambio_sabanas (0/1). El orden lo fija la posición en el arreglo.
      *
-     * @param list<array<string, mixed>> $items
+     * @param list<mixed> $items  llega crudo del JSON del cliente, se valida elemento por elemento abajo
      * @return list<array{id?:int, descripcion:string, obligatorio:int, creditos:int, es_cambio_sabanas:int}>
      */
     private function normalizarItemsTemplate(array $items): array
@@ -763,6 +764,24 @@ final class ChecklistService
             [$habitacionId, $usuarioId]
         );
         return $fila === null ? null : (int) $fila['id'];
+    }
+
+    /**
+     * Idempotencia de completar(): si no hay ejecución 'en_progreso', puede ser
+     * porque el POST anterior sí llegó al servidor pero la respuesta se perdió
+     * por una conexión inestable (ver conversación de soporte, habitación 20).
+     * Si la última ejecución de este usuario para la habitación ya quedó
+     * 'completada', el reintento debe tratarse como éxito, no como 404.
+     */
+    public function ultimaEjecucionCompletadaPorUsuario(int $habitacionId, int $usuarioId): bool
+    {
+        $fila = Database::fetchOne(
+            "SELECT estado FROM #__ejecuciones_checklist
+              WHERE habitacion_id = ? AND usuario_id = ?
+              ORDER BY id DESC LIMIT 1",
+            [$habitacionId, $usuarioId]
+        );
+        return $fila !== null && $fila['estado'] === EjecucionChecklist::ESTADO_COMPLETADA;
     }
 
     /**
