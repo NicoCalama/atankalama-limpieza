@@ -626,6 +626,16 @@ final class Tours
                                 'titulo' => 'El calendario de la semana',
                                 'texto'  => 'Cambia a la pestaña «Asignación»: es un calendario con cada trabajador y cada día. Tocas una celda para ponerle un turno.',
                             ],
+                            [
+                                'sel'    => '[data-tour="tur.buscar"]',
+                                'titulo' => 'Buscar a una persona',
+                                'texto'  => 'Ya en «Asignación», este buscador filtra el calendario por nombre: escribes y quedan solo las personas que coinciden. Ayuda cuando el equipo es grande.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="tur.filtro-rol"]',
+                                'titulo' => 'Filtrar por tipo de trabajador',
+                                'texto'  => 'Estos botones acotan el calendario por tipo de trabajador. Tocas uno y ves solo a ese grupo mientras armas la semana.',
+                            ],
                         ],
                     ],
                 ],
@@ -838,6 +848,8 @@ final class Tours
                         'pasos' => [
                             ['sel' => '[data-tour="usr.nuevo"]', 'titulo' => 'Dar de alta a una persona',
                              'texto' => 'Con «Nuevo usuario» se abre un formulario para cargar RUT, nombre y al menos un rol. Al crear, la app genera una contraseña temporal que anotas y le entregas; la deberá cambiar al entrar.'],
+                            ['sel' => '[data-tour="usr.importar"]', 'titulo' => 'Cargar varias de una vez',
+                             'texto' => 'Con «Importar Excel» subes una planilla y das de alta a varias personas juntas. Antes de guardar ves una vista previa para revisar y corregir.'],
                         ],
                     ],
                     [
