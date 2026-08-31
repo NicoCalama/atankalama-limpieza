@@ -63,6 +63,13 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('espacios', 'espacios');
     }
 
+    public function test_anclas_de_edificios(): void
+    {
+        // /edificios → 'edificios' (ruta fija en MAP). Gate por
+        // habitaciones.ver_todas, que el stub supervisora tiene.
+        $this->verificarAnclas('edificios', 'edificios');
+    }
+
     public function test_anclas_de_tickets(): void
     {
         // /tickets → 'tickets' (ruta fija en MAP).

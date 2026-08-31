@@ -473,6 +473,82 @@ final class Tours
             ],
 
             // ════════════════════════════════════════════════════════════
+            //  EDIFICIOS Y MAPEO — vista: views/edificios.php
+            //  Ruta /edificios (fija). Herramienta de supervisora/admin para
+            //  armar edificios y ubicar cada pieza en su piso arrastrando.
+            //  Gate por habitaciones.ver_todas (igual que la página y su API).
+            // ════════════════════════════════════════════════════════════
+            'edificios' => [
+                'nombre'    => 'Edificios y Mapeo',
+                'capacidad' => 'habitaciones.ver_todas',
+                'recorridos' => [
+
+                    // ── 1. Dar de alta un edificio (el paso previo a mapear). ──
+                    [
+                        'id'       => 'crear',
+                        'v'        => 1,
+                        'titulo'   => 'Crear un edificio',
+                        'pregunta' => '¿Cómo agrego un edificio nuevo?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="edif.nuevo"]',
+                                'titulo' => 'El botón «Nuevo Edificio»',
+                                'texto'  => 'Con «Nuevo Edificio» eliges el hotel, le pones un nombre y cuántos pisos tiene. Al guardarlo aparece en la lista de la izquierda.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. El trabajo central: ubicar cada pieza en su piso. ──
+                    [
+                        'id'       => 'mapear',
+                        'v'        => 1,
+                        'titulo'   => 'Mapear las piezas',
+                        'pregunta' => '¿Cómo pongo cada pieza en su piso?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="edif.lista"]',
+                                'titulo' => 'Primero elige un edificio',
+                                'texto'  => 'Toca un edificio de esta lista y a la derecha aparecen sus pisos, listos para recibir piezas.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="edif.pool"]',
+                                'titulo' => 'Las piezas sin ubicar',
+                                'texto'  => 'Acá están las piezas que todavía no tienen edificio. Arrastra cada una hacia el piso que le corresponde a la derecha.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="edif.mapa"]',
+                                'titulo' => 'Suéltala en su piso',
+                                'texto'  => 'A la derecha ves los pisos del edificio elegido. Al soltar una pieza sobre un piso, queda mapeada al instante.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="edif.pool"]',
+                                'titulo' => 'Para sacarla del mapa',
+                                'texto'  => '¿Elegiste mal el piso? Arrastra la pieza de vuelta a «Habitaciones Sin Edificio» y vuelve a quedar sin ubicar.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Editar o eliminar un edificio ya creado. ──
+                    [
+                        'id'       => 'gestionar',
+                        'v'        => 1,
+                        'titulo'   => 'Editar o borrar un edificio',
+                        'pregunta' => '¿Cómo cambio o elimino un edificio?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="edif.lista"]',
+                                'titulo' => 'El lápiz y el tacho',
+                                'texto'  => 'En cada edificio, el lápiz lo edita y el tacho lo elimina. Solo puedes borrar un edificio sin piezas: primero sácalas todas.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  TICKETS — vista: views/tickets.php
             //  Ruta /tickets (fija). Tickets de mantención. Gate por
             //  tickets.ver_todos (la vista de gestión de la supervisora); el

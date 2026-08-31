@@ -4,7 +4,7 @@
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Edificios y Mapeo</h1>
             <p class="text-gray-600 dark:text-gray-400">Gestiona los edificios y arrastra las habitaciones a los pisos.</p>
         </div>
-        <button @click="abrirModalEdificio()" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition inline-flex items-center gap-2">
+        <button @click="abrirModalEdificio()" data-tour="edif.nuevo" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition inline-flex items-center gap-2">
             <i data-lucide="plus" class="w-4 h-4"></i> Nuevo Edificio
         </button>
     </div>
@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <!-- Lista de Edificios (Izquierda) -->
         <div class="lg:col-span-4 flex flex-col gap-4">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+            <div data-tour="edif.lista" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                 <h2 class="font-bold text-lg mb-4 text-gray-900 dark:text-white">Edificios</h2>
                 <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     <template x-if="edificios.length === 0">
@@ -47,7 +47,7 @@
             </div>
 
             <!-- Habitaciones sin asignar (Pool) -->
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex-1 flex flex-col">
+            <div data-tour="edif.pool" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex-1 flex flex-col">
                 <h2 class="font-bold text-lg mb-2 text-gray-900 dark:text-white">Habitaciones Sin Edificio</h2>
                 <p class="text-xs text-gray-500 mb-4">Arrastra estas habitaciones hacia los pisos del edificio seleccionado.</p>
                 <div class="flex-1 overflow-y-auto pr-2"
@@ -71,7 +71,7 @@
         </div>
 
         <!-- Mapeo (Derecha) -->
-        <div class="lg:col-span-8">
+        <div data-tour="edif.mapa" class="lg:col-span-8">
             <template x-if="!edificioSeleccionado">
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center h-full flex flex-col items-center justify-center">
                     <i data-lucide="building-2" class="w-12 h-12 text-gray-300 mb-4"></i>

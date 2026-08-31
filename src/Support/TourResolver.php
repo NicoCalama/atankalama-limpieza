@@ -34,6 +34,7 @@ final class TourResolver
     private const MAP = [
         '/asignaciones' => 'asignaciones',
         '/auditoria'    => 'auditoria.bandeja',
+        '/edificios'    => 'edificios',
         '/espacios'     => 'espacios',
         '/tickets'      => 'tickets',
         '/usuarios'     => 'usuarios',
