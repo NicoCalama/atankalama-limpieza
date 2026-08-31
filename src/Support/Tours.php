@@ -301,6 +301,23 @@ final class Tours
                             ],
                         ],
                     ],
+
+                    // ── 4. Avisar una avería sin abandonar la limpieza. ──
+                    [
+                        'id'        => 'reportar',
+                        'v'         => 1,
+                        'titulo'    => 'Reportar un problema',
+                        'pregunta'  => '¿Cómo aviso una avería de la pieza?',
+                        'capacidad' => 'tickets.crear',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hab.reportar"]',
+                                'titulo' => 'Deja constancia de la avería',
+                                'texto'  => 'Con «Reportar un problema» avisas una avería de esta pieza (algo roto, algo que falta) y puedes adjuntar fotos. Queda como ticket para mantención.',
+                            ],
+                        ],
+                    ],
                 ],
             ],
 
@@ -571,7 +588,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="tk.nuevo"]',
                                 'titulo' => 'Deja constancia de la avería',
-                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (una avería, algo roto). Queda registrado para que alguien lo resuelva.',
+                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (una avería, algo roto) y puedes adjuntar hasta 3 fotos. Queda registrado para que alguien lo resuelva.',
                             ],
                         ],
                     ],
@@ -586,8 +603,13 @@ final class Tours
                         'pasos' => [
                             [
                                 'sel'    => '[data-tour="tk.lista"]',
-                                'titulo' => 'Del reporte al cierre',
-                                'texto'  => 'Toca un ticket para ver su detalle y las acciones: «Tomar», «Marcar resuelto», «Cerrar» y «Reabrir». Así lo mueves hasta resolverlo.',
+                                'titulo' => 'Tomar o asignar',
+                                'texto'  => 'Toca un ticket para ver su detalle y sus acciones. Ahí puedes «Tomar» uno abierto o «Asignar responsable» a otra persona.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="tk.lista"]',
+                                'titulo' => 'Resolver y cerrar',
+                                'texto'  => 'Para terminarlo: «Marcar resuelto» y luego «Cerrar», donde puedes sumar una foto de cierre. Si hace falta, «Reabrir» lo vuelve a activar.',
                             ],
                         ],
                     ],
@@ -604,6 +626,69 @@ final class Tours
                                 'sel'    => '[data-tour="tk.filtros"]',
                                 'titulo' => 'Por estado y por hotel',
                                 'texto'  => 'Filtra por estado (abiertos, en progreso, resueltos, cerrados) y por hotel. Lo que elijas se recuerda para la próxima vez.',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
+            //  TICKETS · TRABAJADOR — vista: views/tickets.php (mismo path)
+            //  /tickets para quien solo ve los suyos (tickets.ver_propios, SIN
+            //  ver_todos). Ve el filtro «Asignados a mí / Sin asignar», puede
+            //  tomar un ticket sin dueño y reportar. Resuelto por rol en
+            //  TourResolver::forCurrentRequest (mismas anclas que 'tickets').
+            // ════════════════════════════════════════════════════════════
+            'tickets.trabajador' => [
+                'nombre'    => 'Tickets',
+                'capacidad' => 'tickets.ver_propios',
+                'recorridos' => [
+
+                    // ── 1. Reportar una avería. ──
+                    [
+                        'id'        => 'reportar',
+                        'v'         => 1,
+                        'titulo'    => 'Reportar un problema',
+                        'pregunta'  => '¿Cómo aviso una avería?',
+                        'capacidad' => 'tickets.crear',
+                        'requiere'  => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.nuevo"]',
+                                'titulo' => 'Deja constancia de la avería',
+                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (algo roto, algo que falta) y puedes adjuntar hasta 3 fotos. Queda registrado para que lo resuelvan.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2. Ver mis tickets. ──
+                    [
+                        'id'       => 'mios',
+                        'v'        => 1,
+                        'titulo'   => 'Ver mis tickets',
+                        'pregunta' => '¿Dónde veo los míos?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.filtros"]',
+                                'titulo' => 'Asignados a mí o sin dueño',
+                                'texto'  => 'Cambia entre «Asignados a mí» (los que son tuyos) y «Sin asignar» (los que todavía no tienen dueño). También filtras por estado.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Tomar un ticket sin dueño. ──
+                    [
+                        'id'       => 'tomar',
+                        'v'        => 1,
+                        'titulo'   => 'Tomar un ticket',
+                        'pregunta' => '¿Cómo me hago cargo de uno?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.lista"]',
+                                'titulo' => 'Hazte cargo con «Tomar»',
+                                'texto'  => 'Toca un ticket sin dueño para ver su detalle y usa «Tomar» para hacerte cargo. Queda asignado a ti y aparece en «Asignados a mí».',
                             ],
                         ],
                     ],

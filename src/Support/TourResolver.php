@@ -36,7 +36,6 @@ final class TourResolver
         '/auditoria'    => 'auditoria.bandeja',
         '/edificios'    => 'edificios',
         '/espacios'     => 'espacios',
-        '/tickets'      => 'tickets',
         '/usuarios'     => 'usuarios',
         '/reportes'     => 'reportes',
         '/ajustes'                 => 'ajustes',
@@ -48,7 +47,7 @@ final class TourResolver
         '/ajustes/colores'         => 'ajustes.colores',
         '/ajustes/versiones'       => 'ajustes.versiones',
         '/ajustes/importar-turnos' => 'ajustes.importar_turnos',
-        // /habitaciones NO va acá: se resuelve por rol en forCurrentRequest.
+        // /habitaciones y /tickets NO van acá: se resuelven por rol en forCurrentRequest.
     ];
 
     /**
@@ -85,6 +84,13 @@ final class TourResolver
             $pantalla = $usuario->tienePermiso('habitaciones.ver_todas')
                 ? 'habitaciones'
                 : 'habitaciones.trabajador';
+        } elseif ($path === '/tickets') {
+            // Mismo path, dos vistas según permiso: la supervisora (ver_todos) ve
+            // toda la gestión; el trabajador (solo ver_propios) ve «mis tickets»,
+            // tomar y reportar. Ver views/tickets.php.
+            $pantalla = $usuario->tienePermiso('tickets.ver_todos')
+                ? 'tickets'
+                : 'tickets.trabajador';
         } else {
             $pantalla = self::resolvePantalla($path);
         }

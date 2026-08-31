@@ -255,7 +255,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
             <!-- Reportar un problema: visible en cualquier estado de la habitación
                  (no solo mientras se limpia — un problema puede notarse en una ya terminada). -->
             <template x-if="puedeReportar">
-                <button type="button" @click="reportarProblema()"
+                <button type="button" @click="reportarProblema()" data-tour="hab.reportar"
                         class="w-full min-h-[52px] inline-flex items-center justify-center gap-2 px-4 py-2
                                bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600
                                text-gray-700 dark:text-gray-200 rounded-xl font-medium text-sm

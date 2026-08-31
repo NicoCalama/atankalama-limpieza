@@ -72,8 +72,16 @@ final class ToursAnchorTest extends TestCase
 
     public function test_anclas_de_tickets(): void
     {
-        // /tickets → 'tickets' (ruta fija en MAP).
+        // /tickets → 'tickets' (role-aware: con tickets.ver_todos, gestión completa).
         $this->verificarAnclas('tickets', 'tickets');
+    }
+
+    public function test_anclas_de_tickets_trabajador(): void
+    {
+        // /tickets para el trabajador (solo tickets.ver_propios): mismo template
+        // 'tickets' que TourResolver resuelve por rol a 'tickets.trabajador'. Ve el
+        // filtro de alcance («Asignados a mí / Sin asignar»), tomar y reportar.
+        $this->verificarAnclas('tickets.trabajador', 'tickets', [], $this->usuarioTrabajadorTicketsStub());
     }
 
     public function test_anclas_de_habitaciones(): void
@@ -241,6 +249,26 @@ final class ToursAnchorTest extends TestCase
                 'turnos.asignar_a_usuario',
             ],
             roles: ['Supervisora'],
+        );
+    }
+
+    /** Trabajador de tickets: ve solo los suyos (ver_propios) y puede reportar (crear). */
+    private function usuarioTrabajadorTicketsStub(): Usuario
+    {
+        return new Usuario(
+            id: 4,
+            rut: '17000001-1',
+            nombre: 'Tomás Trabajador',
+            email: null,
+            activo: true,
+            requiereCambioPwd: false,
+            hotelDefault: 'inn',
+            temaPreferido: 'claro',
+            permisos: [
+                'tickets.ver_propios',
+                'tickets.crear',
+            ],
+            roles: ['Trabajador'],
         );
     }
 
