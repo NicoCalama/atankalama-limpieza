@@ -15,6 +15,7 @@ $puedeEditar = $usuario->tienePermiso('usuarios.editar');
 $puedeActivar = $usuario->tienePermiso('usuarios.activar_desactivar');
 $puedeResetPwd = $usuario->tienePermiso('usuarios.resetear_password');
 $puedeAsignarRoles = $usuario->tieneAlgunPermiso(['usuarios.editar', 'permisos.asignar_a_rol']);
+$puedeEspiar = $usuario->tienePermiso('usuarios.modo_espia');
 $usuarioActualId = $usuario->id;
 ?>
 <div x-data="modalUsuarioDetalle()"
@@ -162,6 +163,15 @@ $usuarioActualId = $usuario->id;
 
                     <!-- Acciones administrativas -->
                     <div class="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <template x-if="puedeEspiar && usuario.id !== usuarioActualId">
+                            <button type="button" @click="activarModoEspia()"
+                                    :disabled="procesandoEspia"
+                                    class="w-full min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg border border-amber-300 dark:border-amber-800 bg-white dark:bg-gray-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-700 dark:text-amber-400 transition inline-flex items-center justify-center gap-2">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                                <span x-text="procesandoEspia ? 'Activando...' : 'Ver como este usuario'"></span>
+                            </button>
+                        </template>
+
                         <template x-if="puedeResetPwd">
                             <button type="button" @click="confirmarResetPwd()"
                                     :disabled="procesandoPwd"
@@ -198,7 +208,9 @@ function modalUsuarioDetalle() {
         puedeActivar: <?= $puedeActivar ? 'true' : 'false' ?>,
         puedeResetPwd: <?= $puedeResetPwd ? 'true' : 'false' ?>,
         puedeAsignarRoles: <?= $puedeAsignarRoles ? 'true' : 'false' ?>,
+        puedeEspiar: <?= $puedeEspiar ? 'true' : 'false' ?>,
         usuarioActualId: <?= (int) $usuarioActualId ?>,
+        procesandoEspia: false,
         rolesDisponibles: [],
         _rolesCargados: false,
         rolAAgregar: '',
@@ -366,6 +378,25 @@ function modalUsuarioDetalle() {
                 this.mostrarMensaje('No pudimos conectar con el servidor.', 'error');
             } finally {
                 this.procesandoActivo = false;
+            }
+        },
+
+        async activarModoEspia() {
+            if (this.procesandoEspia) return;
+            if (!confirm('¿Ver la app como ' + this.usuario.nombre + '?\n\nVerás sus pantallas y permisos en modo solo lectura. Podrás salir en cualquier momento desde el banner.')) return;
+            this.procesandoEspia = true;
+            this.mensaje = '';
+            try {
+                var r = await apiPost('/api/usuarios/' + this.usuario.id + '/modo-espia/activar', {});
+                if (r && r.ok) {
+                    window.location.href = u('/home');
+                } else {
+                    this.mostrarMensaje((r && r.error && r.error.mensaje) || 'No pudimos activar el modo espía.', 'error');
+                }
+            } catch (e) {
+                this.mostrarMensaje('No pudimos conectar con el servidor.', 'error');
+            } finally {
+                this.procesandoEspia = false;
             }
         },
 

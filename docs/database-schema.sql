@@ -87,13 +87,18 @@ CREATE TABLE usuarios_roles (
 
 -- Sesiones activas (cookie HTTPOnly)
 CREATE TABLE sesiones (
-    token        TEXT PRIMARY KEY,                  -- token opaco generado con random_bytes
-    usuario_id   INTEGER NOT NULL,
-    ip           TEXT,
-    user_agent   TEXT,
-    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    expires_at   TEXT NOT NULL,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    token               TEXT PRIMARY KEY,                  -- token opaco generado con random_bytes
+    usuario_id          INTEGER NOT NULL,
+    ip                  TEXT,
+    user_agent          TEXT,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    expires_at          TEXT NOT NULL,
+    -- Modo espía (solo lectura): admin viendo la app como otro usuario. NULL = sesión normal.
+    -- Mientras está seteado, AuthCheck sustituye el usuario de la request por este objetivo
+    -- y bloquea toda mutación (ver Middleware/AuthCheck.php).
+    espia_objetivo_id   INTEGER,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (espia_objetivo_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id);
@@ -188,15 +193,33 @@ CREATE TABLE habitaciones (
     cb_arrival_date         TEXT,                             -- entrada del huésped actual (YYYY-MM-DD)
     cb_departure_date       TEXT,                             -- salida prevista (YYYY-MM-DD)
     cb_ocupacion_sync_at    TEXT,                             -- cuándo se refrescó la ocupación
+    cb_huesped              TEXT,                             -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
+    -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
+    -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
+    -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
+    es_nochero              INTEGER NOT NULL DEFAULT 0 CHECK (es_nochero IN (0, 1)),
+    nochero_hasta           TEXT,                             -- último día vigente (YYYY-MM-DD)
+    nochero_ultima_reversion TEXT,                            -- último día (YYYY-MM-DD) en que el cron ya la revirtió a sucia; evita revertirla más de una vez por día si el trabajador la vuelve a aprobar
+    -- Nota de Recepción para la mucama: instrucción puntual para la próxima limpieza (ej.
+    -- "cliente pidió cama extra"). Una nota activa por habitación (no historial); se limpia
+    -- sola al completar la ejecución. Ver ChecklistService::completar().
+    nota_recepcion          TEXT,
+    nota_recepcion_autor_id INTEGER,
+    nota_recepcion_at       TEXT,
+    -- Posición manual de la bandeja de auditoría (drag&drop de la supervisora); NULL = sin orden manual.
+    auditoria_orden         INTEGER,
     created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE (hotel_id, numero),
     FOREIGN KEY (hotel_id) REFERENCES hoteles(id) ON DELETE RESTRICT,
-    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT
+    FOREIGN KEY (tipo_habitacion_id) REFERENCES tipos_habitacion(id) ON DELETE RESTRICT,
+    FOREIGN KEY (nota_recepcion_autor_id) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_habitaciones_estado ON habitaciones(estado);
 CREATE INDEX idx_habitaciones_hotel ON habitaciones(hotel_id);
+CREATE INDEX idx_habitaciones_nochero ON habitaciones(es_nochero);
+CREATE INDEX idx_habitaciones_auditoria_orden ON habitaciones(auditoria_orden);
 
 -- Turnos (mañana 08:00-16:00, tarde 14:00-22:00 — configurables)
 CREATE TABLE turnos (
@@ -221,6 +244,16 @@ CREATE TABLE usuarios_turnos (
 );
 
 CREATE INDEX idx_usuarios_turnos_fecha ON usuarios_turnos(fecha);
+
+-- Días festivos: solo informativo, se muestran resaltados en el calendario de turnos.
+CREATE TABLE festivos (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha        TEXT NOT NULL UNIQUE,                  -- 'YYYY-MM-DD'
+    nombre       TEXT NOT NULL,                         -- ej. 'Fiestas Patrias'
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX idx_festivos_fecha ON festivos(fecha);
 
 -- Asignaciones de habitación a trabajador
 CREATE TABLE asignaciones (
@@ -480,6 +513,7 @@ CREATE TABLE tickets (
     asignado_a       INTEGER,
     asignado_at      TEXT,                                  -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
     idempotency_key  TEXT,                                  -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
+    novedad_id       INTEGER,                                -- id devuelto por novedades al sincronizar la creación (NovedadesSyncService) — se reenvía al cerrar para vincular ambas novedades
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     resuelto_at      TEXT,
@@ -511,6 +545,21 @@ CREATE TABLE tickets_adjuntos (
 );
 
 CREATE INDEX idx_tickets_adjuntos_ticket ON tickets_adjuntos(ticket_id);
+
+-- Historial de comentarios de un ticket (solo-append: sin edición ni borrado).
+-- avisado=1 cuando al enviarlo se disparó una notificación a la Supervisora.
+CREATE TABLE tickets_comentarios (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id    INTEGER NOT NULL,
+    usuario_id   INTEGER NOT NULL,
+    comentario   TEXT NOT NULL,
+    avisado      INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_tickets_comentarios_ticket ON tickets_comentarios(ticket_id);
 
 -- ============================================================================
 -- BLOQUE 7 — LOGS
@@ -621,6 +670,7 @@ CREATE TABLE IF NOT EXISTS notificaciones (
     cuerpo      TEXT    NOT NULL,
     url         TEXT    NOT NULL DEFAULT '/home',
     leida       INTEGER NOT NULL DEFAULT 0,         -- 0 = no leída, 1 = leída
+    oculta      INTEGER NOT NULL DEFAULT 0,         -- 0 = visible, 1 = eliminada por el usuario (soft-delete)
     created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );

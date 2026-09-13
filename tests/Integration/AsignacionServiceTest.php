@@ -237,8 +237,9 @@ final class AsignacionServiceTest extends TestCase
             $this->assertSame(409, $e->httpStatus);
         }
 
-        // La asignación sigue activa (registro de quién la limpió)
-        $this->assertNotNull($this->svc->obtenerActivaDeHabitacion($hab));
+        // La asignación sigue activa (registro de quién la limpió). obtenerActivaDeHabitacion()
+        // es date-scoped y asume hoy por defecto; acá consultamos por la fecha de la asignación.
+        $this->assertNotNull($this->svc->obtenerActivaDeHabitacion($hab, '2026-04-14'));
     }
 
     public function testDesasignarRechazadaMantieneEstadoRechazada(): void

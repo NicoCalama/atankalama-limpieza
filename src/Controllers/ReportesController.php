@@ -124,6 +124,54 @@ final class ReportesController
             ->conHeader('Cache-Control', 'no-store');
     }
 
+    /** GET /api/reportes/auditorias-pendientes?fecha=2026-09-10&hotel=ambos */
+    public function auditoriasPendientes(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
+        }
+
+        [$fecha, $hotel] = $this->parsearFechaHotel($request);
+
+        return Response::ok($this->service->auditoriasPendientes($fecha, $hotel));
+    }
+
+    /** GET /api/reportes/exportar-auditorias-pendientes?fecha=2026-09-10&hotel=ambos */
+    public function exportarAuditoriasPendientes(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null || !$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'Sin permiso.', 403);
+        }
+
+        [$fecha, $hotel] = $this->parsearFechaHotel($request);
+
+        $csv = $this->service->exportarCsvAuditoriasPendientes($fecha, $hotel);
+        $filename = "reporte_auditorias_pendientes_{$fecha}.csv";
+
+        return (new Response(200, $csv, 'text/csv; charset=utf-8'))
+            ->conHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
+            ->conHeader('Cache-Control', 'no-store');
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function parsearFechaHotel(Request $request): array
+    {
+        $fecha = $request->input('fecha');
+        if (!is_string($fecha) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            $fecha = date('Y-m-d');
+        }
+        $hotel = $request->inputString('hotel', 'ambos');
+        if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
+            $hotel = 'ambos';
+        }
+        return [$fecha, $hotel];
+    }
+
     /** @return array{0: int|null, 1: int, 2: string} */
     private function parsearMes(Request $request): array
     {

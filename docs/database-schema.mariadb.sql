@@ -80,13 +80,16 @@ CREATE TABLE #__usuarios_roles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE #__sesiones (
-    token        VARCHAR(128) PRIMARY KEY,
-    usuario_id   INT NOT NULL,
-    ip           VARCHAR(45),
-    user_agent   TEXT,
-    created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
-    expires_at   VARCHAR(30) NOT NULL,
-    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE
+    token               VARCHAR(128) PRIMARY KEY,
+    usuario_id          INT NOT NULL,
+    ip                  VARCHAR(45),
+    user_agent          TEXT,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    expires_at          VARCHAR(30) NOT NULL,
+    -- Modo espía (solo lectura): admin viendo la app como otro usuario. NULL = sesión normal.
+    espia_objetivo_id   INT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (espia_objetivo_id) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_sesiones_usuario ON #__sesiones(usuario_id);
@@ -153,15 +156,33 @@ CREATE TABLE #__habitaciones (
     cb_arrival_date         VARCHAR(10),                          -- entrada del huésped actual (YYYY-MM-DD)
     cb_departure_date       VARCHAR(10),                          -- salida prevista (YYYY-MM-DD)
     cb_ocupacion_sync_at    VARCHAR(30),                          -- cuándo se refrescó la ocupación
+    cb_huesped              VARCHAR(150),                         -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
+    -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
+    -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
+    -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
+    es_nochero              TINYINT NOT NULL DEFAULT 0 CHECK (es_nochero IN (0, 1)),
+    nochero_hasta           VARCHAR(10),                          -- último día vigente (YYYY-MM-DD)
+    nochero_ultima_reversion VARCHAR(10),                         -- último día (YYYY-MM-DD) en que el cron ya la revirtió a sucia; evita revertirla más de una vez por día si el trabajador la vuelve a aprobar
+    -- Nota de Recepción para la mucama: instrucción puntual para la próxima limpieza (ej.
+    -- "cliente pidió cama extra"). Una nota activa por habitación (no historial); se limpia
+    -- sola al completar la ejecución. Ver ChecklistService::completar().
+    nota_recepcion          TEXT,
+    nota_recepcion_autor_id INT,
+    nota_recepcion_at       VARCHAR(30),
+    -- Posición manual de la bandeja de auditoría (drag&drop de la supervisora); NULL = sin orden manual.
+    auditoria_orden         INT,
     created_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at              VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE (hotel_id, numero),
     FOREIGN KEY (hotel_id) REFERENCES #__hoteles(id) ON DELETE RESTRICT,
-    FOREIGN KEY (tipo_habitacion_id) REFERENCES #__tipos_habitacion(id) ON DELETE RESTRICT
+    FOREIGN KEY (tipo_habitacion_id) REFERENCES #__tipos_habitacion(id) ON DELETE RESTRICT,
+    FOREIGN KEY (nota_recepcion_autor_id) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_habitaciones_estado ON #__habitaciones(estado);
 CREATE INDEX idx_habitaciones_hotel ON #__habitaciones(hotel_id);
+CREATE INDEX idx_habitaciones_nochero ON #__habitaciones(es_nochero);
+CREATE INDEX idx_habitaciones_auditoria_orden ON #__habitaciones(auditoria_orden);
 
 CREATE TABLE #__turnos (
     id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -184,6 +205,16 @@ CREATE TABLE #__usuarios_turnos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_usuarios_turnos_fecha ON #__usuarios_turnos(fecha);
+
+-- Días festivos: solo informativo, se muestran resaltados en el calendario de turnos.
+CREATE TABLE #__festivos (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    fecha        VARCHAR(10) NOT NULL UNIQUE,
+    nombre       VARCHAR(100) NOT NULL,
+    created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_festivos_fecha ON #__festivos(fecha);
 
 CREATE TABLE #__asignaciones (
     id              INT AUTO_INCREMENT PRIMARY KEY,
@@ -427,6 +458,7 @@ CREATE TABLE #__tickets (
     asignado_a       INT,
     asignado_at      VARCHAR(30),                            -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
     idempotency_key  VARCHAR(64),                            -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
+    novedad_id       INT,                                    -- id devuelto por novedades al sincronizar la creación (NovedadesSyncService) — se reenvía al cerrar para vincular ambas novedades
     created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     resuelto_at      VARCHAR(30),
@@ -458,6 +490,21 @@ CREATE TABLE #__tickets_adjuntos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_tickets_adjuntos_ticket ON #__tickets_adjuntos(ticket_id);
+
+-- Historial de comentarios de un ticket (solo-append: sin edición ni borrado).
+-- avisado=1 cuando al enviarlo se disparó una notificación a la Supervisora.
+CREATE TABLE #__tickets_comentarios (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id    INT NOT NULL,
+    usuario_id   INT NOT NULL,
+    comentario   TEXT NOT NULL,
+    avisado      TINYINT NOT NULL DEFAULT 0,
+    created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    FOREIGN KEY (ticket_id) REFERENCES #__tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_tickets_comentarios_ticket ON #__tickets_comentarios(ticket_id);
 
 -- ============================================================================
 -- BLOQUE 7 — LOGS
@@ -561,6 +608,7 @@ CREATE TABLE #__notificaciones (
     cuerpo      TEXT NOT NULL,
     url         VARCHAR(255) NOT NULL DEFAULT '/home',
     leida       TINYINT NOT NULL DEFAULT 0 CHECK (leida IN (0, 1)),
+    oculta      TINYINT NOT NULL DEFAULT 0 CHECK (oculta IN (0, 1)),
     created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

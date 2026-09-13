@@ -212,6 +212,25 @@ final class CloudbedsClient
     }
 
     /**
+     * Huéspedes con reserva activa asignados a cada habitación (GET /getReservationAssignments).
+     * Sin `fecha`, Cloudbeds devuelve las asignaciones del día actual. Responde
+     * { success: true, data: [ { guestName, reservationID, assigned: [ { roomID, ... } ] } ] }.
+     * El roomID de `assigned` usa el mismo formato (roomTypeID-índice) que getRooms/
+     * getHousekeepingStatus — cruza directo con habitaciones.cloudbeds_room_id. Ver docs/ocupacion-y-sabanas.md
+     *
+     * @return array<string, mixed>
+     */
+    public function obtenerAsignacionesReservas(string $propertyId, ?string $fecha = null): array
+    {
+        $query = 'propertyID=' . urlencode($propertyId);
+        if ($fecha !== null) {
+            $query .= '&date=' . urlencode($fecha);
+        }
+        $response = $this->ejecutarConReintentos('GET', '/getReservationAssignments?' . $query, $this->claveParaPropiedad($propertyId));
+        return $response->json();
+    }
+
+    /**
      * Actualiza el estado de limpieza de una habitación en Cloudbeds.
      * Retorna el HttpResponse final; lanza CloudbedsException solo en 401 inmediato.
      *

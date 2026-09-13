@@ -21,8 +21,9 @@
                 <button @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                         aria-label="Refrescar">
-                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                       :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
@@ -87,33 +88,80 @@
             </div>
         </template>
 
+        <!-- Lista vertical (no grilla): el motor de arrastre calcula el punto de
+             inserción por posición vertical, así que necesita una sola columna para
+             que "antes/después" tenga sentido. Mismo mecanismo que el tablero de
+             Asignaciones — acá no hay "trabajadores", así que se usa una única zona
+             de drop con workerId fijo "0" (una sola cola, no varias). -->
         <template x-if="pendientes.length > 0">
-            <div data-tour="aud.lista" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                <template x-for="hab in pendientes" :key="hab.id">
-                    <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
-                       class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex flex-col gap-2">
-                        <div class="flex items-start justify-between">
-                            <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                            <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
-                                  x-text="hotelCorto(hab.hotel_codigo)"></span>
-                        </div>
-                        <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || ''"></p>
-                        <div class="mt-auto pt-1">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria">
-                                Por auditar
-                            </span>
-                        </div>
-                    </a>
-                </template>
+            <div data-tour="aud.lista" data-drop="worker" data-worker-id="0" class="max-w-2xl mx-auto">
+                <ul data-cola class="space-y-2">
+                    <template x-for="hab in pendientes" :key="hab.id">
+                        <li data-room-slot data-drag-room :data-room-id="hab.id" data-room-origin="worker" data-worker-id="0"
+                            @pointerdown="iniciarDrag($event)"
+                            class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3 cursor-grab">
+                            <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0"></i>
+                            <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
+                               class="flex-1 min-w-0 flex items-center gap-3">
+                                <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate" x-text="hab.tipo_nombre || ''"></p>
+                                    <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
+                                              x-text="hotelCorto(hab.hotel_codigo)"></span>
+                                        <template x-if="hab.es_nochero">
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Nochero</span>
+                                        </template>
+                                        <template x-if="hab.se_va_hoy">
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">Se va hoy</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria flex-shrink-0">
+                                    Por auditar
+                                </span>
+                            </a>
+                        </li>
+                    </template>
+                </ul>
             </div>
         </template>
 
     </main>
 </div>
 
+<script src="<?= u('/assets/js/drag-asignaciones.js') ?>?v=<?= @filemtime(__DIR__ . '/../../assets/js/drag-asignaciones.js') ?: '1' ?>"></script>
 <script>
 function auditoriaBandejaApp() {
     return {
+        // Motor compartido de arrastrar-y-soltar (assets/js/drag-asignaciones.js):
+        // expone iniciarDrag(); acá solo hay UNA cola (workerId fijo "0"), así que
+        // _dropEnWorker/_dropEnPool nunca se disparan de verdad (no hay zona 'pool'
+        // ni otro 'worker' al cual soltar) — quedan como no-ops defensivos.
+        ...(window.dragAsignaciones || {}),
+        _dropEnWorker() {},
+        _dropEnPool() {},
+        async _reordenarEnWorker(workerId, roomId, indice) {
+            var from = this.pendientes.findIndex(function (h) { return h.id === roomId; });
+            if (from === -1) return;
+            var to = indice > from ? indice - 1 : indice;
+            if (to === from) return; // sin cambio
+            var item = this.pendientes.splice(from, 1)[0];
+            this.pendientes.splice(to, 0, item);
+            this.$nextTick(function () { lucide.createIcons(); });
+            var orden = this.pendientes.map(function (h) { return h.id; });
+            try {
+                var r = await apiPut('/api/auditoria/orden', { orden: orden });
+                if (!r || !r.ok) {
+                    this.error = (r && r.error && r.error.mensaje) || 'No pudimos reordenar.';
+                    this.cargar();
+                }
+            } catch (e) {
+                this.error = 'No pudimos conectar con el servidor.';
+                this.cargar();
+            }
+        },
+
         pendientes: [],
         cargando: false,
         error: null,

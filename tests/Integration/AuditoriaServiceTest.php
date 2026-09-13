@@ -110,7 +110,9 @@ final class AuditoriaServiceTest extends TestCase
         );
 
         [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
-        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
+        // El reabrir on-demand (rechazada→sucia) que resuelve la alerta solo aplica a la fecha
+        // actual: una preasignación a futuro no ensucia la pieza hoy. Por eso reasignamos "hoy".
+        (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, date('Y-m-d'), 're-limpieza');
 
         // Al reasignar (rechazada→sucia) la alerta se resuelve y ya no queda activa.
         $this->assertNull(

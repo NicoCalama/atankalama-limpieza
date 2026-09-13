@@ -20,18 +20,36 @@ final class EspaciosController
     ) {
     }
 
-    /** GET /api/espacios?hotel= — lista de espacios + trabajadores con turno hoy (para pedir limpieza). */
+    /**
+     * GET /api/espacios?hotel=&fecha= — lista de espacios + trabajadores con turno en $fecha
+     * (candidatos para pedir limpieza). fecha es opcional, default hoy.
+     */
     public function listar(Request $request): Response
     {
         $hotel = $request->query['hotel'] ?? 'ambos';
         $hotel = is_string($hotel) ? $hotel : 'ambos';
-        $hoy = date('Y-m-d');
+        $fecha = $request->query['fecha'] ?? null;
+        $fecha = (is_string($fecha) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) ? $fecha : date('Y-m-d');
 
         return Response::ok([
             'espacios' => $this->espacios->listar($hotel),
-            'trabajadores' => $this->espacios->trabajadoresConTurno($hoy, $hotel),
-            'fecha' => $hoy,
+            'trabajadores' => $this->espacios->trabajadoresConTurno($fecha, $hotel),
+            'fecha' => $fecha,
         ]);
+    }
+
+    /** GET /api/espacios/exportar?hotel= — CSV de los espacios listados (formato "Excel"). */
+    public function exportar(Request $request): Response
+    {
+        $hotel = $request->query['hotel'] ?? 'ambos';
+        $hotel = is_string($hotel) ? $hotel : 'ambos';
+
+        $csv = $this->espacios->exportarCsv($hotel);
+        $filename = 'areas_comunes_' . date('Y-m-d') . '.csv';
+
+        return (new Response(200, $csv, 'text/csv; charset=utf-8'))
+            ->conHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
+            ->conHeader('Cache-Control', 'no-store');
     }
 
     /** GET /api/espacios/{id} — detalle + checklist (para editar). */

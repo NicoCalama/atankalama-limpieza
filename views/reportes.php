@@ -8,7 +8,7 @@
 ?>
 
 <div x-data="reportes()"
-     x-init="cargar(); cargarMensual(); cargarAudit()"
+     x-init="cargar(); cargarMensual(); cargarAudit(); cargarAuditPendientes()"
      @visibilitychange.window="alVolverVisible()">
 
     <!-- Header -->
@@ -91,8 +91,9 @@
                         class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700
                                hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                         aria-label="Refrescar">
-                    <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"
-                       :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
             </div>
         </div>
@@ -264,8 +265,9 @@
                     <button @click="cargarMensual()" :disabled="mensualCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
-                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"
-                           :class="mensualCargando ? 'animate-spin' : ''"></i>
+                        <span :class="mensualCargando ? 'animate-spin' : ''" class="inline-flex">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                        </span>
                     </button>
                 </div>
             </header>
@@ -327,8 +329,9 @@
                     <button @click="cargarAudit()" :disabled="auditCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
-                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"
-                           :class="auditCargando ? 'animate-spin' : ''"></i>
+                        <span :class="auditCargando ? 'animate-spin' : ''" class="inline-flex">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                        </span>
                     </button>
                 </div>
             </header>
@@ -372,6 +375,92 @@
             </template>
         </section>
 
+        <!-- Auditorías pendientes al corte de las 23:50 (turno mañana/tarde) -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.auditorias_pendientes">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="alarm-clock" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Auditorías pendientes al corte</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Sin auditar a tiempo = sin auditoría registrada antes de las <strong>23:50</strong> de la fecha elegida.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="date" x-model="auditPendFecha" @change="cargarAuditPendientes()"
+                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                    <button @click="exportarAuditPendientes()" :disabled="auditPendCargando || auditPendExportando"
+                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Exportar">
+                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                        <span class="hidden sm:inline" x-text="auditPendExportando ? 'Exportando...' : 'Exportar'"></span>
+                    </button>
+                    <button @click="cargarAuditPendientes()" :disabled="auditPendCargando"
+                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                            aria-label="Refrescar">
+                        <span :class="auditPendCargando ? 'animate-spin' : ''" class="inline-flex">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                        </span>
+                    </button>
+                </div>
+            </header>
+
+            <template x-if="auditPendCargando && !auditPendData">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="auditPendData">
+                <div class="p-4 space-y-5">
+                    <template x-for="turno in ['mañana', 'tarde']" :key="turno">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="turnoLabel(turno)"></h3>
+                                <span class="text-xs text-gray-500 dark:text-gray-400"
+                                      x-text="auditPendData.turnos[turno].total + ' limpiadas · ' + auditPendData.turnos[turno].pendientes.length + ' sin auditar a tiempo'"></span>
+                            </div>
+
+                            <template x-if="auditPendData.turnos[turno].pendientes.length === 0">
+                                <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Todo auditado a tiempo.
+                                </p>
+                            </template>
+
+                            <template x-if="auditPendData.turnos[turno].pendientes.length > 0">
+                                <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hotel</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitación</th>
+                                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Nochero</th>
+                                                <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hora término</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                            <template x-for="p in auditPendData.turnos[turno].pendientes" :key="turno + '-' + p.habitacion_id + '-' + p.hora_termino">
+                                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="hotelLabelCodigo(p.hotel_codigo)"></td>
+                                                    <td class="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100" x-text="p.numero"></td>
+                                                    <td class="px-3 py-2 text-center" x-text="p.es_nochero ? 'Sí' : '—'"></td>
+                                                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
+                                                    <td class="px-3 py-2">
+                                                        <span :class="p.estado_auditoria === 'sin_auditar' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'"
+                                                              x-text="p.estado_auditoria === 'sin_auditar' ? 'Sin auditar' : 'Auditada fuera de plazo'"></span>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </section>
+
     </main>
 </div>
 
@@ -406,6 +495,12 @@ function reportes() {
         auditData:       null,
         auditCargando:   false,
         auditExportando: false,
+
+        // Auditorías pendientes al corte de las 23:50 (día puntual, no rango)
+        auditPendFecha:      window.hoyServidor(),
+        auditPendData:       null,
+        auditPendCargando:   false,
+        auditPendExportando: false,
 
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
@@ -489,6 +584,18 @@ function reportes() {
             } finally {
                 this.mensualCargando = false;
             }
+        },
+
+        hotelLabelCodigo(codigo) {
+            return { '1_sur': 'Atankalama', inn: 'Atankalama INN' }[codigo] || codigo;
+        },
+
+        // El nombre del turno solo no dice cuándo empieza/termina — la hora de corte
+        // (18:00) es la regla de negocio que separa mañana de tarde, hay que mostrarla.
+        turnoLabel(turno) {
+            return turno === 'mañana'
+                ? 'Turno mañana (antes de las 18:00)'
+                : 'Turno tarde (18:00 en adelante)';
         },
 
         calcSubtitulo() {
@@ -601,6 +708,46 @@ function reportes() {
                 URL.revokeObjectURL(url);
             } catch (e) { /* silencioso */ } finally {
                 this.mensualExportando = false;
+            }
+        },
+
+        async cargarAuditPendientes() {
+            if (!this.auditPendFecha) return;
+            this.auditPendCargando = true;
+            try {
+                var params = new URLSearchParams({ fecha: this.auditPendFecha, hotel: this.hotel });
+                var resp = await fetch(u('/api/reportes/auditorias-pendientes?' + params.toString()));
+                var json = await resp.json();
+                if (json.ok) {
+                    this.auditPendData = json.data;
+                    this.$nextTick(() => lucide.createIcons());
+                } else {
+                    this.auditPendData = null;
+                }
+            } catch (e) {
+                this.auditPendData = null;
+            } finally {
+                this.auditPendCargando = false;
+            }
+        },
+
+        async exportarAuditPendientes() {
+            if (this.auditPendExportando || !this.auditPendFecha) return;
+            this.auditPendExportando = true;
+            try {
+                var params = new URLSearchParams({ fecha: this.auditPendFecha, hotel: this.hotel });
+                var resp = await fetch(u('/api/reportes/exportar-auditorias-pendientes?' + params.toString()));
+                if (!resp.ok) { this.auditPendExportando = false; return; }
+
+                var blob = await resp.blob();
+                var url  = URL.createObjectURL(blob);
+                var a    = document.createElement('a');
+                a.href     = url;
+                a.download = 'reporte_auditorias_pendientes_' + this.auditPendFecha + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) { /* silencioso */ } finally {
+                this.auditPendExportando = false;
             }
         },
 

@@ -58,6 +58,33 @@ final class EmailService
         return $this->enviar($destinatario, $nombre, $asunto, $cuerpo);
     }
 
+    /**
+     * Reporte diario a un administrador: habitaciones limpiadas y no auditadas al
+     * corte de las 23:50, separadas por turno. Ver ReportesService::auditoriasPendientes().
+     * Si el email no está configurado o el destinatario no tiene email, se omite
+     * silenciosamente (mismo criterio que enviarPasswordTemporal) — el cron que llama
+     * a este método es quien decide si eso es un fallo a loguear.
+     *
+     * @param array<string, array{total:int, pendientes:list<array<string,mixed>>}> $turnos
+     */
+    public function enviarReporteAuditoriasPendientes(
+        string $destinatario,
+        string $nombre,
+        string $fecha,
+        array $turnos
+    ): bool {
+        if (!$this->habilitado || $destinatario === '') return false;
+
+        $totalPendientes = count($turnos['mañana']['pendientes'] ?? [])
+            + count($turnos['tarde']['pendientes'] ?? []);
+        $fechaLabel = date('d/m/Y', strtotime($fecha));
+        $asunto = "Auditorías pendientes ({$totalPendientes}) — {$fechaLabel}";
+
+        $cuerpo = $this->plantillaReporteAuditoriasPendientes($nombre, $fecha, $turnos);
+
+        return $this->enviar($destinatario, $nombre, $asunto, $cuerpo);
+    }
+
     private function enviar(string $destinatario, string $nombreDest, string $asunto, string $cuerpoHtml): bool
     {
         if ($this->transport === 'log') {
@@ -198,5 +225,179 @@ final class EmailService
         </body>
         </html>
         HTML;
+    }
+
+    /**
+     * @param array<string, array{total:int, pendientes:list<array<string,mixed>>}> $turnos
+     */
+    private function plantillaReporteAuditoriasPendientes(string $nombre, string $fecha, array $turnos): string
+    {
+        $appNombre  = htmlspecialchars(Config::get('APP_NAME', 'Atankalama Limpieza'));
+        $appUrl     = htmlspecialchars(rtrim(Config::get('APP_URL', 'http://localhost:8000'), '/'));
+        $nombreHtml = htmlspecialchars($nombre);
+        $fechaHtml  = htmlspecialchars(date('d/m/Y', strtotime($fecha)));
+
+        $pendientesManana = $turnos['mañana']['pendientes'] ?? [];
+        $pendientesTarde  = $turnos['tarde']['pendientes'] ?? [];
+        $totalPendientes  = count($pendientesManana) + count($pendientesTarde);
+
+        // Todo verde si no hay nada pendiente; rojo si queda algo por auditar —
+        // el color de la cabecera y de los chips resume el estado del día de un vistazo.
+        $colorEstado = $totalPendientes > 0 ? '#dc2626' : '#059669';
+
+        $chip = function (string $numero, string $etiqueta, bool $alerta) {
+            $color = $alerta ? '#dc2626' : '#059669';
+            $tint  = $alerta ? '#fef2f2' : '#ecfdf5';
+            $borde = $alerta ? '#fecaca' : '#a7f3d0';
+            return '<td width="33%" style="padding:4px;">'
+                . '<table width="100%" style="border-collapse:collapse;background:' . $tint . ';border:1px solid ' . $borde . ';border-radius:10px;">'
+                . '<tr><td style="padding:12px 8px;text-align:center;">'
+                . '<p style="margin:0;color:' . $color . ';font-size:24px;font-weight:800;line-height:1;">' . $numero . '</p>'
+                . '<p style="margin:4px 0 0;color:#6b7280;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;">' . htmlspecialchars($etiqueta) . '</p>'
+                . '</td></tr></table>'
+                . '</td>';
+        };
+        $chips = '<table width="100%" style="border-collapse:collapse;margin:0 0 20px;"><tr>'
+            . $chip((string) $totalPendientes, 'Total pendientes', $totalPendientes > 0)
+            . $chip((string) count($pendientesManana), 'Turno mañana', count($pendientesManana) > 0)
+            . $chip((string) count($pendientesTarde), 'Turno tarde', count($pendientesTarde) > 0)
+            . '</tr></table>';
+
+        $bloques = '';
+        // El nombre del turno solo no dice cuándo empieza/termina — la hora de corte
+        // (18:00) es la regla de negocio que separa mañana de tarde, hay que mostrarla
+        // (mismo criterio que turnoLabel() en reportes.php).
+        $titulosTurno = [
+            'mañana' => 'Turno mañana (antes de las 18:00)',
+            'tarde'  => 'Turno tarde (18:00 en adelante)',
+        ];
+        foreach ($titulosTurno as $clave => $titulo) {
+            $datos      = $turnos[$clave] ?? ['total' => 0, 'pendientes' => []];
+            $pendientes = $datos['pendientes'];
+
+            $bloques .= '<tr><td style="padding:20px 0 10px;border-top:1px solid #f3f4f6;">'
+                . '<table width="100%"><tr>'
+                . '<td><p style="margin:0;color:#111827;font-size:15px;font-weight:700;">' . htmlspecialchars($titulo) . '</p></td>'
+                . '<td align="right"><p style="margin:0;color:#9ca3af;font-size:12px;">' . (int) $datos['total'] . ' limpiadas</p></td>'
+                . '</tr></table>'
+                . '</td></tr>';
+
+            if ($pendientes === []) {
+                $bloques .= '<tr><td style="padding:0 0 4px;">'
+                    . '<table width="100%" style="border-collapse:collapse;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;">'
+                    . '<tr><td style="padding:10px 14px;color:#047857;font-size:13px;font-weight:600;">✓ Todo auditado a tiempo</td></tr>'
+                    . '</table>'
+                    . '</td></tr>';
+                continue;
+            }
+
+            $filasHtml = '';
+            foreach ($pendientes as $i => $p) {
+                $hotelLabel   = $this->hotelLabel((string) $p['hotel_codigo']);
+                $esSinAuditar = $p['estado_auditoria'] === 'sin_auditar';
+                $estado       = $esSinAuditar ? 'Sin auditar' : 'Auditada fuera de plazo';
+                $colorPill    = $esSinAuditar ? '#dc2626' : '#d97706';
+                $tintPill     = $esSinAuditar ? '#fee2e2' : '#fef3c7';
+                $esNochero    = (bool) ($p['es_nochero'] ?? false);
+                $fondoFila    = $i % 2 === 0 ? '#ffffff' : '#fafafa';
+
+                $nocheroHtml = $esNochero
+                    ? '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:700;">Sí</span>'
+                    : '<span style="color:#d1d5db;">—</span>';
+                $estadoHtml = '<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:' . $tintPill . ';color:' . $colorPill . ';font-size:12px;font-weight:700;white-space:nowrap;">' . $estado . '</span>';
+
+                $filasHtml .= '<tr style="background:' . $fondoFila . ';">'
+                    . '<td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#6b7280;font-size:13px;">' . htmlspecialchars($hotelLabel) . '</td>'
+                    . '<td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#111827;font-size:14px;font-weight:700;">' . htmlspecialchars((string) $p['numero']) . '</td>'
+                    . '<td style="padding:8px;border-bottom:1px solid #f3f4f6;text-align:center;">' . $nocheroHtml . '</td>'
+                    . '<td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#374151;font-size:13px;text-align:right;font-variant-numeric:tabular-nums;">' . htmlspecialchars((string) $p['hora_termino']) . '</td>'
+                    . '<td style="padding:8px;border-bottom:1px solid #f3f4f6;">' . $estadoHtml . '</td>'
+                    . '</tr>';
+            }
+
+            $bloques .= '<tr><td style="padding:0 0 4px;">'
+                . '<table width="100%" style="border-collapse:collapse;border:1px solid #f3f4f6;border-radius:8px;overflow:hidden;">'
+                . '<tr style="background:#f9fafb;">'
+                . '<th style="padding:8px;text-align:left;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Hotel</th>'
+                . '<th style="padding:8px;text-align:left;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Habitación</th>'
+                . '<th style="padding:8px;text-align:center;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Nochero</th>'
+                . '<th style="padding:8px;text-align:right;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Hora término</th>'
+                . '<th style="padding:8px;text-align:left;color:#9ca3af;font-size:11px;text-transform:uppercase;letter-spacing:.3px;">Estado</th>'
+                . '</tr>'
+                . $filasHtml
+                . '</table>'
+                . '</td></tr>';
+        }
+
+        return <<<HTML
+        <!DOCTYPE html>
+        <html lang="es">
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+        <body style="margin:0;padding:0;background:#f3f4f6;font-family:Inter,system-ui,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;">
+            <tr><td align="center">
+              <table width="100%" style="max-width:560px;">
+
+                <!-- Cabecera -->
+                <tr><td style="background:{$colorEstado};border-radius:12px 12px 0 0;padding:28px 32px;">
+                  <table width="100%"><tr>
+                    <td>
+                      <p style="margin:0;color:#fff;font-size:20px;font-weight:700;">{$appNombre}</p>
+                      <p style="margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px;">Auditorías pendientes al corte de las 23:50 — {$fechaHtml}</p>
+                    </td>
+                    <td align="right" valign="top">
+                      <span style="display:inline-block;background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;">
+                        {$totalPendientes} pendientes
+                      </span>
+                    </td>
+                  </tr></table>
+                </td></tr>
+
+                <!-- Cuerpo -->
+                <tr><td style="background:#fff;padding:24px 32px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
+                  <p style="margin:0 0 4px;color:#374151;font-size:15px;">Hola, <strong>{$nombreHtml}</strong></p>
+                  <p style="margin:0 0 4px;color:#6b7280;font-size:14px;">
+                    Al cierre del día quedaron <strong style="color:{$colorEstado};">{$totalPendientes}</strong> habitaciones limpiadas sin auditar a tiempo.
+                  </p>
+                  <p style="margin:0 0 16px;color:#9ca3af;font-size:12px;">
+                    Sin auditar a tiempo = sin auditoría registrada antes de las 23:50 de la fecha del reporte.
+                  </p>
+
+                  {$chips}
+
+                  <table width="100%" style="border-collapse:collapse;">
+                    {$bloques}
+                  </table>
+
+                  <table width="100%"><tr><td align="center" style="padding-top:20px;">
+                    <a href="{$appUrl}/reportes"
+                       style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 32px;border-radius:8px;">
+                      Ver reporte completo
+                    </a>
+                  </td></tr></table>
+                </td></tr>
+
+                <!-- Pie -->
+                <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:16px 32px;">
+                  <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+                    Reporte automático diario · © Atankalama Corp — Calama, Chile
+                  </p>
+                </td></tr>
+
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+        HTML;
+    }
+
+    private function hotelLabel(string $codigo): string
+    {
+        return match ($codigo) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama INN',
+            default => $codigo,
+        };
     }
 }

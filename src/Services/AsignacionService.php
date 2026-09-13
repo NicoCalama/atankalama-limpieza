@@ -24,7 +24,7 @@ final class AsignacionService
     {
         $this->validarFecha($fecha);
         $franja = $this->validarFranja($franja);
-        $this->desactivarAsignacionesActivas($habitacionId);
+        $this->desactivarAsignacionesActivas($habitacionId, $fecha);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
         // Si la habitación estaba en un estado terminal (rechazada / aprobada*), al (re)asignarla
@@ -32,8 +32,11 @@ final class AsignacionService
         // de "re-abrir on-demand": la usa la reasignación tras rechazo, el re-pedir limpieza de un
         // espacio (área común) y —a futuro— la 2ª limpieza del día (feature F). La auditoría
         // histórica permanece inmutable (queda ligada a su ejecución_checklist).
+        //
+        // Solo aplica si la asignación es para HOY: preasignar a una fecha futura (planificación
+        // semanal) no debe ensuciar la pieza ahora — el estado real se decide cuando llegue el día.
         $estadoActual = Database::fetchOne('SELECT estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
-        $estadoTerminal = $estadoActual !== null && in_array($estadoActual['estado'], [
+        $estadoTerminal = $fecha === date('Y-m-d') && $estadoActual !== null && in_array($estadoActual['estado'], [
             Habitacion::ESTADO_RECHAZADA,
             Habitacion::ESTADO_APROBADA,
             Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
@@ -71,11 +74,12 @@ final class AsignacionService
 
         $hab = Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId]);
         if ($hab !== null) {
+            $cuandoTexto = $fecha === date('Y-m-d') ? 'para hoy' : 'para el ' . date('d-m-Y', strtotime($fecha));
             $this->notificaciones->crear(
                 $usuarioId,
                 'asignacion',
                 'Nueva habitación asignada',
-                "Se te asignó la habitación #{$hab['numero']} para hoy.",
+                "Se te asignó la habitación #{$hab['numero']} {$cuandoTexto}.",
                 // La URL viaja al navegador tal cual (el popup no re-prefija):
                 // se antepone BASE_PATH acá, igual que hace PushService::notificar.
                 Url::a("/habitaciones/{$habitacionId}")
@@ -218,8 +222,11 @@ final class AsignacionService
             );
         }
 
-        Database::transaction(function () use ($habitacionId, $hab): void {
-            Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
+        Database::transaction(function () use ($habitacionId, $fecha, $hab): void {
+            Database::execute(
+                'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
+                [$habitacionId, $fecha]
+            );
             if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
                 Database::execute(
                     "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
@@ -285,19 +292,27 @@ final class AsignacionService
         return $fila === null ? null : Asignacion::desdeFila($fila);
     }
 
-    public function obtenerActivaDeHabitacion(int $habitacionId): ?Asignacion
+    // $fecha=null cae a hoy: con varias activas posibles (una por fecha), sin fecha
+    // explícita habría que asumir cuál, y "hoy" es lo que todos los llamadores actuales
+    // (ChecklistService en flujos de HOY) necesitan.
+    public function obtenerActivaDeHabitacion(int $habitacionId, ?string $fecha = null): ?Asignacion
     {
+        $fecha ??= date('Y-m-d');
         $fila = Database::fetchOne(
-            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
-            [$habitacionId]
+            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
+            [$habitacionId, $fecha]
         );
         return $fila === null ? null : Asignacion::desdeFila($fila);
     }
 
     /**
      * Vista consolidada para la página de Asignaciones:
-     *   - habitaciones "sucia" sin asignar hoy (agrupadas por hotel)
-     *   - trabajadores con turno hoy, con su cola (habitaciones + estados)
+     *   - si $fecha es HOY: habitaciones "sucia"/"rechazada" sin asignar (agrupadas por hotel)
+     *     + candidatas a 2ª limpieza ("re_limpiar")
+     *   - si $fecha es FUTURA (planificación semanal): todo el inventario activo del hotel sin
+     *     asignación activa esa fecha, sin filtrar por estado (no se conoce el estado real de
+     *     un día que no ha llegado); "re_limpiar" queda vacío
+     *   - trabajadores con turno esa fecha, con su cola (habitaciones + estados)
      *
      * @param string $hotel código del hotel ('ambos', '1_sur', 'inn', etc.)
      * @param string $fecha YYYY-MM-DD
@@ -312,18 +327,39 @@ final class AsignacionService
     public function vistaConsolidada(string $hotel, string $fecha): array
     {
         $filtroHotel = ($hotel === 'ambos') ? null : $hotel;
+        $esHoy = $fecha === date('Y-m-d');
 
-        // Habitaciones sucias o rechazadas SIN asignación activa hoy
-        // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
-        $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                     FROM #__habitaciones h
-                     JOIN #__hoteles ho ON ho.id = h.hotel_id
-                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
-                    WHERE h.activa = 1
-                      AND h.es_espacio_comun = 0
-                      AND h.estado IN (\'sucia\', \'rechazada\')
-                      AND a.id IS NULL';
+        if ($esHoy) {
+            $this->reconciliarPreasignaciones($fecha);
+        }
+
+        if ($esHoy) {
+            // Habitaciones sucias o rechazadas SIN asignación activa hoy
+            // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
+            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                         FROM #__habitaciones h
+                         JOIN #__hoteles ho ON ho.id = h.hotel_id
+                         JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                        WHERE h.activa = 1
+                          AND h.es_espacio_comun = 0
+                          AND h.estado IN (\'sucia\', \'rechazada\')
+                          AND a.id IS NULL';
+        } else {
+            // Planificación a futuro: no hay "estado real" que consultar (nadie sabe si la pieza
+            // estará sucia ese día), así que el pool ofrece TODO el inventario activo del hotel —
+            // la supervisora elige a mano qué preasignar, viendo el estado actual como referencia
+            // (se pinta con color en el frontend, sin usarlo para filtrar). Ver plan "asignaciones
+            // a días futuros".
+            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                         FROM #__habitaciones h
+                         JOIN #__hoteles ho ON ho.id = h.hotel_id
+                         JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                        WHERE h.activa = 1
+                          AND h.es_espacio_comun = 0
+                          AND a.id IS NULL';
+        }
         $paramsSin = [$fecha];
         if ($filtroHotel !== null) {
             $sqlSin .= ' AND ho.codigo = ?';
@@ -331,29 +367,42 @@ final class AsignacionService
         }
         $sqlSin .= ' ORDER BY ho.codigo, h.numero';
         $sinAsignar = Database::fetchAll($sqlSin, $paramsSin);
-
-        // Piezas ya limpias HOY (aprobadas) sin asignación activa: candidatas a una 2ª limpieza en
-        // otra ventana (día/noche). Al pedirles limpieza, asignarManual las resetea a 'sucia' y la
-        // nueva limpieza arranca de cero. Ver docs/limpiezas-multiples-dia.md
-        // Piezas ASIGNADAS hoy que ya quedaron limpias: se scoping por la asignación activa de la
-        // fecha (su fecha es local, a diferencia de created_at que va en UTC). Una pieza recién
-        // limpiada conserva su asignación (completada) activa; al pedir otra limpieza, asignarManual
-        // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
-        $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
-                     FROM #__habitaciones h
-                     JOIN #__hoteles ho ON ho.id = h.hotel_id
-                     JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                    WHERE h.activa = 1
-                      AND h.es_espacio_comun = 0
-                      AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\')
-                      AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
-        $paramsRe = [$fecha];
-        if ($filtroHotel !== null) {
-            $sqlRe .= ' AND ho.codigo = ?';
-            $paramsRe[] = $filtroHotel;
+        // Cast explícito: MariaDB devuelve TINYINT como string ("0"/"1"), y "0" es truthy en JS
+        // (mismo problema documentado en HabitacionService::listar). Sin esto el círculo de
+        // nochero se pintaría en todas las tarjetas del pool.
+        foreach ($sinAsignar as &$fila) {
+            $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
         }
-        $sqlRe .= ' ORDER BY ho.codigo, h.numero';
-        $reLimpiar = Database::fetchAll($sqlRe, $paramsRe);
+        unset($fila);
+
+        // "Volver a limpiar" solo tiene sentido con estado real (hoy): para fechas futuras no hay
+        // forma de saber si la pieza quedará limpia antes de que llegue el día.
+        if ($esHoy) {
+            // Piezas ya limpias HOY (aprobadas) sin asignación activa: candidatas a una 2ª limpieza en
+            // otra ventana (día/noche). Al pedirles limpieza, asignarManual las resetea a 'sucia' y la
+            // nueva limpieza arranca de cero. Ver docs/limpiezas-multiples-dia.md
+            // Piezas ASIGNADAS hoy que ya quedaron limpias: se scoping por la asignación activa de la
+            // fecha (su fecha es local, a diferencia de created_at que va en UTC). Una pieza recién
+            // limpiada conserva su asignación (completada) activa; al pedir otra limpieza, asignarManual
+            // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
+            $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+                         FROM #__habitaciones h
+                         JOIN #__hoteles ho ON ho.id = h.hotel_id
+                         JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                        WHERE h.activa = 1
+                          AND h.es_espacio_comun = 0
+                          AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\')
+                          AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
+            $paramsRe = [$fecha];
+            if ($filtroHotel !== null) {
+                $sqlRe .= ' AND ho.codigo = ?';
+                $paramsRe[] = $filtroHotel;
+            }
+            $sqlRe .= ' ORDER BY ho.codigo, h.numero';
+            $reLimpiar = Database::fetchAll($sqlRe, $paramsRe);
+        } else {
+            $reLimpiar = [];
+        }
 
         // Trabajadores con turno hoy (filtrados por hotel si aplica)
         $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
@@ -428,6 +477,9 @@ final class AsignacionService
      */
     public function colaDelTrabajador(int $usuarioId, string $fecha): array
     {
+        if ($fecha === date('Y-m-d')) {
+            $this->reconciliarPreasignaciones($fecha);
+        }
         $filas = Database::fetchAll(
             'SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
@@ -471,9 +523,53 @@ final class AsignacionService
         return $fila !== null;
     }
 
-    private function desactivarAsignacionesActivas(int $habitacionId): void
+    /**
+     * Autocancela preasignaciones de HOY que dejaron de tener sentido: la habitación llegó al
+     * día con estado "ya limpia" (aprobada / aprobada_con_observacion) sin que nadie la haya
+     * trabajado mediante esa asignación (sin fila en #__ejecuciones_checklist ligada a su id) —
+     * la pieza no necesitó la limpieza que se había planificado con anticipación.
+     *
+     * No toca asignaciones de hoy que SÍ se ejecutaron (esas tienen ejecución ligada y siguen el
+     * flujo normal de "completadas"), ni asignaciones de fechas futuras (ahí no se conoce el
+     * estado real todavía). Solo opera sobre $fecha = hoy; los llamadores ya filtran por eso.
+     */
+    private function reconciliarPreasignaciones(string $fecha): void
     {
-        Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND activa = 1', [$habitacionId]);
+        $huerfanas = Database::fetchAll(
+            "SELECT a.id, a.usuario_id, h.numero
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE a.fecha = ?
+                AND a.activa = 1
+                AND h.estado IN ('aprobada', 'aprobada_con_observacion')
+                AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)",
+            [$fecha]
+        );
+        foreach ($huerfanas as $fila) {
+            $id = (int) $fila['id'];
+            Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE id = ?', [$id]);
+            Logger::audit(null, 'asignacion.autocancelada', 'asignacion', $id, [
+                'usuario_id' => (int) $fila['usuario_id'], 'fecha' => $fecha,
+                'motivo' => 'habitacion ya estaba limpia al llegar el día, sin trabajo real sobre esta asignación',
+            ], 'script');
+            $this->notificaciones->crear(
+                (int) $fila['usuario_id'],
+                'asignacion',
+                'Habitación retirada de tu cola',
+                "La habitación #{$fila['numero']} ya no está asignada a ti: no necesitó limpieza.",
+                Url::a('/home')
+            );
+        }
+    }
+
+    // Scopeado por fecha: puede haber varias asignaciones activas de la misma habitación
+    // en fechas distintas (planificación a futuro). Solo se apaga la de ESA fecha.
+    private function desactivarAsignacionesActivas(int $habitacionId, string $fecha): void
+    {
+        Database::execute(
+            'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
+            [$habitacionId, $fecha]
+        );
     }
 
     private function siguienteOrdenCola(int $usuarioId, string $fecha): int

@@ -48,4 +48,40 @@ final class NotificacionesController
 
         return Response::ok(['sin_leer' => $this->service->sinLeer($usuario->id)]);
     }
+
+    /**
+     * DELETE /api/notificaciones/{id}
+     * Oculta una notificación puntual (soft-delete). Botón "x" del popup.
+     */
+    public function eliminar(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        $id      = $request->rutaInt('id');
+        if ($usuario === null || $id === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'Notificación inválida.', 400);
+        }
+
+        $afectadas = $this->service->ocultar($usuario->id, $id);
+        if ($afectadas === 0) {
+            return Response::error('NOTIFICACION_NO_ENCONTRADA', 'Notificación no encontrada.', 404);
+        }
+
+        return Response::ok([]);
+    }
+
+    /**
+     * DELETE /api/notificaciones
+     * Oculta todas las notificaciones del usuario. Botón "Borrar todas" del popup.
+     */
+    public function eliminarTodas(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+
+        $this->service->ocultarTodas($usuario->id);
+
+        return Response::ok([]);
+    }
 }

@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Helpers\Fechas;
+use Atankalama\Limpieza\Models\Habitacion;
 
 final class ReportesService
 {
@@ -325,6 +326,184 @@ final class ReportesService
             $output .= implode(';', $cols) . "\r\n";
         }
         return $output;
+    }
+
+    /**
+     * Reporte de auditorías pendientes al corte de las 23:50 de $fecha, separado por
+     * turno (mañana/tarde, según la hora local de término de la limpieza — el corte
+     * es 18:00). Sirve tanto para "hoy en curso" como para reconstruir un día pasado:
+     * una ejecución cuenta como "no auditada a tiempo" si no tiene auditoría, o si la
+     * tiene pero con created_at posterior al corte de ESE día (auditada tarde). Así un
+     * día pasado no "se limpia" solo porque alguien la auditó al día siguiente. Ver
+     * docs/decisiones.md y CLAUDE.md del hotel (reporte pedido por gerencia).
+     *
+     * Excluye áreas comunes (es_espacio_comun), igual que el resto de reportes.
+     *
+     * IMPORTANTE — piezas resueltas por Cloudbeds sin auditoría (CloudbedsSyncService,
+     * decisión de negocio 2026-08-21: "Cloudbeds es la fuente madre del estado real"):
+     * ese cron fuerza la habitación a aprobada/sucia SIN crear fila en `auditorias` ni
+     * marcar la ejecución como 'auditada'. Sin este filtro, esas ejecuciones quedarían
+     * "sin auditar" para siempre en el reporte aunque la pieza ya esté resuelta y
+     * Recepción no la vea en la bandeja (bug detectado y confirmado con datos reales
+     * el 2026-09-10). Por eso una ejecución sin auditoría real solo cuenta como
+     * pendiente si la habitación SIGUE, ahora mismo, en completada_pendiente_auditoria
+     * — igual que bandejaPendientes(). Si ya se resolvió por otra vía, se excluye del
+     * todo (decisión confirmada con el usuario: no se cuenta ni se lista aparte).
+     * Limitación conocida: para una fecha PASADA esto mira el estado ACTUAL de la
+     * habitación, no el estado que tenía al corte de ese día — si Cloudbeds resuelve
+     * una pieza recién días después, el reporte histórico de ese día ya no la mostrará.
+     *
+     * @return array{fecha:string, hotel:string, corte:string, turnos:array<string, array{total:int, pendientes:list<array<string,mixed>>}>}
+     */
+    public function auditoriasPendientes(string $fecha, string $hotel): array
+    {
+        $rango = Fechas::rangoUtcDelDia($fecha);
+        $corte = Fechas::instanteLocalUtc($fecha, '23:50');
+
+        $params = [$rango[0], $rango[1]];
+        $h = $this->hotelCond($hotel, $params);
+
+        $filas = Database::fetchAll(
+            "SELECT ec.id AS ejecucion_id, ec.habitacion_id, ec.timestamp_fin,
+                    h.numero, h.es_nochero, h.estado AS habitacion_estado_actual,
+                    ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+                    a.id AS auditoria_id, a.created_at AS auditoria_created_at
+               FROM #__ejecuciones_checklist ec
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND ec.timestamp_fin IS NOT NULL
+                AND ec.timestamp_fin >= ? AND ec.timestamp_fin < ?
+                    {$h}
+           ORDER BY ho.codigo, h.numero, ec.timestamp_fin",
+            $params
+        );
+
+        $turnos = [
+            'mañana' => ['total' => 0, 'pendientes' => []],
+            'tarde'  => ['total' => 0, 'pendientes' => []],
+        ];
+
+        foreach ($filas as $f) {
+            $timestampFin = (string) $f['timestamp_fin'];
+            $turno = Fechas::horaLocalDeUtc($timestampFin) < 18 ? 'mañana' : 'tarde';
+            $turnos[$turno]['total']++;
+
+            $estadoAuditoria = null;
+            if ($f['auditoria_id'] !== null) {
+                $auditadaATiempo = (string) $f['auditoria_created_at'] < $corte;
+                if (!$auditadaATiempo) {
+                    $estadoAuditoria = 'auditada_tarde';
+                }
+            } elseif ($f['habitacion_estado_actual'] === Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
+                // Sin auditoría real Y la pieza sigue esperando auditar ahora mismo:
+                // coincide con la bandeja. Si no está en este estado, Cloudbeds (u otro
+                // mecanismo) ya la resolvió sin auditoría — se excluye, ver docblock.
+                $estadoAuditoria = 'sin_auditar';
+            }
+
+            if ($estadoAuditoria === null) {
+                continue;
+            }
+
+            $turnos[$turno]['pendientes'][] = [
+                'habitacion_id'    => (int) $f['habitacion_id'],
+                'numero'           => $f['numero'],
+                'hotel_codigo'     => $f['hotel_codigo'],
+                'hotel_nombre'     => $f['hotel_nombre'],
+                'es_nochero'       => ((int) ($f['es_nochero'] ?? 0)) === 1,
+                'hora_termino'     => Fechas::horaMinutoLocalDeUtc($timestampFin),
+                'estado_auditoria' => $estadoAuditoria,
+            ];
+        }
+
+        return [
+            'fecha'  => $fecha,
+            'hotel'  => $hotel,
+            'corte'  => '23:50',
+            'turnos' => $turnos,
+        ];
+    }
+
+    /**
+     * CSV del reporte de auditorías pendientes (ver auditoriasPendientes()).
+     */
+    public function exportarCsvAuditoriasPendientes(string $fecha, string $hotel): string
+    {
+        $reporte = $this->auditoriasPendientes($fecha, $hotel);
+
+        $hotelLabel = match ($hotel) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama INN',
+            default => 'Ambos hoteles',
+        };
+
+        $rows = [];
+        $rows[] = ['Reporte de auditorías pendientes al corte de las 23:50', 'Atankalama Corp'];
+        $rows[] = ['Hotel', $hotelLabel, 'Fecha', date('d/m/Y', strtotime($fecha))];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+        $rows[] = ['Criterio', 'Sin auditar a tiempo = sin auditoría registrada antes de las 23:50 de la fecha del reporte.'];
+
+        $tituloTurno = [
+            'mañana' => 'TURNO MAÑANA (antes de las 18:00)',
+            'tarde'  => 'TURNO TARDE (18:00 en adelante)',
+        ];
+        foreach (['mañana', 'tarde'] as $turno) {
+            $datos = $reporte['turnos'][$turno];
+            $rows[] = [];
+            $rows[] = [
+                $tituloTurno[$turno],
+                "Total limpiadas: {$datos['total']}",
+                'Sin auditar a tiempo: ' . count($datos['pendientes']),
+            ];
+            if ($datos['pendientes'] !== []) {
+                $rows[] = ['Hotel', 'Habitación', 'Nochero', 'Hora término', 'Estado auditoría'];
+                foreach ($datos['pendientes'] as $p) {
+                    $rows[] = [
+                        match ($p['hotel_codigo']) {
+                            '1_sur' => 'Atankalama',
+                            'inn'   => 'Atankalama INN',
+                            default => $p['hotel_codigo'],
+                        },
+                        $p['numero'],
+                        $p['es_nochero'] ? 'Sí' : 'No',
+                        $p['hora_termino'],
+                        $p['estado_auditoria'] === 'sin_auditar' ? 'Sin auditar' : 'Auditada fuera de plazo',
+                    ];
+                }
+            }
+        }
+
+        $output = "\xEF\xBB\xBF";
+        foreach ($rows as $row) {
+            $cols = array_map(
+                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                $row
+            );
+            $output .= implode(';', $cols) . "\r\n";
+        }
+        return $output;
+    }
+
+    /**
+     * Usuarios con rol Admin, activos y con email registrado — destinatarios del
+     * correo diario del reporte de auditorías pendientes.
+     *
+     * @return list<array{id:int, nombre:string, email:string}>
+     */
+    public function destinatariosAdminConEmail(): array
+    {
+        return Database::fetchAll(
+            "SELECT DISTINCT u.id, u.nombre, u.email
+               FROM #__usuarios u
+               JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+               JOIN #__roles r ON r.id = ur.rol_id
+              WHERE r.nombre = 'Admin'
+                AND u.activo = 1
+                AND u.email IS NOT NULL AND u.email <> ''
+              ORDER BY u.nombre"
+        );
     }
 
     // ─── KPIs individuales ────────────────────────────────────────────────────

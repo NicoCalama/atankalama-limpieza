@@ -32,7 +32,12 @@
                         <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors"
                              :class="step > i + 1 ? 'bg-emerald-500 text-white' : step === i + 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'">
                             <template x-if="step > i + 1">
-                                <i data-lucide="check" class="w-4 h-4"></i>
+                                <!-- SVG inline (no data-lucide): ver docs/contexto/errores-conocidos.md
+                                     — createIcons() rompe la referencia de Alpine y duplica el icono. -->
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M20 6 9 17l-5-5"></path>
+                                </svg>
                             </template>
                             <template x-if="step <= i + 1">
                                 <span x-text="i + 1"></span>

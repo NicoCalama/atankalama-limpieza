@@ -8,6 +8,9 @@ return [
     ['habitaciones.marcar_completada', 'Marcar una habitación propia como terminada', 'Habitaciones', 'propio'],
     ['habitaciones.saltar', 'Saltar la habitación propia en curso cuando no se puede terminar', 'Habitaciones', 'propio'],
     ['habitaciones.ver_historial', 'Ver historial completo de una habitación', 'Habitaciones', 'global'],
+    ['habitaciones.marcar_limpia_manual', 'Marcar una habitación como limpia sin checklist (queda pendiente de auditoría)', 'Habitaciones', 'global'],
+    ['habitaciones.marcar_nochero', 'Marcar/desmarcar una habitación como nochero (aseo doble por turno minero)', 'Habitaciones', 'global'],
+    ['habitaciones.agregar_nota', 'Dejar/quitar la nota de Recepción para la mucama en una habitación', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
@@ -26,10 +29,13 @@ return [
     ['auditoria.aprobar_con_observacion', 'Dar veredicto aprobada con observación', 'Auditoría', 'global'],
     ['auditoria.rechazar', 'Dar veredicto rechazada', 'Auditoría', 'global'],
     ['auditoria.editar_checklist_durante_auditoria', 'Desmarcar items durante la auditoría', 'Auditoría', 'global'],
+    ['auditoria.reordenar_bandeja', 'Reordenar manualmente la bandeja de auditoría', 'Auditoría', 'global'],
 
     ['tickets.crear', 'Crear un ticket de mantenimiento', 'Tickets', 'global'],
     ['tickets.ver_propios', 'Ver solo los tickets propios', 'Tickets', 'propio'],
     ['tickets.ver_todos', 'Ver todos los tickets', 'Tickets', 'global'],
+    ['tickets.asignar_a_cualquier_perfil', 'Asignar tickets a usuarios de cualquier perfil (sin este permiso, solo a Trabajadores)', 'Tickets', 'global'],
+    ['tickets.editar_prioridad', 'Fijar o cambiar la prioridad de un ticket', 'Tickets', 'global'],
 
     ['usuarios.ver', 'Ver la lista de usuarios', 'Usuarios', 'global'],
     ['usuarios.crear', 'Crear usuarios nuevos', 'Usuarios', 'global'],
@@ -38,6 +44,7 @@ return [
     ['usuarios.activar_desactivar', 'Dar de baja o reactivar usuarios', 'Usuarios', 'global'],
     ['usuarios.eliminar', 'Eliminar usuarios definitivamente (derecho de cancelación)', 'Usuarios', 'global'],
     ['usuarios.asignar_rol', 'Asignar/remover roles a un usuario', 'Usuarios', 'global'],
+    ['usuarios.modo_espia', 'Ver la aplicación como otro usuario (modo espía, solo lectura)', 'Usuarios', 'global'],
     ['usuarios.cambiar_propia_contrasena', 'Cambiar la propia contraseña', 'Usuarios', 'propio'],
 
     ['roles.ver', 'Ver los roles del sistema', 'Roles', 'global'],

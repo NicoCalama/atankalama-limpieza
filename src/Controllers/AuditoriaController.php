@@ -40,6 +40,24 @@ final class AuditoriaController
         return Response::ok(['pendientes' => $pendientes, 'total' => count($pendientes)]);
     }
 
+    /**
+     * PUT /api/auditoria/orden — reorden manual de la bandeja (arrastrar).
+     * Gateado por auditoria.reordenar_bandeja en Kernel.php (PermissionCheck).
+     */
+    public function reordenarBandeja(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $orden = $request->input('orden', []);
+        if (!is_array($orden) || $orden === []) {
+            return Response::error('PARAMETROS_INVALIDOS', 'orden es requerido (array de ids).', 400);
+        }
+        $ordenIds = array_values(array_map('intval', $orden));
+        $this->servicio()->reordenarBandeja($ordenIds, $request->usuario->id);
+        return Response::ok(['ok' => true]);
+    }
+
     public function emitirVeredicto(Request $request): Response
     {
         $habitacionId = $request->rutaInt('id');

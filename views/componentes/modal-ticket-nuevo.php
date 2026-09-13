@@ -9,8 +9,16 @@
  * Al crearse exitosamente, emite 'ticket-creado' con el ticket como detail.
  * La página consumidora puede escuchar para refrescar listas.
  */
+// Asignar de inmediato al crear: mismo permiso que ya gatea /asignar (panel "Asignar
+// responsable" de tickets.php) y el mismo componente se usa en toda la app (aquí y en
+// "Reportar un problema" de habitacion-detalle.php), así que la regla aplica parejo
+// donde sea que se abra.
+$ticketPuedeAsignar = $usuario->tienePermiso('tickets.ver_todos');
+// Elegir la prioridad al crear (en vez de nacer siempre en 'normal') exige el mismo
+// permiso que después permite cambiarla — ver TicketsController::crear() y ::cambiarPrioridad().
+$ticketPuedeEditarPrioridad = $usuario->tienePermiso('tickets.editar_prioridad');
 ?>
-<div x-data="modalTicketNuevo()"
+<div x-data="modalTicketNuevo(<?= $ticketPuedeAsignar ? 'true' : 'false' ?>, <?= $ticketPuedeEditarPrioridad ? 'true' : 'false' ?>)"
      @abrir-modal-ticket.window="abrir($event.detail || {})">
 
     <div x-show="abierto" x-cloak
@@ -76,11 +84,62 @@
 
                 <!-- Descripción -->
                 <div>
-                    <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Descripción del problema *</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Descripción del problema *</label>
+                        <template x-if="soportaDictado">
+                            <button type="button"
+                                    @click="toggleDictado()"
+                                    :aria-pressed="grabando"
+                                    :aria-label="grabando ? 'Detener dictado' : 'Dictar descripción por voz'"
+                                    class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition"
+                                    :class="grabando ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
+                                <!-- SVG inline (no data-lucide): lucide.createIcons() reemplaza el nodo <i> por un
+                                     <svg> nuevo y Alpine pierde la referencia, dejando iconos huérfanos al alternar. -->
+                                <svg x-show="!grabando" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="2" width="6" height="13" rx="3"></rect>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <path d="M12 19v3"></path>
+                                </svg>
+                                <svg x-show="grabando" x-cloak xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                                </svg>
+                            </button>
+                        </template>
+                    </div>
                     <textarea x-model="form.descripcion" rows="4" maxlength="500" required
                               placeholder="Cuéntanos qué pasa..."
                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
                 </div>
+
+                <!-- Prioridad (opcional, solo quien tiene tickets.editar_prioridad) -->
+                <template x-if="puedeEditarPrioridad">
+                    <div>
+                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prioridad</label>
+                        <select x-model="form.prioridad"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                            <option value="baja">Baja</option>
+                            <option value="normal">Normal</option>
+                            <option value="alta">Alta</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                </template>
+
+                <!-- Asignar a (opcional, solo Admin/Supervisor — tickets.ver_todos) -->
+                <template x-if="puedeAsignar">
+                    <div>
+                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Asignar a (opcional)</label>
+                        <select x-model.number="form.asignado_a"
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                            <option :value="null">Sin asignar</option>
+                            <template x-for="u in usuariosAsignables" :key="u.id">
+                                <option :value="u.id" x-text="u.nombre"></option>
+                            </template>
+                        </select>
+                    </div>
+                </template>
 
                 <!-- Fotos (opcional) -->
                 <div>
@@ -95,12 +154,20 @@
                             </div>
                         </template>
                     </div>
-                    <label x-show="fotos.length < 3"
-                           class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
-                        <i data-lucide="camera" class="w-4 h-4"></i>
-                        <span>Agregar foto</span>
-                        <input type="file" accept="image/*" multiple class="hidden" @change="onFotosSeleccionadas($event)">
-                    </label>
+                    <div x-show="fotos.length < 3" class="flex gap-2">
+                        <label class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                            <span>Tomar foto</span>
+                            <!-- Sin "multiple": la cámara solo entrega 1 archivo por captura -->
+                            <input type="file" accept="image/*" capture="environment" class="hidden" @change="onFotosSeleccionadas($event)">
+                        </label>
+                        <label class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                            <i data-lucide="image" class="w-4 h-4"></i>
+                            <span>Galería</span>
+                            <!-- Sin "capture": deja elegir varias fotos de la librería en Android e iOS -->
+                            <input type="file" accept="image/*" multiple class="hidden" @change="onFotosSeleccionadas($event)">
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Error inline -->
@@ -131,13 +198,16 @@
 </div>
 
 <script>
-function modalTicketNuevo() {
+function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
     return {
         abierto: false,
         enviando: false,
         error: null,
+        puedeAsignar: puedeAsignar,
+        puedeEditarPrioridad: puedeEditarPrioridad,
         hoteles: [],
         habitaciones: [],
+        usuariosAsignables: [], // cargados on-demand, solo si puedeAsignar
         _datosCargados: false,
         busquedaHabitacion: '',
         abrirBuscador: false,
@@ -147,6 +217,18 @@ function modalTicketNuevo() {
             hotel_id: null,
             habitacion_id: null,
             descripcion: '',
+            asignado_a: null,
+            prioridad: 'normal',
+        },
+
+        // Dictado por voz de la descripción (Web Speech API) — mismo patrón que
+        // auditoria-detalle.php (comentario de observación/rechazo).
+        grabando: false,
+        reconocimiento: null,
+        dictadoReinicios: 0,
+
+        get soportaDictado() {
+            return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
         },
 
         async abrir(detail) {
@@ -166,13 +248,83 @@ function modalTicketNuevo() {
         },
 
         cerrar() {
+            this.detenerDictado();
             this.abierto = false;
             this.abrirBuscador = false;
             this.limpiarFotos();
         },
 
+        // Dicta la descripción por voz. El texto reconocido se agrega al que ya haya
+        // (no lo reemplaza), para poder mezclar teclado y voz. Ver auditoria-detalle.php,
+        // mismo patrón (reinicio automático en Safari/iOS, tope de seguridad, permisos).
+        toggleDictado() {
+            if (this.grabando) {
+                this.detenerDictado();
+                return;
+            }
+            if (!this.soportaDictado) return;
+
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            var reco = new SpeechRecognition();
+            var self = this;
+            reco.lang = 'es-CL';
+            reco.continuous = true;
+            reco.interimResults = false;
+
+            reco.onresult = function (event) {
+                var textoNuevo = '';
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        textoNuevo += event.results[i][0].transcript;
+                    }
+                }
+                textoNuevo = textoNuevo.trim();
+                if (textoNuevo === '') return;
+                self.dictadoReinicios = 0; // hubo voz real: el contador de seguridad se reinicia
+                var actual = self.form.descripcion.trim();
+                self.form.descripcion = (actual === '' ? textoNuevo : actual + ' ' + textoNuevo).slice(0, 500);
+            };
+
+            reco.onerror = function (event) {
+                // 'no-speech' (pausa) y 'aborted' (nuestro propio stop) son normales:
+                // no cortan el dictado, los maneja onend.
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    self.grabando = false;
+                    self.error = 'Permiso de micrófono denegado.';
+                } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    self.grabando = false;
+                    self.error = 'No pudimos usar el micrófono.';
+                }
+            };
+
+            reco.onend = function () {
+                // Safari/iOS ignora continuous y corta al primer silencio. Mientras no se
+                // toque "detener", reanudamos para poder hacer pausas y seguir hablando.
+                if (!self.grabando) return;
+                if (self.dictadoReinicios >= 30) { self.grabando = false; return; } // tope: micrófono en silencio
+                self.dictadoReinicios++;
+                setTimeout(function () {
+                    if (!self.grabando) return;
+                    try { reco.start(); } catch (e) { self.grabando = false; }
+                }, 250);
+            };
+
+            this.reconocimiento = reco;
+            this.dictadoReinicios = 0;
+            this.grabando = true;
+            reco.start();
+        },
+
+        detenerDictado() {
+            this.grabando = false;
+            this.dictadoReinicios = 0;
+            if (this.reconocimiento) {
+                try { this.reconocimiento.stop(); } catch (e) {}
+            }
+        },
+
         reset() {
-            this.form = { hotel_id: null, habitacion_id: null, descripcion: '' };
+            this.form = { hotel_id: null, habitacion_id: null, descripcion: '', asignado_a: null, prioridad: 'normal' };
             this.error = null;
             this.enviando = false;
             this.busquedaHabitacion = '';
@@ -209,6 +361,10 @@ function modalTicketNuevo() {
                 if (rh && rh.ok) this.hoteles = rh.data.hoteles || [];
                 var rhab = await apiFetch('/api/habitaciones');
                 if (rhab && rhab.ok) this.habitaciones = rhab.data.habitaciones || [];
+                if (this.puedeAsignar) {
+                    var ru = await apiFetch('/api/tickets/usuarios-asignables');
+                    if (ru && ru.ok) this.usuariosAsignables = ru.data.usuarios || [];
+                }
                 this._datosCargados = true;
             } catch (e) {
                 // Sin datos no bloqueamos: user puede elegir hotel manualmente si se cargó
@@ -260,8 +416,9 @@ function modalTicketNuevo() {
                 datos.append('hotel_id', this.form.hotel_id);
                 datos.append('titulo', titulo);
                 datos.append('descripcion', descripcion);
-                datos.append('prioridad', 'normal');
+                datos.append('prioridad', this.puedeEditarPrioridad ? this.form.prioridad : 'normal');
                 if (this.form.habitacion_id !== null) datos.append('habitacion_id', this.form.habitacion_id);
+                if (this.puedeAsignar && this.form.asignado_a !== null) datos.append('asignado_a', this.form.asignado_a);
                 this.fotos.forEach(function (f) { datos.append('fotos[]', f.file); });
 
                 var r = await apiPostForm('/api/tickets', datos);

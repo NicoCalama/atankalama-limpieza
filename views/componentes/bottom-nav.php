@@ -30,6 +30,17 @@ if ($usuario->tieneAlgunPermiso(['habitaciones.ver_asignadas_propias', 'habitaci
 
 // Alertas: el panel ya aparece en la home (Supervisora/Admin); no hay página dedicada en MVP.
 
+// Auditoría — visible con permiso auditoria.ver_bandeja (faltaba: el sidebar de
+// escritorio ya lo tenía, pero en móvil no había forma de llegar a /auditoria).
+if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
+    $items[] = [
+        'ruta' => '/auditoria',
+        'icono' => 'shield-check',
+        'label' => 'Auditoría',
+        'activo' => str_starts_with($rutaActual, '/auditoria'),
+    ];
+}
+
 // Tickets — si puede ver la lista (ver_propios/ver_todos), enlaza a /tickets. Si solo
 // puede crear (ej. Trabajador), el botón abre directo el modal de reporte: no tiene
 // lista que ver, pero sí debe poder reportar un problema desde cualquier pantalla.

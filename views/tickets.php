@@ -13,7 +13,7 @@ require_once __DIR__ . '/componentes/avatar.php';
 ?>
 
 <div x-data="ticketsApp()"
-     x-init="cargar(); iniciarRefresco()"
+     x-init="cargar().then(() => abrirDesdeUrl()); iniciarRefresco()"
      @ticket-creado.window="onTicketCreado($event.detail)"
      @visibilitychange.window="alVolverVisible()">
 
@@ -25,10 +25,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                 <div class="min-w-0">
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">Tickets</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
-                        <span x-text="total"></span> en total
-                        <template x-if="!puedeVerTodos">
-                            <span> · <span x-text="alcance === 'sin_asignar' ? 'Sin asignar' : 'Asignados a ti'"></span></span>
-                        </template>
+                        <span x-text="total"></span> en total · <span x-text="etiquetaAlcanceActual()"></span>
                     </p>
                 </div>
             </div>
@@ -43,7 +40,9 @@ require_once __DIR__ . '/componentes/avatar.php';
                 <button @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">
-                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400" :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
@@ -70,16 +69,15 @@ require_once __DIR__ . '/componentes/avatar.php';
         <!-- Filtros -->
         <section data-tour="tk.filtros" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
             <div class="flex flex-wrap gap-2 items-center">
-                <template x-if="!puedeVerTodos">
-                    <div class="flex items-center gap-1 flex-wrap">
-                        <template x-for="a in alcanceFiltro" :key="a.valor">
-                            <button @click="setAlcance(a.valor)"
-                                    :class="alcance === a.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
-                                    class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
-                                    x-text="a.etiqueta"></button>
-                        </template>
-                    </div>
-                </template>
+                <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Alcance:</span>
+                    <template x-for="a in alcanceFiltro" :key="a.valor">
+                        <button @click="setAlcance(a.valor)"
+                                :class="alcance === a.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
+                                class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
+                                x-text="a.etiqueta"></button>
+                    </template>
+                </div>
                 <div class="flex items-center gap-1 flex-wrap">
                     <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
                     <template x-for="e in estadosFiltro" :key="e.valor">
@@ -141,43 +139,120 @@ require_once __DIR__ . '/componentes/avatar.php';
 
         <!-- Listado -->
         <template x-if="tickets.length > 0">
-            <ul class="space-y-2" data-tour="tk.lista">
-                <template x-for="t in tickets" :key="t.id">
-                    <li class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition"
-                        :class="claseBordePrioridad(t.prioridad)"
-                        @click="abrirDetalle(t)">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 flex-wrap mb-1">
-                                    <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
-                                          :class="claseBadgePrioridad(t.prioridad)"
-                                          x-text="etiquetaPrioridad(t.prioridad)"></span>
-                                    <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
-                                          :class="claseBadgeEstado(t.estado)"
-                                          x-text="etiquetaEstado(t.estado)"></span>
-                                    <template x-if="t.habitacion_numero">
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
-                                            <i data-lucide="bed" class="w-3 h-3"></i>
-                                            <span x-text="t.habitacion_numero"></span>
+            <div>
+                <!-- Celular: tarjetas (oculto desde md) -->
+                <ul class="md:hidden space-y-2" data-tour="tk.lista">
+                    <template x-for="t in tickets" :key="t.id">
+                        <li class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition"
+                            :class="claseBordePrioridad(t.prioridad)"
+                            @click="abrirDetalle(t)">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                                        <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
+                                              :class="claseBadgePrioridad(t.prioridad)"
+                                              x-text="etiquetaPrioridad(t.prioridad)"></span>
+                                        <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
+                                              :class="claseBadgeEstado(t.estado)"
+                                              x-text="etiquetaEstado(t.estado)"></span>
+                                        <!-- Semáforo de espera. El punto es un <span> con fondo, no un icono: dentro de
+                                             un x-for, lucide.createIcons() rompe la referencia de Alpine y duplica el
+                                             nodo (ver docs/contexto/errores-conocidos.md). -->
+                                        <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0 inline-flex items-center gap-1.5"
+                                              :class="claseEsperaChip(t)" :title="tituloEspera(t)">
+                                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="claseEsperaPunto(t)"></span>
+                                            <span x-text="esperaTexto(t)"></span>
                                         </span>
-                                    </template>
-                                    <span class="text-xs text-gray-500 dark:text-gray-400" x-text="nombreHotelCorto(t.hotel_codigo)"></span>
+                                        <template x-if="t.habitacion_numero">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                                                <i data-lucide="bed" class="w-3 h-3"></i>
+                                                <span x-text="t.habitacion_numero"></span>
+                                            </span>
+                                        </template>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400" x-text="nombreHotelCorto(t.hotel_codigo)"></span>
+                                    </div>
+                                    <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.titulo"></p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-0.5" x-text="t.descripcion"></p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                        <span x-text="'Por ' + (t.levantado_por_nombre || 'usuario')"></span>
+                                        · <span x-text="fechaRelativa(t.created_at)"></span>
+                                        <template x-if="t.asignado_a_nombre">
+                                            <!-- SVG inline (no data-lucide): ver docs/contexto/errores-conocidos.md
+                                                 — createIcons() rompe la referencia de Alpine y duplica el icono. -->
+                                            <span> · <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline" viewBox="0 0 24 24"
+                                                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="9" cy="7" r="4"></circle>
+                                                <polyline points="16 11 18 13 22 9"></polyline>
+                                            </svg> <span x-text="t.asignado_a_nombre"></span></span>
+                                        </template>
+                                    </p>
                                 </div>
-                                <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.titulo"></p>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-0.5" x-text="t.descripcion"></p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                    <span x-text="'Por ' + (t.levantado_por_nombre || 'usuario')"></span>
-                                    · <span x-text="fechaRelativa(t.created_at)"></span>
-                                    <template x-if="t.asignado_a_nombre">
-                                        <span> · <i data-lucide="user-check" class="w-3 h-3 inline"></i> <span x-text="t.asignado_a_nombre"></span></span>
-                                    </template>
-                                </p>
+                                <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-1"></i>
                             </div>
-                            <i data-lucide="chevron-right" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-1"></i>
-                        </div>
-                    </li>
-                </template>
-            </ul>
+                        </li>
+                    </template>
+                </ul>
+
+                <!-- PC: tabla (oculta bajo md) -->
+                <div class="hidden md:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm" data-tour="tk.tabla">
+                            <thead class="bg-gray-50 dark:bg-gray-700/40">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Prioridad</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Estado</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Ticket</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Hotel / Hab.</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Espera</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Asignado a</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Reportado</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                <template x-for="t in tickets" :key="t.id">
+                                    <tr class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 transition"
+                                        :class="claseBordePrioridad(t.prioridad)"
+                                        @click="abrirDetalle(t)">
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="px-2 py-0.5 rounded text-xs font-semibold"
+                                                  :class="claseBadgePrioridad(t.prioridad)"
+                                                  x-text="etiquetaPrioridad(t.prioridad)"></span>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="px-2 py-0.5 rounded text-xs font-semibold"
+                                                  :class="claseBadgeEstado(t.estado)"
+                                                  x-text="etiquetaEstado(t.estado)"></span>
+                                        </td>
+                                        <td class="px-4 py-3 max-w-xs">
+                                            <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.titulo"></p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="t.descripcion"></p>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                                            <span x-text="nombreHotelCorto(t.hotel_codigo)"></span>
+                                            <template x-if="t.habitacion_numero">
+                                                <span> · <span x-text="t.habitacion_numero"></span></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="px-2 py-0.5 rounded text-xs font-semibold inline-flex items-center gap-1.5"
+                                                  :class="claseEsperaChip(t)" :title="tituloEspera(t)">
+                                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="claseEsperaPunto(t)"></span>
+                                                <span x-text="esperaTexto(t)"></span>
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400" x-text="t.asignado_a_nombre || '—'"></td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-500"
+                                            :title="'Por ' + (t.levantado_por_nombre || 'usuario') + ' · ' + fechaCorta(t.created_at)">
+                                            <span x-text="fechaRelativa(t.created_at)"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </template>
     </main>
 
@@ -198,6 +273,11 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 <span class="px-2 py-0.5 rounded text-xs font-semibold"
                                       :class="claseBadgeEstado(detalle.ticket.estado)"
                                       x-text="etiquetaEstado(detalle.ticket.estado)"></span>
+                                <span class="px-2 py-0.5 rounded text-xs font-semibold inline-flex items-center gap-1.5"
+                                      :class="claseEsperaChip(detalle.ticket)" :title="tituloEspera(detalle.ticket)">
+                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="claseEsperaPunto(detalle.ticket)"></span>
+                                    <span x-text="esperaTexto(detalle.ticket)"></span>
+                                </span>
                             </div>
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100" x-text="detalle.ticket.titulo"></h3>
                         </div>
@@ -262,10 +342,10 @@ require_once __DIR__ . '/componentes/avatar.php';
                              lo tiene asignado a sí mismo, marcarlo resuelto — no cierra ni reabre
                              (esa verificación final queda para quien gestiona). Ver
                              TicketsController::asignar() y cambiarEstado(). -->
-                        <template x-if="(puedeGestionar || puedeResolverAsignado || puedeTomar) && detalle.ticket.estado !== 'cerrado'">
+                        <template x-if="(puedeGestionar || puedeResolverAsignado || puedeTomar || puedeEditarPrioridad) && detalle.ticket.estado !== 'cerrado'">
                             <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                                 <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">Acciones</p>
-                                <div class="flex flex-wrap gap-2" x-show="!detalle.mostrarCierre && !detalle.mostrarAsignar">
+                                <div class="flex flex-wrap gap-2" x-show="!detalle.mostrarCierre && !detalle.mostrarAsignar && !detalle.mostrarPrioridad">
                                     <template x-if="puedeTomar">
                                         <button @click="tomar()" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
@@ -276,6 +356,12 @@ require_once __DIR__ . '/componentes/avatar.php';
                                         <button @click="abrirAsignar()" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition">
                                             Asignar responsable
+                                        </button>
+                                    </template>
+                                    <template x-if="puedeEditarPrioridad">
+                                        <button @click="abrirPrioridad()" :disabled="detalle.enviando"
+                                                class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition">
+                                            Cambiar prioridad
                                         </button>
                                     </template>
                                     <template x-if="detalle.ticket.estado === 'abierto' || detalle.ticket.estado === 'en_progreso'">
@@ -305,8 +391,12 @@ require_once __DIR__ . '/componentes/avatar.php';
                                         <select x-model.number="detalle.asignarUsuarioId"
                                                 class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
                                             <option :value="null">Selecciona una persona</option>
-                                            <template x-for="u in usuariosAsignables" :key="u.id">
-                                                <option :value="u.id" x-text="u.nombre"></option>
+                                            <template x-for="g in gruposAsignables()" :key="g.perfil">
+                                                <optgroup :label="g.perfil">
+                                                    <template x-for="u in g.usuarios" :key="u.id">
+                                                        <option :value="u.id" x-text="u.nombre"></option>
+                                                    </template>
+                                                </optgroup>
                                             </template>
                                         </select>
                                         <div class="flex justify-end gap-2">
@@ -318,6 +408,31 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                     :disabled="detalle.enviando || !detalle.asignarUsuarioId"
                                                     class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
                                                 Asignar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Panel de cambiar prioridad -->
+                                <template x-if="puedeEditarPrioridad && detalle.mostrarPrioridad">
+                                    <div class="space-y-2">
+                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Cambiar prioridad</p>
+                                        <select x-model="detalle.prioridadNueva"
+                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                            <option value="baja">Baja</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="alta">Alta</option>
+                                            <option value="urgente">Urgente</option>
+                                        </select>
+                                        <div class="flex justify-end gap-2">
+                                            <button type="button" @click="detalle.mostrarPrioridad = false"
+                                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                                                Cancelar
+                                            </button>
+                                            <button type="button" @click="guardarPrioridad()"
+                                                    :disabled="detalle.enviando || detalle.prioridadNueva === detalle.ticket.prioridad"
+                                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
+                                                Guardar
                                             </button>
                                         </div>
                                     </div>
@@ -363,6 +478,41 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 Este ticket está cerrado y no puede modificarse.
                             </p>
                         </template>
+
+                        <!-- Comentarios: historial solo-append, visible para quien pudo abrir
+                             el detalle (mismo criterio de acceso, ver TicketsController). -->
+                        <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
+                            <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">
+                                Comentarios <span x-text="'(' + detalle.comentarios.length + ')'"></span>
+                            </p>
+                            <template x-if="detalle.comentarios.length === 0">
+                                <p class="text-xs text-gray-500 dark:text-gray-400 italic mb-2">Sin comentarios todavía.</p>
+                            </template>
+                            <ul class="space-y-2 mb-3 max-h-52 overflow-y-auto">
+                                <template x-for="c in detalle.comentarios" :key="c.id">
+                                    <li class="text-sm bg-gray-50 dark:bg-gray-900 rounded-lg p-2">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                                            <span x-text="c.usuario_nombre"></span> · <span x-text="fechaCorta(c.created_at)"></span>
+                                        </p>
+                                        <p class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap" x-text="c.comentario"></p>
+                                    </li>
+                                </template>
+                            </ul>
+                            <textarea x-model="detalle.comentarioNuevo" rows="2" maxlength="2000"
+                                      placeholder="Escribe un comentario..."
+                                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm mb-2"></textarea>
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                    <input type="checkbox" x-model="detalle.avisarSupervisora">
+                                    Avisar a Supervisora / Admin
+                                </label>
+                                <button type="button" @click="comentar()"
+                                        :disabled="!detalle.comentarioNuevo || detalle.enviandoComentario"
+                                        class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
+                                    Comentar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -377,9 +527,13 @@ function ticketsApp() {
         total: 0,
         cargando: false,
         sinConexion: !navigator.onLine,
-        estado: localStorage.getItem('tickets_estado') || '',
+        estado: localStorage.getItem('tickets_estado') || 'abierto',
         hotel: localStorage.getItem('tickets_hotel') || 'ambos',
-        alcance: localStorage.getItem('tickets_alcance') || 'mios',
+        // null la primera vez (o si el valor guardado no es válido para el rol actual —
+        // localStorage no distingue quién inició sesión en un dispositivo compartido):
+        // el default por rol (mios / sin_asignar) se resuelve en cargar(), una vez que
+        // se sabe si el usuario gestiona (tickets.ver_todos) o no.
+        alcance: localStorage.getItem('tickets_alcance'),
         _intervalId: null,
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
@@ -388,11 +542,13 @@ function ticketsApp() {
         cierreFotos: [], // [{ file, url }] — fotos opcionales al cerrar, máx. 3
         usuariosAsignables: [], // cargados on-demand la primera vez que se abre el panel de asignar
 
+        // Sin chip "Resueltos" a propósito: "Cerrados" agrupa resuelto+cerrado (ver
+        // TicketService::listar()). El estado 'resuelto' sigue existiendo igual — solo
+        // no tiene un chip de filtro separado.
         estadosFiltro: [
             { valor: '', etiqueta: 'Todos' },
             { valor: 'abierto', etiqueta: 'Abiertos' },
             { valor: 'en_progreso', etiqueta: 'En progreso' },
-            { valor: 'resuelto', etiqueta: 'Resueltos' },
             { valor: 'cerrado', etiqueta: 'Cerrados' }
         ],
 
@@ -402,10 +558,22 @@ function ticketsApp() {
             { valor: 'inn', etiqueta: 'Atankalama INN' }
         ],
 
-        alcanceFiltro: [
+        // Trabajador (solo tickets.ver_propios): sus asignados vs. los que puede tomar.
+        alcanceFiltroPropio: [
             { valor: 'mios', etiqueta: 'Asignados a mí' },
             { valor: 'sin_asignar', etiqueta: 'Sin asignar' }
         ],
+        // Quien gestiona (tickets.ver_todos — Supervisora/Recepción/Admin/Mantenimiento):
+        // por defecto los que nadie ha tomado, con "Asignados a mí" para roles que también
+        // ejecutan tickets (ej. Mantenimiento) y "Todos" para ver el histórico completo.
+        alcanceFiltroGestion: [
+            { valor: 'sin_asignar', etiqueta: 'Sin asignar' },
+            { valor: 'mios', etiqueta: 'Asignados a mí' },
+            { valor: 'todos', etiqueta: 'Todos' }
+        ],
+        get alcanceFiltro() {
+            return this.puedeVerTodos ? this.alcanceFiltroGestion : this.alcanceFiltroPropio;
+        },
 
         get puedeCrear() {
             return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.crear'));
@@ -415,6 +583,9 @@ function ticketsApp() {
         },
         get puedeGestionar() {
             return this.puedeVerTodos;
+        },
+        get puedeEditarPrioridad() {
+            return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.editar_prioridad'));
         },
         get puedeResolverAsignado() {
             var yo = Alpine.store('auth') && Alpine.store('auth').usuario;
@@ -431,11 +602,29 @@ function ticketsApp() {
 
         async cargar() {
             this.cargando = true;
+            // puedeVerTodos depende de Alpine.store('auth'), que carga los permisos en
+            // paralelo (async) apenas arranca la página. Sin esto, la primera carga (el
+            // x-init de arriba) puede correr ANTES de que los permisos lleguen y el filtro
+            // por defecto (alcance/hotel) saldría mal solo la primera vez. Ver mismo patrón
+            // en auditoria-detalle.php.
+            var auth = Alpine.store('auth');
+            if (auth && !auth.cargado) {
+                await auth.cargar();
+            }
+            // Default de "alcance" según rol (mios / sin_asignar) — se resuelve acá porque
+            // depende de puedeVerTodos. Si lo guardado en localStorage no es válido para el
+            // rol actual (dispositivo compartido entre trabajador y supervisor, por ejemplo),
+            // se recalcula.
+            var alcancesValidos = this.alcanceFiltro.map(function (a) { return a.valor; });
+            if (alcancesValidos.indexOf(this.alcance) === -1) {
+                this.alcance = this.puedeVerTodos ? 'sin_asignar' : 'mios';
+                localStorage.setItem('tickets_alcance', this.alcance);
+            }
             try {
                 var params = [];
                 if (this.estado) params.push('estado=' + encodeURIComponent(this.estado));
                 if (this.puedeVerTodos && this.hotel && this.hotel !== 'ambos') params.push('hotel=' + encodeURIComponent(this.hotel));
-                if (!this.puedeVerTodos) params.push('alcance=' + encodeURIComponent(this.alcance));
+                params.push('alcance=' + encodeURIComponent(this.alcance));
                 var url = '/api/tickets' + (params.length ? '?' + params.join('&') : '');
                 var r = await apiFetch(url);
                 if (r && r.ok) {
@@ -489,8 +678,32 @@ function ticketsApp() {
             this.cargar();
         },
 
+        // Deep-link desde la notificación de un comentario (ver TicketService::comentar,
+        // url '/tickets?ticket={id}') — sin esto, la campanita solo llevaría a la lista
+        // genérica y la Supervisora tendría que buscar el ticket a mano.
+        async abrirDesdeUrl() {
+            var id = parseInt(new URLSearchParams(window.location.search).get('ticket'), 10);
+            if (!id) return;
+            var enLista = this.tickets.find(function (t) { return t.id === id; });
+            if (enLista) {
+                this.abrirDetalle(enLista);
+                return;
+            }
+            // No está en la página actual (los filtros activos no lo incluyen) — se pide suelto.
+            try {
+                var r = await apiFetch('/api/tickets/' + id);
+                if (r && r.ok) this.abrirDetalle(r.data.ticket);
+            } catch (e) {
+                // Deep-link no crítico: si falla, el usuario igual puede buscarlo a mano.
+            }
+        },
+
         async abrirDetalle(t) {
-            this.detalle = { abierto: true, ticket: t, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null };
+            this.detalle = {
+                abierto: true, ticket: t, enviando: false, mostrarCierre: false, mostrarAsignar: false,
+                asignarUsuarioId: null, mostrarPrioridad: false, prioridadNueva: null,
+                comentarios: [], comentarioNuevo: '', avisarSupervisora: false, enviandoComentario: false,
+            };
             this.$nextTick(function () { lucide.createIcons(); });
             // La fila de la lista no trae adjuntos (listar() no hace ese join) — se
             // completan acá sin perder hotel_codigo/habitacion_numero/levantado_por_nombre
@@ -503,11 +716,50 @@ function ticketsApp() {
             } catch (e) {
                 // Sin adjuntos no bloqueamos el detalle — se ve igual, solo sin fotos.
             }
+            try {
+                var rc = await apiFetch('/api/tickets/' + t.id + '/comentarios');
+                if (rc && rc.ok && this.detalle.ticket && this.detalle.ticket.id === t.id) {
+                    this.detalle.comentarios = rc.data.comentarios || [];
+                }
+            } catch (e) {
+                // Sin comentarios no bloqueamos el detalle — se ve igual, solo sin historial.
+            }
         },
 
         cerrarDetalle() {
             this.limpiarCierreFotos();
-            this.detalle = { abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null };
+            this.detalle = {
+                abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false,
+                asignarUsuarioId: null, mostrarPrioridad: false, prioridadNueva: null,
+                comentarios: [], comentarioNuevo: '', avisarSupervisora: false, enviandoComentario: false,
+            };
+        },
+
+        async comentar() {
+            if (!this.detalle.ticket || !this.detalle.comentarioNuevo || this.detalle.enviandoComentario) return;
+            this.detalle.enviandoComentario = true;
+            try {
+                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/comentarios', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        comentario: this.detalle.comentarioNuevo,
+                        avisar_supervisora: this.detalle.avisarSupervisora,
+                    })
+                });
+                if (r && r.ok) {
+                    this.detalle.comentarios = r.data.comentarios || [];
+                    this.detalle.comentarioNuevo = '';
+                    this.detalle.avisarSupervisora = false;
+                    this.mostrarToast('exito', 'Comentario agregado.');
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos agregar el comentario.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.detalle.enviandoComentario = false;
+            }
         },
 
         async abrirAsignar() {
@@ -521,6 +773,28 @@ function ticketsApp() {
                     this.mostrarToast('error', 'No pudimos cargar la lista de personas.');
                 }
             }
+        },
+
+        // Agrupa por perfil respetando la jerarquía y ordena alfabético dentro del grupo.
+        // localeCompare('es') para que los nombres con tilde queden donde corresponde.
+        // El servidor ya filtra a solo Trabajadores cuando quien asigna no tiene
+        // tickets.asignar_a_cualquier_perfil (ver TicketsController::usuariosAsignables).
+        gruposAsignables() {
+            var orden = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
+            var mapa = {};
+            this.usuariosAsignables.forEach(function (u) {
+                var p = u.perfil || 'Sin perfil';
+                (mapa[p] = mapa[p] || []).push(u);
+            });
+            // Perfiles fuera de la jerarquía (roles creados a mano en RBAC) van al final.
+            var extras = Object.keys(mapa).filter(function (p) { return orden.indexOf(p) === -1; })
+                                          .sort(function (a, b) { return a.localeCompare(b, 'es'); });
+            return orden.concat(extras).filter(function (p) { return mapa[p]; }).map(function (p) {
+                return {
+                    perfil: p,
+                    usuarios: mapa[p].sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); }),
+                };
+            });
         },
 
         async asignarResponsable() {
@@ -542,6 +816,35 @@ function ticketsApp() {
                     this.cargar();
                 } else {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos asignar el responsable.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.detalle.enviando = false;
+            }
+        },
+
+        abrirPrioridad() {
+            this.detalle.prioridadNueva = this.detalle.ticket.prioridad;
+            this.detalle.mostrarPrioridad = true;
+        },
+
+        async guardarPrioridad() {
+            if (!this.detalle.ticket || !this.detalle.prioridadNueva || this.detalle.enviando) return;
+            this.detalle.enviando = true;
+            try {
+                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/prioridad', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prioridad: this.detalle.prioridadNueva })
+                });
+                if (r && r.ok) {
+                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket);
+                    this.detalle.mostrarPrioridad = false;
+                    this.mostrarToast('exito', 'Prioridad actualizada.');
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cambiar la prioridad.');
                 }
             } catch (e) {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
@@ -661,6 +964,11 @@ function ticketsApp() {
 
         // --- Helpers visuales ---
 
+        etiquetaAlcanceActual() {
+            var op = this.alcanceFiltro.find(function (a) { return a.valor === this.alcance; }, this);
+            return op ? op.etiqueta : '';
+        },
+
         nombreHotelCorto(codigo) {
             if (codigo === 'inn') return 'Atankalama INN';
             if (codigo === '1_sur') return 'Atankalama';
@@ -697,9 +1005,73 @@ function ticketsApp() {
 
         claseBadgeEstado(e) {
             if (e === 'abierto') return 'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300';
-            if (e === 'en_progreso') return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
+            if (e === 'en_progreso') return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300';
             if (e === 'resuelto') return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
             return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
+        },
+
+        // Semáforo de espera: cuánto lleva el ticket sin resolverse (created_at → ahora).
+        // Un ticket resuelto/cerrado congela el reloj y se pinta verde. Umbrales de
+        // negocio en horas: 12 / 24 / 36.
+        estaTerminado(t) {
+            return !!t && (t.estado === 'resuelto' || t.estado === 'cerrado');
+        },
+
+        esperaMinutos(t) {
+            if (!t || !t.created_at) return null;
+            var inicio = new Date(t.created_at).getTime();
+            var fin = this.estaTerminado(t)
+                ? new Date(t.resuelto_at || t.updated_at || t.created_at).getTime()
+                : Date.now();
+            if (isNaN(inicio) || isNaN(fin)) return null;
+            return Math.max(0, Math.floor((fin - inicio) / 60000));
+        },
+
+        esperaTexto(t) {
+            var min = this.esperaMinutos(t);
+            if (min === null) return '';
+            if (min < 60) return min + ' min';
+            var hrs = Math.floor(min / 60);
+            if (hrs < 24) return hrs + ' h';
+            var dias = Math.floor(hrs / 24);
+            var resto = hrs % 24;
+            return dias + ' d' + (resto > 0 ? ' ' + resto + ' h' : '');
+        },
+
+        // 'verde' | 'azul' | 'amarillo' | 'naranjo' | 'rojo'
+        nivelEspera(t) {
+            if (this.estaTerminado(t)) return 'verde';
+            var min = this.esperaMinutos(t);
+            if (min === null) return 'azul';
+            var hrs = min / 60;
+            if (hrs < 12) return 'azul';
+            if (hrs < 24) return 'amarillo';
+            if (hrs < 36) return 'naranjo';
+            return 'rojo';
+        },
+
+        claseEsperaChip(t) {
+            var n = this.nivelEspera(t);
+            if (n === 'verde')    return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
+            if (n === 'amarillo') return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
+            if (n === 'naranjo')  return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
+            if (n === 'rojo')     return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+            return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
+        },
+
+        claseEsperaPunto(t) {
+            var n = this.nivelEspera(t);
+            if (n === 'verde')    return 'bg-green-500';
+            if (n === 'amarillo') return 'bg-yellow-500';
+            if (n === 'naranjo')  return 'bg-orange-500';
+            if (n === 'rojo')     return 'bg-red-600';
+            return 'bg-blue-500';
+        },
+
+        tituloEspera(t) {
+            return this.estaTerminado(t)
+                ? 'Tiempo total hasta resolverse'
+                : 'Tiempo en espera desde que se reportó';
         },
 
         fechaCorta(iso) {

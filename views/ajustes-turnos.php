@@ -11,7 +11,9 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
 ?>
 
 <div x-data="turnosApp()" x-init="inicializar()"
-     @turno-guardado.window="cargarCatalogo()">
+     @turno-guardado.window="cargarCatalogo()"
+     @turno-masivo-guardado.window="onTurnoMasivoGuardado($event.detail)"
+     @festivos-actualizados.window="cargarFestivosVisibles()">
 
     <!-- Header -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -151,6 +153,19 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                 </button>
             </div>
 
+            <!-- Leyenda de colores + gestión de festivos -->
+            <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <div class="flex items-center gap-4 text-[11px] text-gray-500 dark:text-gray-400">
+                    <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Hoy</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Domingo / festivo</span>
+                </div>
+                <button type="button" @click="window.dispatchEvent(new CustomEvent('abrir-modal-festivos'))"
+                        class="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="calendar-heart" class="w-3.5 h-3.5"></i>
+                    Festivos
+                </button>
+            </div>
+
             <!-- Loading -->
             <div x-show="cargandoAsignacion" x-cloak class="flex items-center justify-center py-10">
                 <svg class="animate-spin h-6 w-6 text-blue-600" viewBox="0 0 24 24" fill="none">
@@ -168,7 +183,10 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                                 <th class="sticky left-0 z-10 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 min-w-[180px] border-r border-gray-200 dark:border-gray-700">Trabajador</th>
                                 <template x-for="(d, idx) in dias" :key="idx">
                                     <th class="px-2 py-2 text-center text-xs font-semibold border-l border-gray-200 dark:border-gray-700 min-w-[90px]"
-                                        :class="esHoy(d) ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'">
+                                        :class="esHoy(d)
+                                            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                            : (esDomingoOFestivo(d) ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300')"
+                                        :title="festivoNombre(d) || (esDomingo(d) ? 'Domingo' : '')">
                                         <div x-text="nombreDiaCorto(d)"></div>
                                         <div class="text-[10px] font-normal opacity-70" x-text="fechaCorta(d)"></div>
                                     </th>
@@ -179,8 +197,17 @@ $puedeAsignar = $usuario->tienePermiso('turnos.asignar_a_usuario');
                             <template x-for="u in usuariosAsignacionFiltrados" :key="u.id">
                                 <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30">
                                     <td class="sticky left-0 bg-white dark:bg-gray-800 px-3 py-2 border-r border-gray-200 dark:border-gray-700">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="u.nombre"></p>
-                                        <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate" x-text="Array.isArray(u.roles) ? u.roles.join(', ') : (u.roles || '')"></p>
+                                        <div class="flex items-center justify-between gap-1">
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="u.nombre"></p>
+                                                <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate" x-text="Array.isArray(u.roles) ? u.roles.join(', ') : (u.roles || '')"></p>
+                                            </div>
+                                            <button type="button" @click="abrirAsignacionMasiva(u)"
+                                                    class="min-h-[36px] min-w-[36px] flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                    aria-label="Asignar turno en bloque">
+                                                <i data-lucide="calendar-range" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                     <template x-for="(d, idx) in dias" :key="idx">
                                         <td class="border-l border-gray-200 dark:border-gray-700 p-1 align-middle">
@@ -286,6 +313,7 @@ function turnosApp() {
             { valor: 'Admin', label: 'Admins' },
         ],
         asignacionesPorDia: {},
+        festivosPorFecha: {},
         lunesSemana: null,
         popoverAbierto: false,
         popoverGuardando: false,
@@ -384,6 +412,32 @@ function turnosApp() {
                 this.cargandoAsignacion = false;
                 this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
             }
+            this.cargarFestivosVisibles();
+        },
+
+        async cargarFestivosVisibles() {
+            if (this.dias.length === 0) return;
+            try {
+                const res = await apiFetch('/api/festivos?desde=' + this.dias[0] + '&hasta=' + this.dias[this.dias.length - 1]);
+                this.festivosPorFecha = {};
+                if (res.ok) {
+                    for (const f of (res.data?.festivos || [])) this.festivosPorFecha[f.fecha] = f.nombre;
+                }
+            } catch (e) {
+                // Silencioso: es solo informativo, no bloquea la asignación de turnos.
+            }
+        },
+
+        esDomingo(fecha) {
+            return new Date(fecha + 'T12:00:00').getDay() === 0;
+        },
+
+        esDomingoOFestivo(fecha) {
+            return this.esDomingo(fecha) || !!this.festivosPorFecha[fecha];
+        },
+
+        festivoNombre(fecha) {
+            return this.festivosPorFecha[fecha] || null;
         },
 
         asignacion(usuarioId, fecha) {
@@ -406,6 +460,23 @@ function turnosApp() {
 
         cerrarPopover() {
             this.popoverAbierto = false;
+        },
+
+        abrirAsignacionMasiva(u) {
+            window.dispatchEvent(new CustomEvent('abrir-modal-turno-masivo', {
+                detail: { usuarioId: u.id, usuarioNombre: u.nombre, catalogoActivos: this.catalogoActivos },
+            }));
+        },
+
+        onTurnoMasivoGuardado(detalle) {
+            this.cargarAsignacion();
+            const cantidadAsignada = detalle?.cantidadAsignada ?? 0;
+            const cantidadExcluida = detalle?.cantidadExcluida ?? 0;
+            let mensaje = `Turno asignado en ${cantidadAsignada} día${cantidadAsignada === 1 ? '' : 's'}.`;
+            if (cantidadExcluida > 0) {
+                mensaje += ` ${cantidadExcluida} excluido${cantidadExcluida === 1 ? '' : 's'} por descanso.`;
+            }
+            this.mostrarToast(mensaje);
         },
 
         async asignarCelda(turnoId) {

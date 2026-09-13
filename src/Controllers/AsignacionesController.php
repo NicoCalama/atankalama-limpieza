@@ -143,7 +143,16 @@ final class AsignacionesController
         // ni elegir a mano cuál hacer primero (cherry-picking). Las supervisoras
         // (con habitaciones.ver_todas) siguen recibiendo la cola completa para
         // gestionar el orden. Ver docs/backlog-futuro.md ("gap e").
-        if ($solicitante->tienePermiso('habitaciones.ver_todas')) {
+        //
+        // Excepción explícita: la página /limpieza/habitaciones pide su PROPIA cola
+        // completa (todos los estados del día) con ?vista=completa, para que el
+        // trabajador vea todo lo que tiene asignado. Esto NO reabre el cherry-picking:
+        // el candado de orden real sigue en ChecklistService::iniciarEjecucion()
+        // (exigirOrden), que rechaza iniciar una pieza que no sea la actual aunque
+        // aparezca en este listado.
+        $vistaCompleta = $esPropia && (($request->query['vista'] ?? null) === 'completa');
+
+        if ($solicitante->tienePermiso('habitaciones.ver_todas') || $vistaCompleta) {
             $cola = $this->svc->colaDelTrabajador($usuarioId, $fechaStr);
         } else {
             $actual = $this->svc->habitacionActualDeCola($usuarioId, $fechaStr);

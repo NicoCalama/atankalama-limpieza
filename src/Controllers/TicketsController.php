@@ -34,6 +34,7 @@ final class TicketsController
             'hotel' => is_string($request->query['hotel'] ?? null) ? (string) $request->query['hotel'] : null,
             'estado' => is_string($request->query['estado'] ?? null) ? (string) $request->query['estado'] : null,
         ];
+        $alcance = is_string($request->query['alcance'] ?? null) ? (string) $request->query['alcance'] : null;
         if (!$request->usuario->tienePermiso('tickets.ver_todos')) {
             if (!$request->usuario->tienePermiso('tickets.ver_propios')) {
                 return Response::error('PERMISO_INSUFICIENTE', 'No tienes permiso para ver tickets.', 403);
@@ -42,12 +43,21 @@ final class TicketsController
             // asignados a mí, no los que yo creé; "sin_asignar" = los que nadie ha tomado
             // todavía, para poder tomarlos ("todos los tickets pueden ser tomados por
             // cualquier persona"). Ver TicketService::listar().
-            $alcance = is_string($request->query['alcance'] ?? null) ? (string) $request->query['alcance'] : 'mios';
-            if ($alcance === 'sin_asignar') {
+            if (($alcance ?? 'mios') === 'sin_asignar') {
                 $filtros['sin_asignar'] = true;
             } else {
                 $filtros['asignado_a'] = $request->usuario->id;
             }
+        } elseif ($alcance === 'sin_asignar') {
+            // Quien gestiona (Supervisora/Recepción/Admin, mismo permiso tickets.ver_todos)
+            // también puede filtrar por "sin asignar" — default de tickets.php para no
+            // perder de vista los tickets que nadie ha tomado. Cualquier otro valor
+            // ('todos', ausente) no filtra por asignación: se ve todo, como hasta ahora.
+            $filtros['sin_asignar'] = true;
+        } elseif ($alcance === 'mios') {
+            // Roles con ver_todos que además ejecutan tickets (ej. Mantenimiento) también
+            // quieren su "Asignados a mí" — ver alcanceFiltroGestion en tickets.php.
+            $filtros['asignado_a'] = $request->usuario->id;
         }
         $tickets = $this->svc->listar($filtros);
         return Response::ok(['tickets' => $tickets, 'total' => count($tickets)]);
@@ -66,12 +76,74 @@ final class TicketsController
         if ($request->usuario === null) {
             return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
         }
-        if (!$request->usuario->tienePermiso('tickets.ver_todos')
-            && $ticket->levantadoPor !== $request->usuario->id
-            && $ticket->asignadoA !== $request->usuario->id) {
+        if (!$this->puedeVerTicket($request, $ticket)) {
             return Response::error('PERMISO_INSUFICIENTE', 'No puedes ver este ticket.', 403);
         }
         return Response::ok(['ticket' => $ticket->toArray(), 'adjuntos' => $this->svc->adjuntosDe($id)]);
+    }
+
+    /**
+     * GET /api/tickets/{id}/comentarios — mismo criterio de acceso que obtener(): dueño,
+     * asignado, o tickets.ver_todos.
+     */
+    public function comentarios(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ticket_id inválido.', 400);
+        }
+        $ticket = $this->svc->obtener($id);
+        if ($ticket === null) {
+            return Response::error('TICKET_NO_ENCONTRADO', 'Ticket no encontrado.', 404);
+        }
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        if (!$this->puedeVerTicket($request, $ticket)) {
+            return Response::error('PERMISO_INSUFICIENTE', 'No puedes ver este ticket.', 403);
+        }
+        return Response::ok(['comentarios' => $this->svc->comentariosDe($id)]);
+    }
+
+    /**
+     * POST /api/tickets/{id}/comentarios — mismo criterio de acceso que obtener(): quien
+     * puede ver el ticket puede comentarlo. No exige un permiso aparte (decisión de
+     * simplicidad, ver plan).
+     */
+    public function comentar(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ticket_id inválido.', 400);
+        }
+        $ticket = $this->svc->obtener($id);
+        if ($ticket === null) {
+            return Response::error('TICKET_NO_ENCONTRADO', 'Ticket no encontrado.', 404);
+        }
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        if (!$this->puedeVerTicket($request, $ticket)) {
+            return Response::error('PERMISO_INSUFICIENTE', 'No puedes comentar este ticket.', 403);
+        }
+        $comentario = $request->inputString('comentario', '');
+        $avisar = (bool) $request->input('avisar_supervisora', false);
+        try {
+            $comentarios = $this->svc->comentar($id, $request->usuario->id, $comentario, $avisar);
+        } catch (TicketException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['comentarios' => $comentarios]);
+    }
+
+    /** Dueño, asignado, o tickets.ver_todos — ver obtener(), comentarios() y comentar(). */
+    private function puedeVerTicket(Request $request, Ticket $ticket): bool
+    {
+        return $request->usuario !== null && (
+            $request->usuario->tienePermiso('tickets.ver_todos')
+            || $ticket->levantadoPor === $request->usuario->id
+            || $ticket->asignadoA === $request->usuario->id
+        );
     }
 
     /**
@@ -93,8 +165,21 @@ final class TicketsController
         $hotelId = $request->inputInt('hotel_id');
         $titulo = $request->inputString('titulo');
         $descripcion = $request->inputString('descripcion');
-        $prioridad = $request->inputString('prioridad', Ticket::PRIORIDAD_NORMAL);
+        $prioridadSolicitada = $request->inputString('prioridad', Ticket::PRIORIDAD_NORMAL);
+        // Igual que asignado_a abajo: fijar la prioridad al crear (no la de por defecto)
+        // exige tickets.editar_prioridad. El resto de los roles reporta siempre en 'normal'
+        // y el triage lo hace después quien tenga el permiso.
+        $prioridad = $request->usuario->tienePermiso('tickets.editar_prioridad')
+            ? $prioridadSolicitada
+            : Ticket::PRIORIDAD_NORMAL;
         $habitacionId = $request->inputInt('habitacion_id');
+        // Asignación inmediata al crear: solo quien ya puede asignar tickets ajenos
+        // (tickets.ver_todos, mismo permiso que gatea /asignar) puede fijar el
+        // responsable en este paso. Si un Trabajador manda asignado_a igual, se ignora
+        // en silencio en vez de dar error — el campo simplemente no aplica para su rol.
+        $asignadoA = $request->usuario->tienePermiso('tickets.ver_todos')
+            ? $request->inputInt('asignado_a')
+            : null;
         // Fase 1 del plan de idempotencia: UUID generado por el cliente, uno por intento de
         // envío (se reusa en los reintentos del mismo envío, no en un ticket nuevo). Formato
         // libre pero acotado — si viene vacío o absurdamente largo, se ignora (columna
@@ -115,7 +200,7 @@ final class TicketsController
 
         $tInsertar = microtime(true);
         try {
-            $ticket = $this->svc->crear($hotelId, $titulo, $descripcion, $prioridad, $request->usuario->id, $habitacionId, $idempotencyKey);
+            $ticket = $this->svc->crear($hotelId, $titulo, $descripcion, $prioridad, $request->usuario->id, $habitacionId, $idempotencyKey, $asignadoA);
         } catch (TicketException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -214,7 +299,11 @@ final class TicketsController
 
     public function usuariosAsignables(Request $request): Response
     {
-        return Response::ok(['usuarios' => $this->svc->usuariosActivos()]);
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $soloTrabajadores = !$request->usuario->tienePermiso('tickets.asignar_a_cualquier_perfil');
+        return Response::ok(['usuarios' => $this->svc->usuariosActivos($soloTrabajadores)]);
     }
 
     public function asignar(Request $request): Response
@@ -247,8 +336,39 @@ final class TicketsController
             }
         }
 
+        // Designar a un tercero que NO es Trabajador exige tickets.asignar_a_cualquier_perfil
+        // (solo Admin). Supervisora y Recepción asignan únicamente a personal de terreno.
+        // Autoasignarse ("Tomar") queda exento: no es designar a otro.
+        if ($usuarioId !== $request->usuario->id
+            && !$request->usuario->tienePermiso('tickets.asignar_a_cualquier_perfil')
+            && !$this->svc->esTrabajador($usuarioId)) {
+            return Response::error(
+                'PERFIL_NO_ASIGNABLE',
+                'Solo puedes asignar tickets a usuarios con perfil Trabajador.',
+                403
+            );
+        }
+
         try {
             $ticket = $this->svc->asignar($id, $usuarioId, $request->usuario->id);
+        } catch (TicketException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['ticket' => $ticket->toArray()]);
+    }
+
+    public function cambiarPrioridad(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $id = $request->rutaInt('id');
+        $prioridad = $request->inputString('prioridad', '');
+        if ($id === null || $prioridad === '') {
+            return Response::error('PARAMETROS_INVALIDOS', 'id y prioridad son requeridos.', 400);
+        }
+        try {
+            $ticket = $this->svc->cambiarPrioridad($id, $prioridad, $request->usuario->id);
         } catch (TicketException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

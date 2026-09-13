@@ -14,6 +14,8 @@ $_ENV['APP_ENV'] = 'testing';
 $_ENV['APP_DEBUG'] = 'true';
 $_ENV['APP_TIMEZONE'] = 'America/Santiago';
 $_ENV['SESSION_LIFETIME_MINUTES'] = '480';
+// Sin delay antifraude en tests: completan la limpieza al instante (en prod son 180s).
+$_ENV['CHECKLIST_DELAY_MINIMO_SEGUNDOS'] = '0';
 // Suite determinista: la raíz siempre, aunque el .env local tenga BASE_PATH.
 $_ENV['BASE_PATH'] = '';
 

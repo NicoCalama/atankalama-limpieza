@@ -39,6 +39,7 @@
 .chip-estado-en_progreso-activo { background-color: var(--ce-en_progreso-solid, #3b82f6); color: #fff; border-color: var(--ce-en_progreso-solid, #3b82f6); }
 .chip-estado-completada_pendiente_auditoria-activo { background-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); color: #fff; border-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); }
 .chip-estado-aprobada-activo { background-color: var(--ce-aprobada-solid, #22c55e); color: #fff; border-color: var(--ce-aprobada-solid, #22c55e); }
+.chip-estado-aprobada_con_observacion-activo { background-color: var(--ce-aprobada_con_observacion-solid, #22c55e); color: #fff; border-color: var(--ce-aprobada_con_observacion-solid, #22c55e); }
 .chip-estado-rechazada-activo { background-color: var(--ce-rechazada-solid, #ef4444); color: #fff; border-color: var(--ce-rechazada-solid, #ef4444); }
 
 /* Franja de estado al pie de la ficha de habitación: relleno sólido con el color

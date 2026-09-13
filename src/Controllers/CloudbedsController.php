@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Controllers;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\CloudbedsClient;
+use Atankalama\Limpieza\Services\CloudbedsException;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HotelService;
 
@@ -47,7 +48,11 @@ final class CloudbedsController
             $hotelId = $hotel->id;
         }
 
-        $syncId = $this->servicio()->sincronizar($hotelId, 'manual', $request->usuario?->id);
+        try {
+            $syncId = $this->servicio()->sincronizar($hotelId, 'manual', $request->usuario?->id);
+        } catch (CloudbedsException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
         $fila = $this->servicio()->obtenerHistorial($syncId);
         return Response::ok(['sync_id' => $syncId, 'sync' => $fila], 202);
     }

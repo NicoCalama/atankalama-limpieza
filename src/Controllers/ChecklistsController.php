@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\ChecklistService;
+use Atankalama\Limpieza\Services\HabitacionException;
 
 final class ChecklistsController
 {
@@ -138,7 +139,7 @@ final class ChecklistsController
 
         try {
             $ejec = $this->svc->iniciarEjecucion($habitacionId, $request->usuario->id, $fecha, $exigirOrden);
-        } catch (ChecklistException $e) {
+        } catch (ChecklistException | HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
         return Response::ok(['ejecucion' => $ejec->toArrayPublico()], 201);
@@ -211,7 +212,7 @@ final class ChecklistsController
 
         try {
             $this->svc->completar($ejecId, $request->usuario->id);
-        } catch (ChecklistException $e) {
+        } catch (ChecklistException | HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
@@ -242,7 +243,7 @@ final class ChecklistsController
 
         try {
             $res = $this->svc->saltarEjecucion($habitacionId, $request->usuario->id, $motivo, $fecha);
-        } catch (ChecklistException $e) {
+        } catch (ChecklistException | HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
         return Response::ok(['saltada' => true, 'habitacion_id' => $res['habitacion_id']]);

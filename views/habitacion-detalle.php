@@ -18,10 +18,20 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 <div x-data="habitacionDetalleApp(<?= (int) $habitacionId ?>, <?= (int) $usuario->id ?>)"
      x-init="cargar(); iniciarListeners();">
 
+    <?php /* Bandera para la Vista Guiada: gatea el recorrido «Dar por limpia» (solo supervisión). */ ?>
+    <div data-vg-context='{"puede_marcar_limpia": <?= $usuario->tienePermiso('habitaciones.marcar_limpia_manual') ? 'true' : 'false' ?>}' hidden></div>
+
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-3xl mx-auto gap-3">
-            <a href="<?= u('/habitaciones') ?>"
+            <?php
+            // El listado /habitaciones exige habitaciones.ver_todas (su API lo pide);
+            // un Trabajador no lo tiene y esa página le queda en "Error al cargar" sin
+            // salida — sobre todo grave como PWA instalada en el celular, sin chrome de
+            // navegador con botón atrás. Vuelve a /home, que sí es válido para cualquiera.
+            $volverA = $usuario->tienePermiso('habitaciones.ver_todas') ? '/habitaciones' : '/home';
+            ?>
+            <a href="<?= u($volverA) ?>"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                aria-label="Volver">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -111,11 +121,120 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                 </div>
 
-                <!-- CTA: Comenzar limpieza (sucia + asignada) -->
-                <template x-if="habitacion.estado === 'sucia' && estaAsignada && !esAuditada">
+                <!-- Nota de Recepción para la mucama: instrucción puntual para esta limpieza
+                     (ej. "cliente pidió cama extra"). Se limpia sola al completar la limpieza. -->
+                <template x-if="habitacion.nota_recepcion">
+                    <div class="mt-3 rounded-lg p-3 border bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700">
+                        <div class="flex items-start gap-2">
+                            <i data-lucide="sticky-note" class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"></i>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-xs font-semibold text-blue-900 dark:text-blue-200 uppercase tracking-wide">Nota de Recepción</p>
+                                <p class="text-sm text-blue-900 dark:text-blue-100 mt-0.5 whitespace-pre-wrap" x-text="habitacion.nota_recepcion"></p>
+                            </div>
+                            <template x-if="puedeAgregarNota">
+                                <button @click="quitarNota()" :disabled="notaEnviando" aria-label="Quitar nota"
+                                        class="flex-shrink-0 text-blue-400 hover:text-red-600 dark:hover:text-red-400 transition">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Agregar/editar nota — solo Recepción/Supervisora/Admin (habitaciones.agregar_nota) -->
+                <template x-if="puedeAgregarNota && !editandoNota">
+                    <button @click="editandoNota = true; formNota = habitacion.nota_recepcion || ''"
+                            class="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                        <span x-text="habitacion.nota_recepcion ? 'Editar nota' : 'Agregar nota para la mucama'"></span>
+                    </button>
+                </template>
+                <template x-if="puedeAgregarNota && editandoNota">
+                    <div class="mt-3 space-y-2">
+                        <textarea x-model="formNota" maxlength="500" rows="2" placeholder="Ej: cliente pidió cama extra"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
+                        <div class="flex gap-2">
+                            <button @click="editandoNota = false"
+                                    class="flex-1 min-h-[40px] px-3 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                                Cancelar
+                            </button>
+                            <button @click="guardarNota()" :disabled="notaEnviando || !formNota.trim()"
+                                    class="flex-1 min-h-[40px] px-3 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50">
+                                <span x-text="notaEnviando ? 'Guardando...' : 'Guardar nota'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Ocupación Cloudbeds: aviso visual (no bloquea) + actualizar antes de entrar -->
+                <template x-if="habitacion.cb_ocupada === true || puedeSincronizar">
+                    <div class="mt-3 rounded-lg p-3 border"
+                         :class="habitacion.cb_ocupada === true
+                             ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                             : 'bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-600'">
+                        <template x-if="habitacion.cb_ocupada === true">
+                            <div class="flex items-start gap-2 mb-2">
+                                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>
+                                <p class="text-sm font-medium text-amber-900 dark:text-amber-200">Cloudbeds indica huésped en la pieza — verifica antes de entrar.</p>
+                            </div>
+                        </template>
+
+                        <!-- Huésped/empresa (cb_huesped, texto libre de Cloudbeds) + fechas de
+                             ingreso/salida (cb_arrival_date/cb_departure_date). Solo si hay algún
+                             dato — pieza sin reserva activa no muestra nada acá. -->
+                        <template x-if="habitacion.cb_huesped || habitacion.cb_arrival_date || habitacion.cb_departure_date">
+                            <div class="mb-2 space-y-1">
+                                <template x-if="habitacion.cb_huesped">
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 inline-flex items-start gap-1.5">
+                                        <i data-lucide="user" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i>
+                                        <span x-text="habitacion.cb_huesped"></span>
+                                    </p>
+                                </template>
+                                <template x-if="habitacion.cb_arrival_date || habitacion.cb_departure_date">
+                                    <p class="text-sm text-gray-700 dark:text-gray-300 inline-flex items-center gap-1.5">
+                                        <i data-lucide="calendar" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                                        <span>
+                                            Ingreso <span x-text="fechaCorta(habitacion.cb_arrival_date) || '—'"></span>
+                                            · Salida <span x-text="fechaCorta(habitacion.cb_departure_date) || '—'"></span>
+                                        </span>
+                                    </p>
+                                </template>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400" x-text="textoUltimaSync || 'Sin dato de ocupación de Cloudbeds.'"></p>
+                            <template x-if="puedeSincronizar">
+                                <button @click="sincronizarAhora()" :disabled="sincronizando"
+                                        class="shrink-0 min-h-[32px] px-2.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 inline-flex items-center gap-1">
+                                    <span :class="sincronizando ? 'animate-spin' : ''" class="inline-flex">
+                                        <i data-lucide="cloud-download" class="w-3.5 h-3.5"></i>
+                                    </span>
+                                    <span x-text="sincronizando ? 'Actualizando...' : 'Actualizar ahora'"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- CTA: Comenzar limpieza (sucia o rechazada + asignada). 'rechazada'
+                     reabre: iniciarEjecucion() la acepta igual que 'sucia' y crea una
+                     ejecución nueva (empieza de cero). -->
+                <template x-if="(habitacion.estado === 'sucia' || habitacion.estado === 'rechazada') && estaAsignada && !esAuditada">
                     <button @click="iniciar()" :disabled="iniciando" data-tour="hab.comenzar"
                             class="w-full min-h-[56px] mt-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white text-lg font-semibold rounded-xl transition shadow-sm">
-                        <span x-text="iniciando ? 'Iniciando...' : 'Comenzar limpieza'"></span>
+                        <span x-text="iniciando ? 'Iniciando...' : (habitacion.estado === 'rechazada' ? 'Volver a limpiar' : 'Comenzar limpieza')"></span>
+                    </button>
+                </template>
+
+                <!-- Válvula de escape desde 'sucia'/'rechazada': no pasa por el checklist,
+                     abre el mismo modal de "No puedo terminar esta ahora" (ver saltar()).
+                     Pensada para el aviso de ocupación de arriba: si el huésped no ha
+                     salido, postergar sin tener que tocar "Comenzar limpieza" primero. -->
+                <template x-if="(habitacion.estado === 'sucia' || habitacion.estado === 'rechazada') && estaAsignada && !esAuditada">
+                    <button @click="mostrarSaltar = true"
+                            class="w-full min-h-[44px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
+                        No puedo entrar ahora
                     </button>
                 </template>
 
@@ -147,6 +266,18 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             Reasignar a un trabajador
                         </a>
                     </div>
+                </template>
+
+                <!-- Atajo administrativo: marcar limpia sin checklist (Admin/Supervisora) -->
+                <template x-if="puedeMarcarLimpia && ['sucia', 'en_progreso', 'rechazada'].includes(habitacion.estado)">
+                    <button type="button" @click="mostrarMarcarLimpia = true" data-tour="hab.marcar-limpia"
+                            class="w-full min-h-[48px] mt-3 inline-flex items-center justify-center gap-2
+                                   bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600
+                                   text-gray-700 dark:text-gray-200 rounded-xl font-medium text-sm
+                                   hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-emerald-600"></i>
+                        Marcar como limpia
+                    </button>
                 </template>
             </div>
 
@@ -200,9 +331,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <!-- Botón "Habitación terminada" -->
                     <template x-if="puedeEditar">
                         <button @click="confirmarCompletar()" data-tour="hab.terminar"
-                                :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente"
+                                :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente || delayRestante > 0"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-xl transition shadow-sm">
-                            <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada'))"></span>
+                            <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : (delayRestante > 0 ? 'Puedes terminar en ' + textoDelayRestante() : 'Habitación terminada')))"></span>
                         </button>
                     </template>
 
@@ -223,7 +354,15 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
                         <i data-lucide="history" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Historial de limpiezas</h2>
-                        <span class="text-xs text-gray-400" x-text="historial.length ? historial.length : ''"></span>
+                        <span class="text-xs text-gray-400" x-text="historial.length ? 'últimas ' + historial.length : ''"></span>
+                        <!-- En pantalla solo se ven las últimas 20 (tope del backend); acá se
+                             baja el historial completo. -->
+                        <template x-if="historial.length > 0">
+                            <a :href="u('/api/habitaciones/' + habitacionId + '/historial/exportar')"
+                               class="ml-auto shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Excel
+                            </a>
+                        </template>
                     </div>
                     <template x-if="historial.length === 0">
                         <p class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Esta habitación aún no registra limpiezas.</p>
@@ -245,6 +384,60 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                             Auditada por <span x-text="h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
                                         </p>
                                     </template>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </template>
+
+            <!-- Historial de movimientos: cambios de estado manuales (menú contextual de
+                 /habitaciones: marcar limpia/sucia, "cliente no desea aseo") y automáticos
+                 (sync Cloudbeds, cron nochero). Viene de audit_log — HabitacionService::
+                 cambiarEstado() ya escribe ahí en CADA cambio. Mismo permiso que el
+                 historial de limpiezas: habitaciones.ver_historial. -->
+            <template x-if="puedeVerHistorial">
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                        <i data-lucide="git-commit-horizontal" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Historial de movimientos</h2>
+                        <span class="text-xs text-gray-400" x-text="movimientos.length ? 'últimos ' + movimientos.length : ''"></span>
+                        <!-- En pantalla solo se ven los últimos 20 (tope del backend); acá se
+                             baja el historial completo. -->
+                        <template x-if="movimientos.length > 0">
+                            <a :href="u('/api/habitaciones/' + habitacionId + '/movimientos/exportar')"
+                               class="ml-auto shrink-0 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Excel
+                            </a>
+                        </template>
+                    </div>
+                    <template x-if="movimientos.length === 0">
+                        <p class="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Esta habitación aún no registra movimientos.</p>
+                    </template>
+                    <template x-if="movimientos.length > 0">
+                        <ul>
+                            <template x-for="m in movimientos" :key="m.id">
+                                <li class="px-4 py-3 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <!-- Mensaje de Recepción (tipo 'nota'): el texto quedó en audit_log aunque
+                                             la nota ya se haya borrado sola de la ficha al completar. -->
+                                        <template x-if="m.tipo === 'nota'">
+                                            <p class="text-sm text-gray-900 dark:text-gray-100 flex items-center gap-1.5 min-w-0">
+                                                <i data-lucide="sticky-note" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                                                <span class="truncate" x-text="m.mensaje"></span>
+                                            </p>
+                                        </template>
+                                        <template x-if="m.tipo !== 'nota'">
+                                            <p class="text-sm flex items-center gap-1.5 flex-wrap">
+                                                <span x-html="badgeEstado(m.desde)"></span>
+                                                <i data-lucide="arrow-right" class="w-3 h-3 text-gray-400"></i>
+                                                <span x-html="badgeEstado(m.hasta)"></span>
+                                            </p>
+                                        </template>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="fechaHistorial(m.created_at)"></span>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+                                       x-text="m.usuario_nombre || 'Automático (sync Cloudbeds / cron)'"></p>
                                 </li>
                             </template>
                         </ul>
@@ -327,6 +520,28 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </div>
             </div>
 
+            <!-- Modal confirmación marcar limpia manual (Admin/Supervisora) -->
+            <div x-show="mostrarMarcarLimpia" x-cloak
+                 class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                 @click.self="mostrarMarcarLimpia = false">
+                <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Marcar como limpia?</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-5">
+                        Se registrará sin pasar por el checklist y quedará <strong>pendiente de auditoría</strong>, igual que una limpieza normal.
+                    </p>
+                    <div class="flex gap-3">
+                        <button @click="mostrarMarcarLimpia = false"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition">
+                            Cancelar
+                        </button>
+                        <button @click="marcarLimpiaManual()" :disabled="marcandoLimpia"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium rounded-lg transition">
+                            <span x-text="marcandoLimpia ? 'Guardando...' : 'Confirmar'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </template>
 </div>
@@ -346,15 +561,30 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         puedeAsignar: false,
         puedeVerHistorial: false,
         puedeReportar: false,
+        puedeMarcarLimpia: false,
+        puedeSincronizar: false,
+        puedeAgregarNota: false,
+        editandoNota: false,
+        formNota: '',
+        notaEnviando: false,
         historial: [],
+        movimientos: [],
 
         cargando: false,
         error: null,
         iniciando: false,
+        sincronizando: false,
         completando: false,
+        // Delay mínimo de 5 min antes de poder completar (piezas no-nochero). Conteo
+        // regresivo client-side derivado de delay_restante_segundos del backend — nunca
+        // se le muestra al trabajador un timestamp absoluto (ver estadoEjecucion()).
+        delayRestante: 0,
+        _delayTimer: null,
         mostrarConfirmar: false,
         mostrarSaltar: false,
         saltando: false,
+        mostrarMarcarLimpia: false,
+        marcandoLimpia: false,
         motivoSaltar: null,
         motivoOtro: '',
         motivosSaltar: ['Huésped no ha salido', 'Falta un insumo', 'Requiere mantención', 'Otro'],
@@ -363,10 +593,13 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         errorPermanente: false,
         _procesandoCola: false,
 
+        // 'rechazada' NO es un estado cerrado: el mismo trabajador puede reabrirla y
+        // volver a cerrarla (iniciarEjecucion() la acepta igual que 'sucia'). Solo
+        // aprobada/aprobada_con_observacion son historia inmutable.
         get esAuditada() {
             if (!this.habitacion) return false;
             var e = this.habitacion.estado;
-            return e === 'aprobada' || e === 'aprobada_con_observacion' || e === 'rechazada';
+            return e === 'aprobada' || e === 'aprobada_con_observacion';
         },
 
         get puedeEditar() {
@@ -397,6 +630,29 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             return !!this.motivoSaltar;
         },
 
+        // YYYY-MM-DD (cb_arrival_date/cb_departure_date) → DD/MM/YYYY, sin pasar por Date():
+        // son fechas sin hora, y Date() las interpreta en UTC — con la noche de Chile en UTC-3/-4
+        // eso corre el día mostrado. Se parsea el string tal cual.
+        fechaCorta(iso) {
+            if (!iso) return '';
+            var p = String(iso).split('-');
+            if (p.length !== 3) return iso;
+            return p[2] + '/' + p[1] + '/' + p[0];
+        },
+
+        // Antigüedad del dato de ocupación de Cloudbeds (cb_ocupacion_sync_at), para que
+        // la trabajadora sepa si vale la pena tocar "Actualizar ahora" antes de entrar.
+        get textoUltimaSync() {
+            if (!this.habitacion || !this.habitacion.cb_ocupacion_sync_at) return null;
+            var ms = Date.now() - new Date(this.habitacion.cb_ocupacion_sync_at).getTime();
+            if (isNaN(ms) || ms < 0) return null;
+            var min = Math.floor(ms / 60000);
+            if (min < 1) return 'Cloudbeds actualizado hace instantes.';
+            if (min < 60) return 'Cloudbeds actualizado hace ' + min + ' min.';
+            var horas = Math.floor(min / 60);
+            return 'Cloudbeds actualizado hace ' + horas + (horas === 1 ? ' hora.' : ' horas.');
+        },
+
         async cargar() {
             this.cargando = true;
             this.error = null;
@@ -409,6 +665,9 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     this.puedeAsignar = yo.tienePermiso('asignaciones.asignar_manual');
                     this.puedeVerHistorial = yo.tienePermiso('habitaciones.ver_historial');
                     this.puedeReportar = yo.tienePermiso('tickets.crear');
+                    this.puedeMarcarLimpia = yo.tienePermiso('habitaciones.marcar_limpia_manual');
+                    this.puedeSincronizar = yo.tienePermiso('cloudbeds.forzar_sincronizacion');
+                    this.puedeAgregarNota = yo.tienePermiso('habitaciones.agregar_nota');
                 }
 
                 var r1 = await apiFetch('/api/habitaciones/' + this.habitacionId);
@@ -446,6 +705,15 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                             this.puedeVerHistorial = true;
                         }
                     } catch (e) { /* sección opcional: sin historial no se rompe la página */ }
+
+                    // Historial de movimientos (cambios de estado manuales/automáticos):
+                    // mismo permiso que el historial de limpiezas, mismo criterio de "opcional".
+                    try {
+                        var rMov = await apiFetch('/api/habitaciones/' + this.habitacionId + '/movimientos');
+                        if (rMov && rMov.ok) {
+                            this.movimientos = rMov.data.movimientos || [];
+                        }
+                    } catch (e) { /* sección opcional: sin movimientos no se rompe la página */ }
                 }
 
                 // Cargar cola offline
@@ -477,11 +745,39 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                             return it;
                         });
                         this.progreso = rEjec.data.progreso;
+                        this.iniciarDelayRestante(rEjec.data.delay_restante_segundos || 0);
                     }
                 }
             } catch (e) {
                 // Silencioso — checklist no disponible para este rol/estado.
             }
+        },
+
+        // Arranca (o no) el conteo regresivo del delay mínimo para completar. Decrementa
+        // cada segundo del lado del cliente — no vuelve a pedirle nada al servidor hasta
+        // que el trabajador toque "Habitación terminada".
+        iniciarDelayRestante(segundos) {
+            if (this._delayTimer) {
+                clearInterval(this._delayTimer);
+                this._delayTimer = null;
+            }
+            this.delayRestante = segundos;
+            if (segundos <= 0) return;
+            var self = this;
+            this._delayTimer = setInterval(function () {
+                self.delayRestante = Math.max(0, self.delayRestante - 1);
+                if (self.delayRestante === 0) {
+                    clearInterval(self._delayTimer);
+                    self._delayTimer = null;
+                }
+            }, 1000);
+        },
+
+        // mm:ss para el botón "Habitación terminada" mientras corre el delay.
+        textoDelayRestante() {
+            var mm = Math.floor(this.delayRestante / 60);
+            var ss = this.delayRestante % 60;
+            return mm + ':' + (ss < 10 ? '0' : '') + ss;
         },
 
         async iniciar() {
@@ -505,6 +801,83 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             // Mismo contrato que home-trabajador.php: modal-ticket-nuevo.php (incluido
             // globalmente en layout.php) escucha este evento y precarga la habitación.
             window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: { habitacionId: this.habitacionId } }));
+        },
+
+        // Trae desde Cloudbeds el estado (ocupación incluida) de todas las habitaciones
+        // del hotel y recarga esta pieza. Mismo endpoint que "Sincronizar ahora" en
+        // /habitaciones; el servidor limita a 1 llamada cada 3 min por usuario (429 con
+        // mensaje de espera si se excede). Requiere cloudbeds.forzar_sincronizacion
+        // (el botón ya viene oculto sin el permiso; el endpoint también lo exige).
+        async sincronizarAhora() {
+            if (this.sincronizando) return;
+            this.sincronizando = true;
+            try {
+                var r = await apiPost('/api/cloudbeds/sync', {});
+                if (r.ok) {
+                    await this.cargar();
+                } else {
+                    alert((r.error && r.error.mensaje) || 'No se pudo sincronizar con Cloudbeds.');
+                }
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.sincronizando = false;
+            }
+        },
+
+        async guardarNota() {
+            var texto = this.formNota.trim();
+            if (!texto || this.notaEnviando) return;
+            this.notaEnviando = true;
+            try {
+                var r = await apiPost('/api/habitaciones/' + this.habitacionId + '/nota', { nota: texto });
+                if (r && r.ok) {
+                    this.habitacion.nota_recepcion = r.data.habitacion.nota_recepcion;
+                    this.editandoNota = false;
+                } else {
+                    alert((r && r.error && r.error.mensaje) || 'No pudimos guardar la nota.');
+                }
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.notaEnviando = false;
+            }
+        },
+
+        async quitarNota() {
+            if (this.notaEnviando) return;
+            if (!confirm('¿Quitar la nota de esta habitación?')) return;
+            this.notaEnviando = true;
+            try {
+                var r = await apiFetch('/api/habitaciones/' + this.habitacionId + '/nota', { method: 'DELETE' });
+                if (r && r.ok) {
+                    this.habitacion.nota_recepcion = null;
+                } else {
+                    alert((r && r.error && r.error.mensaje) || 'No pudimos quitar la nota.');
+                }
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.notaEnviando = false;
+            }
+        },
+
+        async marcarLimpiaManual() {
+            if (this.marcandoLimpia) return;
+            this.marcandoLimpia = true;
+            try {
+                var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/marcar-limpia', {});
+                if (json && json.ok) {
+                    this.mostrarMarcarLimpia = false;
+                    await this.cargar();
+                } else {
+                    alert((json && json.error && json.error.mensaje) || 'No pudimos marcarla como limpia.');
+                }
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.marcandoLimpia = false;
+            }
         },
 
         esHeredado(item) {
@@ -720,6 +1093,18 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             this.saltando = true;
             var motivo = this.motivoSaltar === 'Otro' ? this.motivoOtro.trim() : this.motivoSaltar;
             try {
+                // Si todavía está 'sucia' (el botón "No puedo entrar ahora" se abrió sin
+                // pasar por "Comenzar limpieza"), /saltar no tiene ejecución que saltar —
+                // primero hay que abrirla con /iniciar (idempotente). Mismo patrón que
+                // home-trabajador.php::confirmarSaltar(): mismo backend, misma regla de
+                // negocio, sin duplicar lógica.
+                if (this.habitacion.estado !== 'en_progreso') {
+                    var rIniciar = await apiPost('/api/habitaciones/' + this.habitacionId + '/iniciar', {});
+                    if (!rIniciar || !rIniciar.ok) {
+                        alert((rIniciar && rIniciar.error && rIniciar.error.mensaje) || 'No pudimos abrir la habitación.');
+                        return;
+                    }
+                }
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/saltar', { motivo: motivo });
                 if (json && json.ok) {
                     this.mostrarSaltar = false;

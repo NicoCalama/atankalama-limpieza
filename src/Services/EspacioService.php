@@ -231,6 +231,51 @@ final class EspacioService
     }
 
     /**
+     * CSV (BOM + ';', mismo formato que el resto de reportes de la app — "Excel" en la UI)
+     * de los espacios listados, respetando el filtro de hotel.
+     */
+    public function exportarCsv(?string $hotel = 'ambos'): string
+    {
+        $espacios = $this->listar($hotel);
+
+        $hotelLabel = match ($hotel) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama Inn',
+            default => 'Ambos hoteles',
+        };
+        $etiquetasEstado = [
+            'aprobada'    => 'Listo',
+            'sucia'       => 'Limpieza pendiente',
+            'en_progreso' => 'En limpieza',
+        ];
+
+        $rows = [];
+        $rows[] = ['Áreas comunes', $hotelLabel];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+        $rows[] = [];
+        $rows[] = ['Hotel', 'Nombre', 'Estado', 'Ítems', 'Créditos'];
+        foreach ($espacios as $e) {
+            $rows[] = [
+                $e['hotel_nombre'],
+                $e['numero'],
+                $etiquetasEstado[$e['estado']] ?? $e['estado'],
+                (int) $e['items_count'],
+                (int) $e['creditos_total'],
+            ];
+        }
+
+        $output = "\xEF\xBB\xBF";
+        foreach ($rows as $row) {
+            $cols = array_map(
+                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                $row
+            );
+            $output .= implode(';', $cols) . "\r\n";
+        }
+        return $output;
+    }
+
+    /**
      * Trabajadores con turno para una fecha (candidatos para pedir la limpieza de un espacio).
      *
      * @return list<array<string, mixed>>
