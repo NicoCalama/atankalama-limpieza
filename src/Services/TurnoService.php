@@ -134,7 +134,7 @@ final class TurnoService
             throw new TurnoException('RANGO_MUY_LARGO', 'El rango no puede superar los 60 días.', 400);
         }
         foreach ($diasExcluidos as $dia) {
-            if (!is_int($dia) || $dia < 0 || $dia > 6) {
+            if ($dia < 0 || $dia > 6) {
                 throw new TurnoException('DIA_EXCLUIDO_INVALIDO', 'dias_excluidos debe contener valores 0-6.', 400);
             }
         }

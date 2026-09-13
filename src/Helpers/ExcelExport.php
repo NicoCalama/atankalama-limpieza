@@ -20,6 +20,15 @@ final class ExcelExport
      */
     public static function responder(array $filas, string $nombreArchivo): Response
     {
+        // Anti CSV/Excel formula injection: SimpleXLSXGen escapa XML pero no neutraliza las
+        // celdas de texto que empiezan con = + - @ (o tab/CR), que Excel/Sheets ejecutarían
+        // como fórmula. Varias columnas llevan texto libre editable por el usuario (número de
+        // pieza, nombre, comentario de auditoría, nota de recepción), así que se sanean todas.
+        $filas = array_map(
+            static fn (array $fila): array => array_map([self::class, 'neutralizarFormula'], $fila),
+            $filas
+        );
+
         $xlsx = SimpleXLSXGen::fromArray($filas);
 
         // Nombre saneado: valores como numero de habitacion llegan aqui como texto libre
@@ -29,5 +38,17 @@ final class ExcelExport
 
         return (new Response(200, (string) $xlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
             ->conHeader('Content-Disposition', "attachment; filename=\"{$nombreSeguro}\"");
+    }
+
+    /**
+     * Antepone una comilla simple a las celdas de texto que empezarían una fórmula, para
+     * que Excel/Sheets las traten como texto. Los números (int/float) y null pasan intactos.
+     */
+    private static function neutralizarFormula(string|int|float|null $valor): string|int|float|null
+    {
+        if (!is_string($valor) || $valor === '') {
+            return $valor;
+        }
+        return in_array($valor[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'" . $valor : $valor;
     }
 }

@@ -246,7 +246,7 @@ final class AuditoriaService
      */
     public function reordenarBandeja(array $ordenHabitaciones, ?int $actorId = null): void
     {
-        foreach (array_values($ordenHabitaciones) as $idx => $habitacionId) {
+        foreach ($ordenHabitaciones as $idx => $habitacionId) {
             Database::execute(
                 'UPDATE #__habitaciones SET auditoria_orden = ? WHERE id = ?',
                 [$idx + 1, (int) $habitacionId]

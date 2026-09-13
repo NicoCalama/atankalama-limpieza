@@ -110,7 +110,7 @@ final class HabitacionService
         }
         // Mismo cast que listar()/es_nochero: MariaDB devuelve TINYINT como string ("0"/"1"),
         // truthy en JS. null se preserva (pieza nunca sincronizada con Cloudbeds).
-        $fila['cb_ocupada'] = isset($fila['cb_ocupada']) && $fila['cb_ocupada'] !== null
+        $fila['cb_ocupada'] = isset($fila['cb_ocupada'])
             ? ((int) $fila['cb_ocupada']) === 1
             : null;
         return $fila;

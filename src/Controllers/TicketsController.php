@@ -180,6 +180,20 @@ final class TicketsController
         $asignadoA = $request->usuario->tienePermiso('tickets.ver_todos')
             ? $request->inputInt('asignado_a')
             : null;
+        // Mismo guard que el endpoint /asignar: designar al crear a un tercero que NO es
+        // Trabajador exige tickets.asignar_a_cualquier_perfil. Sin esto, la asignación en la
+        // creación saltaba el control que sí aplica /asignar (la validación debe estar en el
+        // backend, no confiar solo en la UI). Autoasignarse queda exento.
+        if ($asignadoA !== null
+            && $asignadoA !== $request->usuario->id
+            && !$request->usuario->tienePermiso('tickets.asignar_a_cualquier_perfil')
+            && !$this->svc->esTrabajador($asignadoA)) {
+            return Response::error(
+                'PERFIL_NO_ASIGNABLE',
+                'Solo puedes asignar tickets a usuarios con perfil Trabajador.',
+                403
+            );
+        }
         // Fase 1 del plan de idempotencia: UUID generado por el cliente, uno por intento de
         // envío (se reusa en los reintentos del mismo envío, no en un ticket nuevo). Formato
         // libre pero acotado — si viene vacío o absurdamente largo, se ignora (columna

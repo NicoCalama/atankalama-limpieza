@@ -267,7 +267,16 @@ final class EspacioService
         $output = "\xEF\xBB\xBF";
         foreach ($rows as $row) {
             $cols = array_map(
-                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                function ($cell): string {
+                    $s = (string) $cell;
+                    // Anti CSV/Excel formula injection: una celda que empieza con = + - @ (o
+                    // tab/CR) puede ejecutarse como fórmula al abrir el CSV. Se antepone una
+                    // comilla simple para forzar que se trate como texto (ej. nombre del área).
+                    if ($s !== '' && in_array($s[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                        $s = "'" . $s;
+                    }
+                    return '"' . str_replace('"', '""', $s) . '"';
+                },
                 $row
             );
             $output .= implode(';', $cols) . "\r\n";
