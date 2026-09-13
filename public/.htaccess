@@ -1,5 +1,14 @@
 Options -Indexes
 
+# Límites de subida para fotos de tickets (3 fotos, hasta 12MB c/u antes de procesar).
+# El guard <IfModule mod_php.c> evita un 500 si el hosting corre PHP como FPM/CGI en
+# vez de mod_php (ahí esta directiva se ignora en vez de romper todo el sitio; hay que
+# subir el límite desde MultiPHP INI Editor de cPanel en ese caso).
+<IfModule mod_php.c>
+    php_value upload_max_filesize 15M
+    php_value post_max_size 40M
+</IfModule>
+
 RewriteEngine On
 
 # Archivos estáticos y directorios pasan directo

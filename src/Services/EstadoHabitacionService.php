@@ -35,7 +35,12 @@ final class EstadoHabitacionService
         ],
         Habitacion::ESTADO_APROBADA => [Habitacion::ESTADO_SUCIA],
         Habitacion::ESTADO_APROBADA_CON_OBSERVACION => [Habitacion::ESTADO_SUCIA],
-        Habitacion::ESTADO_RECHAZADA => [Habitacion::ESTADO_SUCIA],
+        // + EN_PROGRESO: el trabajador retoma la limpieza directo desde rechazada, sin pasar por
+        // 'sucia' (ChecklistService::iniciarEjecucion() ya lo acepta — ver AuditoriaService.php,
+        // comentario junto a la notificación de rechazo). Sin esto, aserciarTransicion() bloqueaba
+        // esa transición con TRANSICION_INVALIDA, una HabitacionException que el controller no
+        // atrapa y que el usuario veía como "Ocurrió un error inesperado.".
+        Habitacion::ESTADO_RECHAZADA => [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO],
     ];
 
     public function puedeTransicionar(string $actual, string $destino): bool

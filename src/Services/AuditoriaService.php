@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Models\Auditoria;
 use Atankalama\Limpieza\Models\EjecucionChecklist;
 use Atankalama\Limpieza\Models\AlertaActiva;
@@ -19,6 +20,7 @@ final class AuditoriaService
         private readonly ?CloudbedsSyncService $cloudbeds = null,
         private readonly AlertasService $alertas = new AlertasService(),
         private readonly PushService $push = new PushService(),
+        private readonly NotificacionesService $notificaciones = new NotificacionesService(),
     ) {
     }
 
@@ -189,10 +191,22 @@ final class AuditoriaService
         return $fila === null ? null : Auditoria::desdeFila($fila);
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Prioridad de la bandeja: nochero primero, luego "se va hoy" (checkout,
+     * cb_frontdesk_status ya sincronizado de Cloudbeds — mismo dato que usa el badge
+     * "Se va hoy" de habitaciones.php). Si la supervisora arrastró manualmente (ver
+     * reordenarBandeja()), auditoria_orden manda por sobre esa regla automática; las
+     * piezas nunca tocadas a mano (auditoria_orden NULL) caen después, ordenadas entre
+     * sí por la regla automática. Ver docs/auditoria.md.
+     *
+     * @return list<array<string, mixed>>
+     */
     public function bandejaPendientes(?string $hotelCodigo = null): array
     {
-        $sql = "SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre, ec.id AS ejecucion_id, ec.usuario_id AS trabajador_id
+        $sql = "SELECT h.id, h.numero, h.estado, h.es_nochero, h.auditoria_orden,
+                       (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
+                       ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre,
+                       ec.id AS ejecucion_id, ec.usuario_id AS trabajador_id
                   FROM #__habitaciones h
                   JOIN #__hoteles ho ON ho.id = h.hotel_id
                   JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
@@ -206,8 +220,41 @@ final class AuditoriaService
             $sql .= ' AND ho.codigo = ?';
             $params[] = $hotelCodigo;
         }
-        $sql .= ' ORDER BY ho.codigo, h.numero';
-        return Database::fetchAll($sql, $params);
+        $sql .= ' ORDER BY (h.auditoria_orden IS NULL) ASC, h.auditoria_orden ASC,
+                            h.es_nochero DESC, se_va_hoy DESC, ho.codigo, h.numero';
+        $filas = Database::fetchAll($sql, $params);
+        // Cast explícito: MariaDB devuelve TINYINT/expresiones booleanas como string
+        // ("0"/"1"), truthy en JS. Mismo patrón ya aplicado esta sesión en
+        // AsignacionService/HabitacionService para el mismo problema.
+        foreach ($filas as &$fila) {
+            $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
+            $fila['se_va_hoy'] = ((int) ($fila['se_va_hoy'] ?? 0)) === 1;
+            $fila['auditoria_orden'] = $fila['auditoria_orden'] !== null ? (int) $fila['auditoria_orden'] : null;
+        }
+        unset($fila);
+        return $filas;
+    }
+
+    /**
+     * Reorden manual de la bandeja (arrastrar en /auditoria): recibe el snapshot
+     * COMPLETO de ids pendientes en el nuevo orden (mismo patrón que
+     * AsignacionService::reordenarCola()) y persiste una posición explícita por
+     * habitación. Desde ahí, esa posición manda por sobre nochero/se-va-hoy — ver
+     * el ORDER BY de bandejaPendientes().
+     *
+     * @param list<int> $ordenHabitaciones
+     */
+    public function reordenarBandeja(array $ordenHabitaciones, ?int $actorId = null): void
+    {
+        foreach ($ordenHabitaciones as $idx => $habitacionId) {
+            Database::execute(
+                'UPDATE #__habitaciones SET auditoria_orden = ? WHERE id = ?',
+                [$idx + 1, (int) $habitacionId]
+            );
+        }
+        Logger::audit($actorId, 'auditoria.reordenar_bandeja', 'habitacion', null, [
+            'orden' => $ordenHabitaciones,
+        ]);
     }
 
     private function crearAlertaRechazo(int $habitacionId, int $trabajadorId, ?string $comentario): void
@@ -218,6 +265,19 @@ final class AuditoriaService
         );
         $numero      = $habFila['numero'] ?? '?';
         $hotelCodigo = $habFila['hotel_codigo'] ?? '';
+
+        // El trabajador asignado se entera acá — antes solo se avisaba a supervisoras.
+        // Reabrir la pieza es tarea suya: iniciarEjecucion() ya acepta ESTADO_RECHAZADA
+        // igual que 'sucia' (ver habitacion-detalle.php). El comentario del auditor viaja
+        // en el cuerpo para que sepa qué corregir sin depender de habitaciones.ver_historial
+        // (permiso que Trabajador no tiene).
+        $this->notificaciones->crear(
+            $trabajadorId,
+            'habitacion_rechazada',
+            "Habitación {$numero} rechazada",
+            $comentario ?? 'Revisa qué falta y vuelve a cerrarla.',
+            Url::a("/habitaciones/{$habitacionId}")
+        );
 
         $this->alertas->levantar(
             AlertaActiva::TIPO_HABITACION_RECHAZADA,

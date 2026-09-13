@@ -69,6 +69,15 @@ if ($hora < 12) {
                               x-text="$store.notif.sinLeer > 9 ? '9+' : $store.notif.sinLeer"></span>
                     </template>
                 </button>
+                <!-- Refrescar manual: en la app instalada en el celular no hay botón
+                     de refrescar del navegador disponible. -->
+                <button @click="cargar()" :disabled="cargando"
+                        class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+                        aria-label="Refrescar">
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="refresh-cw" class="w-6 h-6 text-gray-600 dark:text-gray-400"></i>
+                    </span>
+                </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
@@ -188,6 +197,12 @@ if ($hora < 12) {
                                    class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
                                     <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
                                 </a>
+                                <?php if ($usuario->tienePermiso('habitaciones.saltar')): ?>
+                                <button type="button" @click="abrirSaltar()" data-tour="htr.saltar"
+                                        class="block w-full min-h-[44px] mt-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
+                                    No puedo limpiarla ahora
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </template>
@@ -226,6 +241,49 @@ if ($hora < 12) {
 
         </main>
     </template>
+
+    <!-- Modal "No puedo limpiarla ahora" — mismo motivo/flujo que habitacion-detalle.php,
+         pero accesible directo desde la ficha del Home (sin entrar a la habitación). -->
+    <div x-show="mostrarSaltar" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+         @click.self="cerrarSaltar()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No puedo limpiarla ahora</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Elige un motivo. Se avisará a tu supervisora y esta habitación volverá más adelante a tu lista.
+            </p>
+            <div class="space-y-2 mb-4">
+                <template x-for="m in motivosSaltar" :key="m">
+                    <button type="button"
+                            @click="motivoSaltar = m"
+                            :class="motivoSaltar === m
+                                ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                            class="w-full min-h-[44px] text-left px-4 py-2 border rounded-lg text-sm font-medium transition">
+                        <span x-text="m"></span>
+                    </button>
+                </template>
+            </div>
+            <template x-if="motivoSaltar === 'Otro'">
+                <textarea x-model="motivoOtro" rows="2" maxlength="200"
+                          placeholder="Cuéntanos brevemente qué pasó"
+                          class="w-full mb-4 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"></textarea>
+            </template>
+            <template x-if="errorSaltar">
+                <p class="text-sm text-red-600 dark:text-red-400 mb-4" x-text="errorSaltar"></p>
+            </template>
+            <div class="flex gap-3">
+                <button @click="cerrarSaltar()" :disabled="saltando"
+                        class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition disabled:opacity-50">
+                    Cancelar
+                </button>
+                <button @click="confirmarSaltar()" :disabled="saltando || !motivoSaltarValido"
+                        class="flex-1 min-h-[44px] px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition">
+                    <span x-text="saltando ? 'Enviando...' : 'Confirmar'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -238,6 +296,17 @@ function homeTrabajador() {
         enviandoAviso: false,
         cerrando: false,
         _intervalId: null,
+        mostrarSaltar: false,
+        saltando: false,
+        motivoSaltar: null,
+        motivoOtro: '',
+        motivosSaltar: ['Huésped no ha salido', 'Falta un insumo', 'Requiere mantención', 'Otro'],
+        errorSaltar: null,
+
+        get motivoSaltarValido() {
+            if (this.motivoSaltar === 'Otro') return this.motivoOtro.trim().length > 0;
+            return !!this.motivoSaltar;
+        },
 
         async cargar() {
             this.cargando = true;
@@ -259,8 +328,8 @@ function homeTrabajador() {
         },
 
         iniciarRefresco() {
-            // Refresco cada 2 minutos
-            this._intervalId = setInterval(() => this.cargar(), 120000);
+            // Refresco automático cada 5 minutos
+            this._intervalId = setInterval(() => this.cargar(), 300000);
 
             // Detectar conexión
             window.addEventListener('online', () => { this.sinConexion = false; this.cargar(); });
@@ -299,6 +368,50 @@ function homeTrabajador() {
                 detail.habitacionId = this.data.habitacion_actual.id;
             }
             window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: detail }));
+        },
+
+        abrirSaltar() {
+            this.mostrarSaltar = true;
+            this.motivoSaltar = null;
+            this.motivoOtro = '';
+            this.errorSaltar = null;
+        },
+
+        cerrarSaltar() {
+            if (this.saltando) return;
+            this.mostrarSaltar = false;
+        },
+
+        // Salta la habitación actual sin pasar por su ficha de detalle. La habitación
+        // recién asignada todavía no tiene ejecución en progreso (el trabajador no llegó
+        // a tocar "Comenzar limpieza"), así que primero la abrimos con /iniciar —es
+        // idempotente, igual que hace habitacion-detalle.php al cargar— y recién ahí
+        // /saltar tiene algo que saltar. Mismo backend y mismas reglas de negocio que
+        // el flujo "No puedo terminar esta ahora" del detalle; no se duplica lógica.
+        async confirmarSaltar() {
+            if (this.saltando || !this.motivoSaltarValido || !this.data || !this.data.habitacion_actual) return;
+            this.saltando = true;
+            this.errorSaltar = null;
+            var habitacionId = this.data.habitacion_actual.id;
+            var motivo = this.motivoSaltar === 'Otro' ? this.motivoOtro.trim() : this.motivoSaltar;
+            try {
+                var rIniciar = await apiPost('/api/habitaciones/' + habitacionId + '/iniciar', {});
+                if (!rIniciar || !rIniciar.ok) {
+                    this.errorSaltar = (rIniciar && rIniciar.error && rIniciar.error.mensaje) || 'No pudimos abrir la habitación.';
+                    return;
+                }
+                var rSaltar = await apiPost('/api/habitaciones/' + habitacionId + '/saltar', { motivo: motivo });
+                if (!rSaltar || !rSaltar.ok) {
+                    this.errorSaltar = (rSaltar && rSaltar.error && rSaltar.error.mensaje) || 'No pudimos registrar el salto.';
+                    return;
+                }
+                this.mostrarSaltar = false;
+                await this.cargar();
+            } catch (e) {
+                this.errorSaltar = 'No pudimos conectar con el servidor.';
+            } finally {
+                this.saltando = false;
+            }
         },
 
         async cerrarSesion() {

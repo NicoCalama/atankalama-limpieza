@@ -14,40 +14,46 @@ require_once __DIR__ . '/componentes/avatar.php';
      @usuario-creado.window="alUsuarioCreado($event.detail)"
      @usuario-actualizado.window="alUsuarioActualizado($event.detail)">
 
-    <!-- Header sticky -->
+    <!-- Header sticky. flex-wrap + order: en celulares angostos, "Importar Excel" +
+         "Nuevo usuario" no caben junto al título y los ícono-botones en una sola fila
+         (título + 2 botones con texto + 2 botones de ícono desborda ~375px de ancho) —
+         se van a su propia fila completa debajo. Desde sm: vuelven a la fila del título,
+         mismo orden visual que antes. -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
-            <div class="flex items-center gap-3 min-w-0">
+        <div class="flex flex-wrap items-center justify-between max-w-5xl mx-auto gap-3">
+            <div class="order-1 flex items-center gap-3 min-w-0">
                 <i data-lucide="user-cog" class="w-6 h-6 text-gray-700 dark:text-gray-300 flex-shrink-0"></i>
                 <div class="min-w-0">
                     <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Usuarios</h1>
                     <p class="text-xs text-gray-500 dark:text-gray-400" x-text="total === null ? 'Cargando...' : (total + (total === 1 ? ' usuario' : ' usuarios'))"></p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
-                <button type="button"
-                        @click="abrirImportar()" data-tour="usr.importar"
-                        class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium transition">
-                    <i data-lucide="file-up" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Importar Excel</span>
-                    <span class="sm:hidden">Importar</span>
-                </button>
-                <button type="button"
-                        @click="abrirCrear()" data-tour="usr.nuevo"
-                        class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
-                    <i data-lucide="user-plus" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Nuevo usuario</span>
-                    <span class="sm:hidden">Nuevo</span>
-                </button>
-                <?php endif; ?>
+            <div class="order-2 sm:order-3 flex items-center gap-2 flex-shrink-0">
                 <button type="button" @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
                         aria-label="Refrescar">
-                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400" :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
+            <?php if ($usuario->tienePermiso('usuarios.crear')): ?>
+            <div class="order-3 sm:order-2 w-full sm:w-auto flex items-center gap-2">
+                <button type="button"
+                        @click="abrirImportar()" data-tour="usr.importar"
+                        class="flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium transition">
+                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                    <span>Importar Excel</span>
+                </button>
+                <button type="button"
+                        @click="abrirCrear()" data-tour="usr.nuevo"
+                        class="flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    <span>Nuevo usuario</span>
+                </button>
+            </div>
+            <?php endif; ?>
         </div>
     </header>
 

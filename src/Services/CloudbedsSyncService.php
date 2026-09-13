@@ -30,6 +30,9 @@ final class CloudbedsSyncService
     /** Default de cadencia del sync automático (minutos) si la config no existe. */
     private const SYNC_INTERVALO_DEFAULT = 30;
 
+    /** Throttle de sync MANUAL por usuario (segundos). No aplica al cron (tipo='auto_cron'). */
+    private const THROTTLE_MANUAL_SEGUNDOS = 180;
+
     /**
      * Cadencia configurada del sync automático, en minutos. Lee cloudbeds_config
      * ('sync_intervalo_minutos'); si la clave no existe o no es numérica, usa el default (30).
@@ -69,6 +72,37 @@ final class CloudbedsSyncService
     }
 
     /**
+     * Throttle de sync manual: máximo 1 disparo cada THROTTLE_MANUAL_SEGUNDOS por usuario.
+     * Se basa en el último registro 'manual' de ESE usuario en cloudbeds_sync_historial
+     * (no requiere tabla nueva). Lanza CloudbedsException('THROTTLED', ..., 429) si no
+     * pasó el intervalo.
+     */
+    private function verificarThrottleManual(int $usuarioId): void
+    {
+        $ultima = Database::fetchOne(
+            "SELECT iniciada_at FROM #__cloudbeds_sync_historial
+              WHERE tipo = 'manual' AND disparada_por = ?
+              ORDER BY id DESC LIMIT 1",
+            [$usuarioId]
+        );
+        if ($ultima === null) {
+            return;
+        }
+        $ts = strtotime((string) $ultima['iniciada_at']);
+        if ($ts === false) {
+            return;
+        }
+        $segundosRestantes = self::THROTTLE_MANUAL_SEGUNDOS - (time() - $ts);
+        if ($segundosRestantes > 0) {
+            throw new CloudbedsException(
+                'THROTTLED',
+                "Espera {$segundosRestantes} segundos antes de sincronizar de nuevo.",
+                429
+            );
+        }
+    }
+
+    /**
      * Sincroniza los estados de habitaciones desde Cloudbeds.
      *
      * @param string $tipo 'auto_cron' | 'manual'
@@ -76,6 +110,14 @@ final class CloudbedsSyncService
      */
     public function sincronizar(?int $hotelIdFiltro, string $tipo = 'manual', ?int $disparadaPor = null): int
     {
+        // Throttle solo a disparos manuales identificados (botón "Sincronizar ahora" /
+        // "Actualizar ahora"): evita que un usuario dispare un sync de todo el hotel cada
+        // pocos segundos. El cron ('auto_cron') no pasa por acá — ya tiene su propio
+        // intervalo vía debeCorrerSyncAutomatica().
+        if ($tipo === 'manual' && $disparadaPor !== null) {
+            $this->verificarThrottleManual($disparadaPor);
+        }
+
         $syncId = $this->crearHistorial($tipo, $hotelIdFiltro, $disparadaPor);
 
         $hoteles = $this->hoteles->listar(true);
@@ -109,6 +151,11 @@ final class CloudbedsSyncService
                     continue;
                 }
 
+                // Mapa roomID → nombre del huésped con reserva activa hoy (getReservationAssignments).
+                // Dato secundario para la ficha (quién sale/está en la pieza): un fallo acá NO aborta
+                // el sync de limpieza (housekeeping), que es lo crítico — solo queda sin huésped.
+                $mapaHuespedes = $this->mapaHuespedesPorHabitacion($hotel->cloudbedsPropertyId, $hotel->codigo);
+
                 foreach ($rooms as $room) {
                     if (!is_array($room)) {
                         continue;
@@ -133,6 +180,7 @@ final class CloudbedsSyncService
                         array_key_exists('roomOccupied', $room) ? (bool) $room['roomOccupied'] : null,
                         self::normalizarFecha($room['arrivalDate'] ?? null),
                         self::normalizarFecha($room['departureDate'] ?? null),
+                        $mapaHuespedes[$cloudbedsRoomId] ?? null,
                     );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
@@ -177,6 +225,30 @@ final class CloudbedsSyncService
      */
     public function escribirEstadoClean(Habitacion $habitacion): bool
     {
+        return $this->escribirEstadoRoomCondition($habitacion, 'clean');
+    }
+
+    /**
+     * Escritura saliente: marca Dirty en Cloudbeds cuando el cron de las 16:00 revierte una
+     * habitación "nochero" a 'sucia' (ver scripts/sync-cloudbeds.php). Evita que el próximo sync
+     * entrante, al ver la pieza todavía 'clean' en Cloudbeds, la fuerce de vuelta a 'aprobada'
+     * (línea ~141 de sincronizar()) deshaciendo el aviso de aseo. Ver docs/nocheros.md.
+     * Registra en cloudbeds_sync_historial con tipo='escritura_estado'.
+     * En caso de fallo, crea alerta P0 y retorna false.
+     */
+    public function escribirEstadoDirty(Habitacion $habitacion): bool
+    {
+        return $this->escribirEstadoRoomCondition($habitacion, 'dirty');
+    }
+
+    /**
+     * Escritura saliente compartida por escribirEstadoClean()/escribirEstadoDirty().
+     *
+     * @param string $condicion 'clean' | 'dirty' (minúscula: Cloudbeds la exige así, igual que
+     *                          la devuelve getHousekeepingStatus — 'Clean' es rechazado).
+     */
+    private function escribirEstadoRoomCondition(Habitacion $habitacion, string $condicion): bool
+    {
         $hotel = $this->hoteles->buscarPorId($habitacion->hotelId);
         if ($hotel === null || $hotel->cloudbedsPropertyId === null || $habitacion->cloudbedsRoomId === null) {
             Logger::warning('cloudbeds', 'escritura omitida: sin cloudbeds_property_id o cloudbeds_room_id', [
@@ -185,12 +257,10 @@ final class CloudbedsSyncService
             return false;
         }
 
-        // Cloudbeds espera el valor en minúscula ('clean'/'dirty'), igual que lo devuelve
-        // getHousekeepingStatus. 'Clean' (mayúscula) es rechazado con "roomCondition has not a valid value".
         $payload = [
             'propertyID' => $hotel->cloudbedsPropertyId,
             'roomID' => $habitacion->cloudbedsRoomId,
-            'roomCondition' => 'clean',
+            'roomCondition' => $condicion,
         ];
 
         Database::execute(
@@ -200,7 +270,7 @@ final class CloudbedsSyncService
         $histId = Database::lastInsertId();
 
         try {
-            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, 'clean');
+            $resp = $this->client->actualizarEstadoHabitacion($hotel->cloudbedsPropertyId, $habitacion->cloudbedsRoomId, $condicion);
             // Cloudbeds responde HTTP 200 incluso cuando rechaza la escritura (p.ej.
             // {"success": false, "message": "..."}). No basta con esExito(): hay que exigir
             // success !== false en el cuerpo, si no una escritura fallida se registraría como éxito.
@@ -329,6 +399,48 @@ final class CloudbedsSyncService
     {
         $v = trim((string) $valor);
         return ($v === '' || $v === '-') ? null : $v;
+    }
+
+    /**
+     * Mapa roomID → guestName a partir de getReservationAssignments (asignaciones del día
+     * actual). El roomID de `assigned` usa el mismo formato que getRooms/getHousekeepingStatus
+     * (roomTypeID-índice), así que cruza directo con las claves del housekeeping ya recorrido.
+     * companyName viene vacío en la práctica (el hotel anota la empresa a mano dentro del
+     * nombre) — por eso se usa solo guestName, sin una llamada adicional a getReservation.
+     * Nunca lanza: un fallo acá no debe abortar el sync de limpieza.
+     *
+     * @return array<string, string>
+     */
+    private function mapaHuespedesPorHabitacion(string $propertyId, string $hotelCodigo): array
+    {
+        $mapa = [];
+        try {
+            $asignaciones = $this->client->obtenerAsignacionesReservas($propertyId);
+            if (($asignaciones['success'] ?? null) !== true || !is_array($asignaciones['data'] ?? null)) {
+                return $mapa;
+            }
+            foreach ($asignaciones['data'] as $reserva) {
+                if (!is_array($reserva)) {
+                    continue;
+                }
+                $nombre = trim((string) ($reserva['guestName'] ?? ''));
+                if ($nombre === '' || !is_array($reserva['assigned'] ?? null)) {
+                    continue;
+                }
+                foreach ($reserva['assigned'] as $asignada) {
+                    $roomId = is_array($asignada) ? (string) ($asignada['roomID'] ?? '') : '';
+                    if ($roomId !== '') {
+                        $mapa[$roomId] = $nombre;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Logger::warning('cloudbeds', 'no se pudo obtener huésped (getReservationAssignments)', [
+                'hotel' => $hotelCodigo,
+                'mensaje' => $e->getMessage(),
+            ]);
+        }
+        return $mapa;
     }
 
     private function crearHistorial(string $tipo, ?int $hotelId, ?int $disparadaPor): int

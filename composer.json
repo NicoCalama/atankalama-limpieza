@@ -12,6 +12,7 @@
         "ext-pdo_sqlite": "*",
         "minishlink/web-push": "^10.0",
         "phpmailer/phpmailer": "^7.0",
+        "shuchkin/simplexlsxgen": "^1.5",
         "vlucas/phpdotenv": "^5.6"
     },
     "require-dev": {

@@ -218,9 +218,32 @@ require_once __DIR__ . '/componentes/badge-estado.php';
             <!-- Textarea comentario (observacion/rechazo) -->
             <template x-if="modo === 'observacion' || modo === 'rechazo'">
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Comentario <span class="text-red-500">*</span>
-                    </label>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Comentario <span class="text-red-500">*</span>
+                        </label>
+                        <template x-if="soportaDictado">
+                            <button type="button"
+                                    @click="toggleDictado()"
+                                    :aria-pressed="grabando"
+                                    :aria-label="grabando ? 'Detener dictado' : 'Dictar comentario por voz'"
+                                    class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition"
+                                    :class="grabando ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
+                                <!-- SVG inline (no data-lucide): lucide.createIcons() reemplaza el nodo <i> por un
+                                     <svg> nuevo y Alpine pierde la referencia, dejando iconos huérfanos al alternar. -->
+                                <svg x-show="!grabando" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="2" width="6" height="13" rx="3"></rect>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                    <path d="M12 19v3"></path>
+                                </svg>
+                                <svg x-show="grabando" x-cloak xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                                </svg>
+                            </button>
+                        </template>
+                    </div>
                     <textarea x-model="comentario"
                               rows="4"
                               maxlength="2000"
@@ -343,6 +366,11 @@ function auditoriaDetalleApp(habitacionId) {
         itemsDesmarcadosNuevos: [],
         mostrarConfirmarAprobar: false,
 
+        // Dictado por voz del comentario (Web Speech API)
+        grabando: false,
+        reconocimiento: null,
+        dictadoReinicios: 0,
+
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
         get esAuditada() {
@@ -363,6 +391,10 @@ function auditoriaDetalleApp(habitacionId) {
 
         get comentarioValido() {
             return this.comentario.trim().length >= 10;
+        },
+
+        get soportaDictado() {
+            return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
         },
 
         get puedeConfirmarVeredicto() {
@@ -499,9 +531,78 @@ function auditoriaDetalleApp(habitacionId) {
         },
 
         cancelarModo() {
+            this.detenerDictado();
             this.modo = null;
             this.comentario = '';
             this.itemsDesmarcadosNuevos = [];
+        },
+
+        // Dicta el comentario por voz. El texto reconocido se agrega al comentario
+        // existente (no lo reemplaza), para poder mezclar teclado y voz.
+        toggleDictado() {
+            if (this.grabando) {
+                this.detenerDictado();
+                return;
+            }
+            if (!this.soportaDictado) return;
+
+            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            var reco = new SpeechRecognition();
+            var self = this;
+            reco.lang = 'es-CL';
+            reco.continuous = true;
+            reco.interimResults = false;
+
+            reco.onresult = function (event) {
+                var textoNuevo = '';
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        textoNuevo += event.results[i][0].transcript;
+                    }
+                }
+                textoNuevo = textoNuevo.trim();
+                if (textoNuevo === '') return;
+                self.dictadoReinicios = 0; // hubo voz real: el contador de seguridad se reinicia
+                var actual = self.comentario.trim();
+                self.comentario = (actual === '' ? textoNuevo : actual + ' ' + textoNuevo).slice(0, 2000);
+            };
+
+            reco.onerror = function (event) {
+                // 'no-speech' (pausa del supervisor) y 'aborted' (nuestro propio stop) son normales:
+                // no cortan el dictado, los maneja onend.
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    self.grabando = false;
+                    self.mostrarToast('error', 'Permiso de micrófono denegado.');
+                } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    self.grabando = false;
+                    self.mostrarToast('error', 'No pudimos usar el micrófono.');
+                }
+            };
+
+            reco.onend = function () {
+                // Safari/iOS ignora continuous y corta al primer silencio. Mientras el supervisor
+                // no toque "detener", reanudamos para que pueda hacer pausas y seguir hablando.
+                if (!self.grabando) return;
+                if (self.dictadoReinicios >= 30) { self.grabando = false; return; } // tope: micrófono en silencio
+                self.dictadoReinicios++;
+                setTimeout(function () {
+                    if (!self.grabando) return;
+                    try { reco.start(); } catch (e) { self.grabando = false; }
+                }, 250);
+            };
+
+            this.reconocimiento = reco;
+            this.dictadoReinicios = 0;
+            this.grabando = true;
+            reco.start();
+        },
+
+        detenerDictado() {
+            this.grabando = false;
+            this.dictadoReinicios = 0;
+            if (this.reconocimiento) {
+                try { this.reconocimiento.stop(); } catch (e) {}
+            }
         },
 
         async enviarVeredictoModo() {
@@ -514,6 +615,7 @@ function auditoriaDetalleApp(habitacionId) {
 
         async enviarVeredicto(veredicto, comentario, items) {
             if (this.enviando) return;
+            this.detenerDictado();
             this.enviando = true;
             try {
                 var payload = { veredicto: veredicto };
@@ -523,7 +625,7 @@ function auditoriaDetalleApp(habitacionId) {
                 var json = await apiPost('/api/auditoria/' + this.habitacionId, payload);
                 if (json && json.ok) {
                     this.mostrarToast('exito', this.mensajeExito(veredicto));
-                    setTimeout(function () { window.location.href = u('/home'); }, 1200);
+                    setTimeout(function () { window.location.href = u('/auditoria'); }, 1200);
                 } else {
                     var msg = (json && json.error && json.error.mensaje) || 'No pudimos guardar el veredicto.';
                     this.mostrarToast('error', msg);

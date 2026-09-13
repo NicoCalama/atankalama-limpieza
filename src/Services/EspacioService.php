@@ -231,6 +231,60 @@ final class EspacioService
     }
 
     /**
+     * CSV (BOM + ';', mismo formato que el resto de reportes de la app — "Excel" en la UI)
+     * de los espacios listados, respetando el filtro de hotel.
+     */
+    public function exportarCsv(?string $hotel = 'ambos'): string
+    {
+        $espacios = $this->listar($hotel);
+
+        $hotelLabel = match ($hotel) {
+            '1_sur' => 'Atankalama',
+            'inn'   => 'Atankalama Inn',
+            default => 'Ambos hoteles',
+        };
+        $etiquetasEstado = [
+            'aprobada'    => 'Listo',
+            'sucia'       => 'Limpieza pendiente',
+            'en_progreso' => 'En limpieza',
+        ];
+
+        $rows = [];
+        $rows[] = ['Áreas comunes', $hotelLabel];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+        $rows[] = [];
+        $rows[] = ['Hotel', 'Nombre', 'Estado', 'Ítems', 'Créditos'];
+        foreach ($espacios as $e) {
+            $rows[] = [
+                $e['hotel_nombre'],
+                $e['numero'],
+                $etiquetasEstado[$e['estado']] ?? $e['estado'],
+                (int) $e['items_count'],
+                (int) $e['creditos_total'],
+            ];
+        }
+
+        $output = "\xEF\xBB\xBF";
+        foreach ($rows as $row) {
+            $cols = array_map(
+                function ($cell): string {
+                    $s = (string) $cell;
+                    // Anti CSV/Excel formula injection: una celda que empieza con = + - @ (o
+                    // tab/CR) puede ejecutarse como fórmula al abrir el CSV. Se antepone una
+                    // comilla simple para forzar que se trate como texto (ej. nombre del área).
+                    if ($s !== '' && in_array($s[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                        $s = "'" . $s;
+                    }
+                    return '"' . str_replace('"', '""', $s) . '"';
+                },
+                $row
+            );
+            $output .= implode(';', $cols) . "\r\n";
+        }
+        return $output;
+    }
+
+    /**
      * Trabajadores con turno para una fecha (candidatos para pedir la limpieza de un espacio).
      *
      * @return list<array<string, mixed>>

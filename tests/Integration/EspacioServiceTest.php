@@ -62,6 +62,18 @@ final class EspacioServiceTest extends TestCase
         $this->assertSame(EspacioService::TIPO_NOMBRE, (string) $tipo['nombre']);
     }
 
+    public function testExportarCsvNeutralizaFormulas(): void
+    {
+        // Un nombre de área que empieza con '=' no debe salir como fórmula ejecutable
+        // en el CSV (CSV/Excel formula injection): se fuerza a texto con comilla simple.
+        $this->svc->crear('=SUM(A1)', '1_sur', ['Barrer']);
+
+        $csv = $this->svc->exportarCsv('1_sur');
+
+        $this->assertStringContainsString('"\'=SUM(A1)"', $csv);   // neutralizada
+        $this->assertStringNotContainsString('"=SUM(A1)"', $csv);  // nunca cruda
+    }
+
     public function testListarIncluyeItemsCountYExcluyePiezas(): void
     {
         $this->svc->crear('Piscina', '1_sur', ['A', 'B', 'C']);

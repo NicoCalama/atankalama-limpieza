@@ -9,12 +9,17 @@ use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Ticket;
 use Atankalama\Limpieza\Models\TicketAdjunto;
+use Atankalama\Limpieza\Models\TicketComentario;
 
 final class TicketService
 {
+    /** Tope de largo de un comentario — mismo criterio que otros textos libres del módulo. */
+    private const COMENTARIO_MAX_LARGO = 2000;
+
     public function __construct(
         private readonly AlertasService $alertas = new AlertasService(),
         private readonly NovedadesSyncService $novedadesSync = new NovedadesSyncService(),
+        private readonly PushService $push = new PushService(),
     ) {
     }
 
@@ -26,6 +31,7 @@ final class TicketService
         int $levantadoPor,
         ?int $habitacionId = null,
         ?string $idempotencyKey = null,
+        ?int $asignadoA = null,
     ): Ticket {
         // Idempotencia (fase 1 del plan "eliminar No pudimos conectar con el servidor"):
         // el cliente genera un UUID por intento de envío y lo reusa en sus reintentos. Si
@@ -99,6 +105,15 @@ final class TicketService
             'prioridad' => $prioridad, 'habitacion_id' => $habitacionId,
         ]);
 
+        // Asignación inmediata (Admin/Supervisor, gateado en el controller por
+        // tickets.ver_todos — mismo permiso que ya rige asignar() post-creación).
+        // Reusa asignar() tal cual: mismo audit log ('ticket.asignar'), mismas
+        // validaciones (usuario activo). El ticket recién creado nunca está cerrado,
+        // así que no pisa el chequeo TICKET_CERRADO de arriba.
+        if ($asignadoA !== null) {
+            $this->asignar($id, $asignadoA, $levantadoPor);
+        }
+
         // La sincronización con Novedades se dispara desde el controller, DESPUÉS de
         // procesar las fotos adjuntas — acá el ticket recién creado todavía no las tiene.
         // Ver notificarCreacionANovedades().
@@ -142,8 +157,18 @@ final class TicketService
         }
         $estado = $filtros['estado'] ?? null;
         if (is_string($estado) && $estado !== '') {
-            $sql .= ' AND t.estado = ?';
-            $params[] = $estado;
+            if ($estado === Ticket::ESTADO_CERRADO) {
+                // El chip "Cerrados" de la UI agrupa resuelto+cerrado (no hay chip
+                // "Resueltos" separado desde esta versión — ver estadosFiltro en
+                // tickets.php). Un query explícito por 'resuelto' —como el que arma el
+                // Copilot— sigue funcionando exacto, sin este agrupamiento.
+                $sql .= ' AND t.estado IN (?, ?)';
+                $params[] = Ticket::ESTADO_RESUELTO;
+                $params[] = Ticket::ESTADO_CERRADO;
+            } else {
+                $sql .= ' AND t.estado = ?';
+                $params[] = $estado;
+            }
         }
         $levantadoPor = $filtros['levantado_por'] ?? null;
         if (is_int($levantadoPor)) {
@@ -236,6 +261,23 @@ final class TicketService
         return $this->obtenerOFallar($ticketId);
     }
 
+    public function cambiarPrioridad(int $ticketId, string $prioridad, int $editadoPor): Ticket
+    {
+        if (!in_array($prioridad, Ticket::PRIORIDADES_VALIDAS, true)) {
+            throw new TicketException('PRIORIDAD_INVALIDA', "Prioridad inválida: {$prioridad}.", 400);
+        }
+        $ticket = $this->obtenerOFallar($ticketId);
+        if ($ticket->estado === Ticket::ESTADO_CERRADO) {
+            throw new TicketException('TICKET_CERRADO', 'No se puede modificar un ticket cerrado.', 409);
+        }
+        Database::execute(
+            "UPDATE #__tickets SET prioridad = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            [$prioridad, $ticketId]
+        );
+        Logger::audit($editadoPor, 'ticket.cambiar_prioridad', 'ticket', $ticketId, ['prioridad' => $prioridad]);
+        return $this->obtenerOFallar($ticketId);
+    }
+
     /**
      * Notifica la creación a Novedades (ver NovedadesSyncService::sincronizar). Llamar
      * DESPUÉS de procesar los adjuntos de creación, para que las fotos recién subidas
@@ -244,7 +286,15 @@ final class TicketService
     public function notificarCreacionANovedades(int $ticketId): void
     {
         $ticket = $this->obtenerOFallar($ticketId);
-        $this->novedadesSync->sincronizar($ticket, $this->adjuntosDe($ticketId));
+        $novedadId = $this->novedadesSync->sincronizar($ticket, $this->adjuntosDe($ticketId));
+
+        // Se guarda para poder vincular, al cerrar el ticket, la novedad de cierre con
+        // esta (ver NovedadesSyncService::armarPayloadCierre). Si la sincronización
+        // falló, $novedadId llega null y no se toca la fila — sincronizarCierre()
+        // simplemente no manda el vínculo, igual que antes de esta funcionalidad.
+        if ($novedadId !== null) {
+            Database::execute('UPDATE #__tickets SET novedad_id = ? WHERE id = ?', [$novedadId, $ticketId]);
+        }
     }
 
     /**
@@ -290,15 +340,78 @@ final class TicketService
     }
 
     /**
+     * ¿El usuario destino tiene perfil Trabajador? Se compara por NOMBRE de rol y no por
+     * permiso porque "perfil" acá es literalmente el rol del catálogo (roles.es_sistema = 1).
+     * Un usuario con varios roles pasa si uno de ellos es Trabajador.
+     */
+    public function esTrabajador(int $usuarioId): bool
+    {
+        $fila = Database::fetchOne(
+            'SELECT 1 AS ok
+               FROM #__usuarios_roles ur
+               JOIN #__roles r ON r.id = ur.rol_id
+              WHERE ur.usuario_id = ? AND r.nombre = ?
+              LIMIT 1',
+            [$usuarioId, 'Trabajador']
+        );
+        return $fila !== null;
+    }
+
+    /** Orden de precedencia cuando un usuario tiene más de un rol: el primero que calce manda. */
+    private const JERARQUIA_PERFILES = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
+
+    /**
      * Usuarios activos disponibles para "Asignar responsable" — endpoint acotado a
      * tickets.ver_todos (no usuarios.ver) para no darle a Supervisora/Recepción acceso al
      * módulo completo de Usuarios solo por poder asignar un ticket. Ver Kernel.php.
      *
-     * @return list<array{id: int, nombre: string}>
+     * $soloTrabajadores refleja la regla de TicketsController::asignar(): quien no tiene
+     * tickets.asignar_a_cualquier_perfil no debe siquiera ver a los demás perfiles.
+     *
+     * @return list<array{id: int, nombre: string, perfil: string}>
      */
-    public function usuariosActivos(): array
+    public function usuariosActivos(bool $soloTrabajadores = false): array
     {
-        return Database::fetchAll('SELECT id, nombre FROM #__usuarios WHERE activo = 1 ORDER BY nombre');
+        // Left join a usuarios_roles/roles: un usuario con varios roles sale en varias filas,
+        // se colapsa abajo eligiendo el perfil de mayor jerarquía (JERARQUIA_PERFILES).
+        $filas = Database::fetchAll(
+            'SELECT u.id, u.nombre, r.nombre AS rol
+               FROM #__usuarios u
+          LEFT JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+          LEFT JOIN #__roles r ON r.id = ur.rol_id
+              WHERE u.activo = 1'
+        );
+
+        $porUsuario = [];
+        foreach ($filas as $fila) {
+            $id = (int) $fila['id'];
+            if (!isset($porUsuario[$id])) {
+                $porUsuario[$id] = ['id' => $id, 'nombre' => (string) $fila['nombre'], 'roles' => []];
+            }
+            if ($fila['rol'] !== null) {
+                $porUsuario[$id]['roles'][] = (string) $fila['rol'];
+            }
+        }
+
+        $resultado = [];
+        foreach ($porUsuario as $u) {
+            if ($soloTrabajadores && !in_array('Trabajador', $u['roles'], true)) {
+                continue;
+            }
+            $perfil = 'Sin perfil';
+            foreach (self::JERARQUIA_PERFILES as $candidato) {
+                if (in_array($candidato, $u['roles'], true)) {
+                    $perfil = $candidato;
+                    break;
+                }
+            }
+            if ($perfil === 'Sin perfil' && $u['roles'] !== []) {
+                // Rol propio creado en RBAC, fuera de la jerarquía fija de arriba.
+                $perfil = $u['roles'][0];
+            }
+            $resultado[] = ['id' => $u['id'], 'nombre' => $u['nombre'], 'perfil' => $perfil];
+        }
+        return $resultado;
     }
 
     /** @return list<array<string, mixed>> */
@@ -309,5 +422,74 @@ final class TicketService
             [$ticketId]
         );
         return array_map(fn (array $f): array => TicketAdjunto::desdeFila($f)->toArray(), $filas);
+    }
+
+    /**
+     * Agrega un comentario al historial del ticket (solo-append: sin edición ni borrado).
+     * Si $avisarSupervisora, notifica a todo usuario activo con rol Supervisora o Admin —
+     * mismo patrón de consulta por nombre de rol que esTrabajador(). El aviso va por
+     * PushService::notificar() (mismo mecanismo que usa AuditoriaService para el rechazo):
+     * persiste en la campanita a todos los destinatarios y además intenta push real a
+     * quien tenga suscripción y no esté fuera de turno — se degrada en silencio si faltan
+     * las claves VAPID o el destinatario no tiene suscripción.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function comentar(int $ticketId, int $usuarioId, string $comentario, bool $avisarSupervisora): array
+    {
+        $this->obtenerOFallar($ticketId); // valida que exista
+        $comentario = trim($comentario);
+        if ($comentario === '' || mb_strlen($comentario) > self::COMENTARIO_MAX_LARGO) {
+            throw new TicketException(
+                'COMENTARIO_INVALIDO',
+                'El comentario no puede estar vacío ni superar ' . self::COMENTARIO_MAX_LARGO . ' caracteres.',
+                400
+            );
+        }
+        Database::execute(
+            'INSERT INTO #__tickets_comentarios (ticket_id, usuario_id, comentario, avisado) VALUES (?, ?, ?, ?)',
+            [$ticketId, $usuarioId, $comentario, $avisarSupervisora ? 1 : 0]
+        );
+        Logger::audit($usuarioId, 'ticket.comentar', 'ticket', $ticketId, ['avisado' => $avisarSupervisora]);
+
+        if ($avisarSupervisora) {
+            $destinatarioIds = array_column(
+                Database::fetchAll(
+                    "SELECT DISTINCT u.id FROM #__usuarios u
+                       JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+                       JOIN #__roles r ON r.id = ur.rol_id
+                      WHERE r.nombre IN ('Supervisora', 'Admin') AND u.activo = 1"
+                ),
+                'id'
+            );
+            if ($destinatarioIds !== []) {
+                // $url va app-relative: PushService::notificar() antepone BASE_PATH una
+                // sola vez (Url::a interno) — anteponerlo acá también lo duplicaría.
+                $this->push->notificar(
+                    array_map('intval', $destinatarioIds),
+                    'Nuevo comentario en un ticket',
+                    mb_substr($comentario, 0, 140),
+                    '/tickets?ticket=' . $ticketId,
+                    [],
+                    false,
+                    'ticket_comentario'
+                );
+            }
+        }
+        return $this->comentariosDe($ticketId);
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function comentariosDe(int $ticketId): array
+    {
+        $filas = Database::fetchAll(
+            'SELECT c.*, u.nombre AS usuario_nombre
+               FROM #__tickets_comentarios c
+               JOIN #__usuarios u ON u.id = c.usuario_id
+              WHERE c.ticket_id = ?
+              ORDER BY c.created_at ASC',
+            [$ticketId]
+        );
+        return array_map(fn (array $f): array => TicketComentario::desdeFila($f)->toArray(), $filas);
     }
 }

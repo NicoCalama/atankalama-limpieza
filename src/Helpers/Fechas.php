@@ -74,6 +74,38 @@ final class Fechas
         return $ts->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('Y-m-d');
     }
 
+    /**
+     * Hora local (0-23) de un timestamp UTC de la BD. Para clasificar turno
+     * mañana/tarde (reporte de auditorías pendientes, corte 18:00).
+     */
+    public static function horaLocalDeUtc(string $timestampUtc): int
+    {
+        $ts = new DateTimeImmutable($timestampUtc, new DateTimeZone('UTC'));
+
+        return (int) $ts->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('G');
+    }
+
+    /** Hora:minuto local ('H:i') de un timestamp UTC de la BD, para mostrar en reportes. */
+    public static function horaMinutoLocalDeUtc(string $timestampUtc): string
+    {
+        $ts = new DateTimeImmutable($timestampUtc, new DateTimeZone('UTC'));
+
+        return $ts->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('H:i');
+    }
+
+    /**
+     * Convierte una fecha+hora LOCAL ('YYYY-MM-DD', 'HH:MM') al ISO UTC comparable
+     * contra columnas de la BD. Usado para el corte de las 23:50 del reporte de
+     * auditorías pendientes: un instante exacto, no un rango.
+     */
+    public static function instanteLocalUtc(string $fecha, string $horaMinuto): string
+    {
+        $tz = new DateTimeZone(date_default_timezone_get());
+        $momento = new DateTimeImmutable("{$fecha} {$horaMinuto}:00", $tz);
+
+        return self::aIsoUtc($momento);
+    }
+
     private static function aIsoUtc(DateTimeImmutable $momento): string
     {
         return $momento->setTimezone(new DateTimeZone('UTC'))->format(self::ISO_UTC);

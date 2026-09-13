@@ -72,6 +72,11 @@
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen">
 
     <?php if (isset($usuario)): ?>
+        <!-- Banner modo espía (admin viendo la app como otro usuario) -->
+        <?php if (\Atankalama\Limpieza\Support\EspiaContext::activo()): ?>
+            <?php include __DIR__ . '/componentes/banner-modo-espia.php'; ?>
+        <?php endif; ?>
+
         <!-- Sidebar desktop -->
         <?php include __DIR__ . '/componentes/sidebar.php'; ?>
     <?php endif; ?>
@@ -126,6 +131,12 @@
         <!-- Modal editor de turno (crear/editar catálogo) -->
         <?php if ($usuario->tienePermiso('turnos.crear_editar')): ?>
             <?php include __DIR__ . '/componentes/modal-turno-editor.php'; ?>
+        <?php endif; ?>
+
+        <!-- Modal asignación masiva de turno (varios días a la vez) -->
+        <?php if ($usuario->tienePermiso('turnos.asignar_a_usuario')): ?>
+            <?php include __DIR__ . '/componentes/modal-turno-masivo.php'; ?>
+            <?php include __DIR__ . '/componentes/modal-festivos.php'; ?>
         <?php endif; ?>
     <?php endif; ?>
 

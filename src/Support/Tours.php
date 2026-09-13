@@ -84,6 +84,11 @@ final class Tours
                                 'titulo' => 'Suéltala sobre la persona',
                                 'texto'  => 'Al soltarla sobre un trabajador, la pieza entra en su cola y la verá en su teléfono. En cada tarjeta ves su avance y su carga del día.',
                             ],
+                            [
+                                'sel'    => '[data-tour="asig.fecha"]',
+                                'titulo' => 'Planificar otro día',
+                                'texto'  => 'Con la fecha de aquí arriba puedes adelantar el trabajo de otro día: eliges la fecha y asignas igual. Lo de hoy no se toca.',
+                            ],
                         ],
                     ],
 
@@ -318,6 +323,24 @@ final class Tours
                             ],
                         ],
                     ],
+
+                    // ── 5. Atajo de supervisión: dar por limpia sin checklist. ──
+                    //     Gateado por bandera (data-vg-context) para que solo lo
+                    //     vean quienes tienen habitaciones.marcar_limpia_manual.
+                    [
+                        'id'       => 'marcar-limpia',
+                        'v'        => 1,
+                        'titulo'   => 'Dar por limpia',
+                        'pregunta' => '¿Puedo darla por limpia sin checklist?',
+                        'requiere' => ['puede_marcar_limpia'],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hab.marcar-limpia"]',
+                                'titulo' => 'Cierre sin checklist',
+                                'texto'  => 'Como supervisora puedes darla por limpia sin el checklist del trabajador. Queda pendiente de auditoría, igual que una limpieza normal.',
+                            ],
+                        ],
+                    ],
                 ],
             ],
 
@@ -450,6 +473,32 @@ final class Tours
                                 'sel'    => '[data-tour="esp.lista"]',
                                 'titulo' => 'No pasan por auditoría',
                                 'texto'  => 'El badge te dice si está lista, pendiente o en limpieza. Las áreas no se auditan: se cierran solas cuando el trabajador termina.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 1b. Explorar la lista: buscar, ver como tabla y exportar. ──
+                    [
+                        'id'       => 'explorar',
+                        'v'        => 1,
+                        'titulo'   => 'Buscar y exportar',
+                        'pregunta' => '¿Cómo busco o bajo la lista?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="esp.buscar"]',
+                                'titulo' => 'Busca un área',
+                                'texto'  => 'Escribe el nombre de un área para encontrarla al toque, y usa los chips de estado para ver solo las que están listas, sucias o en limpieza.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="esp.tabla"]',
+                                'titulo' => 'Vista de tabla',
+                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (número, estado, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="esp.exportar"]',
+                                'titulo' => 'Baja la lista a Excel',
+                                'texto'  => 'Con «Exportar» descargas la lista en un Excel, respetando el hotel filtrado. Útil para revisar o compartir fuera de la app.',
                             ],
                         ],
                     ],
@@ -614,6 +663,22 @@ final class Tours
                         ],
                     ],
 
+                    // ── 2b. Ver los tickets como tabla (pantallas grandes). ──
+                    [
+                        'id'       => 'tabla',
+                        'v'        => 1,
+                        'titulo'   => 'Ver como tabla',
+                        'pregunta' => '¿Cómo veo los tickets en tabla?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.tabla"]',
+                                'titulo' => 'Una fila por ticket',
+                                'texto'  => 'En pantallas grandes los tickets se ven como tabla: prioridad, estado, pieza, cuánto llevan esperando y quién los tiene. En el teléfono se ven como tarjetas.',
+                            ],
+                        ],
+                    ],
+
                     // ── 3. Filtrar la lista. ──
                     [
                         'id'       => 'filtrar',
@@ -673,6 +738,22 @@ final class Tours
                                 'sel'    => '[data-tour="tk.filtros"]',
                                 'titulo' => 'Asignados a mí o sin dueño',
                                 'texto'  => 'Cambia entre «Asignados a mí» (los que son tuyos) y «Sin asignar» (los que todavía no tienen dueño). También filtras por estado.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 2b. Ver mis tickets como tabla (pantallas grandes). ──
+                    [
+                        'id'       => 'tabla',
+                        'v'        => 1,
+                        'titulo'   => 'Vista de tabla',
+                        'pregunta' => '¿Puedo ver mis tickets en tabla?',
+                        'requiere' => [],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="tk.tabla"]',
+                                'titulo' => 'Una fila por ticket',
+                                'texto'  => 'En pantallas grandes tus tickets se ven como tabla, con prioridad, estado, pieza y cuánto llevan esperando. En el teléfono se ven como tarjetas.',
                             ],
                         ],
                     ],
@@ -1095,6 +1176,16 @@ final class Tours
                              'texto' => 'Elige un mes arriba y la tabla muestra, por trabajador, cuántas habitaciones limpió y sus créditos frente al máximo posible.'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Auditorías del mes',
                              'texto' => 'Aquí ves, por auditor, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'pendientes', 'v' => 1,
+                        'titulo' => 'Auditorías pendientes',
+                        'pregunta' => '¿Qué piezas quedan sin auditar hoy?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta auditar hoy',
+                             'texto' => 'Este panel lista, separadas por turno mañana y tarde, las piezas que se limpiaron hoy y todavía no tienen veredicto de auditoría. Cada noche se envía por correo a los administradores.'],
                         ],
                     ],
                 ],

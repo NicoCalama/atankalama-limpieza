@@ -36,6 +36,7 @@ final class Ticket
         public readonly string $createdAt,
         public readonly string $updatedAt,
         public readonly ?string $resueltoAt,
+        public readonly ?int $novedadId = null,
     ) {
     }
 
@@ -56,6 +57,7 @@ final class Ticket
             createdAt: (string) $fila['created_at'],
             updatedAt: (string) $fila['updated_at'],
             resueltoAt: $fila['resuelto_at'] !== null ? (string) $fila['resuelto_at'] : null,
+            novedadId: isset($fila['novedad_id']) ? (int) $fila['novedad_id'] : null,
         );
     }
 

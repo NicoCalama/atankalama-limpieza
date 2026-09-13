@@ -53,8 +53,9 @@
                 <button @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">
-                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                       :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
@@ -101,22 +102,65 @@
         <main class="pb-32 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-4">
 
             <!-- Barra de acción -->
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
                 <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                     <i data-lucide="building-2" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
                     Espacios
                     <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
-                          x-text="data.espacios.length"></span>
+                          x-text="espaciosFiltrados.length"></span>
                 </h2>
-                <template x-if="puedeEditar">
-                    <button @click="abrirCrear()" data-tour="esp.nueva"
-                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition inline-flex items-center gap-1.5">
-                        <i data-lucide="plus" class="w-4 h-4"></i> Nueva área
+                <div class="flex items-center gap-2 flex-wrap">
+                    <!-- Toggle Tarjetas/Tabla -->
+                    <div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5">
+                        <button @click="setVista('tarjetas')"
+                                :class="vista === 'tarjetas' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                                class="min-h-[36px] px-3 text-sm font-medium rounded-md inline-flex items-center gap-1.5 transition"
+                                aria-label="Ver como tarjetas">
+                            <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                        </button>
+                        <button @click="setVista('tabla')"
+                                :class="vista === 'tabla' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                                class="min-h-[36px] px-3 text-sm font-medium rounded-md inline-flex items-center gap-1.5 transition"
+                                aria-label="Ver como tabla">
+                            <i data-lucide="table" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button @click="exportar()" :disabled="exportando" data-tour="esp.exportar"
+                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center gap-1.5 disabled:opacity-50">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span x-text="exportando ? 'Exportando...' : 'Exportar'"></span>
                     </button>
-                </template>
+                    <template x-if="puedeEditar">
+                        <button @click="abrirCrear()" data-tour="esp.nueva"
+                                class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition inline-flex items-center gap-1.5">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Nueva área
+                        </button>
+                    </template>
+                </div>
             </div>
 
-            <!-- Vacío -->
+            <!-- Buscador + filtro por estado -->
+            <template x-if="data.espacios.length > 0">
+                <div class="space-y-2">
+                    <div class="relative" data-tour="esp.buscar">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        <input type="search" x-model="busqueda" placeholder="Buscar área común..."
+                               aria-label="Buscar área común"
+                               class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                    </div>
+                    <div class="flex items-center gap-2 overflow-x-auto pb-1">
+                        <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">Estado:</span>
+                        <template x-for="op in estadoOpciones" :key="op.valor">
+                            <button @click="filtroEstado = op.valor"
+                                    :class="filtroEstado === op.valor ? 'bg-teal-600 text-white border-teal-600' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="flex-shrink-0 min-h-[32px] px-3 py-1 text-xs font-medium rounded-full border transition"
+                                    x-text="op.etiqueta"></button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Vacío: no hay ninguna área en el hotel -->
             <template x-if="data.espacios.length === 0">
                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center">
                     <i data-lucide="building-2" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
@@ -129,10 +173,21 @@
                 </div>
             </template>
 
-            <!-- Lista -->
-            <template x-if="data.espacios.length > 0">
+            <!-- Vacío: hay áreas pero ninguna calza con la búsqueda/filtro -->
+            <template x-if="data.espacios.length > 0 && espaciosFiltrados.length === 0">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center">
+                    <i data-lucide="search-x" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Sin resultados<span x-show="busqueda"> para "<span x-text="busqueda"></span>"</span>.</p>
+                    <button @click="busqueda = ''; filtroEstado = ''" class="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                        Limpiar filtros
+                    </button>
+                </div>
+            </template>
+
+            <!-- Lista (tarjetas) -->
+            <template x-if="vista === 'tarjetas' && espaciosFiltrados.length > 0">
                 <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2">
-                    <template x-for="esp in data.espacios" :key="esp.id">
+                    <template x-for="esp in espaciosFiltrados" :key="esp.id">
                         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
@@ -163,6 +218,66 @@
                             </div>
                         </div>
                     </template>
+                </div>
+            </template>
+
+            <!-- Lista (tabla) -->
+            <template x-if="vista === 'tabla' && espaciosFiltrados.length > 0">
+                <div data-tour="esp.tabla" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                    <template x-for="col in columnas" :key="col.clave">
+                                        <th @click="ordenarPor(col.clave)"
+                                            class="px-3 py-2 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-800 whitespace-nowrap">
+                                            <span class="inline-flex items-center gap-1">
+                                                <span x-text="col.etiqueta"></span>
+                                                <i x-show="ordenCol === col.clave" data-lucide="chevron-down" class="w-3.5 h-3.5"
+                                                   :class="ordenDir === 'desc' ? 'rotate-180' : ''"></i>
+                                            </span>
+                                        </th>
+                                    </template>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="esp in espaciosOrdenados" :key="esp.id">
+                                    <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100" x-text="esp.numero"></td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.hotel_nombre"></td>
+                                        <td class="px-3 py-2">
+                                            <span class="text-[11px] px-2 py-0.5 rounded-full" :class="claseBadge(esp.estado)" x-text="etiquetaEstado(esp.estado)"></span>
+                                        </td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.items_count"></td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.creditos_total || 0"></td>
+                                        <td class="px-3 py-2">
+                                            <div class="flex items-center justify-end gap-1">
+                                                <template x-if="puedePedir">
+                                                    <button @click="abrirPedir(esp)" aria-label="Pedir limpieza"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                                                        <i data-lucide="brush" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="puedeEditar">
+                                                    <button @click="abrirEditar(esp)" aria-label="Editar"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="puedeEditar">
+                                                    <button @click="archivar(esp)" aria-label="Archivar"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400">
+                                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </template>
         </main>
@@ -254,14 +369,19 @@
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         Pedir limpieza: <span x-text="modalPedir.espacio?.numero"></span>
                     </h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Se asignará al trabajador que elijas para hoy.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Se asignará al trabajador que elijas para la fecha indicada.</p>
                 </div>
                 <button @click="cerrarPedir()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </button>
             </div>
+            <div class="mb-3">
+                <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Fecha</label>
+                <input type="date" x-model="modalPedir.fecha" :min="fechaHoy" @change="cambiarFechaPedir()"
+                       class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+            </div>
             <template x-if="data && data.trabajadores.length === 0">
-                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno hoy en este hotel.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno ese día en este hotel.</p>
             </template>
             <template x-if="data && data.trabajadores.length > 0">
                 <ul class="space-y-1.5 max-h-[55vh] overflow-y-auto">
@@ -287,16 +407,35 @@ function espaciosApp() {
         cargando: false,
         error: null,
         hotel: localStorage.getItem('espacios_hotel') || 'ambos',
+        busqueda: '',
+        filtroEstado: '',
+        vista: localStorage.getItem('espacios_vista') || 'tarjetas',
+        ordenCol: 'numero',
+        ordenDir: 'asc',
+        exportando: false,
         _intervalId: null,
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         modalForm: { abierto: false, enviando: false },
         form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
-        modalPedir: { abierto: false, enviando: false, espacio: null },
+        modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '' },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
             { valor: '1_sur', etiqueta: 'Atankalama' },
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
+        ],
+        estadoOpciones: [
+            { valor: '', etiqueta: 'Todos' },
+            { valor: 'aprobada', etiqueta: 'Listo' },
+            { valor: 'sucia', etiqueta: 'Pendiente' },
+            { valor: 'en_progreso', etiqueta: 'En limpieza' }
+        ],
+        columnas: [
+            { clave: 'numero', etiqueta: 'Nombre' },
+            { clave: 'hotel_nombre', etiqueta: 'Hotel' },
+            { clave: 'estado', etiqueta: 'Estado' },
+            { clave: 'items_count', etiqueta: 'Ítems' },
+            { clave: 'creditos_total', etiqueta: 'Créditos' }
         ],
 
         get puedeEditar() {
@@ -309,6 +448,43 @@ function espaciosApp() {
         },
         get fechaHoy() {
             return window.hoyServidor();
+        },
+        get espaciosFiltrados() {
+            if (!this.data) return [];
+            var q = this.busqueda.trim().toLowerCase();
+            var self = this;
+            return this.data.espacios.filter(function (e) {
+                if (self.filtroEstado && e.estado !== self.filtroEstado) return false;
+                if (q && !(e.numero || '').toLowerCase().includes(q)) return false;
+                return true;
+            });
+        },
+        // Solo para la vista de tabla: espaciosFiltrados ordenado por ordenCol/ordenDir.
+        // La vista de tarjetas mantiene el orden original (por hotel, nombre) del backend.
+        get espaciosOrdenados() {
+            var col = this.ordenCol, dir = this.ordenDir === 'asc' ? 1 : -1;
+            return this.espaciosFiltrados.slice().sort(function (a, b) {
+                var va = a[col], vb = b[col];
+                if (typeof va === 'string') va = va.toLowerCase();
+                if (typeof vb === 'string') vb = vb.toLowerCase();
+                if (va < vb) return -1 * dir;
+                if (va > vb) return 1 * dir;
+                return 0;
+            });
+        },
+
+        setVista(v) {
+            this.vista = v;
+            localStorage.setItem('espacios_vista', v);
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+        ordenarPor(col) {
+            if (this.ordenCol === col) {
+                this.ordenDir = this.ordenDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.ordenCol = col;
+                this.ordenDir = 'asc';
+            }
         },
 
         async cargar() {
@@ -335,6 +511,31 @@ function espaciosApp() {
             var self = this;
             this._intervalId = setInterval(function () { self.cargar(); }, 60000);
         },
+
+        // Exporta a CSV (formato "Excel") respetando el filtro de hotel actual.
+        async exportar() {
+            if (this.exportando) return;
+            this.exportando = true;
+            try {
+                var url = '/api/espacios/exportar';
+                if (this.hotel && this.hotel !== 'ambos') url += '?hotel=' + encodeURIComponent(this.hotel);
+                if (url.charAt(0) === '/') url = (window.BASE_PATH || '') + url;
+                var resp = await fetch(url);
+                if (!resp.ok) { this.mostrarToast('error', 'No pudimos exportar.'); return; }
+                var blob = await resp.blob();
+                var blobUrl = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = 'areas_comunes_' + this.fechaHoy + '.csv';
+                a.click();
+                URL.revokeObjectURL(blobUrl);
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.exportando = false;
+            }
+        },
+
         alVolverVisible() {
             if (!document.hidden) this.cargar();
         },
@@ -455,11 +656,22 @@ function espaciosApp() {
 
         // --- Pedir limpieza ---
         abrirPedir(esp) {
-            this.modalPedir = { abierto: true, enviando: false, espacio: esp };
+            this.modalPedir = { abierto: true, enviando: false, espacio: esp, fecha: this.fechaHoy };
             this.$nextTick(function () { lucide.createIcons(); });
         },
         cerrarPedir() {
-            this.modalPedir = { abierto: false, enviando: false, espacio: null };
+            this.modalPedir = { abierto: false, enviando: false, espacio: null, fecha: '' };
+        },
+        // Al cambiar la fecha del modal, recarga solo los trabajadores con turno esa fecha
+        // (candidatos), sin recargar la lista de espacios ni perder su estado en pantalla.
+        async cambiarFechaPedir() {
+            if (!this.modalPedir.fecha || !this.data) return;
+            try {
+                var url = '/api/espacios?fecha=' + encodeURIComponent(this.modalPedir.fecha);
+                if (this.hotel && this.hotel !== 'ambos') url += '&hotel=' + encodeURIComponent(this.hotel);
+                var r = await apiFetch(url);
+                if (r && r.ok) this.data.trabajadores = r.data.trabajadores;
+            } catch (e) { /* deja la lista anterior si falla */ }
         },
         async confirmarPedir(tr) {
             if (this.modalPedir.enviando || !this.modalPedir.espacio) return;
@@ -467,7 +679,7 @@ function espaciosApp() {
             try {
                 var r = await apiPost('/api/espacios/' + this.modalPedir.espacio.id + '/pedir-limpieza', {
                     usuario_id: tr.id,
-                    fecha: this.fechaHoy
+                    fecha: this.modalPedir.fecha || this.fechaHoy
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Limpieza pedida a ' + tr.nombre + '.');

@@ -13,6 +13,9 @@ use Atankalama\Limpieza\Models\Habitacion;
 
 final class ChecklistService
 {
+    /** Tope del historial exportado a Excel — anti-catástrofe, no un límite de negocio real. */
+    private const HISTORIAL_EXPORT_MAX = 5000;
+
     public function __construct(
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
@@ -621,7 +624,10 @@ final class ChecklistService
             throw new ChecklistException('HABITACION_NO_ASIGNADA', 'Esta habitación no está asignada a ti.', 403);
         }
 
-        $asignacion = $this->asignaciones->obtenerActivaDeHabitacion($habitacionId);
+        // $fecha explícito (no el default "hoy" de obtenerActivaDeHabitacion): con planificación a
+        // futuro puede haber una asignación activa de otra fecha con id mayor: sin esto, el
+        // "ORDER BY id DESC" interno la elegiría a ella en vez de la de $fecha.
+        $asignacion = $this->asignaciones->obtenerActivaDeHabitacion($habitacionId, $fecha);
         if ($asignacion === null) {
             throw new ChecklistException('ASIGNACION_NO_ACTIVA', 'No hay asignación activa.', 409);
         }
@@ -831,9 +837,27 @@ final class ChecklistService
      *
      * @return list<array<string, mixed>>
      */
-    public function historialDeHabitacion(int $habitacionId, int $limite = 30): array
+    public function historialDeHabitacion(int $habitacionId, int $limite = 20): array
     {
         $limite = max(1, min(100, $limite));
+        return $this->consultarHistorialDeHabitacion($habitacionId, $limite);
+    }
+
+    /**
+     * Historial completo de la habitación, sin el tope de pantalla — para exportar a Excel
+     * (botón "Descargar todo" en la ficha, ver habitacion-detalle.php). Mismo permiso y misma
+     * consulta que historialDeHabitacion(), solo sin el LIMIT de 20/100.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function historialCompletoDeHabitacion(int $habitacionId): array
+    {
+        return $this->consultarHistorialDeHabitacion($habitacionId, self::HISTORIAL_EXPORT_MAX);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function consultarHistorialDeHabitacion(int $habitacionId, int $limite): array
+    {
         return Database::fetchAll(
             "SELECT ec.id, ec.estado, ec.timestamp_inicio, ec.timestamp_fin,
                     u.nombre AS trabajador_nombre,
@@ -878,10 +902,15 @@ final class ChecklistService
 
         $progreso = $this->calcularProgreso($ejecucionId, $ejec->templateId);
 
+        // No va dentro de toArrayPublico() (ese método oculta timestamps al trabajador
+        // a propósito) — es un conteo regresivo derivado, no un timestamp absoluto.
+        $delayRestante = $this->delayRestanteSegundos($ejec);
+
         return [
             'ejecucion' => $ejec->toArrayPublico(),
             'items' => $items,
             'progreso' => $progreso,
+            'delay_restante_segundos' => $delayRestante,
         ];
     }
 
@@ -943,6 +972,14 @@ final class ChecklistService
     }
 
     /**
+     * Delay mínimo (segundos) entre timestamp_inicio y poder completar(). Antifraude /
+     * anti-apuro: evita que una limpieza se marque terminada a los pocos segundos de
+     * iniciada. Aplica siempre, incluidas las piezas nochero (sin excepción — ver
+     * delayRestanteSegundos()).
+     */
+    private const DELAY_MINIMO_COMPLETAR_SEGUNDOS = 180;
+
+    /**
      * Marca la habitación como terminada. Valida 100% obligatorios.
      */
     public function completar(int $ejecucionId, int $usuarioId): void
@@ -964,6 +1001,21 @@ final class ChecklistService
             throw new ChecklistException('CHECKLIST_INCOMPLETO', 'Faltan items obligatorios por marcar.', 409);
         }
 
+        // Cargada acá (antes movida a después del UPDATE) para poder chequear el delay
+        // mínimo antes de completar. Se reutiliza más abajo para $esEspacio.
+        $habitacion = $this->habitaciones->obtener($ejec->habitacionId);
+
+        $restante = $this->delayRestanteSegundos($ejec);
+        if ($restante > 0) {
+            $mm = intdiv($restante, 60);
+            $ss = $restante % 60;
+            throw new ChecklistException(
+                'DELAY_MINIMO',
+                sprintf('Debes esperar al menos 3 minutos desde que empezaste. Faltan %d:%02d.', $mm, $ss),
+                409
+            );
+        }
+
         Database::execute(
             "UPDATE #__ejecuciones_checklist
                 SET estado = 'completada',
@@ -974,12 +1026,18 @@ final class ChecklistService
 
         // Áreas comunes no pasan por auditoría: se auto-cierran (en_progreso → aprobada = "listo").
         // Las piezas de huésped quedan pendientes de auditoría. Ver docs/areas-comunes.md
-        $habitacion = $this->habitaciones->obtener($ejec->habitacionId);
         $esEspacio = $habitacion !== null && $habitacion->esEspacioComun;
         $estadoDestino = $esEspacio
             ? Habitacion::ESTADO_APROBADA
             : Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA;
         $this->habitaciones->cambiarEstado($ejec->habitacionId, $estadoDestino, $usuarioId, 'ui');
+
+        // La nota de Recepción es para "la próxima limpieza": una vez completada, ya cumplió
+        // su propósito. Se limpia acá (no en el veredicto de auditoría) porque el trabajador
+        // ya hizo lo que pedía, sin importar si después se aprueba/rechaza.
+        if ($habitacion !== null && $habitacion->notaRecepcion !== null) {
+            $this->habitaciones->quitarNota($ejec->habitacionId);
+        }
 
         Logger::audit($usuarioId, 'checklist.completar', 'ejecucion_checklist', $ejecucionId, [
             'habitacion_id' => $ejec->habitacionId, 'es_espacio_comun' => $esEspacio,
@@ -1012,6 +1070,129 @@ final class ChecklistService
                 'mensaje' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Segundos que faltan para poder completar() esta ejecución (0 si ya se puede).
+     * Sin excepción por nochero: aplica igual a todas las piezas. Solo aplica al
+     * flujo normal del trabajador — marcarLimpiaManual() y el forzado de Cloudbeds
+     * no pasan por acá, quedan sin restricción a propósito.
+     */
+    private function delayRestanteSegundos(EjecucionChecklist $ejec): int
+    {
+        $inicio = strtotime($ejec->timestampInicio);
+        if ($inicio === false) {
+            return 0;
+        }
+        // Umbral configurable (default 180s). Prod no setea la var → mantiene los 3 min;
+        // la suite de tests lo pone en 0 (tests/bootstrap.php) para completar sin esperar.
+        $minimo   = Config::getInt('CHECKLIST_DELAY_MINIMO_SEGUNDOS', self::DELAY_MINIMO_COMPLETAR_SEGUNDOS);
+        $restante = $minimo - (time() - $inicio);
+        return max(0, $restante);
+    }
+
+    /**
+     * Atajo administrativo (Admin/Supervisora): marca la habitación como limpia sin pasar
+     * por el checklist de un trabajador. Salta la LIMPIEZA, no la auditoría: la habitación
+     * queda 'completada_pendiente_auditoria' y sigue el flujo normal de veredicto
+     * (AuditoriaService::emitirVeredicto), sin tocarlo.
+     *
+     * No suma créditos a nadie (ReportesService los calcula desde ejecuciones_items.marcado_por):
+     * si crea una ejecución nueva, va sin ítems marcados. Si ya había una ejecución 'en_progreso'
+     * de un trabajador real, la cierra conservando lo que ese trabajador sí marcó.
+     */
+    public function marcarLimpiaManual(int $habitacionId, int $actorId): void
+    {
+        $habitacion = $this->habitaciones->obtener($habitacionId);
+        if ($habitacion === null) {
+            throw new ChecklistException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+
+        $estadosValidos = [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_RECHAZADA];
+        if (!in_array($habitacion->estado, $estadosValidos, true)) {
+            throw new ChecklistException(
+                'ESTADO_INVALIDO_PARA_MARCAR_LIMPIA',
+                'La habitación no está en un estado que permita marcarla como limpia.',
+                409
+            );
+        }
+
+        Database::transaction(function () use ($habitacion, $actorId) {
+            $habitacionId = $habitacion->id;
+            $estado = $habitacion->estado;
+
+            if ($estado === Habitacion::ESTADO_RECHAZADA) {
+                $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_SUCIA, $actorId, 'ui');
+                $estado = Habitacion::ESTADO_SUCIA;
+            }
+
+            if ($estado === Habitacion::ESTADO_EN_PROGRESO) {
+                $ejecFila = Database::fetchOne(
+                    "SELECT id FROM #__ejecuciones_checklist WHERE habitacion_id = ? AND estado = 'en_progreso' ORDER BY id DESC LIMIT 1",
+                    [$habitacionId]
+                );
+                if ($ejecFila !== null) {
+                    // Fuerza el cierre sin exigir 100% de obligatorios: conserva lo que el
+                    // trabajador real ya marcó (sus créditos no se tocan).
+                    Database::execute(
+                        "UPDATE #__ejecuciones_checklist SET estado = 'completada', timestamp_fin = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                        [(int) $ejecFila['id']]
+                    );
+                } else {
+                    // Inconsistencia: la habitación dice 'en_progreso' pero no hay ejecución viva.
+                    // Se trata igual que 'sucia' (crea una ejecución vacía a nombre del actor).
+                    $estado = Habitacion::ESTADO_SUCIA;
+                }
+            }
+
+            if ($estado === Habitacion::ESTADO_SUCIA) {
+                $asignacion = $this->asignaciones->obtenerActivaDeHabitacion($habitacionId);
+                if ($asignacion !== null) {
+                    $asignacionId = $asignacion->id;
+                } else {
+                    // Fila técnica: no hay trabajador real asignado. Se inserta directo (sin pasar
+                    // por AsignacionService) para no disparar candados/reglas pensadas para colas
+                    // de trabajadores reales. Solo satisface la FK NOT NULL de ejecuciones_checklist.
+                    Database::execute(
+                        'INSERT INTO #__asignaciones (habitacion_id, usuario_id, asignado_por, orden_cola, fecha, activa) VALUES (?, ?, ?, 0, ?, 1)',
+                        [$habitacionId, $actorId, $actorId, date('Y-m-d')]
+                    );
+                    $asignacionId = Database::lastInsertId();
+                }
+
+                $templateId = $this->templateParaHabitacion($habitacion);
+                if ($templateId === null && !$habitacion->esEspacioComun) {
+                    $templateId = $this->crearTemplateDefaultParaTipo(
+                        $habitacion->tipoHabitacionId,
+                        $this->nombreDeTipo($habitacion->tipoHabitacionId),
+                        null,
+                        $actorId
+                    );
+                }
+                if ($templateId === null) {
+                    throw new ChecklistException('TEMPLATE_NO_ENCONTRADO', 'No hay checklist template para esta habitación.', 500);
+                }
+
+                $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_EN_PROGRESO, $actorId, 'ui');
+
+                Database::execute(
+                    "INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_fin) VALUES (?, ?, ?, ?, 'completada', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                    [$habitacionId, $asignacionId, $actorId, $templateId]
+                );
+            }
+
+            $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $actorId, 'ui');
+
+            // Mismo criterio que completar(): la nota era para esta limpieza, y aunque haya
+            // sido un atajo administrativo, ya cumplió su propósito.
+            if ($habitacion->notaRecepcion !== null) {
+                $this->habitaciones->quitarNota($habitacionId);
+            }
+        });
+
+        Logger::audit($actorId, 'habitacion.marcar_limpia_manual', 'habitacion', $habitacionId, [
+            'estado_original' => $habitacion->estado,
+        ]);
     }
 
     /**

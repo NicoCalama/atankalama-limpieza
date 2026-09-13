@@ -59,8 +59,11 @@ final class NovedadesSyncService
     /**
      * @param list<array<string, mixed>> $adjuntos filas de TicketService::adjuntosDe()
      *        (llamar DESPUÉS de procesar las fotos de creación, si no llegan vacías)
+     * @return int|null id de la novedad creada en `novedades` (null si falló/no está
+     *         configurada) — TicketService lo persiste en tickets.novedad_id para poder
+     *         vincular la novedad de cierre con esta.
      */
-    public function sincronizar(Ticket $ticket, array $adjuntos = []): void
+    public function sincronizar(Ticket $ticket, array $adjuntos = []): ?int
     {
         $url = (string) Config::get('NOVEDADES_SYNC_URL', '');
         $token = (string) Config::get('NOVEDADES_SYNC_TOKEN', '');
@@ -70,7 +73,7 @@ final class NovedadesSyncService
             Logger::warning('novedades_sync', 'Integración no configurada (falta URL/token/recepcionista) — se omite.', [
                 'ticket_id' => $ticket->id,
             ]);
-            return;
+            return null;
         }
 
         try {
@@ -82,19 +85,22 @@ final class NovedadesSyncService
                     'ticket_id' => $ticket->id,
                     'motivo' => $resultado['motivo'] ?? 'desconocido',
                 ]);
-                return;
+                return null;
             }
 
             Logger::info('novedades_sync', 'Ticket copiado a novedades.', [
                 'ticket_id' => $ticket->id,
                 'novedad_id' => $resultado['novedad_id'] ?? null,
             ]);
+
+            return $resultado['novedad_id'] ?? null;
         } catch (\Throwable $e) {
             // Defensa final: un fallo acá nunca debe tumbar la creación del ticket.
             Logger::error('novedades_sync', 'Excepción al copiar ticket a novedades.', [
                 'ticket_id' => $ticket->id,
                 'error' => $e->getMessage(),
             ]);
+            return null;
         }
     }
 
@@ -151,7 +157,7 @@ final class NovedadesSyncService
             ? (self::HOTEL_A_NOMBRE[$hotel->codigo] ?? $hotel->nombre)
             : 'Atankalama';
 
-        return [
+        $payload = [
             'origen' => 'limpieza',
             'recepcionista_id' => (string) $recepcionistaId,
             'area' => self::AREA,
@@ -161,6 +167,18 @@ final class NovedadesSyncService
             'nivel_importancia' => (string) self::NIVEL_IMPORTANCIA,
             'requiere_seguimiento' => '0',
         ];
+
+        // Vincula esta novedad de cierre con la de creación (ver
+        // NovedadController::store() del lado de novedades, columna
+        // nov_novedades.origen_novedad_id). Si la creación no se sincronizó
+        // (integración caída ese día, ticket viejo previo a esta columna),
+        // tickets.novedad_id queda null y simplemente no se manda el campo —
+        // novedades sigue funcionando igual que antes, sin el vínculo.
+        if ($ticket->novedadId !== null) {
+            $payload['origen_novedad_id'] = (string) $ticket->novedadId;
+        }
+
+        return $payload;
     }
 
     /** @return array<string, string> */

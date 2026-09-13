@@ -45,7 +45,7 @@ final class NotificacionesService
         return Database::fetchAll(
             'SELECT id, tipo, titulo, cuerpo, url, leida, created_at
                FROM #__notificaciones
-              WHERE usuario_id = ?
+              WHERE usuario_id = ? AND oculta = 0
               ORDER BY created_at DESC
               LIMIT ' . (int) $limite,
             [$usuarioId]
@@ -55,7 +55,7 @@ final class NotificacionesService
     public function sinLeer(int $usuarioId): int
     {
         $fila = Database::fetchOne(
-            'SELECT COUNT(*) AS total FROM #__notificaciones WHERE usuario_id = ? AND leida = 0',
+            'SELECT COUNT(*) AS total FROM #__notificaciones WHERE usuario_id = ? AND leida = 0 AND oculta = 0',
             [$usuarioId]
         );
         return (int) ($fila['total'] ?? 0);
@@ -65,6 +65,27 @@ final class NotificacionesService
     {
         Database::execute(
             'UPDATE #__notificaciones SET leida = 1 WHERE usuario_id = ? AND leida = 0',
+            [$usuarioId]
+        );
+    }
+
+    /**
+     * Oculta una notificación puntual (soft-delete, botón "x" del popup).
+     * Devuelve las filas afectadas: 0 significa que no existe o no es del usuario.
+     */
+    public function ocultar(int $usuarioId, int $notificacionId): int
+    {
+        return Database::execute(
+            'UPDATE #__notificaciones SET oculta = 1 WHERE id = ? AND usuario_id = ?',
+            [$notificacionId, $usuarioId]
+        );
+    }
+
+    /** Oculta todas las notificaciones visibles del usuario (botón "Borrar todas"). */
+    public function ocultarTodas(int $usuarioId): void
+    {
+        Database::execute(
+            'UPDATE #__notificaciones SET oculta = 1 WHERE usuario_id = ? AND oculta = 0',
             [$usuarioId]
         );
     }

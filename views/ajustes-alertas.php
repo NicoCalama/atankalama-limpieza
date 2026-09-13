@@ -77,7 +77,9 @@
             <div class="flex items-center justify-between gap-2 pt-2 border-t border-gray-200 dark:border-gray-700" data-tour="alt.acciones">
                 <button type="button" @click="recalcularAhora()" :disabled="recalculando" data-tour="alt.recalcular"
                         class="min-h-[44px] inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 text-sm font-medium transition">
-                    <i data-lucide="refresh-cw" class="w-4 h-4" :class="recalculando ? 'animate-spin' : ''"></i>
+                    <span :class="recalculando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </span>
                     <span x-text="recalculando ? 'Recalculando...' : 'Recalcular ahora'"></span>
                 </button>
                 <div class="flex items-center gap-2">

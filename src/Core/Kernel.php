@@ -15,9 +15,11 @@ use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
 use Atankalama\Limpieza\Controllers\EdificiosController;
 use Atankalama\Limpieza\Controllers\EspaciosController;
+use Atankalama\Limpieza\Controllers\FestivosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\InventarioController;
+use Atankalama\Limpieza\Controllers\ModoEspiaController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\PushController;
@@ -137,9 +139,49 @@ final class Kernel
             $authCheck,
             new PermissionCheck('habitaciones.ver_historial'),
         ]);
+        $router->get('/api/habitaciones/{id}/historial/exportar', [$habitaciones, 'historialExportar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_historial'),
+        ]);
         $router->get('/api/habitaciones/{id}/auditoria', [$habitaciones, 'auditoriaActual'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+        $router->post('/api/habitaciones/{id}/marcar-limpia', [$habitaciones, 'marcarLimpiaManual'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_limpia_manual'),
+        ]);
+        $router->post('/api/habitaciones/{id}/marcar-sucia', [$habitaciones, 'marcarSuciaManual'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_limpia_manual'),
+        ]);
+        $router->post('/api/habitaciones/{id}/sin-aseo-cliente', [$habitaciones, 'marcarSinAseoCliente'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_limpia_manual'),
+        ]);
+        $router->get('/api/habitaciones/{id}/movimientos', [$habitaciones, 'movimientos'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_historial'),
+        ]);
+        $router->get('/api/habitaciones/{id}/movimientos/exportar', [$habitaciones, 'movimientosExportar'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.ver_historial'),
+        ]);
+        $router->put('/api/habitaciones/{id}/nochero', [$habitaciones, 'marcarNochero'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_nochero'),
+        ]);
+        $router->delete('/api/habitaciones/{id}/nochero', [$habitaciones, 'desmarcarNochero'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.marcar_nochero'),
+        ]);
+        $router->post('/api/habitaciones/{id}/nota', [$habitaciones, 'agregarNota'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.agregar_nota'),
+        ]);
+        $router->delete('/api/habitaciones/{id}/nota', [$habitaciones, 'quitarNota'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.agregar_nota'),
         ]);
 
         // Edificios
@@ -267,6 +309,12 @@ final class Kernel
             $authCheck,
             new PermissionCheck('espacios.ver'),
         ]);
+        // Antes de /api/espacios/{id}: {id} captura cualquier segmento y el router resuelve
+        // por orden de registro, así que 'exportar' calzaría con {id} si esta ruta fuera después.
+        $router->get('/api/espacios/exportar', [$espacios, 'exportar'], [
+            $authCheck,
+            new PermissionCheck('espacios.ver'),
+        ]);
         $router->get('/api/espacios/{id}', [$espacios, 'obtener'], [
             $authCheck,
             new PermissionCheck('espacios.ver'),
@@ -293,6 +341,12 @@ final class Kernel
         $router->get('/api/auditoria/bandeja', [$auditoria, 'bandeja'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
+        // Ruta literal ANTES de /api/auditoria/{id}, mismo motivo que
+        // /api/tickets/usuarios-asignables: el router matchea en orden de registro.
+        $router->put('/api/auditoria/orden', [$auditoria, 'reordenarBandeja'], [
+            $authCheck,
+            new PermissionCheck('auditoria.reordenar_bandeja'),
         ]);
         $router->post('/api/auditoria/{id}', [$auditoria, 'emitirVeredicto'], [$authCheck]);
         $router->get('/api/auditoria/{id}/historial', [$auditoria, 'historial'], [
@@ -322,6 +376,16 @@ final class Kernel
         // marcarlo resuelto (no cerrarlo ni reabrirlo) — la regla fina vive en el controller,
         // que sí conoce el ticket concreto. Ver TicketsController::cambiarEstado().
         $router->put('/api/tickets/{id}/estado', [$tickets, 'cambiarEstado'], [$authCheck]);
+        // A diferencia de /asignar y /estado (regla fina en el controller), acá un solo
+        // permiso decide todo — mismo patrón que /usuarios-asignables.
+        $router->put('/api/tickets/{id}/prioridad', [$tickets, 'cambiarPrioridad'], [
+            $authCheck,
+            new PermissionCheck('tickets.editar_prioridad'),
+        ]);
+        // Sin PermissionCheck acá a propósito: mismo criterio que ver el ticket (dueño,
+        // asignado, o tickets.ver_todos) — la regla vive en TicketsController::puedeVerTicket().
+        $router->get('/api/tickets/{id}/comentarios', [$tickets, 'comentarios'], [$authCheck]);
+        $router->post('/api/tickets/{id}/comentarios', [$tickets, 'comentar'], [$authCheck]);
         $router->post('/api/tickets/{id}/cerrar', [$tickets, 'cerrar'], [
             $authCheck,
             new PermissionCheck('tickets.ver_todos'),
@@ -362,6 +426,16 @@ final class Kernel
         // al propio usuario como a un admin con usuarios.editar consultar los datos.
         $router->get('/api/usuarios/{id}/datos-personales', [$usuarios, 'exportarDatos'], [$authCheck]);
 
+        // Modo espía: ver la app como otro usuario, solo lectura (docs/contexto).
+        $modoEspia = new ModoEspiaController();
+        $router->post('/api/usuarios/{id}/modo-espia/activar', [$modoEspia, 'activar'], [
+            $authCheck,
+            new PermissionCheck('usuarios.modo_espia'),
+        ]);
+        // Sin PermissionCheck a propósito: es la única ruta mutante que AuthCheck deja
+        // pasar mientras el modo espía está activo (ver AuthCheck::RUTA_SALIR_MODO_ESPIA).
+        $router->post('/api/modo-espia/salir', [$modoEspia, 'salir'], [$authCheck]);
+
         // Carga masiva de usuarios desde el calendario semanal .xlsx (mismo permiso que
         // crear uno solo: importar N es la misma acción de alta, repetida).
         $usuariosImport = new UsuariosImportController();
@@ -396,9 +470,28 @@ final class Kernel
             $authCheck,
             new PermissionCheck('turnos.asignar_a_usuario'),
         ]);
+        $router->post('/api/usuarios/{id}/turno/rango', [$turnos, 'asignarRangoAUsuario'], [
+            $authCheck,
+            new PermissionCheck('turnos.asignar_a_usuario'),
+        ]);
         $router->get('/api/turnos/dia', [$turnos, 'turnosDelDia'], [
             $authCheck,
             new PermissionCheck('turnos.ver'),
+        ]);
+
+        // Festivos (informativo, se muestran en el calendario de turnos)
+        $festivos = new FestivosController();
+        $router->get('/api/festivos', [$festivos, 'listar'], [
+            $authCheck,
+            new PermissionCheck('turnos.ver'),
+        ]);
+        $router->post('/api/festivos', [$festivos, 'crear'], [
+            $authCheck,
+            new PermissionCheck('turnos.asignar_a_usuario'),
+        ]);
+        $router->delete('/api/festivos/{id}', [$festivos, 'eliminar'], [
+            $authCheck,
+            new PermissionCheck('turnos.asignar_a_usuario'),
         ]);
 
         // Alertas
@@ -462,6 +555,8 @@ final class Kernel
         $notif = new NotificacionesController();
         $router->get('/api/notificaciones', [$notif, 'listar'], [$authCheck]);
         $router->get('/api/notificaciones/sin-leer', [$notif, 'sinLeer'], [$authCheck]);
+        $router->delete('/api/notificaciones/{id}', [$notif, 'eliminar'], [$authCheck]);
+        $router->delete('/api/notificaciones', [$notif, 'eliminarTodas'], [$authCheck]);
 
         // Reportes y KPIs
         $reportes = new ReportesController();
@@ -486,6 +581,14 @@ final class Kernel
             new PermissionCheck('reportes.ver'),
         ]);
         $router->get('/api/reportes/exportar', [$reportes, 'exportar'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/auditorias-pendientes', [$reportes, 'auditoriasPendientes'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/exportar-auditorias-pendientes', [$reportes, 'exportarAuditoriasPendientes'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);

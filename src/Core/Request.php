@@ -19,6 +19,14 @@ final class Request
     public ?string $sessionToken = null;
 
     /**
+     * Modo espía: cuando no son null, esta request está corriendo con $usuario
+     * sustituido por el usuario objetivo, y estos campos identifican al admin
+     * real que activó el modo espía (ver Middleware/AuthCheck.php).
+     */
+    public ?int $espiaAdminId = null;
+    public ?string $espiaAdminNombre = null;
+
+    /**
      * @param array<string, mixed> $cuerpo
      * @param array<string, string> $ruta  Parámetros capturados de la URL (ej. {id})
      * @param array<string, mixed> $query  Viene directo de $_GET: PHP permite valores no-string (ej. ?a[]=x)

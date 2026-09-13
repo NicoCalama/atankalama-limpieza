@@ -40,7 +40,9 @@ $usuarioActualId = $usuario->id;
                 <button type="button" @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
                         aria-label="Refrescar">
-                    <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400" :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="refresh-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>

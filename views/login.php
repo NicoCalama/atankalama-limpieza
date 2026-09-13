@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Limpieza Atankalama</title>
+    <title>AtanKeeping | Hotel Atankalama</title>
+    <link rel="icon" type="image/webp" href="<?= u('/assets/img/logo-atankalama.webp') ?>">
 
     <!-- Base path de la app ('' en dev, '/limpieza' en prod). Ver views/layout.php. -->
     <script>
@@ -43,18 +44,20 @@
     </script>
 </head>
 
-<body
-    class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
 
-    <div x-data="loginApp()" class="w-full max-w-sm">
+    <div x-data="loginApp()" class="min-h-screen grid md:grid-cols-2">
+
+    <!-- Columna izquierda: formulario de ingreso -->
+    <div class="flex items-center justify-center p-4 sm:p-8">
+    <div class="w-full max-w-sm">
 
         <!-- Logo -->
         <div class="text-center mb-8">
-            <div class="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="sparkles" class="w-8 h-8 text-white"></i>
-            </div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Atankalama</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Sistema de Limpieza</p>
+            <img src="<?= u('/assets/img/logo-atankalama.webp') ?>" alt="Hotel Atankalama"
+                class="h-14 w-auto mx-auto mb-4">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">AtanKeeping</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Hotel Atankalama</p>
         </div>
 
         <!-- Formulario login -->
@@ -268,6 +271,22 @@
                 <span class="hidden dark:inline">Modo claro</span>
             </button>
         </div>
+    </div>
+    </div>
+
+    <!-- Columna derecha: logo sobre fondo piscina del hotel (oculta en mobile) -->
+    <div class="hidden md:flex relative items-center justify-center bg-cover bg-center"
+        style="background-image: url('<?= u('/assets/img/fondo-piscina.webp') ?>')">
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div class="relative bg-white/95 dark:bg-gray-900/90 rounded-2xl shadow-xl p-10 flex flex-col items-center">
+            <img src="<?= u('/assets/img/logo-atankalama.webp') ?>" alt="Hotel Atankalama"
+                class="w-64 max-w-full h-auto">
+            <p class="mt-4 text-sm text-gray-600 dark:text-gray-300 text-center">
+                Sistema de gestión de limpieza y mantenimiento
+            </p>
+        </div>
+    </div>
+
     </div>
 
     <script src="<?= u('/assets/js/app.js') ?>"></script>

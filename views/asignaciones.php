@@ -66,13 +66,41 @@ require_once __DIR__ . '/componentes/avatar.php';
                 <button @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">
-                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                       :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
+
+        <!-- Navegador de fecha: por defecto hoy; permite planificar días futuros
+             (turnos de 4/7/10 días, habitaciones que se repiten en la semana). -->
+        <div class="flex items-center justify-center gap-2 max-w-7xl mx-auto mt-2" data-tour="asig.fecha">
+            <button @click="irADia(-1)" aria-label="Día anterior"
+                    class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="chevron-left" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+            </button>
+            <span class="text-sm font-medium min-w-[9rem] text-center"
+                  :class="esHoy ? 'text-gray-900 dark:text-gray-100' : 'text-blue-600 dark:text-blue-400'"
+                  x-text="etiquetaFecha"></span>
+            <button @click="irADia(1)" aria-label="Día siguiente"
+                    class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+            </button>
+            <button x-show="!esHoy" x-cloak @click="irAHoy()"
+                    class="min-h-[40px] px-3 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                Hoy
+            </button>
+        </div>
     </header>
+
+    <!-- Aviso: viendo un día futuro (planificación). El pool trae todo el inventario del hotel
+         (no solo lo sucio) porque no se conoce el estado real de un día que no ha llegado. -->
+    <div x-show="!esHoy" x-cloak
+         class="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-4 py-2 text-sm text-center">
+        Planificando <span x-text="etiquetaFecha.toLowerCase()"></span> — el refresco automático está pausado.
+    </div>
 
     <!-- Banner sin conexión -->
     <div x-show="sinConexion" x-cloak
@@ -120,6 +148,21 @@ require_once __DIR__ . '/componentes/avatar.php';
     <template x-if="data">
         <div>
 
+            <!-- Buscador de "Equipo del día" (compartido por Tablero y Clásico) -->
+            <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto">
+                <label class="sr-only" for="asig-buscar-trabajador">Buscar trabajador</label>
+                <div class="relative max-w-sm">
+                    <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input id="asig-buscar-trabajador" x-model="busquedaEquipo" type="text"
+                           placeholder="Buscar trabajador por nombre..."
+                           class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                </div>
+                <button x-show="busquedaEquipo" x-cloak @click="busquedaEquipo = ''"
+                        class="text-xs text-gray-500 dark:text-gray-400 hover:underline mt-1">
+                    Limpiar búsqueda
+                </button>
+            </div>
+
             <!-- Barra de modo (compartida por ambos modos) -->
             <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto flex items-center justify-between gap-2">
                 <div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5">
@@ -162,9 +205,16 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 </div>
                             </template>
 
-                            <template x-if="data.trabajadores.length > 0">
+                            <template x-if="data.trabajadores.length > 0 && trabajadoresEquipoFiltrados().length === 0">
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
+                                    <i data-lucide="search-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400">Sin coincidencias para "<span x-text="busquedaEquipo"></span>".</p>
+                                </div>
+                            </template>
+
+                            <template x-if="trabajadoresEquipoFiltrados().length > 0">
                                 <div class="space-y-2">
-                                    <template x-for="tr in data.trabajadores" :key="tr.usuario.id">
+                                    <template x-for="tr in trabajadoresEquipoFiltrados()" :key="tr.usuario.id">
                                         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 transition"
                                              data-drop="worker" :data-worker-id="tr.usuario.id">
                                             <div class="flex items-start gap-3 mb-3">
@@ -265,6 +315,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                      :class="seleccionadas.includes(hab.id) ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-300 dark:ring-green-500 ring-offset-1 dark:ring-offset-gray-800 shadow-md' : colorEstadoPool(hab.estado)"
                                                      data-drag-room :data-room-id="hab.id" :data-room-estado="hab.estado" data-room-origin="pool"
                                                      @pointerdown="iniciarDrag($event)">
+                                                    <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
                                                     <span x-text="hab.numero"></span>
                                                     <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                 </div>
@@ -352,6 +403,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                     <button @click="toggleSeleccion(hab.id)"
                                                             :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : colorEstadoPool(hab.estado)"
                                                             class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
+                                                        <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
                                                         <span x-text="hab.numero"></span>
                                                         <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                     </button>
@@ -412,9 +464,16 @@ require_once __DIR__ . '/componentes/avatar.php';
                                 </div>
                             </template>
 
-                            <template x-if="data.trabajadores.length > 0">
+                            <template x-if="data.trabajadores.length > 0 && trabajadoresEquipoFiltrados().length === 0">
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
+                                    <i data-lucide="search-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400">Sin coincidencias para "<span x-text="busquedaEquipo"></span>".</p>
+                                </div>
+                            </template>
+
+                            <template x-if="trabajadoresEquipoFiltrados().length > 0">
                                 <div class="space-y-2">
-                                    <template x-for="tr in data.trabajadores" :key="tr.usuario.id">
+                                    <template x-for="tr in trabajadoresEquipoFiltrados()" :key="tr.usuario.id">
                                         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                                             <div class="flex items-start gap-3 mb-3">
                                                 <span x-html="avatarUsuario(tr.usuario)"></span>
@@ -436,7 +495,7 @@ require_once __DIR__ . '/componentes/avatar.php';
 
                                             <template x-if="tr.cola.length > 0">
                                                 <ul class="space-y-1.5">
-                                                    <template x-for="hab in tr.cola" :key="hab.habitacion_id">
+                                                    <template x-for="(hab, idx) in tr.cola" :key="hab.habitacion_id">
                                                         <li class="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                                             <div class="flex items-center gap-2 min-w-0">
                                                                 <span class="font-semibold text-sm text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
@@ -451,6 +510,23 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                             </div>
                                                             <template x-if="esReasignable(hab.estado)">
                                                                 <div class="flex items-center gap-1.5 flex-shrink-0">
+                                                                    <!-- Modo Clásico nunca tuvo reorden de cola (a diferencia del
+                                                                         Tablero, que lo hace arrastrando) — subir/bajar cubre el
+                                                                         mismo endpoint sin necesitar drag-and-drop acá. -->
+                                                                    <button @click="moverEnCola(tr, hab, -1)" :disabled="idx === 0"
+                                                                            title="Subir" aria-label="Subir en la cola"
+                                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg
+                                                                                   border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300
+                                                                                   hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                                                        <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                                                                    </button>
+                                                                    <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === tr.cola.length - 1"
+                                                                            title="Bajar" aria-label="Bajar en la cola"
+                                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg
+                                                                                   border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300
+                                                                                   hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                                                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                                                                    </button>
                                                                     <button @click="abrirReasignar(tr, hab)"
                                                                             class="min-h-[36px] px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
                                                                         Reasignar
@@ -624,8 +700,12 @@ function asignacionesApp() {
         error: null,
         sinConexion: !navigator.onLine,
         hotel: localStorage.getItem('asignaciones_hotel') || 'ambos',
+        fecha: window.hoyServidor(),
         modo: localStorage.getItem('asignaciones_modo') || 'tablero',
         esTactil: !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches),
+        // Buscador de "Equipo del día" — un solo campo, compartido por Tablero y
+        // Clásico (misma instancia de componente). No filtra "Sin asignar".
+        busquedaEquipo: '',
         seleccionadas: [],
         autoEjecutando: false,
         _intervalId: null,
@@ -643,18 +723,44 @@ function asignacionesApp() {
 
         get puedeAutoAsignar() {
             var a = Alpine.store('auth');
+            // Auto-asignar (round-robin) es solo-hoy: repartir habitaciones sucias no tiene
+            // sentido en un día futuro donde no se conoce el estado real de las piezas.
+            if (!this.esHoy) return false;
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('asignaciones.auto_asignar'));
         },
 
-        get fechaHoy() {
-            return window.hoyServidor();
+        get esHoy() {
+            return this.fecha === window.hoyServidor();
+        },
+
+        // Etiqueta legible del día que se está viendo, para el navegador de fecha del header.
+        get etiquetaFecha() {
+            if (this.esHoy) return 'Hoy';
+            var partes = this.fecha.split('-');
+            var dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            var d = new Date(this.fecha + 'T12:00:00');
+            return dias[d.getDay()] + ' ' + partes[2] + '-' + partes[1] + '-' + partes[0];
+        },
+
+        irADia(delta) {
+            var d = new Date(this.fecha + 'T12:00:00');
+            d.setDate(d.getDate() + delta);
+            this.fecha = d.toISOString().slice(0, 10);
+            this.seleccionadas = [];
+            this.cargar();
+        },
+
+        irAHoy() {
+            this.fecha = window.hoyServidor();
+            this.seleccionadas = [];
+            this.cargar();
         },
 
         async cargar() {
             this.cargando = true;
             this.error = null;
             try {
-                var url = '/api/asignaciones/vista?fecha=' + encodeURIComponent(this.fechaHoy);
+                var url = '/api/asignaciones/vista?fecha=' + encodeURIComponent(this.fecha);
                 if (this.hotel && this.hotel !== 'ambos') url += '&hotel=' + encodeURIComponent(this.hotel);
                 var r = await apiFetch(url);
                 if (!r || !r.ok) {
@@ -674,15 +780,21 @@ function asignacionesApp() {
             }
         },
 
+        // El refresco automático (intervalo, reconexión, volver a la pestaña) es solo-hoy:
+        // en un día futuro no hay nada cambiando en vivo, y recargar de golpe podría
+        // perder una selección del pool en curso.
         iniciarRefresco() {
             var self = this;
-            this._intervalId = setInterval(function () { self.cargar(); }, 60000);
-            window.addEventListener('online', function () { self.sinConexion = false; self.cargar(); });
+            this._intervalId = setInterval(function () { if (self.esHoy) self.cargar(); }, 60000);
+            window.addEventListener('online', function () {
+                self.sinConexion = false;
+                if (self.esHoy) self.cargar();
+            });
             window.addEventListener('offline', function () { self.sinConexion = true; });
         },
 
         alVolverVisible() {
-            if (!document.hidden) this.cargar();
+            if (!document.hidden && this.esHoy) this.cargar();
         },
 
         setModo(m) {
@@ -702,6 +814,17 @@ function asignacionesApp() {
         etiquetaHotel() {
             var op = this.hotelOpciones.find(o => o.valor === this.hotel);
             return op ? op.etiqueta : 'Ambos hoteles';
+        },
+
+        // Filtra data.trabajadores por nombre (busquedaEquipo). Usado por el Tablero
+        // ("Equipo del día") y el Clásico ("Equipo") — misma lista, mismo orden.
+        trabajadoresEquipoFiltrados() {
+            if (!this.data) return [];
+            var q = (this.busquedaEquipo || '').trim().toLowerCase();
+            if (!q) return this.data.trabajadores;
+            return this.data.trabajadores.filter(function (tr) {
+                return (tr.usuario.nombre || '').toLowerCase().includes(q);
+            });
         },
 
         sinAsignarAgrupado() {
@@ -773,7 +896,7 @@ function asignacionesApp() {
                 this.$nextTick(function () { lucide.createIcons(); });
                 try {
                     var r = await apiPost('/api/asignaciones/reasignar', {
-                        habitacion_id: rid, usuario_id: workerId, fecha: this.fechaHoy, motivo: 'Reasignación manual'
+                        habitacion_id: rid, usuario_id: workerId, fecha: this.fecha, motivo: 'Reasignación manual'
                     });
                     if (r && r.ok) this.mostrarToast('exito', 'Habitación ' + (hab ? hab.numero : '') + ' movida a ' + destino.usuario.nombre + '.');
                     else this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos mover la habitación.');
@@ -801,7 +924,7 @@ function asignacionesApp() {
             this.$nextTick(function () { lucide.createIcons(); });
             try {
                 var r2 = await apiPost('/api/asignaciones', {
-                    habitacion_ids: ids, usuario_id: workerId, fecha: this.fechaHoy
+                    habitacion_ids: ids, usuario_id: workerId, fecha: this.fecha
                 });
                 if (r2 && r2.ok) this.mostrarToast('exito', 'Asignadas ' + ((r2.data && r2.data.total) || ids.length) + ' a ' + destino.usuario.nombre + '.');
                 else this.mostrarToast('error', (r2 && r2.error && r2.error.mensaje) || 'No pudimos asignar.');
@@ -827,7 +950,7 @@ function asignacionesApp() {
             origenTr.cola = origenTr.cola.filter(function (h) { return h.habitacion_id !== rid; });
             this.$nextTick(function () { lucide.createIcons(); });
             try {
-                var r = await apiPost('/api/asignaciones/desasignar', { habitacion_id: rid, fecha: this.fechaHoy });
+                var r = await apiPost('/api/asignaciones/desasignar', { habitacion_id: rid, fecha: this.fecha });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación ' + (hab ? hab.numero : '') + ' sin asignar.');
                 } else if (r && r.error && r.error.codigo === 'ESTADO_NO_DESASIGNABLE') {
@@ -841,7 +964,7 @@ function asignacionesApp() {
             this.cargar();
         },
 
-        // Reordenar la cola de un trabajador (arrastre dentro de su cuadro).
+        // Reordenar la cola de un trabajador (arrastre dentro de su cuadro, modo Tablero).
         async _reordenarEnWorker(workerId, roomId, indice) {
             var tr = this.data.trabajadores.find(function (t) { return t.usuario.id === workerId; });
             if (!tr) return;
@@ -851,10 +974,28 @@ function asignacionesApp() {
             if (to === from) return; // sin cambio
             var item = tr.cola.splice(from, 1)[0];
             tr.cola.splice(to, 0, item);
+            await this._persistirOrdenCola(workerId, tr.cola);
+        },
+
+        // Subir/bajar una posición en la cola (botones ▲▼, modo Clásico — acá no hay
+        // arrastre, mismo endpoint que ya usa el Tablero).
+        async moverEnCola(tr, hab, delta) {
+            var from = tr.cola.indexOf(hab);
+            if (from === -1) return;
+            var to = from + delta;
+            if (to < 0 || to >= tr.cola.length) return;
+            var item = tr.cola.splice(from, 1)[0];
+            tr.cola.splice(to, 0, item);
+            await this._persistirOrdenCola(tr.usuario.id, tr.cola);
+        },
+
+        // Persiste el nuevo orden completo de la cola de un trabajador — compartido
+        // entre el arrastre del Tablero y los botones ▲▼ del Clásico.
+        async _persistirOrdenCola(workerId, cola) {
             this.$nextTick(function () { lucide.createIcons(); });
-            var orden = tr.cola.map(function (h) { return h.habitacion_id; });
+            var orden = cola.map(function (h) { return h.habitacion_id; });
             try {
-                var r = await apiPut('/api/asignaciones/orden', { usuario_id: workerId, fecha: this.fechaHoy, orden: orden });
+                var r = await apiPut('/api/asignaciones/orden', { usuario_id: workerId, fecha: this.fecha, orden: orden });
                 if (!r || !r.ok) {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos reordenar.');
                     this.cargar();
@@ -902,7 +1043,7 @@ function asignacionesApp() {
                 var r = await apiPost('/api/asignaciones', {
                     habitacion_ids: this.seleccionadas,
                     usuario_id: tr.usuario.id,
-                    fecha: this.fechaHoy,
+                    fecha: this.fecha,
                     franja: this.modalAsignar.franja
                 });
                 if (r && r.ok) {
@@ -929,7 +1070,7 @@ function asignacionesApp() {
             try {
                 var r = await apiPost('/api/asignaciones/auto', {
                     hotel: this.hotel,
-                    fecha: this.fechaHoy
+                    fecha: this.fecha
                 });
                 if (r && r.ok) {
                     var n = (r.data.asignaciones || []).length;
@@ -988,7 +1129,7 @@ function asignacionesApp() {
                 var r = await apiPost('/api/asignaciones/reasignar', {
                     habitacion_id: this.modalReasignar.habitacion.habitacion_id,
                     usuario_id: dest.usuario.id,
-                    fecha: this.fechaHoy,
+                    fecha: this.fecha,
                     motivo: this.modalReasignar.motivo || 'Reasignación manual'
                 });
                 if (r && r.ok) {
@@ -1014,7 +1155,7 @@ function asignacionesApp() {
             try {
                 var r = await apiPost('/api/asignaciones/desasignar', {
                     habitacion_id: hab.habitacion_id,
-                    fecha: this.fechaHoy
+                    fecha: this.fecha
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación ' + hab.numero + ' desasignada.');
@@ -1046,7 +1187,10 @@ function asignacionesApp() {
         // necesita qué, según el estado real (sincronizado desde Cloudbeds). Reusa las
         // clases .chip-estado-*-activo (editables en Ajustes → Colores), no inventa color.
         colorEstadoPool(estado) {
-            var validos = ['sucia', 'rechazada'];
+            // Hoy el pool solo trae 'sucia'/'rechazada' (las demás no aparecen ahí). En un día
+            // futuro trae TODO el inventario sin filtrar por estado, así que hace falta pintar
+            // los seis para que la supervisora vea de un vistazo qué necesita qué.
+            var validos = ['sucia', 'rechazada', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion'];
             return validos.indexOf(estado) !== -1
                 ? 'chip-estado-' + estado + '-activo border-transparent hover:opacity-85'
                 : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600';

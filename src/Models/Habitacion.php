@@ -33,6 +33,11 @@ final class Habitacion
         public readonly string $estado,
         public readonly bool $activa,
         public readonly bool $esEspacioComun = false,
+        public readonly bool $esNochero = false,
+        public readonly ?string $nocheroHasta = null,
+        public readonly ?string $notaRecepcion = null,
+        public readonly ?int $notaRecepcionAutorId = null,
+        public readonly ?string $notaRecepcionAt = null,
     ) {
     }
 
@@ -50,6 +55,11 @@ final class Habitacion
             estado: (string) $fila['estado'],
             activa: ((int) $fila['activa']) === 1,
             esEspacioComun: ((int) ($fila['es_espacio_comun'] ?? 0)) === 1,
+            esNochero: ((int) ($fila['es_nochero'] ?? 0)) === 1,
+            nocheroHasta: isset($fila['nochero_hasta']) ? (string) $fila['nochero_hasta'] : null,
+            notaRecepcion: isset($fila['nota_recepcion']) ? (string) $fila['nota_recepcion'] : null,
+            notaRecepcionAutorId: isset($fila['nota_recepcion_autor_id']) ? (int) $fila['nota_recepcion_autor_id'] : null,
+            notaRecepcionAt: isset($fila['nota_recepcion_at']) ? (string) $fila['nota_recepcion_at'] : null,
         );
     }
 
@@ -66,6 +76,11 @@ final class Habitacion
             'estado' => $this->estado,
             'activa' => $this->activa,
             'es_espacio_comun' => $this->esEspacioComun,
+            'es_nochero' => $this->esNochero,
+            'nochero_hasta' => $this->nocheroHasta,
+            'nota_recepcion' => $this->notaRecepcion,
+            'nota_recepcion_autor_id' => $this->notaRecepcionAutorId,
+            'nota_recepcion_at' => $this->notaRecepcionAt,
         ];
     }
 

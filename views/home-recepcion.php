@@ -61,8 +61,9 @@ if ($hora < 12) {
                 <button @click="cargar()" :disabled="cargando" data-tour="hrec.refrescar"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">
-                    <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"
-                       :class="cargando ? 'animate-spin' : ''"></i>
+                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                    </span>
                 </button>
                 <button @click="$dispatch('toggle-notif')" data-tour="hrec.notif"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 relative"

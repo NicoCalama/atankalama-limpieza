@@ -30,12 +30,30 @@
                 max-h-[80vh] overflow-hidden">
 
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 gap-2">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notificaciones</h3>
-            <button @click="cerrar()"
-                    class="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                <i data-lucide="x" class="w-4 h-4"></i>
-            </button>
+            <div class="flex items-center gap-1">
+                <!-- Borrar todas: confirmación en dos pasos dentro del mismo botón (sin confirm() nativo) -->
+                <template x-if="!cargando && lista.length > 0">
+                    <button @click="confirmandoTodas ? eliminarTodas() : (confirmandoTodas = true)"
+                            class="text-xs font-medium px-2 py-1 rounded-lg transition"
+                            :class="confirmandoTodas
+                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'">
+                        <span x-text="confirmandoTodas ? '¿Confirmar?' : 'Borrar todas'"></span>
+                    </button>
+                </template>
+                <template x-if="confirmandoTodas">
+                    <button @click="confirmandoTodas = false"
+                            class="text-xs font-medium px-2 py-1 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        Cancelar
+                    </button>
+                </template>
+                <button @click="cerrar()"
+                        class="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Cargando -->
@@ -72,7 +90,12 @@
                                x-text="relativo(n.created_at)"></p>
                         </div>
 
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 dark:text-gray-600 flex-shrink-0 mt-1"></i>
+                        <!-- Eliminar individual: dentro del <a> pero con stop+prevent para no navegar -->
+                        <button @click.stop.prevent="eliminar(n.id)"
+                                class="min-h-[32px] min-w-[32px] flex items-center justify-center rounded-lg text-gray-300 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0 transition"
+                                aria-label="Eliminar notificación">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
                     </a>
                 </template>
             </div>
@@ -95,6 +118,7 @@ function notificacionesPopup() {
         abierto:  false,
         cargando: false,
         lista:    [],
+        confirmandoTodas: false,
 
         async abrir() {
             if (this.abierto) {
@@ -103,6 +127,7 @@ function notificacionesPopup() {
             }
             this.abierto  = true;
             this.cargando = true;
+            this.confirmandoTodas = false;
             try {
                 var resp = await fetch(u('/api/notificaciones'));
                 var json = await resp.json();
@@ -123,33 +148,79 @@ function notificacionesPopup() {
             this.abierto = false;
         },
 
+        // Optimista: se quita del array al toque. Si el servidor falla, se reintegra solo
+        // lo que ESTA operacion quito, fusionandolo con this.lista tal como este en ese
+        // momento (no se sobrescribe con la snapshot completa: otra operacion concurrente
+        // pudo haber borrado con exito el resto mientras tanto).
+        async eliminar(id) {
+            var quitada = this.lista.find(function (n) { return n.id === id; });
+            this.lista = this.lista.filter(function (n) { return n.id !== id; });
+            var restaurar = () => {
+                if (quitada && !this.lista.some(function (n) { return n.id === id; })) {
+                    this.lista = this.lista.concat([quitada]);
+                }
+            };
+            try {
+                var resp = await fetch(u('/api/notificaciones/' + id), { method: 'DELETE' });
+                var json = await resp.json();
+                if (!json.ok) {
+                    restaurar();
+                }
+            } catch (e) {
+                restaurar();
+            }
+        },
+
+        async eliminarTodas() {
+            this.confirmandoTodas = false;
+            var quitadas = this.lista;
+            this.lista = [];
+            var restaurar = () => {
+                var idsActuales = this.lista.map(function (n) { return n.id; });
+                var faltantes = quitadas.filter(function (n) { return idsActuales.indexOf(n.id) === -1; });
+                this.lista = this.lista.concat(faltantes);
+            };
+            try {
+                var resp = await fetch(u('/api/notificaciones'), { method: 'DELETE' });
+                var json = await resp.json();
+                if (!json.ok) {
+                    restaurar();
+                }
+            } catch (e) {
+                restaurar();
+            }
+        },
+
         iconoBg(tipo) {
             return {
-                asignacion: 'bg-blue-50 dark:bg-blue-900/30',
-                rechazo:    'bg-red-50 dark:bg-red-900/30',
-                riesgo:     'bg-amber-50 dark:bg-amber-900/30',
-                disponible: 'bg-emerald-50 dark:bg-emerald-900/30',
-                auditoria:  'bg-purple-50 dark:bg-purple-900/30',
+                asignacion:        'bg-blue-50 dark:bg-blue-900/30',
+                rechazo:           'bg-red-50 dark:bg-red-900/30',
+                riesgo:            'bg-amber-50 dark:bg-amber-900/30',
+                disponible:        'bg-emerald-50 dark:bg-emerald-900/30',
+                auditoria:         'bg-purple-50 dark:bg-purple-900/30',
+                ticket_comentario: 'bg-blue-50 dark:bg-blue-900/30',
             }[tipo] || 'bg-gray-100 dark:bg-gray-700';
         },
 
         iconoNombre(tipo) {
             return {
-                asignacion: 'clipboard-list',
-                rechazo:    'x-circle',
-                riesgo:     'clock',
-                disponible: 'check-circle',
-                auditoria:  'shield-check',
+                asignacion:        'clipboard-list',
+                rechazo:           'x-circle',
+                riesgo:            'clock',
+                disponible:        'check-circle',
+                auditoria:         'shield-check',
+                ticket_comentario: 'message-square',
             }[tipo] || 'bell';
         },
 
         iconoColor(tipo) {
             return {
-                asignacion: 'text-blue-600 dark:text-blue-400',
-                rechazo:    'text-red-600 dark:text-red-400',
-                riesgo:     'text-amber-600 dark:text-amber-400',
-                disponible: 'text-emerald-600 dark:text-emerald-400',
-                auditoria:  'text-purple-600 dark:text-purple-400',
+                asignacion:        'text-blue-600 dark:text-blue-400',
+                rechazo:           'text-red-600 dark:text-red-400',
+                riesgo:            'text-amber-600 dark:text-amber-400',
+                disponible:        'text-emerald-600 dark:text-emerald-400',
+                auditoria:         'text-purple-600 dark:text-purple-400',
+                ticket_comentario: 'text-blue-600 dark:text-blue-400',
             }[tipo] || 'text-gray-500 dark:text-gray-400';
         },
 
