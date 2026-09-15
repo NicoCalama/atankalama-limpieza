@@ -6,8 +6,8 @@
 > firme, de acá salen el **reporte de KPIs** (pieza 2) y el **reporte de sueldos**
 > (pieza 3). Si acá no está confirmado, no se construye.
 >
-> **Estado del documento:** Rol A (Trabajador de aseo) · Niveles 1, 2 y 3 **cerrados** ✅ — definición del Trabajador COMPLETA. Próximo: Rol B (Supervisora).
-> **Última actualización:** 14/09/2026.
+> **Estado del documento:** Rol A (Trabajador de aseo) · N1, N2, N3 **cerrados** ✅. Rol B (Supervisora) · **Nivel 1 cerrado** ✅. Próximo: Supervisora Nivel 2.
+> **Última actualización:** 15/09/2026.
 
 ## Alcance y decisiones base (confirmadas)
 
@@ -237,11 +237,90 @@ Trabajador de aseo** (Niveles 1, 2 y 3).
 
 ---
 
-# Rol B — Supervisora  `[PENDIENTE — después del trabajador]`
+# Rol B — Supervisora
 
-Se define cuando cerremos los tres niveles del trabajador. Anticipo (de `BONO ASEO`):
-desempeño de la **sección** = productividad + calidad del equipo (agregado de los KPIs del
-trabajador) + **cobertura de auditoría** (% de piezas efectivamente auditadas por turno).
+> **Leveling (mismo criterio que el trabajador, confirmado 15/09):** Nivel 1 = **números
+> planos**; Nivel 2 = **porcentajes**; Nivel 3 = **comparativa con el grupo/realidad**.
+
+La supervisora se mide, en su base, por **su propia producción de auditoría** — auditar es su
+trabajo, el espejo de lo que la limpieza es para el trabajador. **Los créditos NO aplican a la
+supervisora** (no miden su trabajo — decisión 15/09): quedan fuera de sus KPIs.
+
+## Nivel 1 — Base: números planos de su auditoría  `[CERRADO ✅]`
+
+Aplica sobre **piezas de huésped** (la bandeja de auditoría excluye espacios comunes:
+`AuditoriaService::bandejaPendientes` filtra `es_espacio_comun = 0`). Atribución por
+**`auditorias.auditor_id`** (quien emite el veredicto). Se cuenta **por ejecución auditada**
+(cada fila de `auditorias` es única por `ejecucion_id` → sin doble conteo; una re-limpieza es
+una ejecución nueva con su propia auditoría).
+
+**Ventana de fecha (propuesta):** para la supervisora la ventana es la **fecha de auditoría**
+(cuándo auditó ella), **no** la fecha de limpieza. Su trabajo es auditar, así que sus KPIs se
+cuentan por el evento de auditoría. Es una divergencia consciente respecto de la ventana única
+del trabajador (= fecha de limpieza), porque miden trabajos y personas distintas.
+
+**Fechas variables (requisito, confirmado 15/09):** todos los KPIs de la supervisora deben
+poder **observarse en fechas variables** — día / semana / mes / **rango personalizado** — misma
+tuerca transversal que el resto del proyecto. El reporte de la supervisora lo respeta como
+requisito, no como opción. En la práctica hay un turno por día.
+
+### KPI S1.1 — Piezas auditadas (por veredicto)
+- **Qué mide:** cuántas piezas auditó la supervisora en el rango, desglosadas por resultado.
+- **Números planos:** **total auditadas** · **aprobadas** (plenas) · **aprobadas con
+  observación** · **rechazadas**.
+- **Fórmula:** `COUNT(*)` sobre `auditorias` donde `auditor_id = <supervisora>` y la fecha de
+  auditoría cae en el rango, agrupado por `veredicto`.
+- **Fuente:** tabla `auditorias` (`auditor_id`, `veredicto`, fecha). Ya existe
+  `ReportesService::resumenMensualAuditores` (hoy mensual) → **generalizar a rango libre**.
+- **Casos borde:** Recepción también puede auditar (tiene permiso) → el KPI es por persona
+  (`auditor_id`); para "la supervisora" se filtra por su id. Las piezas que **Cloudbeds
+  auto-aprueba** NO generan fila en `auditorias` → correctamente **no** cuentan como auditadas
+  por ella.
+- **Estado:** ✅ confirmado. Falta generalizar de mes a rango libre.
+
+### KPI S1.2 — Tiempo por auditación
+- **Qué mide:** minutos promedio que le toma auditar una pieza — qué tan eficiente es auditando.
+- **Fórmula:** `AVG(fin − inicio)` en minutos por pieza auditada.
+- **Fuente:** ⚠️ **requiere cambio (decisión 15/09, opción C).** Hoy `auditorias` solo guarda
+  `created_at` (instante del veredicto), no el inicio. Para este KPI hay que:
+  1. Agregar al schema un **`auditorias.timestamp_inicio`** (o columna análoga).
+  2. Grabar ese instante cuando la supervisora **abre la habitación** en `/auditoria` (nuevo
+     evento "iniciar auditoría"; hoy `emitirVeredicto` es un único POST sin apertura previa).
+  3. `fin` = `created_at` (instante del veredicto). **Duración = fin − inicio.**
+- **Atribución:** por `auditor_id`.
+- **Antifraude / outliers (a afinar al construir):** evaluar un mínimo razonable de duración
+  (paralelo al `DELAY_MINIMO_COMPLETAR` del trabajador) para descartar aperturas accidentales,
+  y mediana/descarte de outliers por pausas.
+- **Pendiente menor (no bloquea la definición):** decidir si la propia supervisora ve su tiempo
+  (para el trabajador el tiempo es oculto; acá el tiempo es de ella y mide su eficiencia). Se
+  resuelve al construir.
+- **Estado:** ✅ definición confirmada; ⚠️ **no computable hasta implementar el cambio (C)**
+  (columna de inicio + evento de apertura en `/auditoria`). Al depender de un dato nuevo, este
+  KPI **solo tendrá histórico desde que se implemente** — las auditorías previas no tienen inicio
+  grabado, así que en fechas anteriores aparecerá vacío.
+
+**Estado del Nivel 1:** ✅ cerrado (15/09). *Nota: S1.2 tiene una dependencia de build
+(schema + flujo de `/auditoria`) que se ejecuta cuando toque construir, no ahora.*
+
+## Nivel 2 — Porcentajes  `[PENDIENTE]`
+
+Anticipo (a definir): **cobertura de auditoría** (% de piezas efectivamente auditadas — el
+"derivado gratis" `B/(A+B)` del trabajador, ahora como KPI protagonista de la supervisora),
+% de rechazo / observación sobre lo que auditó, y la **calidad/eficiencia de la sección**
+(agregado de los KPIs del trabajador).
+
+⚠️ **A resolver al abrir el N2 — ámbito de la "sección":** el mapeo de código (14-15/09) mostró
+que **la app no modela el ámbito de una supervisora** (no hay relación supervisora→equipo /
+zona / turno; los permisos son globales, no por hotel). La única agrupación de equipo real es el
+**hotel** (`usuarios.hotel_default` / `habitaciones.hotel_id`), y el agregado del equipo por
+hotel + rango YA se computa (`ReportesService::kpis(..., usuarioId=null)`). La primera decisión
+del N2 es: **"sección = hotel"** (barato, reusa lo existente; limitación: dos supervisoras en el
+mismo hotel no se separan) vs. **modelar zona/equipo con responsable** (toca schema).
+
+## Nivel 3 — Comparativa  `[PENDIENTE]`
+
+Comparación entre supervisoras/secciones (y contra metas/realidad), mismo patrón de semáforo por
+desviación estándar (σ) que el trabajador.
 
 ---
 
@@ -281,3 +360,8 @@ re-clean **<5%**.
 | 14/09/2026 | Explícito: piezas **sin auditar al cierre del día = aprobadas** para los KPIs del trabajador (no lo penaliza la falta de auditoría; cobertura baja = señal de la Supervisora). Realización se mantiene (mide ejecución de lo asignado; Cumplimiento = Realización × Calidad). |
 | 14/09/2026 | Nivel 3 (trabajador): comparación con el grupo sobre **todos** los KPIs — valor · promedio · Δ · **semáforo por σ (1σ/2σ, configurable)**. Mínimo de datos configurable; nuevos/pocos datos fuera del promedio. Comparación respeta el filtro (hotel). |
 | 14/09/2026 | **Tiempo y ritmo = semáforo de DOS lados**: alejarse mucho del promedio hacia cualquier lado alerta (muy lento = ayuda; muy rápido = posible mal uso/gaming). **Nivel 3 cerrado → definición de KPIs del Trabajador COMPLETA.** |
+| 15/09/2026 | **Leveling de la Supervisora = mismo criterio que el trabajador**: N1 números planos, N2 porcentajes, N3 comparativa. La cobertura de auditoría (que es un %) baja al **Nivel 2**, no al 1. |
+| 15/09/2026 | **Créditos NO aplican a la supervisora** — no miden su trabajo. Fuera de sus KPIs. |
+| 15/09/2026 | **Nivel 1 supervisora = su producción de auditoría en crudo, lo más básico:** (S1.1) piezas auditadas por veredicto (aprobadas / con observación / rechazadas / total) y (S1.2) tiempo por auditación. Atribución por `auditor_id`; ventana propuesta = **fecha de auditoría** (no fecha de limpieza). |
+| 15/09/2026 | **Tiempo por auditación → opción (C):** grabar el `timestamp_inicio` de la auditoría (agrega columna al schema + evento "abrir habitación" en `/auditoria`; fin = instante del veredicto). Hoy `auditorias` solo tiene `created_at`. **Nivel 1 de la Supervisora cerrado.** |
+| 15/09/2026 | **Fechas variables (requisito):** todos los KPIs de la supervisora deben poder observarse en día / semana / mes / **rango personalizado** — misma tuerca transversal del proyecto. |
