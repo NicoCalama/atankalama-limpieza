@@ -6,7 +6,9 @@
 > firme, de acá salen el **reporte de KPIs** (pieza 2) y el **reporte de sueldos**
 > (pieza 3). Si acá no está confirmado, no se construye.
 >
-> **Estado del documento:** Rol A (Trabajador de aseo) · N1, N2, N3 **cerrados** ✅. Rol B (Supervisora) · **Nivel 1 cerrado** ✅. Próximo: Supervisora Nivel 2.
+> **Estado del documento:** Rol A (Trabajador de aseo) · N1, N2, N3 **cerrados** ✅. Rol B
+> (Supervisora) · N1, N2, N3 **cerrados** ✅ — **definición de ambos roles COMPLETA**. Próximo:
+> armar las piezas (reporte de KPIs + reporte de sueldos).
 > **Última actualización:** 15/09/2026.
 
 ## Alcance y decisiones base (confirmadas)
@@ -302,25 +304,108 @@ requisito, no como opción. En la práctica hay un turno por día.
 **Estado del Nivel 1:** ✅ cerrado (15/09). *Nota: S1.2 tiene una dependencia de build
 (schema + flujo de `/auditoria`) que se ejecuta cuando toque construir, no ahora.*
 
-## Nivel 2 — Porcentajes  `[PENDIENTE]`
+## Nivel 2 — Porcentajes  `[CERRADO ✅]`
 
-Anticipo (a definir): **cobertura de auditoría** (% de piezas efectivamente auditadas — el
-"derivado gratis" `B/(A+B)` del trabajador, ahora como KPI protagonista de la supervisora),
-% de rechazo / observación sobre lo que auditó, y la **calidad/eficiencia de la sección**
-(agregado de los KPIs del trabajador).
+Los porcentajes que salen del N1. Set **acotado** (la tarea de la supervisora es más puntual,
+decisión 15/09): tres KPIs.
 
-⚠️ **A resolver al abrir el N2 — ámbito de la "sección":** el mapeo de código (14-15/09) mostró
-que **la app no modela el ámbito de una supervisora** (no hay relación supervisora→equipo /
-zona / turno; los permisos son globales, no por hotel). La única agrupación de equipo real es el
-**hotel** (`usuarios.hotel_default` / `habitaciones.hotel_id`), y el agregado del equipo por
-hotel + rango YA se computa (`ReportesService::kpis(..., usuarioId=null)`). La primera decisión
-del N2 es: **"sección = hotel"** (barato, reusa lo existente; limitación: dos supervisoras en el
-mismo hotel no se separan) vs. **modelar zona/equipo con responsable** (toca schema).
+**Ámbito / "sección" (confirmado 15/09):** hoy **no hay sección** — las supervisoras están a
+cargo de **ambos hoteles** (quedan cerca), así que la sección es el **universo total**. El N2 se
+calcula sobre todo el universo, sin filtrar por hotel. Queda **parametrizable**: si a futuro se
+divide (una supervisora por hotel o por zona), el mismo cálculo se filtra por hotel — el código
+ya está preparado (`ReportesService::kpis(..., usuarioId=null)` acepta el filtro de hotel). Sin
+cambios de schema.
 
-## Nivel 3 — Comparativa  `[PENDIENTE]`
+### KPI S2.1 — Cobertura de auditoría  *(su KPI estrella)*
+- **Qué mide:** de todas las piezas que el equipo dejó limpias en el rango, **qué % se alcanzó a
+  auditar**. Es el termómetro de la **gestión de supervisión** (¿dio abasto para revisar?), no de
+  la calidad del trabajo.
+- **Fórmula:** `piezas auditadas ÷ piezas limpiadas × 100`, sobre el universo total, contando por
+  ejecución (sin doble conteo).
+- **Ventana:** por **fecha de limpieza** (`ejecuciones_checklist.timestamp_inicio`). Es forzoso:
+  las piezas sin auditar no tienen fecha de auditoría, así que la única fecha común es la de
+  limpieza. (Distinto de los conteos del N1, que van por fecha de auditoría — miden cosas
+  distintas.)
+- **Piezas auto-aprobadas por Cloudbeds (decisión 15/09):** cuentan como **NO auditadas** →
+  **bajan la cobertura** (nadie humano las revisó; la cobertura mide revisión humana real).
+  **Contraparte para el trabajador:** esas mismas piezas quedan **aprobadas** al cierre de la
+  noche (aprobación automática de la app, "por temas de app") y **NO lo perjudican** — coherente
+  con "no auditadas = aprobadas" del trabajador. Mismo dato, dos lecturas: baja la cobertura de
+  la supervisora, no la calidad del trabajador.
+- **Fuente:** derivable del `LEFT JOIN ejecuciones_checklist → auditorias`; la señal base ya
+  existe en `ReportesService::auditoriasPendientes` (hoy por día/turno) → **generalizar a rango**.
+- **Enganche con el trabajador:** es el `A ÷ (A+B)` del trabajador (créditos auditados vs no
+  auditados), pero contando **piezas de toda la sección**.
+- **Estado:** ✅ confirmado. Falta el método por rango sobre el universo.
 
-Comparación entre supervisoras/secciones (y contra metas/realidad), mismo patrón de semáforo por
-desviación estándar (σ) que el trabajador.
+### KPI S2.2 — % de rechazo de la sección
+- **Qué mide:** de lo que se auditó, cuánto **hubo que rehacer** (re-clean rate de la industria).
+- **Fórmula:** `rechazadas ÷ total auditadas × 100`.
+- **Fuente:** ✅ ya existe agregado — `ReportesService::kpiTasaRechazo(..., usuarioId=null)`.
+  Meta actual 5 % (benchmark industria <5 %).
+
+### KPI S2.3 — % de aprobación a la primera de la sección
+- **Qué mide:** cuánto **pasó bien de una** (inspection pass rate de la industria).
+- **Fórmula:** `(aprobadas + aprobadas con observación) ÷ total auditadas × 100`.
+- **Fuente:** ✅ ya existe agregado — `ReportesService::kpiAprobacionPrimera(..., usuarioId=null)`.
+  Meta actual 95 % (benchmark ~98 %).
+- **Nota:** S2.2 y S2.3 son **complementarios** (suman ~100 %: lo que no se rechaza, se aprueba
+  de una). Se mantienen los dos por ser intuitivos desde ángulos opuestos; se puede dejar uno
+  solo si más adelante se prefiere.
+
+**Fechas variables:** los tres KPIs del N2 respetan el requisito transversal — día / semana / mes
+/ rango personalizado.
+
+**Nota técnica (al construir):** al agregar la sección, cuidar el **doble conteo** de
+re-limpiezas (una pieza rehecha por otra persona entra en el "esperado" de dos personas) y de
+nocheros (2 ejecuciones/día) → contar por ejecución + la regla de "esperado" ya definida en el N2
+del trabajador.
+
+**Estado del Nivel 2:** ✅ cerrado (15/09).
+
+## Nivel 3 — Comparativa  `[CERRADO ✅]`
+
+La comparativa de la supervisora es **distinta a la del trabajador** por dos motivos ya
+establecidos: hay **una sola sección** (el universo, compartida por todas las supervisoras) y son
+**pocas** (cubren ambos hoteles). Por eso es **deliberadamente más simple**: no busca el rigor
+estadístico del trabajador, sino una **vista rápida de qué está pasando en el hotel** — quién
+audita y quién se queda atrás. Tiene **dos lentes** + metas configurables.
+
+### Lente 1 (principal) — La sección contra metas + tendencia
+Aplica a los 3 porcentajes del N2 (cobertura, rechazo, aprobación a la primera) sobre el universo.
+- **Semáforo contra META** (no contra σ): 🟢 cumple · 🟡 cerca · 🔴 lejos de la meta.
+- **Tendencia:** valor del período vs. el período anterior → flecha ▲▼ (¿la sección mejora o
+  empeora en el tiempo?).
+- **Dirección por KPI:** cobertura y aprobación a la primera → *más = mejor* (alerta si **bajo**
+  la meta); % rechazo → *menos = mejor* (alerta si **sobre** la meta).
+
+### Lente 2 (secundaria) — Entre supervisoras, en lo personal
+Aplica a las métricas personales de auditoría del N1, para ver **quién audita y quién se queda
+atrás**:
+- **Piezas auditadas** por cada una · **tiempo por auditación** · **aporte a la cobertura**
+  (piezas que auditó ella ÷ total limpiadas de la sección).
+- **Versión simple (NO σ):** por cada supervisora → su valor · **promedio simple** del grupo · Δ
+  (su valor − promedio). Nada más. Motivo: con 2-3 personas el σ sería ruidoso; el promedio simple
+  basta para la vista rápida. Es a propósito menos sofisticada que la del trabajador.
+- **Tiempo por auditación = dos lados** (muy lento = no da abasto; muy rápido = revisión
+  superficial), igual que el trabajador.
+- **Fuente:** `ReportesService::resumenMensualAuditores` (por `auditor_id`) → generalizar a rango;
+  el aporte a la cobertura cruza lo auditado por ella con el total limpiado del universo.
+
+### Metas y configuración
+- **Metas configurables desde Ajustes** (mismo patrón que los umbrales de alertas predictivas /
+  del trabajador), por rol con el permiso correspondiente.
+- **Defaults:** % rechazo ≤ **5 %**, % aprobación a la primera ≥ **95 %** (ya existen en el
+  código como metas), y **cobertura ≥ (meta a confirmar, propuesta inicial ~90 %)**. La meta de
+  cobertura es la única sin número histórico → se fija contigo; al ser configurable, no bloquea.
+
+**Estado del Nivel 3:** ✅ cerrado (15/09).
+
+---
+
+> **✅ Definición de KPIs de la SUPERVISORA COMPLETA (N1 + N2 + N3).** Con el Trabajador ya
+> cerrado, ambos roles del equipo de Aseo quedan definidos. Próximo: armar las **piezas** —
+> reporte de KPIs y reporte de sueldos (cruce por RUT, reusar `ExcelExport`).
 
 ---
 
@@ -365,3 +450,7 @@ re-clean **<5%**.
 | 15/09/2026 | **Nivel 1 supervisora = su producción de auditoría en crudo, lo más básico:** (S1.1) piezas auditadas por veredicto (aprobadas / con observación / rechazadas / total) y (S1.2) tiempo por auditación. Atribución por `auditor_id`; ventana propuesta = **fecha de auditoría** (no fecha de limpieza). |
 | 15/09/2026 | **Tiempo por auditación → opción (C):** grabar el `timestamp_inicio` de la auditoría (agrega columna al schema + evento "abrir habitación" en `/auditoria`; fin = instante del veredicto). Hoy `auditorias` solo tiene `created_at`. **Nivel 1 de la Supervisora cerrado.** |
 | 15/09/2026 | **Fechas variables (requisito):** todos los KPIs de la supervisora deben poder observarse en día / semana / mes / **rango personalizado** — misma tuerca transversal del proyecto. |
+| 15/09/2026 | **Ámbito de la Supervisora = universo total (ambos hoteles):** hoy no hay "sección" — las supervisoras cubren ambos hoteles (quedan cerca). Parametrizable por hotel a futuro; sin tocar schema. |
+| 15/09/2026 | **Nivel 2 supervisora = set acotado, 3 porcentajes:** (S2.1) cobertura de auditoría, (S2.2) % de rechazo de la sección, (S2.3) % de aprobación a la primera. Su tarea es más acotada. |
+| 15/09/2026 | **Cobertura — Cloudbeds:** las piezas auto-aprobadas por Cloudbeds cuentan como **NO auditadas** (bajan la cobertura de la supervisora); contraparte: para el **trabajador** quedan **aprobadas** al cierre (no lo perjudican). Ventana de cobertura = fecha de limpieza. **Nivel 2 de la Supervisora cerrado.** |
+| 15/09/2026 | **Nivel 3 supervisora = comparativa con dos lentes + metas** (más simple que la del trabajador, a propósito): **(1) sección vs metas + tendencia** (semáforo contra meta, no σ; flecha ▲▼ vs período anterior) sobre los 3 % del N2; **(2) entre supervisoras en lo personal** (piezas auditadas, tiempo por auditación, aporte a la cobertura) con **promedio simple + Δ** (no σ, son pocas) → "quién audita y quién se queda atrás". Metas configurables desde Ajustes (rechazo ≤5 %, aprobación ≥95 %, cobertura ~90 % a confirmar). Tiempo = dos lados. **Nivel 3 cerrado → definición de la Supervisora COMPLETA (N1+N2+N3).** |
