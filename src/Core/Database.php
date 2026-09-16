@@ -59,6 +59,11 @@ final class Database
         $pdo = new PDO('sqlite:' . $fullPath, null, null, $options);
         $pdo->exec('PRAGMA foreign_keys = ON');
         $pdo->exec('PRAGMA journal_mode = WAL');
+        // Espera hasta 5s si otra conexión tiene el lock de escritura, en vez de fallar al
+        // instante con SQLITE_BUSY. Necesario para que transactionImmediate() serialice de
+        // forma limpia la sección crítica del guard anti-bloqueo de admins (dos requests
+        // concurrentes esperan su turno en vez de reventar).
+        $pdo->exec('PRAGMA busy_timeout = 5000');
 
         return $pdo;
     }
@@ -245,6 +250,44 @@ final class Database
             return $result;
         } catch (\Throwable $e) {
             $pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Cláusula de bloqueo de fila portable para una lectura dentro de una transacción:
+     * ' FOR UPDATE' en MySQL/MariaDB (bloquea las filas leídas hasta el commit); vacío en
+     * SQLite (donde transactionImmediate() ya serializa a los escritores). Se usa para
+     * lecturas "contar-y-luego-mutar" que deben ser atómicas frente a requests concurrentes.
+     */
+    public static function forUpdate(?string $driver = null): string
+    {
+        $driver ??= self::driver();
+        return ($driver === 'mysql' || $driver === 'mariadb') ? ' FOR UPDATE' : '';
+    }
+
+    /**
+     * Como transaction(), pero SERIALIZANDO a los escritores concurrentes desde el arranque:
+     *   - SQLite: BEGIN IMMEDIATE toma el lock de escritura de entrada (evita el TOCTOU de
+     *     "contar admins → mutar"). No se puede emitir con PDO::beginTransaction() (haría un
+     *     BEGIN diferido), así que se abre/cierra por exec().
+     *   - MySQL/MariaDB: transacción normal; la serialización la aporta el caller con una
+     *     lectura `... FOR UPDATE` (ver forUpdate()) sobre una fila centinela.
+     * Revierte y relanza ante cualquier excepción.
+     */
+    public static function transactionImmediate(callable $callback): mixed
+    {
+        if (self::driver() !== 'sqlite') {
+            return self::transaction($callback);
+        }
+        $pdo = self::pdo();
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $result = $callback();
+            $pdo->exec('COMMIT');
+            return $result;
+        } catch (\Throwable $e) {
+            $pdo->exec('ROLLBACK');
             throw $e;
         }
     }

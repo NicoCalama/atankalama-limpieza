@@ -10,6 +10,65 @@ use Atankalama\Limpieza\Core\Logger;
 final class RbacService
 {
     /**
+     * Permiso "llave maestra": quien puede reasignar permisos a los roles puede reconstruir
+     * toda la matriz RBAC y recuperar cualquier otro permiso. Por eso define quién es
+     * "administrador" para el invariante anti-bloqueo — RBAC dinámico: NUNCA por nombre de
+     * rol. Ver docs/roles-permisos.md §5.3.
+     */
+    public const PERMISO_ADMIN = 'permisos.asignar_a_rol';
+
+    /** Mensaje único (amable, español chileno) para el 409 de último administrador. */
+    public const MSG_ULTIMO_ADMIN = 'Debe existir al menos un administrador. Asigná otro administrador antes de continuar.';
+
+    /**
+     * Cuenta los usuarios ACTIVOS con capacidad administrativa: activo=1 y con el permiso
+     * llave (PERMISO_ADMIN) efectivo vía cualquiera de sus roles. Definición dinámica del
+     * "admin" (nunca por nombre de rol; funciona con multi-rol y roles personalizados).
+     */
+    public function contarAdminsActivos(): int
+    {
+        return (int) Database::fetchColumn(
+            'SELECT COUNT(DISTINCT u.id)
+               FROM #__usuarios u
+               JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+              WHERE rp.permiso_codigo = ? AND u.activo = 1',
+            [self::PERMISO_ADMIN]
+        );
+    }
+
+    /**
+     * Ejecuta $mutacion dentro de una transacción SERIALIZADA y garantiza el invariante
+     * anti-bloqueo: si antes había ≥1 admin activo, después debe seguir habiendo ≥1. Si la
+     * mutación dejaría al sistema sin ningún administrador activo, revierte y lanza
+     * $exUltimoAdmin (409 ULTIMO_ADMIN). Es el candado real de los 5 vectores (desactivar /
+     * eliminar / quitar-rol / editar-matriz / borrar-rol) con la misma lógica "mutar → recontar".
+     *
+     * Atomicidad: en MariaDB bloquea la fila-centinela del permiso llave (FOR UPDATE) para
+     * serializar; en SQLite lo hace el BEGIN IMMEDIATE de transactionImmediate(). Así dos
+     * requests concurrentes que dejarían 0 admins no pueden pasar ambos la validación (TOCTOU).
+     */
+    public function conGuardiaDeAdmin(callable $mutacion, \Throwable $exUltimoAdmin): mixed
+    {
+        return Database::transactionImmediate(function () use ($mutacion, $exUltimoAdmin) {
+            // Serializa la sección crítica. En MariaDB, FOR UPDATE sobre la fila del permiso
+            // llave (que siempre existe: la referencia el FK de rol_permisos) bloquea a otros
+            // guards concurrentes hasta el commit; en SQLite es un SELECT normal (ya serializa
+            // el BEGIN IMMEDIATE).
+            Database::query(
+                'SELECT codigo FROM #__permisos WHERE codigo = ?' . Database::forUpdate(),
+                [self::PERMISO_ADMIN]
+            );
+            $antes = $this->contarAdminsActivos();
+            $resultado = $mutacion();
+            if ($antes >= 1 && $this->contarAdminsActivos() === 0) {
+                throw $exUltimoAdmin;
+            }
+            return $resultado;
+        });
+    }
+
+    /**
      * @return array<int, array{codigo:string, descripcion:string, categoria:string, scope:string}>
      */
     public function listarPermisos(): array
@@ -86,7 +145,9 @@ final class RbacService
 
         $esSistema = ((int) $rol['es_sistema']) === 1;
 
-        Database::transaction(function () use ($rol, $rolId, $nombre, $descripcion, $permisos, $esSistema): void {
+        // Guard anti-bloqueo: vaciar permisos.asignar_a_rol del (último) rol que lo otorga
+        // degradaría a TODOS sus admins de una vez → 409 si dejaría al sistema sin admin.
+        $this->conGuardiaDeAdmin(function () use ($rol, $rolId, $nombre, $descripcion, $permisos, $esSistema): void {
             if ($nombre !== null && !$esSistema && trim($nombre) !== '' && $nombre !== $rol['nombre']) {
                 if (Database::fetchOne('SELECT id FROM #__roles WHERE nombre = ? AND id <> ?', [$nombre, $rolId]) !== null) {
                     throw new RbacException('NOMBRE_DUPLICADO', 'Ya existe un rol con ese nombre.', 409);
@@ -108,7 +169,7 @@ final class RbacService
                 $this->validarPermisosExisten($permisos);
                 $this->reemplazarPermisosDeRol($rolId, $permisos);
             }
-        });
+        }, new RbacException('ULTIMO_ADMIN', self::MSG_ULTIMO_ADMIN, 409));
 
         Logger::audit($adminId, 'rol.actualizar', 'rol', $rolId, [
             'nombre' => $nombre,
@@ -127,7 +188,14 @@ final class RbacService
             throw new RbacException('ROL_DE_SISTEMA', 'No se puede eliminar un rol del sistema.', 409);
         }
 
-        Database::execute('DELETE FROM #__roles WHERE id = ?', [$rolId]);
+        // Guard anti-bloqueo: un rol admin-equivalente custom (es_sistema=0) que otorgue el
+        // permiso llave puede borrarse; el CASCADE quitaría la capacidad admin de sus usuarios.
+        $this->conGuardiaDeAdmin(
+            function () use ($rolId): void {
+                Database::execute('DELETE FROM #__roles WHERE id = ?', [$rolId]);
+            },
+            new RbacException('ULTIMO_ADMIN', self::MSG_ULTIMO_ADMIN, 409)
+        );
         Logger::audit($adminId, 'rol.eliminar', 'rol', $rolId, ['nombre' => $rol['nombre']]);
     }
 
@@ -148,9 +216,16 @@ final class RbacService
 
     public function quitarRolAUsuario(int $usuarioId, int $rolId, int $adminId): void
     {
-        Database::execute(
-            'DELETE FROM #__usuarios_roles WHERE usuario_id = ? AND rol_id = ?',
-            [$usuarioId, $rolId]
+        // Guard anti-bloqueo: si este rol le daba la capacidad admin al último admin activo,
+        // quitarlo dejaría al sistema sin administrador → 409.
+        $this->conGuardiaDeAdmin(
+            function () use ($usuarioId, $rolId): void {
+                Database::execute(
+                    'DELETE FROM #__usuarios_roles WHERE usuario_id = ? AND rol_id = ?',
+                    [$usuarioId, $rolId]
+                );
+            },
+            new RbacException('ULTIMO_ADMIN', self::MSG_ULTIMO_ADMIN, 409)
         );
         Logger::audit($adminId, 'usuario.quitar_rol', 'usuario', $usuarioId, ['rol_id' => $rolId]);
     }

@@ -209,12 +209,33 @@ final class UsuarioService
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
-        Database::execute(
-            "UPDATE #__usuarios SET activo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            [$activo ? 1 : 0, $usuarioId]
-        );
-        if (!$activo) {
-            Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioId]);
+
+        if ($activo) {
+            Database::execute(
+                "UPDATE #__usuarios SET activo = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$usuarioId]
+            );
+        } else {
+            // Auto-desactivación: bloqueada siempre (como la auto-eliminación) — es el camino
+            // más fácil de auto-bloqueo. Ver docs/usuarios.md §3.7.
+            if ($usuarioId === $editadoPor) {
+                throw new UsuarioException(
+                    'AUTO_DESACTIVACION_PROHIBIDA',
+                    'No puedes desactivarte a ti mismo.',
+                    400
+                );
+            }
+            // Invariante anti-bloqueo: no dejar al sistema sin ningún admin activo (atómico).
+            (new RbacService())->conGuardiaDeAdmin(
+                function () use ($usuarioId): void {
+                    Database::execute(
+                        "UPDATE #__usuarios SET activo = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                        [$usuarioId]
+                    );
+                    Database::execute('DELETE FROM #__sesiones WHERE usuario_id = ?', [$usuarioId]);
+                },
+                new UsuarioException('ULTIMO_ADMIN', RbacService::MSG_ULTIMO_ADMIN, 409)
+            );
         }
         Logger::audit($editadoPor, $activo ? 'usuario.activar' : 'usuario.desactivar', 'usuario', $usuarioId, []);
         return $this->buscarPorId($usuarioId);
@@ -270,7 +291,9 @@ final class UsuarioService
         // el flag activo=0 lo bloquea en el login.
         $hashInerte = password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
 
-        Database::transaction(function () use (
+        // Invariante anti-bloqueo: si este era el último admin activo, la anonimización
+        // (que le quita los roles) dejaría al sistema sin admin → 409 y no borra nada.
+        (new RbacService())->conGuardiaDeAdmin(function () use (
             $usuarioId,
             $rutOriginal,
             $rutAnonimo,
@@ -305,7 +328,7 @@ final class UsuarioService
                   WHERE id = ?",
                 [$rutAnonimo, $nombreAnonimo, $hashInerte, $usuarioId]
             );
-        });
+        }, new UsuarioException('ULTIMO_ADMIN', RbacService::MSG_ULTIMO_ADMIN, 409));
 
         // El audit_log conserva el solicitante, la entidad y el motivo, pero NO el RUT
         // original (LogSanitizer + minimización de datos: ya no es necesario para el log).
@@ -484,12 +507,17 @@ final class UsuarioService
     public function listar(array $filtros = []): array
     {
         $sql = "SELECT u.id, u.rut, u.nombre, u.email, u.activo, u.hotel_default, u.last_login_at,
-                       GROUP_CONCAT(r.nombre, ',') AS roles
+                       GROUP_CONCAT(r.nombre, ',') AS roles,
+                       EXISTS (
+                           SELECT 1 FROM #__usuarios_roles ur2
+                             JOIN #__rol_permisos rp2 ON rp2.rol_id = ur2.rol_id
+                            WHERE ur2.usuario_id = u.id AND rp2.permiso_codigo = ?
+                       ) AS es_admin
                   FROM #__usuarios u
              LEFT JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
              LEFT JOIN #__roles r ON r.id = ur.rol_id
                  WHERE 1=1";
-        $params = [];
+        $params = [RbacService::PERMISO_ADMIN];
         if (isset($filtros['activo'])) {
             $sql .= ' AND u.activo = ?';
             $params[] = $filtros['activo'] ? 1 : 0;
@@ -502,10 +530,16 @@ final class UsuarioService
         }
         $sql .= ' GROUP BY u.id ORDER BY u.nombre';
         $filas = Database::fetchAll($sql, $params);
+        // "Es el último admin" = admin activo y ÚNICO admin activo del sistema. La UI usa este
+        // flag para deshabilitar desactivar/degradar (el backend es el candado real, ver
+        // RbacService::conGuardiaDeAdmin).
+        $totalAdmins = (new RbacService())->contarAdminsActivos();
         foreach ($filas as &$fila) {
             $fila['roles'] = empty($fila['roles']) ? [] : explode(',', (string) $fila['roles']);
             // También casteamos activo a booleano para ser consistentes con toArrayPublico
             $fila['activo'] = (bool) $fila['activo'];
+            $fila['es_admin'] = ((int) $fila['es_admin']) === 1;
+            $fila['es_ultimo_admin'] = $fila['es_admin'] && $fila['activo'] && $totalAdmins === 1;
         }
         unset($fila);
 

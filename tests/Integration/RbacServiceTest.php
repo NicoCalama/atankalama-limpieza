@@ -112,4 +112,72 @@ final class RbacServiceTest extends TestCase
         $this->assertTrue($usuario->tienePermiso('habitaciones.marcar_completada'));
         $this->assertTrue($usuario->tienePermiso('auditoria.aprobar'));
     }
+
+    // ─── Regla anti-bloqueo: siempre debe quedar ≥1 administrador activo ───────────
+
+    public function testNoSePuedeQuitarElRolAlUltimoAdmin(): void
+    {
+        $adminRol = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Admin']);
+        try {
+            $this->rbac->quitarRolAUsuario($this->adminId, (int) $adminRol['id'], $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (RbacException $e) {
+            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+        // Rollback: conserva el rol.
+        $this->assertContains('Admin', (new UsuarioService())->buscarPorId($this->adminId)->roles);
+    }
+
+    public function testConDosAdminsSePuedeQuitarElRolAUno(): void
+    {
+        [$admin2] = TestDatabase::crearUsuario('22222222-2', 'Admin Dos', 'Admin');
+        $adminRol = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Admin']);
+        $this->rbac->quitarRolAUsuario($admin2, (int) $adminRol['id'], $this->adminId);
+        $this->assertNotContains('Admin', (new UsuarioService())->buscarPorId($admin2)->roles);
+        $this->assertSame(1, $this->rbac->contarAdminsActivos());
+    }
+
+    public function testNoSePuedeVaciarElPermisoLlaveDelRolAdmin(): void
+    {
+        $adminRol = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Admin']);
+        try {
+            // Reemplazar la matriz del rol Admin por un set SIN el permiso llave: degradaría
+            // a todos sus admins de una vez (el vector más peligroso).
+            $this->rbac->actualizarRol((int) $adminRol['id'], null, null, ['ajustes.acceder'], $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (RbacException $e) {
+            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+        // Rollback: el rol Admin conserva el permiso llave.
+        $rol = $this->rbac->obtenerRol((int) $adminRol['id']);
+        $this->assertContains(RbacService::PERMISO_ADMIN, $rol['permisos']);
+    }
+
+    public function testNoSePuedeBorrarElUltimoRolQueDaAdmin(): void
+    {
+        // Mover la capacidad admin a un rol custom y dejarlo como único portador de la llave.
+        $custom = $this->rbac->crearRol('SuperCustom', null, [RbacService::PERMISO_ADMIN], $this->adminId);
+        $adminRol = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Admin']);
+        $this->rbac->asignarRolAUsuario($this->adminId, $custom, $this->adminId);
+        // Quitar el rol 'Admin' es OK: queda el custom (quitar un rol admin redundante se permite).
+        $this->rbac->quitarRolAUsuario($this->adminId, (int) $adminRol['id'], $this->adminId);
+        $this->assertSame(1, $this->rbac->contarAdminsActivos());
+        // Borrar el custom (único que otorga la llave ahora) → 409.
+        try {
+            $this->rbac->eliminarRol($custom, $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (RbacException $e) {
+            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
+        }
+        $this->assertSame(1, $this->rbac->contarAdminsActivos());
+    }
+
+    public function testAdminInactivoNoCuentaComoAdminActivo(): void
+    {
+        // Segundo admin pero INACTIVO: no debe contar como admin activo.
+        TestDatabase::crearUsuario('22222222-2', 'Admin Dos', 'Admin', 'Abc12345', false, false);
+        $this->assertSame(1, $this->rbac->contarAdminsActivos());
+    }
 }

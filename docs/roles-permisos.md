@@ -346,6 +346,17 @@ Un Admin puede quitarle permisos a su propio rol desde la matriz. La UI debe mos
 
 **Salvaguarda backend:** el sistema debe garantizar que **siempre exista al menos un usuario con `permisos.asignar_a_rol`**. Si la operación dejaría al sistema sin ningún admin, el endpoint responde 409 Conflict.
 
+**Estado: IMPLEMENTADO (15/09/2026).** El invariante lo aplica `RbacService::conGuardiaDeAdmin()` de forma atómica (transacción serializada `Database::transactionImmediate()` + bloqueo de fila `FOR UPDATE` en MariaDB / `BEGIN IMMEDIATE` en SQLite), cubriendo los **5 vectores**: desactivar, eliminar, quitar el rol admin a un usuario, vaciar el permiso llave del rol vía la matriz (`actualizarRol`), y borrar un rol admin-equivalente. "Admin" se define por **PERMISO** (`permisos.asignar_a_rol`), nunca por nombre de rol (RBAC dinámico). Errores: **409 `ULTIMO_ADMIN`** y **400 `AUTO_DESACTIVACION_PROHIBIDA`** (al intentar desactivarse uno mismo). La UI (`views/componentes/modal-usuario-detalle.php`) deshabilita los botones de desactivar/quitar-rol con un tooltip cuando el usuario es el último admin, usando el flag `es_ultimo_admin` que devuelve `GET /api/usuarios`.
+
+**Recuperación de emergencia.** Si aun así el sistema quedara sin ningún admin activo (un bug, una migración o edición directa de la BD), correr en el servidor:
+
+```
+php scripts/promover-admin.php <RUT>              # reactiva (activo=1) + asigna un rol con el permiso llave
+php scripts/promover-admin.php <RUT> --reset-pwd  # además genera una contraseña temporal
+```
+
+El script solo **agrega** capacidad admin (nunca la quita), por lo que es seguro correrlo incluso con 0 admins. Complementa a `scripts/reset-admin-password.php` (que solo cambia la clave del admin de rescate RUT `11111111-1`, sin reactivar ni reasignar rol).
+
 ---
 
 ## 6. Cómo agregar un permiso nuevo

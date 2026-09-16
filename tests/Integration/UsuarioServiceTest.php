@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Tests\Integration;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Services\PasswordService;
+use Atankalama\Limpieza\Services\RbacService;
 use Atankalama\Limpieza\Services\UsuarioException;
 use Atankalama\Limpieza\Services\UsuarioService;
 use Atankalama\Limpieza\Tests\Support\TestDatabase;
@@ -359,5 +360,82 @@ final class UsuarioServiceTest extends TestCase
         $this->assertContains('Juan', $nombres);
         $this->assertContains('Maria', $nombres);
         $this->assertNotContains('Admin', $nombres);
+    }
+
+    // ─── Regla anti-bloqueo: siempre debe quedar ≥1 administrador activo ───────────
+
+    public function testNoSePuedeAutoDesactivar(): void
+    {
+        try {
+            $this->svc->activar($this->adminId, false, $this->adminId);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('AUTO_DESACTIVACION_PROHIBIDA', $e->codigo);
+            $this->assertSame(400, $e->httpStatus);
+        }
+    }
+
+    public function testNoSePuedeDesactivarAlUltimoAdmin(): void
+    {
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        try {
+            $this->svc->activar($this->adminId, false, $trabajadorId);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+        // Rollback: sigue activo.
+        $this->assertTrue($this->svc->buscarPorId($this->adminId)->activo);
+    }
+
+    public function testConDosAdminsSePuedeDesactivarUno(): void
+    {
+        [$admin2] = TestDatabase::crearUsuario('22222222-2', 'Admin Dos', 'Admin');
+        $u = $this->svc->activar($admin2, false, $this->adminId);
+        $this->assertFalse($u->activo);
+        $this->assertSame(1, (new RbacService())->contarAdminsActivos());
+    }
+
+    public function testNoSePuedeEliminarAlUltimoAdmin(): void
+    {
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        try {
+            $this->svc->eliminar($this->adminId, $trabajadorId);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
+            $this->assertSame(409, $e->httpStatus);
+        }
+        // Rollback: no se anonimizó, sigue siendo admin activo.
+        $admin = $this->svc->buscarPorId($this->adminId);
+        $this->assertTrue($admin->activo);
+        $this->assertContains('Admin', $admin->roles);
+    }
+
+    public function testConDosAdminsSePuedeEliminarUno(): void
+    {
+        [$admin2] = TestDatabase::crearUsuario('22222222-2', 'Admin Dos', 'Admin');
+        $this->svc->eliminar($admin2, $this->adminId);
+        $this->assertSame(1, (new RbacService())->contarAdminsActivos());
+    }
+
+    public function testListarMarcaAlUltimoAdmin(): void
+    {
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        $porId = [];
+        foreach ($this->svc->listar() as $u) {
+            $porId[$u['id']] = $u;
+        }
+        $this->assertTrue($porId[$this->adminId]['es_admin']);
+        $this->assertTrue($porId[$this->adminId]['es_ultimo_admin']);
+        $this->assertFalse($porId[$trabajadorId]['es_admin']);
+        $this->assertFalse($porId[$trabajadorId]['es_ultimo_admin']);
+
+        // Con un segundo admin, ninguno es "el último".
+        TestDatabase::crearUsuario('33333333-3', 'Admin Dos', 'Admin');
+        foreach ($this->svc->listar() as $u) {
+            $this->assertFalse($u['es_ultimo_admin'], "Con 2 admins ninguno es el último ({$u['nombre']})");
+        }
     }
 }

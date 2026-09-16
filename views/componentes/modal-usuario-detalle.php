@@ -131,8 +131,9 @@ $usuarioActualId = $usuario->id;
                                     <span x-text="nombreRol"></span>
                                     <template x-if="puedeAsignarRoles">
                                         <button type="button" @click="quitarRol(nombreRol)"
-                                                class="hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-full p-0.5"
-                                                :disabled="procesandoRol"
+                                                class="hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-full p-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                :disabled="procesandoRol || usuario.es_ultimo_admin"
+                                                :title="usuario.es_ultimo_admin ? 'Debe existir al menos un administrador. Asigná otro administrador antes de quitarle el rol.' : 'Quitar rol'"
                                                 aria-label="Quitar rol">
                                             <i data-lucide="x" class="w-3 h-3"></i>
                                         </button>
@@ -182,13 +183,21 @@ $usuarioActualId = $usuario->id;
                         </template>
 
                         <template x-if="puedeActivar && usuario.id !== usuarioActualId">
-                            <button type="button" @click="toggleActivo()"
-                                    :disabled="procesandoActivo"
-                                    :class="usuario.activo ? 'border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-700 dark:text-red-400' : 'border-green-300 dark:border-green-800 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-700 dark:text-green-400'"
-                                    class="w-full min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg border disabled:opacity-50 transition inline-flex items-center justify-center gap-2">
-                                <i :data-lucide="usuario.activo ? 'user-x' : 'user-check'" class="w-4 h-4"></i>
-                                <span x-text="procesandoActivo ? 'Procesando...' : (usuario.activo ? 'Desactivar usuario' : 'Activar usuario')"></span>
-                            </button>
+                            <div>
+                                <button type="button" @click="toggleActivo()"
+                                        :disabled="procesandoActivo || (usuario.activo && usuario.es_ultimo_admin)"
+                                        :title="(usuario.activo && usuario.es_ultimo_admin) ? 'Debe existir al menos un administrador. Asigná otro administrador antes de continuar.' : ''"
+                                        :class="usuario.activo ? 'border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-700 dark:text-red-400' : 'border-green-300 dark:border-green-800 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-700 dark:text-green-400'"
+                                        class="w-full min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed transition inline-flex items-center justify-center gap-2">
+                                    <i :data-lucide="usuario.activo ? 'user-x' : 'user-check'" class="w-4 h-4"></i>
+                                    <span x-text="procesandoActivo ? 'Procesando...' : (usuario.activo ? 'Desactivar usuario' : 'Activar usuario')"></span>
+                                </button>
+                                <template x-if="usuario.activo && usuario.es_ultimo_admin">
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Es el último administrador activo. Asigná otro administrador antes de desactivarlo.
+                                    </p>
+                                </template>
+                            </div>
                         </template>
                     </div>
                 </div>

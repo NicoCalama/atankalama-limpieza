@@ -119,7 +119,7 @@ Request: `{ "activo": true | false }`.
 Reglas:
 - Al desactivar: el usuario no puede loguearse. Sus asignaciones activas se mantienen (reasignar manualmente).
 - Al desactivar al propio usuario: error 400 `AUTO_DESACTIVACION_PROHIBIDA`.
-- Safeguard: si es el último admin activo → error 409 `ULTIMO_ADMIN`.
+- Safeguard: si es el último admin activo → error 409 `ULTIMO_ADMIN`. **(Implementado 15/09/2026 — ver `docs/roles-permisos.md` §5.3; el candado atómico vive en `RbacService::conGuardiaDeAdmin()`.)**
 
 ### 3.8 Asignar roles
 
