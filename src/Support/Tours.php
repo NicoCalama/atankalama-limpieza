@@ -337,7 +337,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="hab.marcar-limpia"]',
                                 'titulo' => 'Cierre sin checklist',
-                                'texto'  => 'Como supervisora puedes darla por limpia sin el checklist del trabajador. Queda pendiente de auditoría, igual que una limpieza normal.',
+                                'texto'  => 'Como supervisora puedes darla por limpia sin el checklist del trabajador. Queda pendiente de inspección, igual que una limpieza normal.',
                             ],
                         ],
                     ],
@@ -351,15 +351,15 @@ final class Tours
             //  detalle /auditoria/{id}, otra pantalla). Por eso solo 2 tareas.
             // ════════════════════════════════════════════════════════════
             'auditoria.bandeja' => [
-                'nombre'    => 'Auditoría',
+                'nombre'    => 'Inspección',
                 'capacidad' => 'auditoria.ver_bandeja',
                 'recorridos' => [
 
                     // ── 1. El trabajo: revisar lo terminado. ──
                     [
-                        'id'       => 'auditar',
+                        'id'       => 'inspeccionar',
                         'v'        => 1,
-                        'titulo'   => 'Auditar una habitación',
+                        'titulo'   => 'Inspeccionar una habitación',
                         'pregunta' => '¿Cómo reviso lo que se limpió?',
                         'requiere' => [],
                         'pasos' => [
@@ -392,12 +392,12 @@ final class Tours
             // ════════════════════════════════════════════════════════════
             //  AUDITORÍA · DETALLE — vista: views/auditoria-detalle.php
             //  Ruta /auditoria/{id} (TourResolver por patrón). Pendiente:
-            //  3 veredictos (aprobar / con observación / rechazar). Ya auditada:
+            //  3 veredictos (aprobar / con observación / rechazar). Ya inspeccionada:
             //  read-only (inmutable). Recorridos explicativos; los botones solo
             //  existen en el estado pendiente → fallback honesto si no están.
             // ════════════════════════════════════════════════════════════
             'auditoria.detalle' => [
-                'nombre'    => 'Auditar una habitación',
+                'nombre'    => 'Inspeccionar una habitación',
                 'capacidad' => 'auditoria.ver_bandeja',
                 'recorridos' => [
 
@@ -422,7 +422,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
                                 'titulo' => 'No hay vuelta atrás',
-                                'texto'  => 'Cuando das un veredicto, la pieza queda auditada y no se puede volver a auditar. Revísala bien antes de confirmar.',
+                                'texto'  => 'Cuando das un veredicto, la pieza queda inspeccionada y no se puede volver a inspeccionar. Revísala bien antes de confirmar.',
                             ],
                         ],
                     ],
@@ -448,7 +448,7 @@ final class Tours
             // ════════════════════════════════════════════════════════════
             //  ÁREAS COMUNES — vista: views/espacios.php
             //  Ruta /espacios (fija). Espacios que no son piezas de huésped
-            //  (piscina, pasillos…), servicio on-demand, SIN auditoría (se
+            //  (piscina, pasillos…), servicio on-demand, SIN inspección (se
             //  auto-cierran al completar). Ver docs/areas-comunes.md
             // ════════════════════════════════════════════════════════════
             'espacios' => [
@@ -471,8 +471,8 @@ final class Tours
                             ],
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
-                                'titulo' => 'No pasan por auditoría',
-                                'texto'  => 'El badge te dice si está lista, pendiente o en limpieza. Las áreas no se auditan: se cierran solas cuando el trabajador termina.',
+                                'titulo' => 'No pasan por inspección',
+                                'texto'  => 'El badge te dice si está lista, pendiente o en limpieza. Las áreas no se inspeccionan: se cierran solas cuando el trabajador termina.',
                             ],
                         ],
                     ],
@@ -798,12 +798,12 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="hb.grid"]',
                                 'titulo' => 'Una tarjeta por pieza',
-                                'texto'  => 'Cada tarjeta es una pieza con su estado (pendiente, en progreso, por auditar, lista…) y su hotel. Tócala para entrar a su detalle.',
+                                'texto'  => 'Cada tarjeta es una pieza con su estado (pendiente, en progreso, por inspeccionar, lista…) y su hotel. Tócala para entrar a su detalle.',
                             ],
                             [
                                 'sel'    => '[data-tour="hb.grid"]',
                                 'titulo' => 'Los avisos de la tarjeta',
-                                'texto'  => 'Algunas traen avisos: «Llega hoy», «Se va hoy», «Día/noche» o «Sábanas hoy», según la ocupación que llega de Cloudbeds.',
+                                'texto'  => 'Algunas traen avisos: «Llega hoy», «Se va hoy», «Cambio» o «Sábanas hoy», según la ocupación que llega de Cloudbeds.',
                             ],
                         ],
                     ],
@@ -819,7 +819,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="hb.filtros"]',
                                 'titulo' => 'Por hotel y por estado',
-                                'texto'  => 'Filtra por hotel y por estado (sucias, por auditar, rechazadas…). Lo que elijas se recuerda para la próxima vez.',
+                                'texto'  => 'Filtra por hotel y por estado (sucias, por inspeccionar, rechazadas…). Lo que elijas se recuerda para la próxima vez.',
                             ],
                         ],
                     ],
@@ -971,9 +971,9 @@ final class Tours
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="hb.grid"]', 'titulo' => 'En qué va cada pieza',
-                             'texto' => 'La etiqueta de estado dice cómo va: «Pendiente» si está sucia, «En progreso» si empezaste, «Por auditar» al terminarla, y «Aprobada» o «Rechazada» según la revisión.'],
+                             'texto' => 'La etiqueta de estado dice cómo va: «Pendiente» si está sucia, «En progreso» si empezaste, «Por inspeccionar» al terminarla, y «Aprobada» o «Rechazada» según la revisión.'],
                             ['sel' => '[data-tour="hb.grid"]', 'titulo' => 'Huésped y sábanas',
-                             'texto' => 'Otras etiquetas avisan del huésped: «Llega hoy», «Se va hoy», «Día/noche» o «Sigue». Si ves «Sábanas hoy», a esa pieza le toca cambio de sábanas.'],
+                             'texto' => 'Otras etiquetas avisan del huésped: «Llega hoy», «Se va hoy», «Cambio» o «Sigue». Si ves «Sábanas hoy», a esa pieza le toca cambio de sábanas.'],
                         ],
                     ],
                 ],
@@ -981,19 +981,19 @@ final class Tours
 
             // ════════════════════════════════════════════════════════════
             //  HOME RECEPCIÓN — vista: views/home-recepcion.php. /home por rol
-            //  (resolveHome → 'home.recepcion'). Bandeja de auditoría pendiente.
+            //  (resolveHome → 'home.recepcion'). Bandeja de inspección pendiente.
             // ════════════════════════════════════════════════════════════
             'home.recepcion' => [
                 'nombre' => 'Panel de recepción',
                 'recorridos' => [
                     [
-                        'id' => 'auditar', 'v' => 1,
-                        'titulo' => 'Auditar las piezas',
-                        'pregunta' => '¿Cómo audito una habitación?',
+                        'id' => 'inspeccionar', 'v' => 1,
+                        'titulo' => 'Inspeccionar las piezas',
+                        'pregunta' => '¿Cómo inspecciono una habitación?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="hrec.pendientes"]', 'titulo' => 'Piezas por auditar',
-                             'texto' => 'Acá aparecen las piezas que esperan tu auditoría; toca una y se abre su auditoría para revisar el trabajo. Cuando no queda ninguna, ves «No hay habitaciones».'],
+                            ['sel' => '[data-tour="hrec.pendientes"]', 'titulo' => 'Piezas por inspeccionar',
+                             'texto' => 'Acá aparecen las piezas que esperan tu inspección; toca una y se abre su inspección para revisar el trabajo. Cuando no queda ninguna, ves «No hay habitaciones».'],
                         ],
                     ],
                     [
@@ -1046,7 +1046,7 @@ final class Tours
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="hadm.contadores"]', 'titulo' => 'Los cuatro contadores',
-                             'texto' => 'Estos cuatro contadores resumen el día: habitaciones limpias, auditorías, trabajadores en turno y tickets abiertos. Se recalculan según el hotel que elijas.'],
+                             'texto' => 'Estos cuatro contadores resumen el día: habitaciones limpias, inspecciones, trabajadores en turno y tickets abiertos. Se recalculan según el hotel que elijas.'],
                             ['sel' => '[data-tour="hadm.kpis"]', 'titulo' => 'Los tres indicadores',
                              'texto' => 'Estas barras muestran el tiempo promedio por pieza, la tasa de rechazo y la eficiencia del equipo. Cada una se pinta verde, ámbar o roja según su meta.'],
                         ],
@@ -1162,8 +1162,8 @@ final class Tours
                              'texto' => 'El botón «Exportar Excel» genera un archivo con los indicadores del período y los filtros elegidos, listo para abrir en Excel.'],
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Bajar el mes por trabajador',
                              'texto' => 'Dentro de «Resumen mensual por trabajador», «Exportar» descarga la planilla del mes elegido con las habitaciones y créditos de cada persona.'],
-                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Bajar el mes de auditorías',
-                             'texto' => 'En «Resumen mensual de auditorías», «Exportar» descarga la planilla del mes con el total y el desglose por auditor.'],
+                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Bajar el mes de inspecciones',
+                             'texto' => 'En «Resumen mensual de inspecciones», «Exportar» descarga la planilla del mes con el total y el desglose por inspector.'],
                         ],
                     ],
                     [
@@ -1174,18 +1174,18 @@ final class Tours
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
                              'texto' => 'Elige un mes arriba y la tabla muestra, por trabajador, cuántas habitaciones limpió y sus créditos frente al máximo posible.'],
-                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Auditorías del mes',
-                             'texto' => 'Aquí ves, por auditor, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
+                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
+                             'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
                         ],
                     ],
                     [
                         'id' => 'pendientes', 'v' => 1,
-                        'titulo' => 'Auditorías pendientes',
-                        'pregunta' => '¿Qué piezas quedan sin auditar hoy?',
+                        'titulo' => 'Inspecciones pendientes',
+                        'pregunta' => '¿Qué piezas quedan sin inspeccionar hoy?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta auditar hoy',
-                             'texto' => 'Este panel lista, separadas por turno mañana y tarde, las piezas que se limpiaron hoy y todavía no tienen veredicto de auditoría. Cada noche se envía por correo a los administradores.'],
+                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
+                             'texto' => 'Este panel lista, separadas por turno mañana y tarde, las piezas que se limpiaron hoy y todavía no tienen veredicto de inspección. Cada noche se envía por correo a los administradores.'],
                         ],
                     ],
                 ],
