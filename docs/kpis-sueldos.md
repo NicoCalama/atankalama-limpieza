@@ -33,6 +33,7 @@ Para que los KPIs sean comparables entre sí y reproducibles, **todos** respetan
 | **Motivo del rango libre** | Permite comparar **días de alta presión vs. holgura** para ajustar el equipo a futuro. | ✅ |
 | **Alcance de ítems (créditos)** | Solo ítems **obligatorios** dan crédito. | ✅ confirmado |
 | **No auditadas = aprobadas** | Una pieza que queda **sin auditar al cierre del día** se considera **aprobada** para el cálculo de KPIs del **trabajador** (la falta de auditoría no lo penaliza). La cobertura baja es señal de la **Supervisora**, no del trabajador. | ✅ confirmado |
+| **Veredicto `aprobado_automatico`** | El cierre de día automático (23:55) aprueba solas las piezas sin auditar con veredicto **`aprobado_automatico`** (auditor = usuario "Sistema"). **NO es auditoría humana:** para la **supervisora** cuenta como **no auditada** (baja la cobertura, fuera de sus % de calidad y de sus conteos); para el **trabajador** cuenta como **aprobada** (no lo perjudica, lado "no auditadas / B"). **"Auditoría real" = veredicto humano** (`aprobado` / `aprobado_con_observacion` / `rechazado`). | ✅ confirmado (15/09) |
 | **Privacidad de tiempos** | El **tiempo NUNCA se muestra al trabajador** (regla del proyecto). Solo gestión/sueldos. | ✅ confirmado |
 | **Atribución** | A quién se le cuenta cada métrica (por quien marcó el ítem vs. dueño de la ejecución). | 🔶 se define por KPI (ver cada uno) |
 | **Reproducibilidad** | Los créditos se recalculan en vivo desde el template; editar un ítem re-valúa meses cerrados. Posible **snapshot/cierre de período** en fase posterior. | ⚠️ pendiente (no Nivel 1) |
@@ -326,12 +327,14 @@ cambios de schema.
   las piezas sin auditar no tienen fecha de auditoría, así que la única fecha común es la de
   limpieza. (Distinto de los conteos del N1, que van por fecha de auditoría — miden cosas
   distintas.)
-- **Piezas auto-aprobadas por Cloudbeds (decisión 15/09):** cuentan como **NO auditadas** →
-  **bajan la cobertura** (nadie humano las revisó; la cobertura mide revisión humana real).
-  **Contraparte para el trabajador:** esas mismas piezas quedan **aprobadas** al cierre de la
-  noche (aprobación automática de la app, "por temas de app") y **NO lo perjudican** — coherente
-  con "no auditadas = aprobadas" del trabajador. Mismo dato, dos lecturas: baja la cobertura de
-  la supervisora, no la calidad del trabajador.
+- **Aprobaciones automáticas (no humanas) = NO auditadas:** tanto las piezas que **Cloudbeds
+  auto-aprueba** al sincronizar como las del **cierre de día 23:55** (veredicto
+  `aprobado_automatico`, auditor "Sistema") cuentan como **NO auditadas** → **bajan la cobertura**
+  (nadie humano las revisó). El **numerador cuenta solo veredictos humanos** (`aprobado` /
+  `aprobado_con_observacion` / `rechazado`), nunca `aprobado_automatico`. **Contraparte para el
+  trabajador:** esas mismas piezas quedan **aprobadas** y **NO lo perjudican** (lado "no
+  auditadas / B"). Mismo dato, dos lecturas: baja la cobertura de la supervisora, no la calidad
+  del trabajador. Ver la tuerca transversal «Veredicto `aprobado_automatico`».
 - **Fuente:** derivable del `LEFT JOIN ejecuciones_checklist → auditorias`; la señal base ya
   existe en `ReportesService::auditoriasPendientes` (hoy por día/turno) → **generalizar a rango**.
 - **Enganche con el trabajador:** es el `A ÷ (A+B)` del trabajador (créditos auditados vs no
@@ -340,13 +343,16 @@ cambios de schema.
 
 ### KPI S2.2 — % de rechazo de la sección
 - **Qué mide:** de lo que se auditó, cuánto **hubo que rehacer** (re-clean rate de la industria).
-- **Fórmula:** `rechazadas ÷ total auditadas × 100`.
+- **Fórmula:** `rechazadas ÷ total auditadas × 100`. *(«total auditadas» = solo veredictos
+  humanos; **excluye `aprobado_automatico`** — no es auditoría real.)*
 - **Fuente:** ✅ ya existe agregado — `ReportesService::kpiTasaRechazo(..., usuarioId=null)`.
   Meta actual 5 % (benchmark industria <5 %).
 
 ### KPI S2.3 — % de aprobación a la primera de la sección
 - **Qué mide:** cuánto **pasó bien de una** (inspection pass rate de la industria).
-- **Fórmula:** `(aprobadas + aprobadas con observación) ÷ total auditadas × 100`.
+- **Fórmula:** `(aprobadas + aprobadas con observación) ÷ total auditadas × 100`. *(excluye
+  `aprobado_automatico` del numerador y del total — el código ya lo hace: `kpiAprobacionPrimera`
+  filtra `AND veredicto != 'aprobado_automatico'`.)*
 - **Fuente:** ✅ ya existe agregado — `ReportesService::kpiAprobacionPrimera(..., usuarioId=null)`.
   Meta actual 95 % (benchmark ~98 %).
 - **Nota:** S2.2 y S2.3 son **complementarios** (suman ~100 %: lo que no se rechaza, se aprueba
@@ -453,4 +459,5 @@ re-clean **<5%**.
 | 15/09/2026 | **Ámbito de la Supervisora = universo total (ambos hoteles):** hoy no hay "sección" — las supervisoras cubren ambos hoteles (quedan cerca). Parametrizable por hotel a futuro; sin tocar schema. |
 | 15/09/2026 | **Nivel 2 supervisora = set acotado, 3 porcentajes:** (S2.1) cobertura de auditoría, (S2.2) % de rechazo de la sección, (S2.3) % de aprobación a la primera. Su tarea es más acotada. |
 | 15/09/2026 | **Cobertura — Cloudbeds:** las piezas auto-aprobadas por Cloudbeds cuentan como **NO auditadas** (bajan la cobertura de la supervisora); contraparte: para el **trabajador** quedan **aprobadas** al cierre (no lo perjudican). Ventana de cobertura = fecha de limpieza. **Nivel 2 de la Supervisora cerrado.** |
+| 15/09/2026 | **4° veredicto `aprobado_automatico`** (cierre de día 23:55 del jefe, auditor "Sistema"): para la supervisora = **no auditada** (fuera del numerador de cobertura y de los % de calidad); para el trabajador = **aprobada** (no lo perjudica). **"Auditoría real" = veredicto humano.** El código del jefe ya lo aplica (`kpiAprobacionPrimera` excluye `aprobado_automatico`). |
 | 15/09/2026 | **Nivel 3 supervisora = comparativa con dos lentes + metas** (más simple que la del trabajador, a propósito): **(1) sección vs metas + tendencia** (semáforo contra meta, no σ; flecha ▲▼ vs período anterior) sobre los 3 % del N2; **(2) entre supervisoras en lo personal** (piezas auditadas, tiempo por auditación, aporte a la cobertura) con **promedio simple + Δ** (no σ, son pocas) → "quién audita y quién se queda atrás". Metas configurables desde Ajustes (rechazo ≤5 %, aprobación ≥95 %, cobertura ~90 % a confirmar). Tiempo = dos lados. **Nivel 3 cerrado → definición de la Supervisora COMPLETA (N1+N2+N3).** |
