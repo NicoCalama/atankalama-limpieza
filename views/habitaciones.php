@@ -277,13 +277,18 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                                     </p>
                                 </template>
                             </div>
+                            <template x-if="hab.cloudbeds_room_name">
+                                <div class="flex justify-end">
+                                    <span x-html="badgeCodigoRoomName(hab.cloudbeds_room_name)"></span>
+                                </div>
+                            </template>
                         </div>
 
                         <!-- Franja de estado: ancho completo, color exacto de Ajustes → Colores.
                              Es la señal principal de la ficha — el resto (edificio, ocupación,
                              sábanas) es contexto secundario. -->
                         <div class="mt-auto px-4 py-2.5 flex items-center gap-2" :class="claseBannerEstado(hab.estado)">
-                            <span class="text-sm font-bold uppercase tracking-wide text-white" x-text="textoEstado(hab.estado)"></span>
+                            <span class="font-oswald text-sm font-semibold uppercase tracking-wide text-white" x-text="textoEstado(hab.estado)"></span>
                         </div>
 
                         <!-- Franja de badges + "N" (nochero): siempre presente para que el botón
@@ -812,7 +817,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         },
 
         marcarLimpia(hab) {
-            if (!confirm('¿Marcar la habitación ' + hab.numero + ' como limpia? Quedará pendiente de auditoría.')) {
+            if (!confirm('¿Marcar la habitación ' + hab.numero + ' como limpia? Quedará pendiente de inspección.')) {
                 return;
             }
             this.ejecutarAccionEstado(hab, '/marcar-limpia', 'No pudimos marcar la habitación como limpia.');
@@ -860,7 +865,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             { valor: '', etiqueta: 'Todos' },
             { valor: 'sucia', etiqueta: 'Sucias' },
             { valor: 'en_progreso', etiqueta: 'En progreso' },
-            { valor: 'completada_pendiente_auditoria', etiqueta: 'Por auditar' },
+            { valor: 'completada_pendiente_auditoria', etiqueta: 'Por inspeccionar' },
             { valor: 'aprobada', etiqueta: 'Aprobadas' },
             { valor: 'rechazada', etiqueta: 'Rechazadas' }
         ],
@@ -993,7 +998,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         // Franja de estado al pie de la ficha: clase semántica .banner-estado-*
         // de custom.css, relleno sólido con el color exacto de Ajustes → Colores.
         claseBannerEstado(estado) {
-            var validos = ['sucia', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'rechazada'];
+            var validos = ['sucia', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'];
             return validos.indexOf(estado) !== -1 ? 'banner-estado-' + estado : 'bg-gray-400 dark:bg-gray-600';
         },
 
@@ -1004,7 +1009,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         },
 
         estadoAuditado(estado) {
-            return estado === 'aprobada' || estado === 'aprobada_con_observacion' || estado === 'rechazada';
+            return estado === 'aprobada' || estado === 'aprobada_con_observacion' || estado === 'aprobada_automatica' || estado === 'rechazada';
         },
 
         // Texto de la franja de estado (y de cualquier otro lugar que necesite el
@@ -1016,9 +1021,10 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             var textos = {
                 'sucia': 'Pendiente',
                 'en_progreso': 'En progreso',
-                'completada_pendiente_auditoria': 'Por auditar',
+                'completada_pendiente_auditoria': 'Por inspeccionar',
                 'aprobada': 'Aprobada',
                 'aprobada_con_observacion': this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada',
+                'aprobada_automatica': this.puedeVerTodas ? 'Aprobada auto.' : 'Aprobada',
                 'rechazada': 'Rechazada'
             };
             return textos[estado] || estado;
@@ -1029,12 +1035,22 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             var map = {
                 'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
                 'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
-                'turnover': { t: 'Día/noche', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
+                'turnover': { t: 'Cambio', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
                 'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
             };
             var c = map[fs];
             if (!c) return '';
             return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
+        },
+
+        // Badge del código de ocupación de Cloudbeds: último token del roomName completo
+        // ('511-EXE3 2S' -> '2S'). Espejo crudo de Cloudbeds (cloudbeds_room_name), se
+        // refresca solo, nunca editable en la app. Sin espacio en el nombre -> sin badge.
+        badgeCodigoRoomName(nombreCompleto) {
+            var partes = (nombreCompleto || '').trim().split(/\s+/);
+            if (partes.length < 2) return '';
+            var codigo = partes[partes.length - 1];
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-pink-500 text-white">' + escapeHtml(codigo) + '</span>';
         }
     };
 }

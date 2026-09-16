@@ -128,7 +128,7 @@ if ($hora < 12) {
                     <div class="text-center max-w-xs">
                         <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500"></i>
                         <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">No hay habitaciones</p>
-                        <p class="text-gray-600 dark:text-gray-400">Pendientes de auditar</p>
+                        <p class="text-gray-600 dark:text-gray-400">Pendientes de inspeccionar</p>
                     </div>
                 </div>
             </template>

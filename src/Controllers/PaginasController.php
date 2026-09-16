@@ -327,7 +327,7 @@ final class PaginasController
         }
         return View::conLayout('auditoria-bandeja', [
             'usuario' => $request->usuario,
-            'titulo' => 'Auditoría',
+            'titulo' => 'Inspección',
         ]);
     }
 
@@ -346,7 +346,7 @@ final class PaginasController
         return View::conLayout('auditoria-detalle', [
             'usuario' => $request->usuario,
             'habitacionId' => $id,
-            'titulo' => 'Auditoría',
+            'titulo' => 'Inspección',
         ]);
     }
 
@@ -407,9 +407,9 @@ final class PaginasController
                     'description' => 'Ver habitaciones asignadas',
                 ],
                 [
-                    'name' => 'Auditoría',
+                    'name' => 'Inspección',
                     'url' => $base . '/auditoria',
-                    'description' => 'Bandeja de auditoría',
+                    'description' => 'Bandeja de inspección',
                 ],
             ],
             'categories' => ['productivity', 'utilities'],

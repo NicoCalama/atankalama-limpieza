@@ -315,7 +315,7 @@
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0">
                     <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0"></i>
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual de auditorías</h2>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual de inspecciones</h2>
                 </div>
                 <div class="flex items-center gap-2">
                     <input type="month" x-model="auditMes" @change="cargarAudit()"
@@ -343,7 +343,7 @@
             <template x-if="auditData && auditData.length === 0">
                 <div class="p-8 text-center">
                     <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">No hay auditorías registradas en este mes.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No hay inspecciones registradas en este mes.</p>
                 </div>
             </template>
 
@@ -352,7 +352,7 @@
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 dark:bg-gray-700/50">
                             <tr>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Auditor</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspector</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Total</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprobadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
@@ -381,9 +381,9 @@
                 <div class="flex items-center gap-2 min-w-0">
                     <i data-lucide="alarm-clock" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
                     <div class="min-w-0">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Auditorías pendientes al corte</h2>
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspecciones pendientes al corte</h2>
                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                            Sin auditar a tiempo = sin auditoría registrada antes de las <strong>23:50</strong> de la fecha elegida.
+                            Sin inspeccionar a tiempo = sin inspección registrada antes de las <strong>23:50</strong> de la fecha elegida.
                         </p>
                     </div>
                 </div>
@@ -417,12 +417,12 @@
                             <div class="flex items-center justify-between mb-2">
                                 <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="turnoLabel(turno)"></h3>
                                 <span class="text-xs text-gray-500 dark:text-gray-400"
-                                      x-text="auditPendData.turnos[turno].total + ' limpiadas · ' + auditPendData.turnos[turno].pendientes.length + ' sin auditar a tiempo'"></span>
+                                      x-text="auditPendData.turnos[turno].total + ' limpiadas · ' + auditPendData.turnos[turno].pendientes.length + ' sin inspeccionar a tiempo'"></span>
                             </div>
 
                             <template x-if="auditPendData.turnos[turno].pendientes.length === 0">
                                 <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Todo auditado a tiempo.
+                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Todo inspeccionado a tiempo.
                                 </p>
                             </template>
 
@@ -447,7 +447,7 @@
                                                     <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
                                                     <td class="px-3 py-2">
                                                         <span :class="p.estado_auditoria === 'sin_auditar' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'"
-                                                              x-text="p.estado_auditoria === 'sin_auditar' ? 'Sin auditar' : 'Auditada fuera de plazo'"></span>
+                                                              x-text="p.estado_auditoria === 'sin_auditar' ? 'Sin inspeccionar' : 'Inspeccionada fuera de plazo'"></span>
                                                     </td>
                                                 </tr>
                                             </template>
@@ -678,7 +678,7 @@ function reportes() {
                 var url  = URL.createObjectURL(blob);
                 var a    = document.createElement('a');
                 a.href     = url;
-                a.download = 'reporte_auditorias_' + this.auditMes + '.csv';
+                a.download = 'reporte_inspecciones_' + this.auditMes + '.csv';
                 a.click();
                 URL.revokeObjectURL(url);
             } catch (e) { /* silencioso */ } finally {
@@ -743,7 +743,7 @@ function reportes() {
                 var url  = URL.createObjectURL(blob);
                 var a    = document.createElement('a');
                 a.href     = url;
-                a.download = 'reporte_auditorias_pendientes_' + this.auditPendFecha + '.csv';
+                a.download = 'reporte_inspecciones_pendientes_' + this.auditPendFecha + '.csv';
                 a.click();
                 URL.revokeObjectURL(url);
             } catch (e) { /* silencioso */ } finally {

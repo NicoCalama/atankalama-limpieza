@@ -126,7 +126,7 @@ final class InventarioImportService
         $actualesPorRoomId = [];
         $actualesPorNumero = [];
         foreach (Database::fetchAll(
-            'SELECT id, numero, tipo_habitacion_id, cloudbeds_room_id, activa FROM #__habitaciones WHERE hotel_id = ?',
+            'SELECT id, numero, tipo_habitacion_id, cloudbeds_room_id, cloudbeds_room_name, activa FROM #__habitaciones WHERE hotel_id = ?',
             [$hotel->id]
         ) as $fila) {
             $roomId = $fila['cloudbeds_room_id'];
@@ -167,6 +167,7 @@ final class InventarioImportService
             $roomIdsVistos[$roomId] = true;
 
             $numero = $numeroPorRoomId[$roomId];
+            $nombreCompleto = trim((string) ($room['roomName'] ?? ''));
             $tipoNombre = $this->tipoNombreDeRoom($room);
             // Get-or-create del tipo real + su checklist default. Solo escribe al APLICAR: en dry-run
             // el tipo nuevo queda sin id ($tipoId = null) y el room se computa igual como cambio
@@ -192,7 +193,8 @@ final class InventarioImportService
                 $cambiaNumero = !isset($numerosEnColision[$numero]) && (string) $fila['numero'] !== $numero;
                 $cambia = $cambiaNumero
                     || (int) $fila['tipo_habitacion_id'] !== $tipoId
-                    || (int) $fila['activa'] !== $activaDeseada;
+                    || (int) $fila['activa'] !== $activaDeseada
+                    || (string) ($fila['cloudbeds_room_name'] ?? '') !== $nombreCompleto;
                 if ($cambia) {
                     $acciones[] = [
                         'tipo' => 'update',
@@ -200,6 +202,7 @@ final class InventarioImportService
                         'numero' => $cambiaNumero ? $numero : (string) $fila['numero'],
                         'tipo_id' => $tipoId,
                         'activa' => $activaDeseada,
+                        'nombre_completo' => $nombreCompleto !== '' ? $nombreCompleto : null,
                         'set_room_id' => null,
                     ];
                     $res['cambios'][] = ['accion' => 'actualizar', 'numero' => $numero, 'room_id' => $roomId, 'tipo' => $tipoNombre, 'activa' => $activaDeseada];
@@ -222,6 +225,7 @@ final class InventarioImportService
                     'numero' => $numero,
                     'tipo_id' => $tipoId,
                     'activa' => $activaDeseada,
+                    'nombre_completo' => $nombreCompleto !== '' ? $nombreCompleto : null,
                     'set_room_id' => $roomId,
                 ];
                 $res['cambios'][] = ['accion' => 'vincular', 'numero' => $numero, 'room_id' => $roomId, 'tipo' => $tipoNombre, 'activa' => $activaDeseada];
@@ -238,6 +242,7 @@ final class InventarioImportService
                 'numero' => $numero,
                 'tipo_id' => $tipoId,
                 'activa' => $activaDeseada,
+                'nombre_completo' => $nombreCompleto !== '' ? $nombreCompleto : null,
                 'room_id' => $roomId,
             ];
             $res['cambios'][] = ['accion' => 'crear', 'numero' => $numero, 'room_id' => $roomId, 'tipo' => $tipoNombre, 'activa' => $activaDeseada];
@@ -286,26 +291,26 @@ final class InventarioImportService
                 switch ($a['tipo']) {
                     case 'insert':
                         Database::execute(
-                            'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, activa) VALUES (?, ?, ?, ?, ?, ?)',
-                            [$hotelId, $a['numero'], $a['tipo_id'], $a['room_id'], Habitacion::ESTADO_SUCIA, $a['activa']]
+                            'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, cloudbeds_room_name, estado, activa) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                            [$hotelId, $a['numero'], $a['tipo_id'], $a['room_id'], $a['nombre_completo'], Habitacion::ESTADO_SUCIA, $a['activa']]
                         );
                         break;
                     case 'update':
                         if ($a['set_room_id'] !== null) {
                             Database::execute(
                                 "UPDATE #__habitaciones
-                                    SET numero = ?, tipo_habitacion_id = ?, cloudbeds_room_id = ?, activa = ?,
+                                    SET numero = ?, tipo_habitacion_id = ?, cloudbeds_room_id = ?, cloudbeds_room_name = ?, activa = ?,
                                         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                                   WHERE id = ?",
-                                [$a['numero'], $a['tipo_id'], $a['set_room_id'], $a['activa'], $a['id']]
+                                [$a['numero'], $a['tipo_id'], $a['set_room_id'], $a['nombre_completo'], $a['activa'], $a['id']]
                             );
                         } else {
                             Database::execute(
                                 "UPDATE #__habitaciones
-                                    SET numero = ?, tipo_habitacion_id = ?, activa = ?,
+                                    SET numero = ?, tipo_habitacion_id = ?, cloudbeds_room_name = ?, activa = ?,
                                         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
                                   WHERE id = ?",
-                                [$a['numero'], $a['tipo_id'], $a['activa'], $a['id']]
+                                [$a['numero'], $a['tipo_id'], $a['nombre_completo'], $a['activa'], $a['id']]
                             );
                         }
                         break;

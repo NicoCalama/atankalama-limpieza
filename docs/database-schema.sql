@@ -181,9 +181,10 @@ CREATE TABLE habitaciones (
     piso                    INTEGER,                          -- número de piso (opcional)
     tipo_habitacion_id      INTEGER NOT NULL,
     cloudbeds_room_id       TEXT,                             -- mapeo con Cloudbeds
+    cloudbeds_room_name     TEXT,                             -- espejo crudo del roomName de Cloudbeds (ej. «511-EXE3 2S»)
     estado                  TEXT NOT NULL DEFAULT 'sucia' CHECK (estado IN (
         'sucia', 'en_progreso', 'completada_pendiente_auditoria',
-        'aprobada', 'aprobada_con_observacion', 'rechazada'
+        'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'
     )),
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
@@ -370,7 +371,7 @@ CREATE TABLE auditorias (
     habitacion_id       INTEGER NOT NULL,
     auditor_id          INTEGER NOT NULL,
     veredicto           TEXT NOT NULL CHECK (veredicto IN (
-        'aprobado', 'aprobado_con_observacion', 'rechazado'
+        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado'
     )),
     comentario          TEXT,
     items_desmarcados_json  TEXT,                         -- JSON array de item_ids (para observación)

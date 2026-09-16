@@ -21,6 +21,9 @@ final class ChecklistService
         private readonly AsignacionService $asignaciones = new AsignacionService(),
         private readonly ?AlertasPredictivasService $predictivas = null,
         private readonly ?AlertasService $alertas = null,
+        // Opcional, mismo motivo que en AsignacionService::$cloudbeds: sin default propio posible,
+        // y obligatorio rompería los `new ChecklistService()` existentes.
+        private readonly ?CloudbedsSyncService $cloudbeds = null,
     ) {
     }
 
@@ -1084,8 +1087,6 @@ final class ChecklistService
         if ($inicio === false) {
             return 0;
         }
-        // Umbral configurable (default 180s). Prod no setea la var → mantiene los 3 min;
-        // la suite de tests lo pone en 0 (tests/bootstrap.php) para completar sin esperar.
         $minimo   = Config::getInt('CHECKLIST_DELAY_MINIMO_SEGUNDOS', self::DELAY_MINIMO_COMPLETAR_SEGUNDOS);
         $restante = $minimo - (time() - $inicio);
         return max(0, $restante);
@@ -1278,7 +1279,29 @@ final class ChecklistService
             );
         });
 
+        // Fuera de la transacción (llamada de red a Cloudbeds, no debe retener el lock de BD).
+        // Redundante casi siempre (la pieza venía de 'en_progreso', que ya era 'dirty' en Cloudbeds
+        // desde que se inició), pero barato y consistente con el resto de los avisos salientes.
+        $this->avisarCloudbedsSucia($habitacionId);
+
         return ['habitacion_id' => $habitacionId, 'motivo' => $motivo];
+    }
+
+    // Ver el mismo método y su porqué en AsignacionService::avisarCloudbedsSucia().
+    private function avisarCloudbedsSucia(int $habitacionId): void
+    {
+        try {
+            $habitacion = $this->habitaciones->obtener($habitacionId);
+            if ($habitacion === null || $habitacion->cloudbedsRoomId === null) {
+                return;
+            }
+            $sync = $this->cloudbeds ?? new CloudbedsSyncService(CloudbedsClient::desdeConfig());
+            $sync->escribirEstadoDirty($habitacion);
+        } catch (\Throwable $e) {
+            Logger::warning('cloudbeds', 'avisarCloudbedsSucia falló (no crítico)', [
+                'habitacion_id' => $habitacionId, 'mensaje' => $e->getMessage(),
+            ]);
+        }
     }
 
     /** @return array{marcados:int,total:int,porcentaje:int,obligatorios_total:int,obligatorios_marcados:int,obligatorios_pendientes:int} */

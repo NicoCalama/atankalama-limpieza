@@ -201,6 +201,7 @@ final class HomeService
             'completada_pendiente_auditoria' => 0,
             'aprobada' => 0,
             'aprobada_con_observacion' => 0,
+            'aprobada_automatica' => 0,
             'rechazada' => 0,
         ];
         $total = 0;
@@ -210,7 +211,7 @@ final class HomeService
             $porEstado[$e] = $c;
             $total += $c;
         }
-        $limpias = $porEstado['aprobada'] + $porEstado['aprobada_con_observacion'];
+        $limpias = $porEstado['aprobada'] + $porEstado['aprobada_con_observacion'] + $porEstado['aprobada_automatica'];
         $enProgreso = $porEstado['en_progreso'];
         $pendientes = $porEstado['sucia'] + $porEstado['rechazada'];
         $porAuditar = $porEstado['completada_pendiente_auditoria'];
@@ -240,8 +241,8 @@ final class HomeService
         foreach ($auditoriasFila as $r) {
             $v = (string) $r['veredicto'];
             $c = (int) $r['c'];
-            if ($v === 'aprobado') {
-                $audAprobadas = $c;
+            if ($v === 'aprobado' || $v === 'aprobado_automatico') {
+                $audAprobadas += $c;
             } elseif ($v === 'aprobado_con_observacion') {
                 $audObs = $c;
             } elseif ($v === 'rechazado') {
@@ -388,8 +389,8 @@ final class HomeService
                 'meta' => $metaRechazo,
                 'estado' => $rechEstado,
                 'contexto' => $totalAud === 0
-                    ? 'Sin auditorías hoy'
-                    : ($rech . ' rechazadas de ' . $totalAud . ' auditadas'),
+                    ? 'Sin inspecciones hoy'
+                    : ($rech . ' rechazadas de ' . $totalAud . ' inspeccionadas'),
             ],
             'eficiencia_equipo' => [
                 'valor' => $eficiencia,
@@ -518,8 +519,8 @@ final class HomeService
                 'meta' => 5.0,
                 'estado' => $rechEstado,
                 'contexto' => $totalAud === 0
-                    ? 'Sin auditorías hoy'
-                    : ($rech . ' rechazadas de ' . $totalAud . ' auditadas'),
+                    ? 'Sin inspecciones hoy'
+                    : ($rech . ' rechazadas de ' . $totalAud . ' inspeccionadas'),
             ],
             'eficiencia_equipo' => [
                 'valor' => $eficiencia,

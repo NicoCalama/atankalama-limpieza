@@ -50,7 +50,7 @@ if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     $items[] = [
         'ruta' => '/auditoria',
         'icono' => 'shield-check',
-        'label' => 'Auditoría',
+        'label' => 'Inspección',
         'activo' => str_starts_with($rutaActual, '/auditoria'),
     ];
 }

@@ -202,7 +202,7 @@ final class ReportesService
             "SELECT u.id AS usuario_id,
                     u.nombre,
                     COUNT(*) AS total,
-                    SUM(CASE WHEN a.veredicto='aprobado' THEN 1 ELSE 0 END) AS aprobadas,
+                    SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_automatico') THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
                     SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas
                FROM #__auditorias a
@@ -236,11 +236,11 @@ final class ReportesService
         ];
 
         $rows = [];
-        $rows[] = ['Resumen mensual de auditorías por auditor', 'Atankalama Corp'];
+        $rows[] = ['Resumen mensual de inspecciones por inspector', 'Atankalama Corp'];
         $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
         $rows[] = [];
-        $rows[] = ['Auditor', 'Total auditadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas'];
+        $rows[] = ['Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas'];
 
         $totT = $totA = $totO = $totR = 0;
         foreach ($filas as $f) {
@@ -440,10 +440,10 @@ final class ReportesService
         };
 
         $rows = [];
-        $rows[] = ['Reporte de auditorías pendientes al corte de las 23:50', 'Atankalama Corp'];
+        $rows[] = ['Reporte de inspecciones pendientes al corte de las 23:50', 'Atankalama Corp'];
         $rows[] = ['Hotel', $hotelLabel, 'Fecha', date('d/m/Y', strtotime($fecha))];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
-        $rows[] = ['Criterio', 'Sin auditar a tiempo = sin auditoría registrada antes de las 23:50 de la fecha del reporte.'];
+        $rows[] = ['Criterio', 'Sin inspeccionar a tiempo = sin inspección registrada antes de las 23:50 de la fecha del reporte.'];
 
         $tituloTurno = [
             'mañana' => 'TURNO MAÑANA (antes de las 18:00)',
@@ -455,10 +455,10 @@ final class ReportesService
             $rows[] = [
                 $tituloTurno[$turno],
                 "Total limpiadas: {$datos['total']}",
-                'Sin auditar a tiempo: ' . count($datos['pendientes']),
+                'Sin inspeccionar a tiempo: ' . count($datos['pendientes']),
             ];
             if ($datos['pendientes'] !== []) {
-                $rows[] = ['Hotel', 'Habitación', 'Nochero', 'Hora término', 'Estado auditoría'];
+                $rows[] = ['Hotel', 'Habitación', 'Nochero', 'Hora término', 'Estado inspección'];
                 foreach ($datos['pendientes'] as $p) {
                     $rows[] = [
                         match ($p['hotel_codigo']) {
@@ -469,7 +469,7 @@ final class ReportesService
                         $p['numero'],
                         $p['es_nochero'] ? 'Sí' : 'No',
                         $p['hora_termino'],
-                        $p['estado_auditoria'] === 'sin_auditar' ? 'Sin auditar' : 'Auditada fuera de plazo',
+                        $p['estado_auditoria'] === 'sin_auditar' ? 'Sin inspeccionar' : 'Inspeccionada fuera de plazo',
                     ];
                 }
             }
@@ -567,7 +567,7 @@ final class ReportesService
 
         $total = (int) ($fila['total'] ?? 0);
         if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 5.0, 'contexto' => '0 auditorías', 'estado' => 'sin_datos'];
+            return ['valor' => null, 'unidad' => '%', 'meta' => 5.0, 'contexto' => '0 inspecciones', 'estado' => 'sin_datos'];
         }
 
         $rechazadas = (int) ($fila['rechazadas'] ?? 0);
@@ -578,7 +578,7 @@ final class ReportesService
             'valor'    => $valor,
             'unidad'   => '%',
             'meta'     => $meta,
-            'contexto' => "{$rechazadas} de {$total} auditadas",
+            'contexto' => "{$rechazadas} de {$total} inspeccionadas",
             'estado'   => $valor <= $meta ? 'ok' : ($valor <= $meta * 1.4 ? 'alerta' : 'critico'),
         ];
     }
@@ -710,13 +710,17 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
               WHERE a.created_at >= ? AND a.created_at < ?
+                -- aprobado_automatico (cierre de día 23:55) queda FUERA de este KPI: mide
+                -- desempeño real del trabajador, y una pieza sin auditoría real no aporta
+                -- evidencia de si la limpieza era buena o no.
+                AND a.veredicto != 'aprobado_automatico'
                     {$h}{$u}",
             $params
         );
 
         $total = (int) ($fila['total'] ?? 0);
         if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 95.0, 'contexto' => '0 auditorías', 'estado' => 'sin_datos'];
+            return ['valor' => null, 'unidad' => '%', 'meta' => 95.0, 'contexto' => '0 inspecciones', 'estado' => 'sin_datos'];
         }
 
         $aprobadas = (int) ($fila['aprobadas'] ?? 0);
@@ -727,7 +731,7 @@ final class ReportesService
             'valor'    => $valor,
             'unidad'   => '%',
             'meta'     => $meta,
-            'contexto' => "{$aprobadas} de {$total} auditadas",
+            'contexto' => "{$aprobadas} de {$total} inspeccionadas",
             'estado'   => $valor >= $meta ? 'ok' : ($valor >= 85.0 ? 'alerta' : 'critico'),
         ];
     }
@@ -803,7 +807,7 @@ final class ReportesService
 
         $marcados = (int) ($fila['marcados'] ?? 0);
         if ($marcados === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 3.0, 'contexto' => '0 ítems auditados', 'estado' => 'sin_datos'];
+            return ['valor' => null, 'unidad' => '%', 'meta' => 3.0, 'contexto' => '0 ítems inspeccionados', 'estado' => 'sin_datos'];
         }
 
         $desmarcados = (int) ($fila['desmarcados'] ?? 0);

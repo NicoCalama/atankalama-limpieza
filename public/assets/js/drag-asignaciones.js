@@ -31,6 +31,13 @@
     'use strict';
 
     var UMBRAL_MOUSE = 5;    // px: el mouse pasa de click a arrastre
+    // ms mínimos sostenidos con el mouse abajo antes de comprometerse a arrastre.
+    // Sin esto, el jitter normal de un trackpad/mouse al hacer clic (unos pocos px
+    // entre mousedown y mouseup) cruza UMBRAL_MOUSE al instante, entra en arrastre,
+    // llama preventDefault() en el próximo pointermove y se traga el click — el link
+    // de la tarjeta nunca navega. Mismo problema que ya resuelve LONGPRESS_MS para
+    // táctil, aplicado a mouse con un tiempo casi imperceptible.
+    var UMBRAL_MOUSE_MS = 100;
     var SLOP_TOUCH   = 10;   // px de tolerancia antes del long-press (si se pasa = scroll)
     var LONGPRESS_MS = 200;  // ms de dedo quieto para iniciar arrastre táctil
 
@@ -77,6 +84,7 @@
             card: card,
             pointerId: e.pointerId,
             tipo: e.pointerType,
+            startTime: performance.now(),
             startX: e.clientX,
             startY: e.clientY,
             grabDX: e.clientX - rect.left,
@@ -93,7 +101,15 @@
             onMove: null, onUp: null, onCancel: null, onKey: null
         };
 
-        try { card.setPointerCapture(e.pointerId); } catch (err) {}
+        // OJO: la captura del puntero NO se toma acá, recién en entrarEnArrastre().
+        // Si se toma en el pointerdown, el navegador retarget-ea TODO evento posterior
+        // del mismo puntero (incl. el pointerup y el click de compatibilidad que genera)
+        // al elemento capturador — acá el <li>. Un click normal con apenas 1-2px de
+        // jitter (mouse/trackpad real) entonces genera un click cuyo target es el <li>,
+        // no el <a> (que es hijo del <li>, no ancestro) — el click nunca "pasa por" el
+        // link y la navegación no ocurre. Confirmado en vivo con eventos reales:
+        // pointerdown en <p>, siguiente pointermove (1px) ya targetea el <li>. Por eso
+        // se difiere la captura hasta que el gesto ya se confirmó como arrastre real.
 
         G.onMove   = function (ev) { mover(ev); };
         G.onUp     = function (ev) { soltar(ev); };
@@ -122,8 +138,12 @@
 
         if (!G.arrastrando) {
             if (G.tipo === 'mouse') {
-                // Mouse: arrancar arrastre al superar el umbral.
-                if (dx > UMBRAL_MOUSE || dy > UMBRAL_MOUSE) entrarEnArrastre();
+                // Mouse: arrancar arrastre al superar el umbral, pero solo si el botón
+                // lleva sostenido UMBRAL_MOUSE_MS — un click normal cruza el umbral de
+                // px casi de inmediato por el jitter del dispositivo, pero no sostiene
+                // el movimiento ese tiempo.
+                if ((dx > UMBRAL_MOUSE || dy > UMBRAL_MOUSE) &&
+                    (performance.now() - G.startTime) >= UMBRAL_MOUSE_MS) entrarEnArrastre();
             } else {
                 // Táctil: si se mueve antes del long-press, era scroll → abortar.
                 if ((dx > SLOP_TOUCH || dy > SLOP_TOUCH) && G.longPressTimer) {
@@ -182,6 +202,10 @@
     function entrarEnArrastre() {
         if (!G || G.arrastrando) return;
         G.arrastrando = true;
+        // Recién acá, con el arrastre ya confirmado, capturamos el puntero — así
+        // seguimos recibiendo pointermove/pointerup aunque el cursor salga de la
+        // tarjeta durante el resto del gesto. Ver nota en iniciar().
+        try { G.card.setPointerCapture(G.pointerId); } catch (err) {}
         if (G.longPressTimer) { clearTimeout(G.longPressTimer); G.longPressTimer = null; }
         document.body.classList.add('arrastrando');
         crearFantasma();

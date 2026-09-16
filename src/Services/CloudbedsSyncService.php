@@ -174,6 +174,10 @@ final class CloudbedsSyncService
                     // Guardar la ocupación (frontdeskStatus + arrival/departure) — contexto para
                     // priorizar y para la regla de sábanas. NO cambia el 'estado' de limpieza.
                     // Ver docs/ocupacion-y-sabanas.md
+                    // roomName ya viene en este mismo getHousekeepingStatus: se refresca acá
+                    // (cada ~10 min) sin una llamada aparte a getRooms. Fuente = Cloudbeds
+                    // siempre; no es editable en la app.
+                    $nombreCompleto = trim((string) ($room['roomName'] ?? ''));
                     $this->habitaciones->actualizarOcupacionCloudbeds(
                         $hab->id,
                         self::normalizarFrontdesk($room['frontdeskStatus'] ?? null),
@@ -181,6 +185,7 @@ final class CloudbedsSyncService
                         self::normalizarFecha($room['arrivalDate'] ?? null),
                         self::normalizarFecha($room['departureDate'] ?? null),
                         $mapaHuespedes[$cloudbedsRoomId] ?? null,
+                        $nombreCompleto !== '' ? $nombreCompleto : null,
                     );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {

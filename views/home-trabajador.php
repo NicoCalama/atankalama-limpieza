@@ -195,7 +195,7 @@ if ($hora < 12) {
                                 </div>
                                 <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
                                    class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
-                                    <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza'"></span>
+                                    <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Acceder'"></span>
                                 </a>
                                 <?php if ($usuario->tienePermiso('habitaciones.saltar')): ?>
                                 <button type="button" @click="abrirSaltar()" data-tour="htr.saltar"
@@ -245,6 +245,12 @@ if ($hora < 12) {
     <!-- Modal "No puedo limpiarla ahora" — mismo motivo/flujo que habitacion-detalle.php,
          pero accesible directo desde la ficha del Home (sin entrar a la habitación). -->
     <div x-show="mostrarSaltar" x-cloak
+         x-ref="modalSaltar"
+         x-effect="mostrarSaltar && $nextTick(() => { var b = $refs.modalSaltar.querySelector('button'); if (b) b.focus(); })"
+         @keydown.escape.window="mostrarSaltar && !saltando && cerrarSaltar()"
+         @keydown.tab.window="atraparTabGenerico($event, $refs.modalSaltar, mostrarSaltar)"
+         @keydown.window="manejarAltSaltar($event)"
+         @keyup.window="altSaltar = false"
          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
          @click.self="cerrarSaltar()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
@@ -275,11 +281,12 @@ if ($hora < 12) {
             <div class="flex gap-3">
                 <button @click="cerrarSaltar()" :disabled="saltando"
                         class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition disabled:opacity-50">
-                    Cancelar
+                    <span :class="altSaltar ? 'underline' : ''">C</span>ancelar
                 </button>
                 <button @click="confirmarSaltar()" :disabled="saltando || !motivoSaltarValido"
                         class="flex-1 min-h-[44px] px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition">
-                    <span x-text="saltando ? 'Enviando...' : 'Confirmar'"></span>
+                    <template x-if="saltando"><span>Enviando...</span></template>
+                    <template x-if="!saltando"><span>C<span :class="altSaltar ? 'underline' : ''">o</span>nfirmar</span></template>
                 </button>
             </div>
         </div>
@@ -297,6 +304,7 @@ function homeTrabajador() {
         cerrando: false,
         _intervalId: null,
         mostrarSaltar: false,
+        altSaltar: false, // Alt/Option presionado: subraya C/O del modal "No puedo limpiarla ahora"
         saltando: false,
         motivoSaltar: null,
         motivoOtro: '',
@@ -380,6 +388,37 @@ function homeTrabajador() {
         cerrarSaltar() {
             if (this.saltando) return;
             this.mostrarSaltar = false;
+        },
+
+        // Accesibilidad de teclado del modal "No puedo limpiarla ahora" (accesibilidad-teclado.md).
+        // Sin letra para los motivos (lista dinámica); "O" en vez de "C" para Confirmar porque
+        // "Cancelar" ya usa la C (cOnfirmar).
+        manejarAltSaltar(e) {
+            if (!this.mostrarSaltar) return;
+            if (e.key === 'Alt') { this.altSaltar = true; return; }
+            if (!e.altKey || this.saltando) return;
+            if (e.code === 'KeyC') { e.preventDefault(); this.cerrarSaltar(); }
+            else if (e.code === 'KeyO' && this.motivoSaltarValido) { e.preventDefault(); this.confirmarSaltar(); }
+        },
+
+        // Focus trap genérico (accesibilidad-teclado.md): el modal tiene contenido variable
+        // (lista de motivos + textarea condicional), no un par fijo de botones.
+        atraparTabGenerico(e, elModal, activo) {
+            if (!activo || !elModal) return;
+            var focables = Array.prototype.slice.call(
+                elModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')
+            );
+            if (focables.length === 0) return;
+            var primero = focables[0], ultimo = focables[focables.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === primero || !elModal.contains(document.activeElement)) {
+                    e.preventDefault(); ultimo.focus();
+                }
+            } else {
+                if (document.activeElement === ultimo || !elModal.contains(document.activeElement)) {
+                    e.preventDefault(); primero.focus();
+                }
+            }
         },
 
         // Salta la habitación actual sin pasar por su ficha de detalle. La habitación

@@ -21,16 +21,19 @@
                 extend: {
                     fontFamily: {
                         sans: ['Inter', 'system-ui', 'sans-serif'],
+                        // Condensada, solo para la franja de estado de las tarjetas de
+                        // habitaciones (menos ancho por letra que Inter en mayúscula).
+                        oswald: ['Oswald', 'system-ui', 'sans-serif'],
                     },
                 },
             },
         };
     </script>
 
-    <!-- Google Fonts (Inter) -->
+    <!-- Google Fonts (Inter + Oswald para la franja de estado de habitaciones) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>

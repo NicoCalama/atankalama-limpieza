@@ -314,6 +314,10 @@ if ($hora < 12) {
 
     <!-- Modal: Ver carga -->
     <div x-show="modalVerCarga.abierto" x-cloak
+         x-ref="modalVerCarga"
+         x-effect="modalVerCarga.abierto && $nextTick(() => $refs.btnCerrarVerCarga.focus())"
+         @keydown.escape.window="modalVerCarga.abierto && cerrarVerCarga()"
+         @keydown.tab.window="atraparTabGenerico($event, $refs.modalVerCarga, modalVerCarga.abierto)"
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarVerCarga()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
@@ -322,7 +326,7 @@ if ($hora < 12) {
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Carga de <span x-text="modalVerCarga.trabajador?.usuario?.nombre"></span></h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400" x-text="modalVerCarga.cola.length + ' habitaciones'"></p>
                 </div>
-                <button @click="cerrarVerCarga()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                <button x-ref="btnCerrarVerCarga" @click="cerrarVerCarga()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </button>
             </div>
@@ -355,6 +359,10 @@ if ($hora < 12) {
 
     <!-- Modal: Reasignar -->
     <div x-show="modalReasignar.abierto" x-cloak
+         x-ref="modalReasignar"
+         x-effect="modalReasignar.abierto && $nextTick(() => $refs.btnCerrarReasignar.focus())"
+         @keydown.escape.window="modalReasignar.abierto && cerrarReasignar()"
+         @keydown.tab.window="atraparTabGenerico($event, $refs.modalReasignar, modalReasignar.abierto)"
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarReasignar()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
@@ -363,7 +371,7 @@ if ($hora < 12) {
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Reasignar carga de <span x-text="modalReasignar.origen?.usuario?.nombre"></span></h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Elige una habitación y un destinatario.</p>
                 </div>
-                <button @click="cerrarReasignar()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                <button x-ref="btnCerrarReasignar" @click="cerrarReasignar()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </button>
             </div>
@@ -427,6 +435,11 @@ if ($hora < 12) {
 
     <!-- Modal: Confirmar descarte de alerta -->
     <div x-show="modalDescartar.abierto" x-cloak
+         x-effect="modalDescartar.abierto && $nextTick(() => $refs.btnDescartar.focus())"
+         @keydown.escape.window="modalDescartar.abierto && cerrarModalDescartar()"
+         @keydown.tab.window="atraparTabModalDescartar($event)"
+         @keydown.window="manejarAltModalDescartar($event)"
+         @keyup.window="altModalDescartar = false"
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarModalDescartar()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
@@ -434,13 +447,14 @@ if ($hora < 12) {
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
             <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
             <div class="flex gap-2 justify-end">
-                <button @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
+                <button x-ref="btnCancelar" @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
                         class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
-                    Cancelar
+                    <span :class="altModalDescartar ? 'underline' : ''">C</span>ancelar
                 </button>
-                <button @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
+                <button x-ref="btnDescartar" @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
                         class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    <span x-text="modalDescartar.enviando ? 'Descartando...' : 'Descartar'"></span>
+                    <template x-if="modalDescartar.enviando"><span>Descartando...</span></template>
+                    <template x-if="!modalDescartar.enviando"><span>De<span :class="altModalDescartar ? 'underline' : ''">s</span>cartar</span></template>
                 </button>
             </div>
         </div>
@@ -464,6 +478,7 @@ function homeSupervisora() {
         modalVerCarga: { abierto: false, trabajador: null, cola: [], cargando: false },
         modalReasignar: { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, motivo: '', cargando: false, enviando: false },
         modalDescartar: { abierto: false, alerta: null, enviando: false },
+        altModalDescartar: false,
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -567,9 +582,10 @@ function homeSupervisora() {
             var map = {
                 'sucia': 'Pendiente',
                 'en_progreso': 'En progreso',
-                'completada_pendiente_auditoria': 'Por auditar',
+                'completada_pendiente_auditoria': 'Por inspeccionar',
                 'aprobada': 'Aprobada',
                 'aprobada_con_observacion': 'Aprobada c/obs.',
+                'aprobada_automatica': 'Aprobada auto.',
                 'rechazada': 'Rechazada'
             };
             return map[estado] || estado;
@@ -751,6 +767,52 @@ function homeSupervisora() {
 
         cerrarModalDescartar() {
             this.modalDescartar = { abierto: false, alerta: null, enviando: false };
+            this.altModalDescartar = false;
+        },
+
+        atraparTabModalDescartar(e) {
+            if (!this.modalDescartar.abierto) return;
+            var f = [this.$refs.btnCancelar, this.$refs.btnDescartar];
+            var i = f.indexOf(document.activeElement);
+            if (e.shiftKey) {
+                if (i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+            } else {
+                if (i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+            }
+        },
+
+        // Focus trap genérico (accesibilidad-teclado.md): para modales de contenido variable
+        // (listas dinámicas), a diferencia del trap de 2 botones fijos de arriba. Consulta los
+        // elementos enfocables reales del modal en el momento de la tecla.
+        atraparTabGenerico(e, elModal, activo) {
+            if (!activo || !elModal) return;
+            var focables = Array.prototype.slice.call(
+                elModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')
+            );
+            if (focables.length === 0) return;
+            var primero = focables[0], ultimo = focables[focables.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === primero || !elModal.contains(document.activeElement)) {
+                    e.preventDefault(); ultimo.focus();
+                }
+            } else {
+                if (document.activeElement === ultimo || !elModal.contains(document.activeElement)) {
+                    e.preventDefault(); primero.focus();
+                }
+            }
+        },
+
+        // Alt (Windows) / Option (Mac): subraya la letra de acceso y activa el
+        // botón correspondiente. "C" = Cancelar, "S" = Descartar (no "D": choca
+        // con Alt+D de la barra de direcciones en Chrome/Edge/Firefox/Windows).
+        manejarAltModalDescartar(e) {
+            if (!this.modalDescartar.abierto) return;
+            if (e.key === 'Alt') { this.altModalDescartar = true; return; }
+            if (!e.altKey || this.modalDescartar.enviando) return;
+            // e.code (tecla física) en vez de e.key: en Mac, Option+S/Option+C
+            // no escriben "s"/"c", escriben "ß"/"ç" — e.key no sirve aquí.
+            if (e.code === 'KeyC') { e.preventDefault(); this.cerrarModalDescartar(); }
+            else if (e.code === 'KeyS') { e.preventDefault(); this.confirmarDescartarAlerta(); }
         },
 
         // --- Ver carga ---

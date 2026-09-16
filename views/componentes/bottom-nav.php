@@ -3,6 +3,12 @@
  * Bottom tab bar para móvil (md:hidden).
  * Los items se filtran según permisos del usuario.
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
+ *
+ * Ícono + texto. El texto va más chico (10px) y con espaciado apretado que la
+ * versión original (12px) para que quepan los ítems + "Salir" sin cortarse en
+ * celulares angostos. Se probó reemplazar el texto por un popover (mouse-over /
+ * mantener presionado), pero el celular no tiene un equivalente confiable a
+ * "mouse por encima sin tocar" — se volvió al texto siempre visible.
  */
 
 // Path SIN el prefijo BASE_PATH (las comparaciones de abajo usan rutas de app).
@@ -36,7 +42,7 @@ if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
     $items[] = [
         'ruta' => '/auditoria',
         'icono' => 'shield-check',
-        'label' => 'Auditoría',
+        'label' => 'Inspección',
         'activo' => str_starts_with($rutaActual, '/auditoria'),
     ];
 }
@@ -66,6 +72,17 @@ if ($usuario->tienePermiso('asignaciones.asignar_manual')) {
     ];
 }
 
+// Áreas comunes — visible con permiso espacios.ver (faltaba: el sidebar de
+// escritorio ya lo tenía, pero en móvil no había forma de llegar a /espacios).
+if ($usuario->tienePermiso('espacios.ver')) {
+    $items[] = [
+        'ruta' => '/espacios',
+        'icono' => 'building-2',
+        'label' => 'Áreas comunes',
+        'activo' => str_starts_with($rutaActual, '/espacios'),
+    ];
+}
+
 // Ajustes — visible para todos
 $items[] = [
     'ruta' => '/ajustes',
@@ -80,12 +97,12 @@ $items[] = [
     <div class="flex max-w-lg mx-auto">
         <?php foreach ($items as $item): ?>
             <?php
-            $clases = 'flex-1 min-w-0 min-h-[60px] flex flex-col items-center justify-center transition-colors '
+            $clases = 'flex-1 min-w-0 min-h-[52px] flex flex-col items-center justify-center gap-0.5 transition-colors '
                 . ($item['activo']
                     ? 'text-blue-600 dark:text-blue-400'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700');
             $contenido = '<i data-lucide="' . htmlspecialchars((string) $item['icono'], ENT_QUOTES, 'UTF-8') . '" class="w-5 h-5"></i>'
-                . '<span class="text-xs mt-1 truncate max-w-full px-0.5">' . htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') . '</span>';
+                . '<span class="text-[10px] leading-none truncate max-w-full px-0.5">' . htmlspecialchars((string) $item['label'], ENT_QUOTES, 'UTF-8') . '</span>';
             ?>
             <?php if (($item['tipo'] ?? 'link') === 'accion'): ?>
                 <button type="button" class="<?= $clases ?>"
@@ -103,11 +120,11 @@ $items[] = [
         <button type="button"
                 onclick="if (confirm('¿Cerrar sesión?')) Alpine.store('auth').cerrarSesion();"
                 aria-label="Cerrar sesión"
-                class="w-14 flex-shrink-0 min-h-[60px] flex flex-col items-center justify-center transition-colors
+                class="w-12 flex-shrink-0 min-h-[52px] flex flex-col items-center justify-center gap-0.5 transition-colors
                        text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700
                        border-l border-gray-200 dark:border-gray-700">
             <i data-lucide="log-out" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Salir</span>
+            <span class="text-[10px] leading-none">Salir</span>
         </button>
     </div>
 </nav>

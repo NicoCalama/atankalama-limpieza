@@ -68,33 +68,48 @@ require_once __DIR__ . '/componentes/avatar.php';
 
         <!-- Filtros -->
         <section data-tour="tk.filtros" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
-            <div class="flex flex-wrap gap-2 items-center">
-                <div class="flex items-center gap-1 flex-wrap">
+            <div class="flex flex-wrap gap-x-4 gap-y-2 items-center">
+                <div class="flex flex-wrap items-center gap-x-1 gap-y-1">
                     <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Alcance:</span>
-                    <template x-for="a in alcanceFiltro" :key="a.valor">
-                        <button @click="setAlcance(a.valor)"
-                                :class="alcance === a.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
-                                class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
-                                x-text="a.etiqueta"></button>
+                    <template x-for="(a, idx) in alcanceFiltro" :key="a.valor">
+                        <span class="inline-flex items-center">
+                            <span x-show="idx > 0" class="text-gray-300 dark:text-gray-600 mx-1.5" aria-hidden="true">·</span>
+                            <button @click="setAlcance(a.valor)"
+                                    :class="alcance === a.valor
+                                        ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
+                                    class="py-1 text-xs sm:text-sm transition"
+                                    x-text="a.etiqueta"></button>
+                        </span>
                     </template>
                 </div>
-                <div class="flex items-center gap-1 flex-wrap">
+                <div class="flex flex-wrap items-center gap-x-1 gap-y-1">
                     <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
-                    <template x-for="e in estadosFiltro" :key="e.valor">
-                        <button @click="setEstado(e.valor)"
-                                :class="estado === e.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
-                                class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
-                                x-text="e.etiqueta"></button>
+                    <template x-for="(e, idx) in estadosFiltro" :key="e.valor">
+                        <span class="inline-flex items-center">
+                            <span x-show="idx > 0" class="text-gray-300 dark:text-gray-600 mx-1.5" aria-hidden="true">·</span>
+                            <button @click="setEstado(e.valor)"
+                                    :class="estado === e.valor
+                                        ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
+                                    class="py-1 text-xs sm:text-sm transition"
+                                    x-text="e.etiqueta"></button>
+                        </span>
                     </template>
                 </div>
                 <template x-if="puedeVerTodos">
-                    <div class="flex items-center gap-1 flex-wrap">
-                        <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1 ml-2">Hotel:</span>
-                        <template x-for="h in hotelesFiltro" :key="h.valor">
-                            <button @click="setHotel(h.valor)"
-                                    :class="hotel === h.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
-                                    class="min-h-[36px] px-3 py-1 text-xs font-medium rounded-lg border transition"
-                                    x-text="h.etiqueta"></button>
+                    <div class="flex flex-wrap items-center gap-x-1 gap-y-1">
+                        <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Hotel:</span>
+                        <template x-for="(h, idx) in hotelesFiltro" :key="h.valor">
+                            <span class="inline-flex items-center">
+                                <span x-show="idx > 0" class="text-gray-300 dark:text-gray-600 mx-1.5" aria-hidden="true">·</span>
+                                <button @click="setHotel(h.valor)"
+                                        :class="hotel === h.valor
+                                            ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
+                                        class="py-1 text-xs sm:text-sm transition"
+                                        x-text="h.etiqueta"></button>
+                            </span>
                         </template>
                     </div>
                 </template>

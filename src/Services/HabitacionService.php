@@ -131,11 +131,12 @@ final class HabitacionService
         ?string $arrivalDate,
         ?string $departureDate,
         ?string $huesped = null,
+        ?string $cloudbedsRoomName = null,
     ): void {
         Database::execute(
             "UPDATE #__habitaciones
                 SET cb_frontdesk_status = ?, cb_ocupada = ?, cb_arrival_date = ?, cb_departure_date = ?,
-                    cb_huesped = ?, cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    cb_huesped = ?, cloudbeds_room_name = ?, cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE id = ?",
             [
                 $frontdeskStatus,
@@ -143,6 +144,7 @@ final class HabitacionService
                 $arrivalDate,
                 $departureDate,
                 $huesped,
+                $cloudbedsRoomName,
                 $id,
             ]
         );
@@ -333,7 +335,8 @@ final class HabitacionService
 
     /**
      * Habitaciones "nochero" vigentes hoy que ya quedaron en un estado terminal (aprobada,
-     * aprobada_con_observacion, rechazada) — candidatas a revertir a 'sucia' desde las 16:00. No
+     * aprobada_con_observacion, aprobada_automatica, rechazada) — candidatas a revertir a
+     * 'sucia' desde las 16:00. No
      * incluye 'en_progreso' ni 'completada_pendiente_auditoria': no se interrumpe un aseo en
      * curso ni se salta una auditoría pendiente por el cron. Ver Habitacion::estaEnEstadoTerminal().
      *
@@ -350,12 +353,13 @@ final class HabitacionService
             'SELECT * FROM #__habitaciones
               WHERE activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
                 AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
-                AND estado IN (?, ?, ?)',
+                AND estado IN (?, ?, ?, ?)',
             [
                 $hoy,
                 $hoy,
                 Habitacion::ESTADO_APROBADA,
                 Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+                Habitacion::ESTADO_APROBADA_AUTOMATICA,
                 Habitacion::ESTADO_RECHAZADA,
             ]
         );
@@ -442,6 +446,7 @@ final class HabitacionService
             piso: $habitacion->piso,
             tipoHabitacionId: $habitacion->tipoHabitacionId,
             cloudbedsRoomId: $habitacion->cloudbedsRoomId,
+            cloudbedsRoomName: $habitacion->cloudbedsRoomName,
             estado: $nuevoEstado,
             activa: $habitacion->activa,
             esEspacioComun: $habitacion->esEspacioComun,

@@ -8,11 +8,14 @@ final class Auditoria
 {
     public const VEREDICTO_APROBADO = 'aprobado';
     public const VEREDICTO_APROBADO_CON_OBSERVACION = 'aprobado_con_observacion';
+    // Cierre de día automático (cron 23:55) — ver Habitacion::ESTADO_APROBADA_AUTOMATICA.
+    public const VEREDICTO_APROBADO_AUTOMATICO = 'aprobado_automatico';
     public const VEREDICTO_RECHAZADO = 'rechazado';
 
     public const VEREDICTOS_VALIDOS = [
         self::VEREDICTO_APROBADO,
         self::VEREDICTO_APROBADO_CON_OBSERVACION,
+        self::VEREDICTO_APROBADO_AUTOMATICO,
         self::VEREDICTO_RECHAZADO,
     ];
 

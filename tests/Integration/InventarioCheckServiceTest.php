@@ -71,12 +71,12 @@ final class InventarioCheckServiceTest extends TestCase
         )['c'];
     }
 
-    private function sembrarPieza(string $roomId, string $numero, string $tipo): void
+    private function sembrarPieza(string $roomId, string $numero, string $tipo, ?string $nombreCompleto = null): void
     {
         $tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion WHERE nombre = ?', [$tipo])['id'];
         Database::execute(
-            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, activa) VALUES (?, ?, ?, ?, 'sucia', 1)",
-            [$this->hotelId, $numero, $tipoId, $roomId]
+            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, cloudbeds_room_name, estado, activa) VALUES (?, ?, ?, ?, ?, 'sucia', 1)",
+            [$this->hotelId, $numero, $tipoId, $roomId, $nombreCompleto]
         );
     }
 
@@ -104,8 +104,10 @@ final class InventarioCheckServiceTest extends TestCase
 
     public function testSinCambiosNoLevantaAlerta(): void
     {
-        // La app ya está sincronizada: las piezas de Cloudbeds ya existen igualitas (mismo tipo real).
-        $this->sembrarPieza('CB_R1', '101', 'Doble/Matrimonial');
+        // La app ya está sincronizada: las piezas de Cloudbeds ya existen igualitas (mismo
+        // tipo real y mismo cloudbeds_room_name, que desde el cierre-día del jefe también es
+        // parte del estado que se compara contra Cloudbeds).
+        $this->sembrarPieza('CB_R1', '101', 'Doble/Matrimonial', '101-A');
         $this->encolarRooms([$this->room('CB_R1', '101-A', 2, 'Doble/Matrimonial')]);
 
         $res = $this->check->revisar(true);

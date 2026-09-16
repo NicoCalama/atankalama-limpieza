@@ -113,9 +113,15 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span x-html="badgeEstado(habitacion.estado)"></span>
+                        <template x-if="habitacion.cb_frontdesk_status && habitacion.cb_frontdesk_status !== 'unused'">
+                            <span x-html="badgeOcupacion(habitacion.cb_frontdesk_status)"></span>
+                        </template>
+                        <template x-if="habitacion.cloudbeds_room_name">
+                            <span x-html="badgeCodigoRoomName(habitacion.cloudbeds_room_name)"></span>
+                        </template>
                         <template x-if="esAuditada">
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
-                                <i data-lucide="lock" class="w-3 h-3"></i> Auditada
+                                <i data-lucide="lock" class="w-3 h-3"></i> Inspeccionada
                             </span>
                         </template>
                     </div>
@@ -245,11 +251,26 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </p>
                 </template>
 
+                <!-- Asignada a mí pero no es mi turno todavía (flujo "una a la vez": si llegué
+                     acá desde /habitaciones viendo TODO mi día, esta pieza no es la actual).
+                     Si estuviera aquí sin estarme asignada, el backend ya habría devuelto 403
+                     al cargar la ficha (ver HabitacionesController::obtener) — así que si soy
+                     trabajador y veo esto, es mía, solo que más adelante en la cola. -->
+                <template x-if="(habitacion.estado === 'sucia' || habitacion.estado === 'rechazada') && !estaAsignada && !puedeVerTodas">
+                    <div class="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-3">
+                        <i data-lucide="list-ordered" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>
+                        <p class="text-sm text-amber-900 dark:text-amber-200">
+                            Esta habitación es tuya, pero todavía no te toca — primero debes terminar tu
+                            habitación actual. Entra desde <a href="<?= u('/home') ?>" class="underline font-medium">Inicio</a>.
+                        </p>
+                    </div>
+                </template>
+
                 <!-- Auditoría pendiente (solo aviso, read-only) -->
                 <template x-if="habitacion.estado === 'completada_pendiente_auditoria'">
                     <div class="mt-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 flex items-start gap-3">
                         <i data-lucide="clock" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5"></i>
-                        <p class="text-sm text-indigo-900 dark:text-indigo-200">Esta habitación está esperando auditoría.</p>
+                        <p class="text-sm text-indigo-900 dark:text-indigo-200">Esta habitación está esperando inspección.</p>
                     </div>
                 </template>
 
@@ -258,7 +279,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <div class="mt-3 space-y-2">
                         <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-start gap-3">
                             <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
-                            <p class="text-sm text-red-900 dark:text-red-200">Esta habitación fue rechazada en auditoría y necesita re-limpieza.</p>
+                            <p class="text-sm text-red-900 dark:text-red-200">Esta habitación fue rechazada en la inspección y necesita re-limpieza.</p>
                         </div>
                         <a href="<?= u('/asignaciones') ?>"
                            class="w-full min-h-[48px] inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition shadow-sm">
@@ -311,7 +332,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                         </template>
                                         <template x-if="item.desmarcado_por_auditor == 1">
                                             <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
-                                                <i data-lucide="alert-triangle" class="w-3 h-3"></i> Auditor desmarcó
+                                                <i data-lucide="alert-triangle" class="w-3 h-3"></i> Inspector desmarcó
                                             </span>
                                         </template>
                                         <template x-if="esHeredado(item)">
@@ -381,7 +402,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                     </div>
                                     <template x-if="h.veredicto && h.auditor_nombre">
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            Auditada por <span x-text="h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
+                                            Inspeccionada por <span x-text="h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
                                         </p>
                                     </template>
                                 </li>
@@ -465,7 +486,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Habitación terminada?</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                        Confirma que terminaste esta habitación. Pasará a auditoría y no podrás editarla.
+                        Confirma que terminaste esta habitación. Pasará a inspección y no podrás editarla.
                     </p>
                     <div class="flex gap-3">
                         <button @click="mostrarConfirmar = false"
@@ -527,7 +548,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Marcar como limpia?</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                        Se registrará sin pasar por el checklist y quedará <strong>pendiente de auditoría</strong>, igual que una limpieza normal.
+                        Se registrará sin pasar por el checklist y quedará <strong>pendiente de inspección</strong>, igual que una limpieza normal.
                     </p>
                     <div class="flex gap-3">
                         <button @click="mostrarMarcarLimpia = false"
@@ -630,6 +651,29 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             return !!this.motivoSaltar;
         },
 
+        // Badge de ocupación (frontdeskStatus de Cloudbeds). Mismo mapa/colores que
+        // badgeOcupacion() en habitaciones.php, para no inventar un lenguaje visual nuevo.
+        badgeOcupacion(fs) {
+            var map = {
+                'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
+                'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
+                'turnover': { t: 'Cambio', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
+                'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
+            };
+            var c = map[fs];
+            if (!c) return '';
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
+        },
+
+        // Badge del código de ocupación de Cloudbeds. Mismo patrón/colores que
+        // badgeCodigoRoomName() en habitaciones.php, para no inventar un lenguaje visual nuevo.
+        badgeCodigoRoomName(nombreCompleto) {
+            var partes = (nombreCompleto || '').trim().split(/\s+/);
+            if (partes.length < 2) return '';
+            var codigo = partes[partes.length - 1];
+            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-pink-500 text-white">' + escapeHtml(codigo) + '</span>';
+        },
+
         // YYYY-MM-DD (cb_arrival_date/cb_departure_date) → DD/MM/YYYY, sin pasar por Date():
         // son fechas sin hora, y Date() las interpreta en UTC — con la noche de Chile en UTC-3/-4
         // eso corre el día mostrado. Se parsea el string tal cual.
@@ -660,6 +704,14 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             // Verificar permiso ver_todas y asignación
             try {
                 var yo = Alpine.store('auth');
+                // El store carga los permisos con un fetch async apenas arranca la página —
+                // sin este await, esto corre casi siempre ANTES de que termine, y los 7
+                // permisos de abajo quedan pegados en false para toda la vista (afectaba a
+                // cualquier cuenta, no solo trabajador). Mismo patrón que auditoria-detalle.php
+                // y tickets.php.
+                if (yo && !yo.cargado) {
+                    await yo.cargar();
+                }
                 if (yo && yo.cargado) {
                     this.puedeVerTodas = yo.tienePermiso('habitaciones.ver_todas');
                     this.puedeAsignar = yo.tienePermiso('asignaciones.asignar_manual');
@@ -1125,13 +1177,15 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             // ansiedad). Solo quien tiene 'habitaciones.ver_todas' (supervisora/auditor)
             // ve la distinción "c/obs.". Ver CLAUDE.md y docs/auditoria.md.
             var textoConObs = this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada';
+            var textoAuto = this.puedeVerTodas ? 'Aprobada auto.' : 'Aprobada';
             // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
             var configs = {
                 'sucia': { texto: 'Pendiente', clase: 'chip-estado-sucia' },
                 'en_progreso': { texto: 'En progreso', clase: 'chip-estado-en_progreso' },
-                'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'chip-estado-completada_pendiente_auditoria' },
+                'completada_pendiente_auditoria': { texto: 'Por inspeccionar', clase: 'chip-estado-completada_pendiente_auditoria' },
                 'aprobada': { texto: 'Aprobada', clase: 'chip-estado-aprobada' },
                 'aprobada_con_observacion': { texto: textoConObs, clase: 'chip-estado-aprobada_con_observacion' },
+                'aprobada_automatica': { texto: textoAuto, clase: 'chip-estado-aprobada_automatica' },
                 'rechazada': { texto: 'Rechazada', clase: 'chip-estado-rechazada' }
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
@@ -1156,14 +1210,16 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         etiquetaHistorial(h) {
             if (h.veredicto === 'aprobado') return 'Aprobada';
             if (h.veredicto === 'aprobado_con_observacion') return 'Aprobada c/obs.';
+            if (h.veredicto === 'aprobado_automatico') return 'Aprobada auto.';
             if (h.veredicto === 'rechazado') return 'Rechazada';
             if (h.estado === 'en_progreso') return 'En progreso';
             if (h.estado === 'completada') return 'Completada';
-            return 'Auditada';
+            return 'Inspeccionada';
         },
 
         claseHistorial(h) {
             if (h.veredicto === 'rechazado') return 'chip-estado-rechazada';
+            if (h.veredicto === 'aprobado_automatico') return 'chip-estado-aprobada_automatica';
             if (h.veredicto) return 'chip-estado-aprobada';
             if (h.estado === 'en_progreso') return 'chip-estado-en_progreso';
             return 'chip-estado-completada_pendiente_auditoria';

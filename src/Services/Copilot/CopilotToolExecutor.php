@@ -129,7 +129,7 @@ final class CopilotToolExecutor
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.fecha = ? AND a.activa = 1
-                AND h.estado IN ('completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion')",
+                AND h.estado IN ('completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica')",
             [$fecha]
         )['n'];
         $pendientes = (int) Database::fetchOne(

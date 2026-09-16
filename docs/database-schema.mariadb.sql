@@ -144,9 +144,10 @@ CREATE TABLE #__habitaciones (
     numero                  VARCHAR(20) NOT NULL,
     tipo_habitacion_id      INT NOT NULL,
     cloudbeds_room_id       VARCHAR(100),
+    cloudbeds_room_name     VARCHAR(150),                          -- espejo crudo del roomName de Cloudbeds
     estado                  VARCHAR(40) NOT NULL DEFAULT 'sucia' CHECK (estado IN (
         'sucia', 'en_progreso', 'completada_pendiente_auditoria',
-        'aprobada', 'aprobada_con_observacion', 'rechazada'
+        'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'
     )),
     activa                  TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        TINYINT NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
@@ -322,7 +323,7 @@ CREATE TABLE #__auditorias (
     habitacion_id       INT NOT NULL,
     auditor_id          INT NOT NULL,
     veredicto           VARCHAR(30) NOT NULL CHECK (veredicto IN (
-        'aprobado', 'aprobado_con_observacion', 'rechazado'
+        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado'
     )),
     comentario          TEXT,
     items_desmarcados_json  TEXT,

@@ -14,7 +14,7 @@
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto">
             <div>
-                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Auditoría</h1>
+                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Inspección</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400" x-text="subtitulo()"></p>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
@@ -38,16 +38,19 @@
     <main class="pb-24 md:pb-8 px-4 py-4 max-w-5xl mx-auto">
 
         <div class="mb-4" data-tour="aud.hotel">
-            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Hotel</p>
-            <div class="flex gap-2 flex-wrap">
-                <template x-for="h in hotelOpciones" :key="h.valor">
-                    <button @click="setHotel(h.valor)"
-                            :class="hotel === h.valor
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'"
-                            class="min-h-[40px] px-4 py-1.5 rounded-full border text-sm font-medium transition">
-                        <span x-text="h.etiqueta"></span>
-                    </button>
+            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Hotel</p>
+            <div class="flex flex-wrap items-center gap-x-1 gap-y-1">
+                <template x-for="(h, idx) in hotelOpciones" :key="h.valor">
+                    <span class="inline-flex items-center">
+                        <span x-show="idx > 0" class="text-gray-300 dark:text-gray-600 mx-1.5" aria-hidden="true">·</span>
+                        <button @click="setHotel(h.valor)"
+                                :class="hotel === h.valor
+                                    ? 'text-blue-600 dark:text-blue-400 font-semibold'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
+                                class="py-1 text-xs sm:text-sm transition">
+                            <span x-text="h.etiqueta"></span>
+                        </button>
+                    </span>
                 </template>
             </div>
         </div>
@@ -83,7 +86,7 @@
                 <div class="text-center max-w-xs">
                     <i data-lucide="check-circle" class="w-12 h-12 text-green-500 mx-auto mb-3"></i>
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Todo al día</h2>
-                    <p class="text-gray-600 dark:text-gray-400">No hay habitaciones pendientes de auditar.</p>
+                    <p class="text-gray-600 dark:text-gray-400">No hay habitaciones pendientes de inspeccionar.</p>
                 </div>
             </div>
         </template>
@@ -118,7 +121,7 @@
                                     </div>
                                 </div>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria flex-shrink-0">
-                                    Por auditar
+                                    Por inspeccionar
                                 </span>
                             </a>
                         </li>

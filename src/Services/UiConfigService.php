@@ -25,6 +25,7 @@ final class UiConfigService
         'color_estado_completada_pendiente_auditoria' => '#6366f1', // indigo-500
         'color_estado_aprobada' => '#22c55e',                       // green-500
         'color_estado_aprobada_con_observacion' => '#22c55e',       // green-500
+        'color_estado_aprobada_automatica' => '#06b6d4',            // cyan-500
         'color_estado_rechazada' => '#ef4444',                      // red-500
         'color_hotel_1_sur' => '#14b8a6',                           // teal-500
         'color_hotel_inn' => '#8b5cf6',                             // violet-500
@@ -34,9 +35,10 @@ final class UiConfigService
     public const ETIQUETAS = [
         'color_estado_sucia' => 'Pendiente (sucia)',
         'color_estado_en_progreso' => 'En progreso',
-        'color_estado_completada_pendiente_auditoria' => 'Por auditar',
+        'color_estado_completada_pendiente_auditoria' => 'Por inspeccionar',
         'color_estado_aprobada' => 'Aprobada',
         'color_estado_aprobada_con_observacion' => 'Aprobada con observación',
+        'color_estado_aprobada_automatica' => 'Aprobada automática (cierre de día)',
         'color_estado_rechazada' => 'Rechazada',
         'color_hotel_1_sur' => 'Atankalama (1 Sur)',
         'color_hotel_inn' => 'Atankalama INN',

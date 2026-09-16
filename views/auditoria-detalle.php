@@ -24,7 +24,10 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 ?>
 
 <div x-data="auditoriaDetalleApp(<?= (int) $habitacionId ?>)"
-     x-init="cargar()">
+     x-init="cargar()"
+     @keydown.window="if ($event.key === 'Alt') { altActivo = true; } else { manejarAccessKey($event); }"
+     @keyup.window="altActivo = false"
+     @keydown.escape.window="manejarEscape()">
 
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -41,7 +44,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </span>
                 </template>
                 <template x-if="!habitacion">
-                    <span>Auditoría</span>
+                    <span>Inspección</span>
                 </template>
             </h1>
             <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
@@ -75,7 +78,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
         <div class="min-h-[60vh] flex items-center justify-center px-4">
             <div class="text-center max-w-xs">
                 <i data-lucide="alert-circle" class="w-12 h-12 text-red-500 mx-auto mb-3"></i>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No pudimos cargar la auditoría</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No pudimos cargar la inspección</h2>
                 <p class="text-gray-600 dark:text-gray-400 mb-4" x-text="error"></p>
                 <button @click="cargar()"
                         class="min-h-[44px] px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
@@ -102,7 +105,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <span x-html="badgeEstado(habitacion.estado)"></span>
                         <template x-if="esAuditada">
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
-                                <i data-lucide="lock" class="w-3 h-3"></i> Auditada
+                                <i data-lucide="lock" class="w-3 h-3"></i> Inspeccionada
                             </span>
                         </template>
                     </div>
@@ -117,12 +120,14 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                              :class="{
                                 'bg-green-100 dark:bg-green-900/30': auditoria.veredicto === 'aprobado',
                                 'bg-amber-100 dark:bg-amber-900/30': auditoria.veredicto === 'aprobado_con_observacion',
+                                'bg-cyan-100 dark:bg-cyan-900/30': auditoria.veredicto === 'aprobado_automatico',
                                 'bg-red-100 dark:bg-red-900/30': auditoria.veredicto === 'rechazado'
                              }">
                             <i :data-lucide="iconoVeredicto(auditoria.veredicto)" class="w-5 h-5"
                                :class="{
                                     'text-green-600 dark:text-green-400': auditoria.veredicto === 'aprobado',
                                     'text-amber-600 dark:text-amber-400': auditoria.veredicto === 'aprobado_con_observacion',
+                                    'text-cyan-600 dark:text-cyan-400': auditoria.veredicto === 'aprobado_automatico',
                                     'text-red-600 dark:text-red-400': auditoria.veredicto === 'rechazado'
                                }"></i>
                         </div>
@@ -140,7 +145,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <template x-if="auditoria.items_desmarcados && auditoria.items_desmarcados.length > 0">
                         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                             <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">
-                                Items desmarcados por el auditor (<span x-text="auditoria.items_desmarcados.length"></span>)
+                                Items desmarcados por el inspector (<span x-text="auditoria.items_desmarcados.length"></span>)
                             </p>
                             <ul class="text-sm text-gray-800 dark:text-gray-200 space-y-1">
                                 <template x-for="itId in auditoria.items_desmarcados" :key="itId">
@@ -200,7 +205,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                     </template>
                                     <template x-if="item.desmarcado_por_auditor == 1">
                                         <span class="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
-                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> Auditor desmarcó
+                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> Inspector desmarcó
                                         </span>
                                     </template>
                                     <template x-if="itemsDesmarcadosNuevos.includes(item.id)">
@@ -265,21 +270,21 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <button @click="pedirConfirmacionAprobar()"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
                             <i data-lucide="check-circle" class="w-5 h-5"></i>
-                            Aprobar
+                            <span><span :class="altActivo ? 'underline' : ''">A</span>probar</span>
                         </button>
                     </template>
                     <template x-if="puedeAprobarConObservacion">
                         <button @click="iniciarObservacion()"
                                 class="w-full min-h-[56px] bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
                             <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                            Aprobar con observación
+                            <span>Aprobar con <span :class="altActivo ? 'underline' : ''">o</span>bservación</span>
                         </button>
                     </template>
                     <template x-if="puedeRechazar">
                         <button @click="iniciarRechazo()"
                                 class="w-full min-h-[56px] bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
                             <i data-lucide="x-circle" class="w-5 h-5"></i>
-                            Rechazar
+                            <span><span :class="altActivo ? 'underline' : ''">R</span>echazar</span>
                         </button>
                     </template>
                     <template x-if="!puedeAprobar && !puedeAprobarConObservacion && !puedeRechazar">
@@ -296,19 +301,22 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <button @click="cancelarModo()"
                             :disabled="enviando"
                             class="flex-1 min-h-[56px] bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-semibold rounded-xl transition">
-                        Cancelar
+                        <span :class="altActivo ? 'underline' : ''">C</span>ancelar
                     </button>
                     <button @click="enviarVeredictoModo()"
                             :disabled="!puedeConfirmarVeredicto || enviando"
                             class="flex-1 min-h-[56px] text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             :class="modo === 'observacion' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'">
-                        <span x-text="enviando ? 'Enviando...' : (modo === 'observacion' ? 'Confirmar observación' : 'Confirmar rechazo')"></span>
+                        <template x-if="enviando"><span>Enviando...</span></template>
+                        <template x-if="!enviando"><span>C<span :class="altActivo ? 'underline' : ''">o</span>nfirmar <span x-text="modo === 'observacion' ? 'observación' : 'rechazo'"></span></span></template>
                     </button>
                 </div>
             </template>
 
             <!-- Modal confirmación aprobar -->
             <div x-show="mostrarConfirmarAprobar" x-cloak
+                 x-effect="mostrarConfirmarAprobar && $nextTick(() => $refs.btnAprobarModal.focus())"
+                 @keydown.tab.window="atraparTabConfirmarAprobar($event)"
                  class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
                  @click.self="mostrarConfirmarAprobar = false">
                 <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
@@ -322,15 +330,16 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         Se marcará como aprobada y pasará a estado "Clean" en Cloudbeds. Esta acción no se puede deshacer.
                     </p>
                     <div class="flex gap-3">
-                        <button @click="mostrarConfirmarAprobar = false"
+                        <button x-ref="btnCancelarAprobar" @click="mostrarConfirmarAprobar = false"
                                 :disabled="enviando"
                                 class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition">
-                            Cancelar
+                            <span :class="altActivo ? 'underline' : ''">C</span>ancelar
                         </button>
-                        <button @click="confirmarAprobar()"
+                        <button x-ref="btnAprobarModal" @click="confirmarAprobar()"
                                 :disabled="enviando"
                                 class="flex-1 min-h-[44px] px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg transition">
-                            <span x-text="enviando ? 'Enviando...' : 'Aprobar'"></span>
+                            <template x-if="enviando"><span>Enviando...</span></template>
+                            <template x-if="!enviando"><span><span :class="altActivo ? 'underline' : ''">A</span>probar</span></template>
                         </button>
                     </div>
                 </div>
@@ -365,6 +374,7 @@ function auditoriaDetalleApp(habitacionId) {
         comentario: '',
         itemsDesmarcadosNuevos: [],
         mostrarConfirmarAprobar: false,
+        altActivo: false, // Alt (Windows) / Option (Mac) presionado: subraya las teclas de acceso
 
         // Dictado por voz del comentario (Web Speech API)
         grabando: false,
@@ -405,7 +415,7 @@ function auditoriaDetalleApp(habitacionId) {
         },
 
         etiquetaHabitacion() {
-            if (!this.habitacion) return 'Auditoría';
+            if (!this.habitacion) return 'Inspección';
             var prefijo = this.habitacion.hotel_codigo === '1_sur' ? 'ATAN' :
                           (this.habitacion.hotel_codigo === 'inn' ? 'INN' : this.habitacion.hotel_codigo);
             return prefijo + '-' + this.habitacion.numero;
@@ -443,6 +453,7 @@ function auditoriaDetalleApp(habitacionId) {
         iconoVeredicto(v) {
             if (v === 'aprobado') return 'check-circle';
             if (v === 'aprobado_con_observacion') return 'alert-triangle';
+            if (v === 'aprobado_automatico') return 'clock';
             if (v === 'rechazado') return 'x-circle';
             return 'circle';
         },
@@ -450,6 +461,7 @@ function auditoriaDetalleApp(habitacionId) {
         etiquetaVeredicto(v) {
             if (v === 'aprobado') return 'Aprobado';
             if (v === 'aprobado_con_observacion') return 'Aprobado con observación';
+            if (v === 'aprobado_automatico') return 'Aprobado automático (sin auditoría real)';
             if (v === 'rechazado') return 'Rechazado';
             return v;
         },
@@ -535,6 +547,50 @@ function auditoriaDetalleApp(habitacionId) {
             this.modo = null;
             this.comentario = '';
             this.itemsDesmarcadosNuevos = [];
+        },
+
+        // Accesibilidad de teclado (rules/accesibilidad-teclado.md). Un solo despachador:
+        // revisa primero el modal (tiene prioridad porque tapa visualmente al resto), luego
+        // el modo observación/rechazo, luego los botones iniciales. Letras por e.code, no
+        // e.key (en Mac, Option+letra escribe acentos/símbolos en vez de la letra).
+        manejarAccessKey(e) {
+            if (!e.altKey || this.esAuditada) return;
+            if (this.mostrarConfirmarAprobar) {
+                if (this.enviando) return;
+                if (e.code === 'KeyC') { e.preventDefault(); this.mostrarConfirmarAprobar = false; }
+                else if (e.code === 'KeyA') { e.preventDefault(); this.confirmarAprobar(); }
+                return;
+            }
+            if (this.modo !== null) {
+                if (this.enviando) return;
+                if (e.code === 'KeyC') { e.preventDefault(); this.cancelarModo(); }
+                else if (e.code === 'KeyO' && this.puedeConfirmarVeredicto) { e.preventDefault(); this.enviarVeredictoModo(); }
+                return;
+            }
+            if (e.code === 'KeyA' && this.puedeAprobar) { e.preventDefault(); this.pedirConfirmacionAprobar(); }
+            else if (e.code === 'KeyO' && this.puedeAprobarConObservacion) { e.preventDefault(); this.iniciarObservacion(); }
+            else if (e.code === 'KeyR' && this.puedeRechazar) { e.preventDefault(); this.iniciarRechazo(); }
+        },
+
+        // Escape: cierra el modal, o sale del modo observación/rechazo (equivalente a Cancelar).
+        manejarEscape() {
+            if (this.mostrarConfirmarAprobar) {
+                if (!this.enviando) this.mostrarConfirmarAprobar = false;
+                return;
+            }
+            if (this.modo !== null && !this.enviando) this.cancelarModo();
+        },
+
+        // Focus trap del modal "Confirmar aprobar" (Tab/Shift+Tab no se escapan del modal).
+        atraparTabConfirmarAprobar(e) {
+            if (!this.mostrarConfirmarAprobar) return;
+            var f = [this.$refs.btnCancelarAprobar, this.$refs.btnAprobarModal];
+            var i = f.indexOf(document.activeElement);
+            if (e.shiftKey) {
+                if (i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+            } else {
+                if (i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+            }
         },
 
         // Dicta el comentario por voz. El texto reconocido se agrega al comentario
@@ -655,9 +711,10 @@ function auditoriaDetalleApp(habitacionId) {
             var configs = {
                 'sucia': { texto: 'Pendiente', clase: 'chip-estado-sucia' },
                 'en_progreso': { texto: 'En progreso', clase: 'chip-estado-en_progreso' },
-                'completada_pendiente_auditoria': { texto: 'Por auditar', clase: 'chip-estado-completada_pendiente_auditoria' },
+                'completada_pendiente_auditoria': { texto: 'Por inspeccionar', clase: 'chip-estado-completada_pendiente_auditoria' },
                 'aprobada': { texto: 'Aprobada', clase: 'chip-estado-aprobada' },
                 'aprobada_con_observacion': { texto: 'Aprobada c/obs.', clase: 'chip-estado-aprobada_con_observacion' },
+                'aprobada_automatica': { texto: 'Aprobada auto.', clase: 'chip-estado-aprobada_automatica' },
                 'rechazada': { texto: 'Rechazada', clase: 'chip-estado-rechazada' }
             };
             var c = configs[estado] || { texto: estado, clase: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };

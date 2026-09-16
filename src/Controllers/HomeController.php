@@ -47,7 +47,7 @@ final class HomeController
         foreach ($cola as $item) {
             $estado = $item['estado'];
 
-            if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'completada_pendiente_auditoria'], true)) {
+            if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'completada_pendiente_auditoria'], true)) {
                 $completadas++;
                 continue;
             }
@@ -170,7 +170,7 @@ final class HomeController
             $habActual = null;
             foreach ($cola as $item) {
                 $estado = $item['estado'];
-                if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'completada_pendiente_auditoria'], true)) {
+                if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'completada_pendiente_auditoria'], true)) {
                     $completadas++;
                     continue;
                 }
@@ -442,7 +442,7 @@ final class HomeController
             'sucia', 'rechazada' => 'pendiente',
             'en_progreso' => 'en_progreso',
             'completada_pendiente_auditoria' => 'completada',
-            'aprobada', 'aprobada_con_observacion' => 'aprobada',
+            'aprobada', 'aprobada_con_observacion', 'aprobada_automatica' => 'aprobada',
             default => $estado,
         };
 

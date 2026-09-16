@@ -129,11 +129,17 @@ final class AuditoriaService
         $nuevoEstadoHab = match ($veredicto) {
             Auditoria::VEREDICTO_APROBADO => Habitacion::ESTADO_APROBADA,
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION => Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+            Auditoria::VEREDICTO_APROBADO_AUTOMATICO => Habitacion::ESTADO_APROBADA_AUTOMATICA,
             Auditoria::VEREDICTO_RECHAZADO => Habitacion::ESTADO_RECHAZADA,
         };
-        $this->habitaciones->cambiarEstado($habitacionId, $nuevoEstadoHab, $auditorId, 'ui');
+        $origenCambio = $veredicto === Auditoria::VEREDICTO_APROBADO_AUTOMATICO ? 'cron' : 'ui';
+        $this->habitaciones->cambiarEstado($habitacionId, $nuevoEstadoHab, $auditorId, $origenCambio);
 
-        if ($veredicto === Auditoria::VEREDICTO_APROBADO || $veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION) {
+        if (in_array($veredicto, [
+            Auditoria::VEREDICTO_APROBADO,
+            Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
+            Auditoria::VEREDICTO_APROBADO_AUTOMATICO,
+        ], true)) {
             if ($this->cloudbeds !== null) {
                 try {
                     $habActualizada = $this->habitaciones->obtener($habitacionId);

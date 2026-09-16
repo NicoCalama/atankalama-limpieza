@@ -316,6 +316,9 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                      data-drag-room :data-room-id="hab.id" :data-room-estado="hab.estado" data-room-origin="pool"
                                                      @pointerdown="iniciarDrag($event)">
                                                     <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
+                                                    <template x-if="dotOcupacion(hab.cb_frontdesk_status)">
+                                                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
+                                                    </template>
                                                     <span x-text="hab.numero"></span>
                                                     <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                 </div>
@@ -404,6 +407,9 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                             :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : colorEstadoPool(hab.estado)"
                                                             class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
                                                         <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
+                                                        <template x-if="dotOcupacion(hab.cb_frontdesk_status)">
+                                                            <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
+                                                        </template>
                                                         <span x-text="hab.numero"></span>
                                                         <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                     </button>
@@ -1174,9 +1180,10 @@ function asignacionesApp() {
             var map = {
                 'sucia': 'Pendiente',
                 'en_progreso': 'En progreso',
-                'completada_pendiente_auditoria': 'Por auditar',
+                'completada_pendiente_auditoria': 'Por inspeccionar',
                 'aprobada': 'Aprobada',
                 'aprobada_con_observacion': 'Aprobada c/obs.',
+                'aprobada_automatica': 'Aprobada auto.',
                 'rechazada': 'Rechazada'
             };
             return map[estado] || estado;
@@ -1190,10 +1197,24 @@ function asignacionesApp() {
             // Hoy el pool solo trae 'sucia'/'rechazada' (las demás no aparecen ahí). En un día
             // futuro trae TODO el inventario sin filtrar por estado, así que hace falta pintar
             // los seis para que la supervisora vea de un vistazo qué necesita qué.
-            var validos = ['sucia', 'rechazada', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion'];
+            var validos = ['sucia', 'rechazada', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'];
             return validos.indexOf(estado) !== -1
                 ? 'chip-estado-' + estado + '-activo border-transparent hover:opacity-85'
                 : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600';
+        },
+
+        // Punto de ocupación (cb_frontdesk_status de Cloudbeds) en las fichas del pool "Sin
+        // asignar" — mismo patrón visual que el punto amarillo de Nochero (color + title,
+        // sin texto, para no engordar la ficha). Mismos colores que badgeOcupacion() en
+        // habitaciones.php, para no inventar un lenguaje visual nuevo. "Stayover" no lleva
+        // punto: se limpia igual todos los días, no aporta nada marcarlo acá.
+        dotOcupacion(fs) {
+            var map = {
+                'check-in': { c: 'bg-sky-400', t: 'Llega hoy' },
+                'check-out': { c: 'bg-orange-400', t: 'Se va hoy' },
+                'turnover': { c: 'bg-purple-400', t: 'Cambio' },
+            };
+            return map[fs] || null;
         },
 
         claseBadgeHab(estado) {
@@ -1205,6 +1226,7 @@ function asignacionesApp() {
                 'completada_pendiente_auditoria': 'chip-estado-completada_pendiente_auditoria',
                 'aprobada': 'chip-estado-aprobada',
                 'aprobada_con_observacion': 'chip-estado-aprobada_con_observacion',
+                'aprobada_automatica': 'chip-estado-aprobada_automatica',
                 'rechazada': 'chip-estado-rechazada'
             };
             return map[estado] || 'bg-gray-200 text-gray-800';

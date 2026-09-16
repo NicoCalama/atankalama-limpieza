@@ -17,6 +17,7 @@ function badgeEstadoHtml(string $estado): string
         'completada', 'completada_pendiente_auditoria' => ['texto' => 'Completada', 'clase' => 'chip-estado-completada_pendiente_auditoria'],
         'aprobada' => ['texto' => 'Aprobada', 'clase' => 'chip-estado-aprobada'],
         'aprobada_con_observacion' => ['texto' => 'Aprobada', 'clase' => 'chip-estado-aprobada_con_observacion'],
+        'aprobada_automatica' => ['texto' => 'Aprobada', 'clase' => 'chip-estado-aprobada_automatica'],
         'rechazada' => ['texto' => 'Rechazada', 'clase' => 'chip-estado-rechazada'],
         default => ['texto' => ucfirst($estado), 'clase' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'],
     };

@@ -12,6 +12,8 @@ use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\ChecklistService;
+use Atankalama\Limpieza\Services\CloudbedsClient;
+use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Services\HotelService;
@@ -144,7 +146,7 @@ final class HabitacionesController
             return Response::error('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
 
-        $filas = [['Inicio', 'Fin', 'Trabajador', 'Estado', 'Veredicto', 'Auditor', 'Comentario auditoría']];
+        $filas = [['Inicio', 'Fin', 'Trabajador', 'Estado', 'Veredicto', 'Inspector', 'Comentario inspección']];
         foreach ($this->checklist->historialCompletoDeHabitacion($id) as $h) {
             $filas[] = [
                 (string) ($h['timestamp_inicio'] ?? ''),
@@ -177,7 +179,7 @@ final class HabitacionesController
             return Response::error('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
 
-        $estadosConEjecucion = ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'rechazada'];
+        $estadosConEjecucion = ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'];
         $ejecucion = null;
         $items = [];
         $auditoria = null;
@@ -237,7 +239,7 @@ final class HabitacionesController
      * POST /api/habitaciones/{id}/marcar-sucia
      * Atajo administrativo (Admin/Supervisora): fuerza la habitación de vuelta a 'sucia'.
      * Es una transición ya válida en EstadoHabitacionService (aprobada, aprobada_con_observacion,
-     * rechazada o en_progreso → sucia), no hace falta forzar. No crea ni toca ejecuciones_checklist: no hay créditos
+     * aprobada_automatica, rechazada o en_progreso → sucia), no hace falta forzar. No crea ni toca ejecuciones_checklist: no hay créditos
      * de por medio para nadie. Gateado por habitaciones.marcar_limpia_manual (mismo permiso
      * que "marcar limpia" — ver PermissionCheck en Kernel).
      */
@@ -271,6 +273,21 @@ final class HabitacionesController
             $this->habitaciones->cambiarEstado($id, Habitacion::ESTADO_SUCIA, $request->usuario->id, 'ui');
         } catch (HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        // Si Cloudbeds todavía la ve 'clean' (huésped sin checkout real: stayover/nochero), el
+        // próximo sync entrante la fuerza de vuelta a 'aprobada' y deshace este "marcar sucia" —
+        // el bug reportado con la habitación 414. Best-effort: no debe tumbar la respuesta si
+        // Cloudbeds falla. Ver mismo aviso en AsignacionService::avisarCloudbedsSucia().
+        if ($habitacion->cloudbedsRoomId !== null) {
+            try {
+                $actualizada = $this->habitaciones->obtener($id);
+                if ($actualizada !== null) {
+                    (new CloudbedsSyncService(CloudbedsClient::desdeConfig()))->escribirEstadoDirty($actualizada);
+                }
+            } catch (\Throwable $e) {
+                // No crítico: escribirEstadoDirty ya loguea y crea alerta P0 si la escritura falla.
+            }
         }
 
         $detalle = $this->habitaciones->obtenerDetalle($id);

@@ -78,7 +78,7 @@ final class EmailService
         $totalPendientes = count($turnos['mañana']['pendientes'] ?? [])
             + count($turnos['tarde']['pendientes'] ?? []);
         $fechaLabel = date('d/m/Y', strtotime($fecha));
-        $asunto = "Auditorías pendientes ({$totalPendientes}) — {$fechaLabel}";
+        $asunto = "Inspecciones pendientes ({$totalPendientes}) — {$fechaLabel}";
 
         $cuerpo = $this->plantillaReporteAuditoriasPendientes($nombre, $fecha, $turnos);
 
@@ -285,7 +285,7 @@ final class EmailService
             if ($pendientes === []) {
                 $bloques .= '<tr><td style="padding:0 0 4px;">'
                     . '<table width="100%" style="border-collapse:collapse;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;">'
-                    . '<tr><td style="padding:10px 14px;color:#047857;font-size:13px;font-weight:600;">✓ Todo auditado a tiempo</td></tr>'
+                    . '<tr><td style="padding:10px 14px;color:#047857;font-size:13px;font-weight:600;">✓ Todo inspeccionado a tiempo</td></tr>'
                     . '</table>'
                     . '</td></tr>';
                 continue;
@@ -295,7 +295,7 @@ final class EmailService
             foreach ($pendientes as $i => $p) {
                 $hotelLabel   = $this->hotelLabel((string) $p['hotel_codigo']);
                 $esSinAuditar = $p['estado_auditoria'] === 'sin_auditar';
-                $estado       = $esSinAuditar ? 'Sin auditar' : 'Auditada fuera de plazo';
+                $estado       = $esSinAuditar ? 'Sin inspeccionar' : 'Inspeccionada fuera de plazo';
                 $colorPill    = $esSinAuditar ? '#dc2626' : '#d97706';
                 $tintPill     = $esSinAuditar ? '#fee2e2' : '#fef3c7';
                 $esNochero    = (bool) ($p['es_nochero'] ?? false);
@@ -343,7 +343,7 @@ final class EmailService
                   <table width="100%"><tr>
                     <td>
                       <p style="margin:0;color:#fff;font-size:20px;font-weight:700;">{$appNombre}</p>
-                      <p style="margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px;">Auditorías pendientes al corte de las 23:50 — {$fechaHtml}</p>
+                      <p style="margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px;">Inspecciones pendientes al corte de las 23:50 — {$fechaHtml}</p>
                     </td>
                     <td align="right" valign="top">
                       <span style="display:inline-block;background:rgba(255,255,255,.2);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:999px;">
@@ -357,10 +357,10 @@ final class EmailService
                 <tr><td style="background:#fff;padding:24px 32px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
                   <p style="margin:0 0 4px;color:#374151;font-size:15px;">Hola, <strong>{$nombreHtml}</strong></p>
                   <p style="margin:0 0 4px;color:#6b7280;font-size:14px;">
-                    Al cierre del día quedaron <strong style="color:{$colorEstado};">{$totalPendientes}</strong> habitaciones limpiadas sin auditar a tiempo.
+                    Al cierre del día quedaron <strong style="color:{$colorEstado};">{$totalPendientes}</strong> habitaciones limpiadas sin inspeccionar a tiempo.
                   </p>
                   <p style="margin:0 0 16px;color:#9ca3af;font-size:12px;">
-                    Sin auditar a tiempo = sin auditoría registrada antes de las 23:50 de la fecha del reporte.
+                    Sin inspeccionar a tiempo = sin inspección registrada antes de las 23:50 de la fecha del reporte.
                   </p>
 
                   {$chips}

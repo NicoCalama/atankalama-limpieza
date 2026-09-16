@@ -77,27 +77,33 @@ require_once __DIR__ . '/componentes/avatar.php';
                        class="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
             </div>
 
-            <!-- Rol -->
-            <div class="flex items-center gap-2 overflow-x-auto pb-1" data-tour="usr.filtro-rol">
-                <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">Rol:</span>
-                <template x-for="opt in filtrosRol" :key="opt.valor">
-                    <button type="button"
-                            @click="rol = opt.valor; cargar()"
-                            :class="rol === opt.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
-                            class="flex-shrink-0 min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-full border transition"
-                            x-text="opt.label"></button>
+            <!-- Rol: solo texto (los botones tipo píldora se cortaban en celulares angostos) -->
+            <div class="flex flex-wrap items-center gap-x-1 gap-y-1" data-tour="usr.filtro-rol">
+                <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Rol:</span>
+                <template x-for="(opt, idx) in filtrosRol" :key="opt.valor">
+                    <span class="flex items-center">
+                        <span x-show="idx > 0" aria-hidden="true" class="text-gray-300 dark:text-gray-600 mx-1.5">·</span>
+                        <button type="button"
+                                @click="rol = opt.valor; cargar()"
+                                :class="rol === opt.valor ? 'text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-2' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'"
+                                class="min-h-[32px] text-sm transition"
+                                x-text="opt.label"></button>
+                    </span>
                 </template>
             </div>
 
-            <!-- Activo -->
-            <div class="flex items-center gap-2" data-tour="usr.filtro-estado">
-                <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estado:</span>
-                <template x-for="opt in filtrosActivo" :key="opt.valor">
-                    <button type="button"
-                            @click="activo = opt.valor; cargar()"
-                            :class="activo === opt.valor ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
-                            class="min-h-[36px] px-3 py-1.5 text-xs font-medium rounded-full border transition"
-                            x-text="opt.label"></button>
+            <!-- Activo: solo texto, mismo criterio que Rol -->
+            <div class="flex flex-wrap items-center gap-x-1 gap-y-1" data-tour="usr.filtro-estado">
+                <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
+                <template x-for="(opt, idx) in filtrosActivo" :key="opt.valor">
+                    <span class="flex items-center">
+                        <span x-show="idx > 0" aria-hidden="true" class="text-gray-300 dark:text-gray-600 mx-1.5">·</span>
+                        <button type="button"
+                                @click="activo = opt.valor; cargar()"
+                                :class="activo === opt.valor ? 'text-blue-600 dark:text-blue-400 font-semibold underline underline-offset-2' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'"
+                                class="min-h-[32px] text-sm transition"
+                                x-text="opt.label"></button>
+                    </span>
                 </template>
             </div>
         </div>

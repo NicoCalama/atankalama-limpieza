@@ -11,6 +11,9 @@ final class Habitacion
     public const ESTADO_COMPLETADA_PENDIENTE_AUDITORIA = 'completada_pendiente_auditoria';
     public const ESTADO_APROBADA = 'aprobada';
     public const ESTADO_APROBADA_CON_OBSERVACION = 'aprobada_con_observacion';
+    // Cierre de día automático (cron 23:55): habitación que quedó completada_pendiente_auditoria
+    // sin que un supervisor la auditara a tiempo. Ver scripts/aprobar-pendientes-cierre-dia.php.
+    public const ESTADO_APROBADA_AUTOMATICA = 'aprobada_automatica';
     public const ESTADO_RECHAZADA = 'rechazada';
 
     public const ESTADOS_VALIDOS = [
@@ -19,6 +22,7 @@ final class Habitacion
         self::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
         self::ESTADO_APROBADA,
         self::ESTADO_APROBADA_CON_OBSERVACION,
+        self::ESTADO_APROBADA_AUTOMATICA,
         self::ESTADO_RECHAZADA,
     ];
 
@@ -30,6 +34,7 @@ final class Habitacion
         public readonly ?int $piso,
         public readonly int $tipoHabitacionId,
         public readonly ?string $cloudbedsRoomId,
+        public readonly ?string $cloudbedsRoomName,
         public readonly string $estado,
         public readonly bool $activa,
         public readonly bool $esEspacioComun = false,
@@ -52,6 +57,7 @@ final class Habitacion
             piso: isset($fila['piso']) ? (int) $fila['piso'] : null,
             tipoHabitacionId: (int) $fila['tipo_habitacion_id'],
             cloudbedsRoomId: $fila['cloudbeds_room_id'] !== null ? (string) $fila['cloudbeds_room_id'] : null,
+            cloudbedsRoomName: isset($fila['cloudbeds_room_name']) ? (string) $fila['cloudbeds_room_name'] : null,
             estado: (string) $fila['estado'],
             activa: ((int) $fila['activa']) === 1,
             esEspacioComun: ((int) ($fila['es_espacio_comun'] ?? 0)) === 1,
@@ -73,6 +79,7 @@ final class Habitacion
             'piso' => $this->piso,
             'tipo_habitacion_id' => $this->tipoHabitacionId,
             'cloudbeds_room_id' => $this->cloudbedsRoomId,
+            'cloudbeds_room_name' => $this->cloudbedsRoomName,
             'estado' => $this->estado,
             'activa' => $this->activa,
             'es_espacio_comun' => $this->esEspacioComun,
@@ -89,6 +96,7 @@ final class Habitacion
         return in_array($this->estado, [
             self::ESTADO_APROBADA,
             self::ESTADO_APROBADA_CON_OBSERVACION,
+            self::ESTADO_APROBADA_AUTOMATICA,
             self::ESTADO_RECHAZADA,
         ], true);
     }

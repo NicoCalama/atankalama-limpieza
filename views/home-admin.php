@@ -25,7 +25,9 @@ if ($hora < 12) {
 
 <div x-data="homeAdmin()"
      x-init="cargar(); iniciarRefresco();"
-     @visibilitychange.window="alVolverVisible()">
+     @visibilitychange.window="alVolverVisible()"
+     @keydown.window="if ($event.key === 'Alt') { altTabs = true; } else { manejarAccessKeyTabs($event); }"
+     @keyup.window="altTabs = false">
 
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -105,6 +107,11 @@ if ($hora < 12) {
 
     <!-- Modal: Confirmar descarte de alerta -->
     <div x-show="modalDescartar.abierto" x-cloak
+         x-effect="modalDescartar.abierto && $nextTick(() => $refs.btnDescartar.focus())"
+         @keydown.escape.window="modalDescartar.abierto && cerrarModalDescartar()"
+         @keydown.tab.window="atraparTabModalDescartar($event)"
+         @keydown.window="manejarAltModalDescartar($event)"
+         @keyup.window="altModalDescartar = false"
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarModalDescartar()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
@@ -112,13 +119,14 @@ if ($hora < 12) {
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
             <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
             <div class="flex gap-2 justify-end">
-                <button @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
+                <button x-ref="btnCancelar" @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
                         class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
-                    Cancelar
+                    <span :class="altModalDescartar ? 'underline' : ''">C</span>ancelar
                 </button>
-                <button @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
+                <button x-ref="btnDescartar" @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
                         class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    <span x-text="modalDescartar.enviando ? 'Descartando...' : 'Descartar'"></span>
+                    <template x-if="modalDescartar.enviando"><span>Descartando...</span></template>
+                    <template x-if="!modalDescartar.enviando"><span>De<span :class="altModalDescartar ? 'underline' : ''">s</span>cartar</span></template>
                 </button>
             </div>
         </div>
@@ -251,7 +259,7 @@ if ($hora < 12) {
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
                                     <div class="flex items-center gap-2 mb-1">
                                         <i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
-                                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Auditorías</span>
+                                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Inspecciones</span>
                                     </div>
                                     <p class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="metricas.auditorias.total"></p>
                                     <div class="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -468,7 +476,9 @@ if ($hora < 12) {
                         class="min-h-[56px] flex flex-col items-center justify-center gap-0.5 transition"
                         :class="tabActiva === t.id ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'">
                     <i :data-lucide="t.icono" class="w-5 h-5"></i>
-                    <span class="text-[10px] font-medium" x-text="t.etiqueta"></span>
+                    <span class="text-[10px] font-medium">
+                        <span x-text="t.etiqueta.slice(0, t.letraIdx)"></span><span :class="altTabs ? 'underline' : ''" x-text="t.etiqueta.slice(t.letraIdx, t.letraIdx + 1)"></span><span x-text="t.etiqueta.slice(t.letraIdx + 1)"></span>
+                    </span>
                 </button>
             </template>
         </div>
@@ -493,6 +503,8 @@ function homeAdmin() {
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         modalDescartar: { abierto: false, alerta: null, enviando: false },
+        altModalDescartar: false,
+        altTabs: false,
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -500,11 +512,14 @@ function homeAdmin() {
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
         ],
 
+        // letraIdx: letra de acceso Alt/Option (accesibilidad-teclado.md). "tecnicas" usa la
+        // "c" (índice 2) en vez de la "T" (reservada: menú Herramientas) o la "é" (misma tecla
+        // física que la E reservada de la barra de direcciones).
         tabs: [
-            { id: 'inicio', etiqueta: 'Inicio', icono: 'home' },
-            { id: 'operativas', etiqueta: 'Operativas', icono: 'bar-chart-3' },
-            { id: 'tecnicas', etiqueta: 'Técnicas', icono: 'activity' },
-            { id: 'ajustes', etiqueta: 'Ajustes', icono: 'settings' }
+            { id: 'inicio', etiqueta: 'Inicio', icono: 'home', letraIdx: 0 },
+            { id: 'operativas', etiqueta: 'Operativas', icono: 'bar-chart-3', letraIdx: 0 },
+            { id: 'tecnicas', etiqueta: 'Técnicas', icono: 'activity', letraIdx: 2 },
+            { id: 'ajustes', etiqueta: 'Ajustes', icono: 'settings', letraIdx: 0 }
         ],
 
         get puedeVerAlertas() {
@@ -578,6 +593,16 @@ function homeAdmin() {
             this.tabActiva = id;
             localStorage.setItem('admin_tab', id);
             this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // Access key de la tab bar móvil (accesibilidad-teclado.md). Solo activa mientras la
+        // barra está visible (móvil, con datos cargados); e.code, no e.key (ver rule doc).
+        manejarAccessKeyTabs(e) {
+            if (!e.altKey || !this.data || this.esDesktop) return;
+            var t = this.tabs.find(function (t) {
+                return 'Key' + t.etiqueta.charAt(t.letraIdx).toUpperCase() === e.code;
+            });
+            if (t) { e.preventDefault(); this.setTab(t.id); }
         },
 
         etiquetaHotel() {
@@ -826,6 +851,31 @@ function homeAdmin() {
 
         cerrarModalDescartar() {
             this.modalDescartar = { abierto: false, alerta: null, enviando: false };
+            this.altModalDescartar = false;
+        },
+
+        atraparTabModalDescartar(e) {
+            if (!this.modalDescartar.abierto) return;
+            var f = [this.$refs.btnCancelar, this.$refs.btnDescartar];
+            var i = f.indexOf(document.activeElement);
+            if (e.shiftKey) {
+                if (i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+            } else {
+                if (i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+            }
+        },
+
+        // Alt (Windows) / Option (Mac): subraya la letra de acceso y activa el
+        // botón correspondiente. "C" = Cancelar, "S" = Descartar (no "D": choca
+        // con Alt+D de la barra de direcciones en Chrome/Edge/Firefox/Windows).
+        manejarAltModalDescartar(e) {
+            if (!this.modalDescartar.abierto) return;
+            if (e.key === 'Alt') { this.altModalDescartar = true; return; }
+            if (!e.altKey || this.modalDescartar.enviando) return;
+            // e.code (tecla física) en vez de e.key: en Mac, Option+S/Option+C
+            // no escriben "s"/"c", escriben "ß"/"ç" — e.key no sirve aquí.
+            if (e.code === 'KeyC') { e.preventDefault(); this.cerrarModalDescartar(); }
+            else if (e.code === 'KeyS') { e.preventDefault(); this.confirmarDescartarAlerta(); }
         },
 
         mostrarToast(tipo, mensaje) {

@@ -148,13 +148,18 @@
                                aria-label="Buscar área común"
                                class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
                     </div>
-                    <div class="flex items-center gap-2 overflow-x-auto pb-1">
-                        <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">Estado:</span>
-                        <template x-for="op in estadoOpciones" :key="op.valor">
-                            <button @click="filtroEstado = op.valor"
-                                    :class="filtroEstado === op.valor ? 'bg-teal-600 text-white border-teal-600' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
-                                    class="flex-shrink-0 min-h-[32px] px-3 py-1 text-xs font-medium rounded-full border transition"
-                                    x-text="op.etiqueta"></button>
+                    <div class="flex flex-wrap items-center gap-x-1 gap-y-1">
+                        <span class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Estado:</span>
+                        <template x-for="(op, idx) in estadoOpciones" :key="op.valor">
+                            <span class="inline-flex items-center">
+                                <span x-show="idx > 0" class="text-gray-300 dark:text-gray-600 mx-1.5" aria-hidden="true">·</span>
+                                <button @click="filtroEstado = op.valor"
+                                        :class="filtroEstado === op.valor
+                                            ? 'text-teal-600 dark:text-teal-400 font-semibold'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
+                                        class="py-1 text-xs sm:text-sm transition"
+                                        x-text="op.etiqueta"></button>
+                            </span>
                         </template>
                     </div>
                 </div>

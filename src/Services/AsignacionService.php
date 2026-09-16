@@ -17,6 +17,10 @@ final class AsignacionService
         private readonly NotificacionesService $notificaciones = new NotificacionesService(),
         private readonly AlertasService $alertas = new AlertasService(),
         private readonly SabanasService $sabanas = new SabanasService(),
+        // Opcional: CloudbedsSyncService no puede ir con default propio (CloudbedsClient::desdeConfig()
+        // no es una expresión constante), y darle uno obligatorio rompería todos los `new
+        // AsignacionService()` existentes. Se construye perezoso en avisarCloudbedsSucia().
+        private readonly ?CloudbedsSyncService $cloudbeds = null,
     ) {
     }
 
@@ -40,6 +44,7 @@ final class AsignacionService
             Habitacion::ESTADO_RECHAZADA,
             Habitacion::ESTADO_APROBADA,
             Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+            Habitacion::ESTADO_APROBADA_AUTOMATICA,
         ], true);
         if ($estadoTerminal) {
             Database::execute(
@@ -57,6 +62,10 @@ final class AsignacionService
                     "habitacion:{$habitacionId}"
                 );
             }
+            // Si Cloudbeds todavía la ve 'clean' (huésped sin checkout real, ej. stayover/nochero),
+            // el próximo sync entrante la fuerza de vuelta a 'aprobada' y deshace este reseteo — ver
+            // el mismo aviso en CloudbedsSyncService::sincronizar(). Avisarle 'dirty' ahora evita eso.
+            $this->avisarCloudbedsSucia($habitacionId);
         }
 
         Database::execute(
@@ -235,6 +244,12 @@ final class AsignacionService
             }
         });
 
+        // Fuera de la transacción: es una llamada de red (Cloudbeds), no debe tener el lock de BD
+        // abierto mientras espera. Mismo motivo que en asignarManual().
+        if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
+            $this->avisarCloudbedsSucia($habitacionId);
+        }
+
         Logger::audit($actorId, 'asignacion.desasignar', 'asignacion', (int) $asignacion['id'], [
             'habitacion_id' => $habitacionId,
             'usuario_id' => (int) $asignacion['usuario_id'],
@@ -336,7 +351,11 @@ final class AsignacionService
         if ($esHoy) {
             // Habitaciones sucias o rechazadas SIN asignación activa hoy
             // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
-            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+            // cb_frontdesk_status viaja para que la supervisora vea, al elegir a quién asignar,
+            // cuáles son "cambio" (check-out/turnover, urgentes) vs "sigue" (stayover) — solo
+            // informativo, no filtra el pool. Ver AsignacionService::vistaConsolidada().
+            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cb_frontdesk_status,
+                              ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
@@ -437,7 +456,7 @@ final class AsignacionService
                     $pendientes++;
                 } elseif ($estado === 'en_progreso') {
                     $enProgreso++;
-                } elseif (in_array($estado, ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion'], true)) {
+                } elseif (in_array($estado, ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'], true)) {
                     $completadas++;
                 } elseif ($estado === 'rechazada') {
                     $rechazadas++;
@@ -559,6 +578,32 @@ final class AsignacionService
                 "La habitación #{$fila['numero']} ya no está asignada a ti: no necesitó limpieza.",
                 Url::a('/home')
             );
+        }
+    }
+
+    // Avisa a Cloudbeds que la pieza quedó 'dirty' cuando la app la pasa a 'sucia' por su cuenta
+    // (reasignación, desasignación a mitad de aseo). Sin esto, si Cloudbeds todavía la ve 'clean'
+    // (huésped sin checkout real: stayover, nochero), el próximo sync entrante la fuerza de vuelta
+    // a 'aprobada' y deshace el cambio — ver el mismo problema documentado en
+    // CloudbedsSyncService::sincronizar(). Best-effort: nunca debe tumbar el flujo de asignación
+    // por un fallo de Cloudbeds (igual que el resto de los avisos salientes de esta integración).
+    private function avisarCloudbedsSucia(int $habitacionId): void
+    {
+        try {
+            $fila = Database::fetchOne('SELECT * FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+            if ($fila === null) {
+                return;
+            }
+            $habitacion = Habitacion::desdeFila($fila);
+            if ($habitacion->cloudbedsRoomId === null) {
+                return;
+            }
+            $sync = $this->cloudbeds ?? new CloudbedsSyncService(CloudbedsClient::desdeConfig());
+            $sync->escribirEstadoDirty($habitacion);
+        } catch (\Throwable $e) {
+            Logger::warning('cloudbeds', 'avisarCloudbedsSucia falló (no crítico)', [
+                'habitacion_id' => $habitacionId, 'mensaje' => $e->getMessage(),
+            ]);
         }
     }
 
