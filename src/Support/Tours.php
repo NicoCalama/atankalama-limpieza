@@ -1139,9 +1139,9 @@ final class Tours
                 'capacidad' => 'reportes.ver',
                 'recorridos' => [
                     [
-                        'id' => 'filtrar', 'v' => 1,
-                        'titulo' => 'Filtrar los indicadores',
-                        'pregunta' => '¿Cómo veo los KPIs del período?',
+                        'id' => 'filtrar', 'v' => 2,
+                        'titulo' => 'Leer los indicadores',
+                        'pregunta' => '¿Cómo veo los KPIs y la ficha del período?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.filtros"]', 'titulo' => 'Elige período y hotel',
@@ -1150,6 +1150,10 @@ final class Tours
                              'texto' => 'Cada tarjeta resume un indicador del período: tiempo promedio, tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
                             ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
                              'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
+                            ['sel' => '[data-tour="rep.ficha"]', 'titulo' => 'La ficha del trabajador',
+                             'texto' => 'Por persona: lo que quedó bien, separando lo inspeccionado (A) de lo que nadie inspeccionó (B, cuenta igual a su favor), lo asignado y sus porcentajes. El color la compara con el grupo (amarillo se aleja, rojo lejos).'],
+                            ['sel' => '[data-tour="rep.supervisora"]', 'titulo' => 'La supervisora y su sección',
+                             'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, tiempo por inspección y aporte. Lo aprobado solo por el sistema no cuenta.'],
                         ],
                     ],
                     [

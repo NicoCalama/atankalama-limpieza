@@ -19,12 +19,16 @@ final class EjecucionChecklist
         public readonly string $estado,
         public readonly string $timestampInicio,
         public readonly ?string $timestampFin,
+        /** Apertura de la pieza en inspección (KPI tiempo por auditación); null si nunca se abrió. */
+        public readonly ?string $auditoriaIniciadaAt = null,
     ) {
     }
 
     /** @param array<string, mixed> $fila */
     public static function desdeFila(array $fila): self
     {
+        // `?? null`: tolera filas de una BD anterior a la migración de la columna.
+        $abierta = $fila['auditoria_iniciada_at'] ?? null;
         return new self(
             id: (int) $fila['id'],
             habitacionId: (int) $fila['habitacion_id'],
@@ -34,6 +38,7 @@ final class EjecucionChecklist
             estado: (string) $fila['estado'],
             timestampInicio: (string) $fila['timestamp_inicio'],
             timestampFin: $fila['timestamp_fin'] !== null ? (string) $fila['timestamp_fin'] : null,
+            auditoriaIniciadaAt: $abierta !== null ? (string) $abierta : null,
         );
     }
 

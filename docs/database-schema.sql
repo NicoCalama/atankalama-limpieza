@@ -330,6 +330,7 @@ CREATE TABLE ejecuciones_checklist (
     )),
     timestamp_inicio    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     timestamp_fin       TEXT,                            -- se setea al marcar "habitación terminada"
+    auditoria_iniciada_at TEXT,                          -- instante en que la supervisora ABRIÓ la pieza para inspeccionarla (se sobreescribe en cada apertura); KPI "tiempo por auditación" = auditorias.created_at − este valor. Ver docs/kpis-sueldos.md (Supervisora S1.2)
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE CASCADE,

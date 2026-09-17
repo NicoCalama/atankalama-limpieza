@@ -507,6 +507,12 @@ function auditoriaDetalleApp(habitacionId) {
                 this.ejecucion = json.data.ejecucion;
                 this.items = json.data.items || [];
                 this.auditoria = json.data.auditoria;
+
+                // Avisar la apertura (KPI "tiempo por auditación") solo si la pieza está pendiente
+                // y quien entra puede emitir veredicto. Fire-and-forget: nunca bloquea la pantalla.
+                if (!this.esAuditada && (this.puedeAprobar || this.puedeAprobarConObservacion || this.puedeRechazar)) {
+                    apiPost('/api/auditoria/' + this.habitacionId + '/iniciar', {}).catch(function () {});
+                }
             } catch (e) {
                 this.error = 'No pudimos conectar con el servidor.';
             } finally {

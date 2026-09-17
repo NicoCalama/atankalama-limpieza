@@ -7,9 +7,16 @@
 > (pieza 3). Si acá no está confirmado, no se construye.
 >
 > **Estado del documento:** Rol A (Trabajador de aseo) · N1, N2, N3 **cerrados** ✅. Rol B
-> (Supervisora) · N1, N2, N3 **cerrados** ✅ — **definición de ambos roles COMPLETA**. Próximo:
-> armar las piezas (reporte de KPIs + reporte de sueldos).
-> **Última actualización:** 15/09/2026.
+> (Supervisora) · N1, N2, N3 **cerrados** ✅ — **definición de ambos roles COMPLETA**.
+> **Pieza 2 (reporte de KPIs): IMPLEMENTADA en la página de Reportes (v6.4, 16–17/09/2026)** —
+> `ReportesService::fichaKpis()` + `GET /api/reportes/ficha` + secciones «Ficha de KPIs ·
+> Trabajador» y «Supervisora · Inspección» (con desglose **por turno** según el calendario de
+> Turnos) en `views/reportes.php`; umbrales del N3 y las tres metas de la sección en
+> Ajustes → Alertas; tiempo por auditación con `ejecuciones_checklist.auditoria_iniciada_at`
+> (migración `migrate-add-auditoria-iniciada-at.php`). Incorpora el feedback de jefatura del
+> 16/09 (Asignadas, gradualidad 100/50/0, cobertura del equipo). Próximo: pieza 3 (reporte de
+> sueldos por RUT, export xlsx).
+> **Última actualización:** 17/09/2026.
 
 ## Alcance y decisiones base (confirmadas)
 
@@ -132,8 +139,11 @@ rol están definidos.
 Aplica al **Trabajador de aseo**, sobre **habitaciones (piezas de huésped)**. Los
 **espacios comunes** llevan esta misma batería de KPIs **por separado** (decisión 13/09).
 
-### La base: triángulo Esperado · Aprobado · Rechazado
-- **Esperado (E):** lo **programado**. Por unidad = habitación asignada; en créditos = Σ
+### La base: triángulo Asignado · Aprobado · Rechazado
+- **Asignado (As):** lo que se le **asignó** (hasta el 16/09 se llamaba «Esperado»; jefatura
+  pidió el cambio porque "esperado" suena a estándar de rendimiento, que es otra cosa. En el
+  código y el JSON sigue `esperado_hab` / `esperado_creditos`, igual que Auditoría →
+  Inspección conservó `auditoria.*`). Por unidad = habitación asignada; en créditos = Σ
   créditos del checklist obligatorio de esa habitación, en la **versión vigente a la fecha**.
 - **Aprobado (A):** lo que quedó bien (del Nivel 1: auditado aprobado + no auditado).
 - **Rechazado (R):** ejecuciones rechazadas por auditoría.
@@ -148,34 +158,45 @@ Aplica al **Trabajador de aseo**, sobre **habitaciones (piezas de huésped)**. L
    usar su tiempo en rehacerla, y esos créditos son de quien la deje bien.
 
 ### Regla de atribución y re-limpieza (confirmada 13/09)
-- Una habitación **suma a tu Esperado** cuando te la **asignan** (incluye asignártela
-  para **rehacerla**). El esperado es **pegajoso: no se te quita** aunque la rechacen o
+- Una habitación **suma a tus Asignadas** cuando te la **asignan** (incluye asignártela
+  para **rehacerla**). Lo asignado es **pegajoso: no se te quita** aunque la rechacen o
   la termine otra persona. Cuenta **una vez por habitación por persona**.
 - **Re-limpieza de una pieza rechazada:**
-  - Si la rehacés **vos mismo** → **no cambia nada**: la pieza sigue **rechazada, sin
-    créditos** (no se recupera). Es el costo del rechazo.
-  - Si la rehace **otra persona** → a esa persona se le **suma +1 habitación esperada** y
+  - Si la rehacés **vos mismo** → la pieza sigue contando como **rechazada** (calidad,
+    rechazo, cumplimiento), pero los créditos se recuperan **en forma gradual según el
+    intento** (regla de jefatura, 16/09/2026): aprobada a la **primera = 100 %**, aprobada
+    al **segundo intento = 50 %**, aprobada al **tercero o más = 0 %**. Hasta el 16/09 la
+    regla era 0 % en cualquier re-limpieza propia.
+    Los porcentajes se aplican sobre **lo que entrega el veredicto**, no sobre la pieza
+    completa: una **aprobada con observación** ya viene con menos (solo los ítems que el
+    auditor no observó), y sobre eso va el 100 % / 50 % / 0 %. Son dos ejes distintos —
+    la observación mide calidad *dentro* de una limpieza aprobada; la escalera mide
+    *repeticiones* por rechazo — y se componen. Ejemplo con una pieza de 10 créditos:
+    aprobada **10** · con observación (2 ítems) **8** · rechazada y rehecha, aprobada **5** ·
+    rechazada y rehecha, con observación (2 ítems) **4** · aprobada al tercer intento **0**.
+  - Si la rehace **otra persona** → a esa persona se le **suma +1 habitación asignada** y
     **gana todos los créditos** de la pieza (si queda aprobada tras auditoría).
 - **Consecuencias a recordar:**
-  - Si te rechazan y lo rehacés **vos**, esos créditos **no los cobra nadie** — se pierden.
-    Es intencional: el rechazo tiene costo real.
-  - Una pieza re-limpiada por otro entra en el esperado de **dos** personas (quien la hizo
+  - Si te rechazan y lo rehacés **vos**, la mitad (o todo, desde el tercer intento) de esos
+    créditos **no los cobra nadie** — se pierden. Es intencional: el rechazo tiene costo real,
+    y la gradualidad deja espacio al aprendizaje sin premiar la reincidencia.
+  - Una pieza re-limpiada por otro entra en las asignadas de **dos** personas (quien la hizo
     mal + quien la rehízo). A nivel individual es correcto; al **agregar por sección**
     (etapa Supervisora) se contará dos veces — tenerlo presente.
 
 ### Familia de porcentajes (en habitaciones y en créditos)
 | KPI | Fórmula | Qué dice |
 |---|---|---|
-| **% Realización** | (A + R) ÷ E | cuánto de lo programado ejecutó |
-| **% Cumplimiento** | A ÷ E | cuánto de lo programado quedó **bien** |
+| **% Realización** | (A + R) ÷ As | cuánto de lo asignado ejecutó |
+| **% Cumplimiento** | A ÷ As | cuánto de lo asignado quedó **bien** |
 | **% Calidad** | A ÷ (A + R) | de lo que hizo, cuánto pasó |
 | **% Rechazo** | R ÷ (A + R) | lo que hubo que rehacer |
 
 ### Eficiencia (número único)
-**Eficiencia = Créditos Aprobados ÷ Créditos Esperados.** Con un solo número castiga no
-hacer lo asignado **y** hacerlo mal. Como el esperado es pegajoso, un rechazo **sí** baja
-la eficiencia (no desaparece del denominador). Y pesa de forma **permanente**: aunque
-rehagas vos mismo la pieza, no recuperás esos créditos.
+**Eficiencia = Créditos Aprobados ÷ Créditos Asignados.** Con un solo número castiga no
+hacer lo asignado **y** hacerlo mal. Como lo asignado es pegajoso, un rechazo **sí** baja
+la eficiencia (no desaparece del denominador). Y pesa: si rehacés vos mismo la pieza
+recuperás como mucho la **mitad** de esos créditos (segundo intento) y **nada** desde el tercero.
 
 ### Créditos promedio por habitación
 **Créditos ÷ habitaciones.** Indica la dificultad/mezcla del trabajo de cada persona.
@@ -184,13 +205,55 @@ rehagas vos mismo la pieza, no recuperás esos créditos.
 - **Tiempo promedio por habitación** (definido en Nivel 1).
 - **Ritmo = créditos/hora** (o hab/hora): productividad temporal real.
 
-### Nota técnica (a resolver al construir)
-- Implementar "esperado pegajoso + acumulativo" depende de cómo la app registra las
-  re-limpiezas (¿nueva ejecución/asignación por rehacer?).
+### Nota técnica (escrita al definir; resuelta al construir — ver «Cómo quedó construido»)
+- Implementar "asignado pegajoso + acumulativo" depende de cómo la app registra las
+  re-limpiezas (¿nueva ejecución/asignación por rehacer?). *Resuelto: nueva asignación del
+  mismo día (misma franja) → mismo ciclo.*
 - **Ojo:** hoy la app **sí** contaría los créditos de una re-limpieza aprobada aunque
   antes hubiera un rechazo. Para cumplir la regla 3 (rechazo = créditos perdidos, **sin**
   recuperación en auto-relimpieza), habrá que marcar la pieza como "rechazada para esa
   persona en el período" y excluir sus créditos aunque después la rehaga ella misma.
+  *Superado el 16/09 por la gradualidad de jefatura: 50 % al 2º intento, 0 % desde el 3º.*
+
+### Cómo quedó construido (v6.4, 16/09/2026 — `ReportesService::fichaTrabajadores`)
+- **Unidad = ciclo (pieza · fecha del turno · franja).** "Una vez por habitación por
+  persona" se aplica a cada turno: en un rango de un mes la misma pieza limpiada 22 días
+  cuenta 22 asignadas y 22 hechas, así As, A y R quedan en la misma unidad que los créditos
+  (que suman por limpieza). Rehacer = misma asignación reabierta o nueva asignación del
+  mismo día → mismo ciclo. Toda ejecución cuelga de una asignación, de ahí sale la fecha.
+- **Auto-relimpieza (regla 3 + gradualidad de jefatura):** si la persona rehace ella misma
+  su pieza rechazada en el mismo ciclo, esa re-limpieza no suma pieza (sigue como rechazada)
+  y sus créditos se recuperan según los rechazos previos suyos en esa pieza: 0 → 100 %,
+  1 → 50 %, 2 o más → 0 % (`RECUPERACION_TRAS_RECHAZO`, redondeo por pieza). El rechazo y
+  los créditos perdidos se cuentan una sola vez por ciclo. Si la rehace **otra**, los ítems
+  se atribuyen a **quien los marcó** (regla de rework vigente de la app,
+  `docs/creditos-rework.md`): los ítems heredados que ya estaban bien siguen siendo de la
+  primera persona. ⚠️ Diverge de "gana todos los créditos" de esta ficha — **pendiente de
+  decisión** (cambiarlo separaría la ficha del CRÉDITOS TOTAL del resumen mensual).
+- **Asignadas:** una asignación cuenta si siguió activa, si tuvo trabajo (ejecución) o si la
+  pieza pasó después a otra persona (pegajoso). **No** cuenta si se retiró sin trabajo y
+  nadie más la tomó (autocancelada porque la pieza ya estaba limpia al llegar el día, o
+  sacada del plan): no había nada que hacer.
+- **Espacios comunes:** sus créditos suman al total del N1 (pedido de la empresa, 2026-07),
+  pero Eficiencia, Créditos/pieza y Ritmo se calculan con `creditos_hab` (solo piezas de
+  huésped), el mismo universo que Asignadas, piezas y horas.
+- **Ventana** del trabajador = `timestamp_inicio` de la limpieza (UTC → días locales);
+  Asignadas por `asignaciones.fecha` (fecha local del turno).
+- **Rechazada y rehecha por OTRA persona:** para la rechazada la pieza sigue siendo R (no
+  cuenta como hecha), aunque los ítems que quedaron a su nombre sigan valiendo (rework). ⚠️
+  Con eso, ser reemplazada puede pagar más créditos que corregir uno mismo (ítems heredados
+  al 100 % vs 50 %): **decisión pendiente** (opciones: dejarlo; aplicar la misma escalera a
+  los heredados; o "todo a quien rehace", que es la letra de jefatura).
+- **`reasignar()` hereda la franja** de la asignación que reemplaza, para que rehacer caiga
+  en el mismo ciclo. **Limitación conocida:** una *segunda limpieza* del mismo día pedida
+  **sin etiquetar la franja** cae en el mismo ciclo que la primera (si la primera se aprueba
+  y la segunda se rechaza, esa persona suma A y R con una sola asignada). Al pedir una 2ª
+  limpieza, etiquetar la franja (el modal lo permite).
+- **Semáforo contra meta (sección):** verde cumple; **alerta** hasta 10 puntos por debajo
+  de la meta (cobertura, aprobación) o 2 puntos por encima (rechazo); más allá, **crítico**.
+  Documentado también en las descripciones de Ajustes → Alertas.
+- Una asignación sin checklist resoluble (tipo recién importado, nunca iniciada) no entra a
+  Asignadas: sin créditos no habría unidad común entre piezas y créditos.
 
 **Estado:** ✅ **cerrado** (13/09).
 
@@ -363,8 +426,8 @@ cambios de schema.
 / rango personalizado.
 
 **Nota técnica (al construir):** al agregar la sección, cuidar el **doble conteo** de
-re-limpiezas (una pieza rehecha por otra persona entra en el "esperado" de dos personas) y de
-nocheros (2 ejecuciones/día) → contar por ejecución + la regla de "esperado" ya definida en el N2
+re-limpiezas (una pieza rehecha por otra persona entra en las "asignadas" de dos personas) y de
+nocheros (2 ejecuciones/día) → contar por ejecución + la regla de "asignado" ya definida en el N2
 del trabajador.
 
 **Estado del Nivel 2:** ✅ cerrado (15/09).
@@ -461,3 +524,9 @@ re-clean **<5%**.
 | 15/09/2026 | **Cobertura — Cloudbeds:** las piezas auto-aprobadas por Cloudbeds cuentan como **NO auditadas** (bajan la cobertura de la supervisora); contraparte: para el **trabajador** quedan **aprobadas** al cierre (no lo perjudican). Ventana de cobertura = fecha de limpieza. **Nivel 2 de la Supervisora cerrado.** |
 | 15/09/2026 | **4° veredicto `aprobado_automatico`** (cierre de día 23:55 del jefe, auditor "Sistema"): para la supervisora = **no auditada** (fuera del numerador de cobertura y de los % de calidad); para el trabajador = **aprobada** (no lo perjudica). **"Auditoría real" = veredicto humano.** El código del jefe ya lo aplica (`kpiAprobacionPrimera` excluye `aprobado_automatico`). |
 | 15/09/2026 | **Nivel 3 supervisora = comparativa con dos lentes + metas** (más simple que la del trabajador, a propósito): **(1) sección vs metas + tendencia** (semáforo contra meta, no σ; flecha ▲▼ vs período anterior) sobre los 3 % del N2; **(2) entre supervisoras en lo personal** (piezas auditadas, tiempo por auditación, aporte a la cobertura) con **promedio simple + Δ** (no σ, son pocas) → "quién audita y quién se queda atrás". Metas configurables desde Ajustes (rechazo ≤5 %, aprobación ≥95 %, cobertura ~90 % a confirmar). Tiempo = dos lados. **Nivel 3 cerrado → definición de la Supervisora COMPLETA (N1+N2+N3).** |
+| 16/09/2026 | **Feedback de jefatura (5 puntos sobre el Word) — decisiones:** (1) **Asistencia queda FUERA de la app** (la controla otra aplicación y puede estar desactualizada: alguien falla, traen reemplazo y no se registra) → ningún KPI de fallas; las fallas se aplican en remuneración como descuento/factor. A futuro: la app de asistencia la construyen ellos y expondrá un **API** (jefatura/supervisores se comprometen a mantenerla) que esta app podría consumir — hilo aparte. (2) **Privacidad de tiempos = jerárquica:** nadie ve sus propios tiempos, solo el nivel de arriba (trabajador no ve su tiempo por pieza; supervisora ve los de los trabajadores; admin/jefatura ve el tiempo por auditación de las supervisoras) — para que nadie aprenda a "pasar por debajo" de la app. Hoy se cumple (solo Admin tiene `reportes.ver`); al abrir Reportes a supervisoras, separar la sección Supervisora tras un permiso propio. (3) **Nomenclatura: «Esperado» → «Asignadas»** en todos los textos de usuario (vista, CHANGELOG, docs); el código y el JSON conservan `esperado_*`, igual que Auditoría → Inspección conservó `auditoria.*`. |
+| 16/09/2026 | **Pendientes de jefatura:** (4) recuperación **gradual** en auto-relimpieza (50 % la primera vez, 0 % en reincidencia) — falta definir "reincidencia" (propuesta: segundo rechazo de la misma persona en el período) y jefatura reafirma "si la rehace otra persona gana la pieza completa" (hoy la app atribuye por ítem marcado; ver «Cómo quedó construido»). (5) El "12–18 por turno de 8 h" del Word era la **referencia de industria para limpieza**, mal rotulada como meta; jefatura mide inspección: ~3.200 hab/mes entre 2 supervisoras ≈ 60/día ≈ 8 min por inspección → **estándar propio y configurable** (limpieza e inspección), sin citar referencias externas como metas. |
+| 16/09/2026 | **Punto 4 RESUELTO — recuperación gradual en auto-relimpieza (regla de jefatura):** la misma persona que rehace su pieza rechazada recupera créditos según el intento en que queda aprobada: **1° = 100 %, 2° = 50 %, 3° o más = 0 %**. La pieza sigue contando como rechazada (R) para calidad/rechazo/cumplimiento; solo cambian los créditos (y por tanto Eficiencia, Créd./pieza y Ritmo). Implementado en `ReportesService::fichaTrabajadores` (`RECUPERACION_TRAS_RECHAZO`), con redondeo por pieza. |
+| 17/09/2026 | **Punto 5 RESUELTO — sin estándar de inspección por persona; el KPI de eficiencia del equipo de inspección es la COBERTURA A NIVEL DE EQUIPO:** piezas inspeccionadas (veredicto humano) ÷ piezas limpiadas (= lo que había que inspeccionar), con meta configurable y tendencia — es la S2.1 de la sección, ya construida en v6.4. Sirve para ver si el equipo está holgado o estresado con la inspección y si hace falta más gente. Se asume que no es justo para quien más trabaja; es transitorio hasta separar por áreas (supervisora por área → ahí sí KPI individual). El tiempo por auditación queda como KPI informativo (dos lados vs el grupo), no contra un estándar. El "12–18 por turno" del Word se elimina (era referencia de industria para limpieza, mal rotulada como meta). |
+| 17/09/2026 | **Cobertura del equipo POR TURNO (opción A):** además del total, la sección se desglosa en turno mañana / tarde (la carga no es pareja) para ver dónde el equipo de inspección va holgado o apretado. **Cada limpieza se clasifica por el turno que tenía su trabajador ese día en el calendario de Turnos** (`usuarios_turnos` por fecha del turno de la asignación), no por hora del reloj; sin calendario ese día → fila «Sin turno» (sirve también para ver si el calendario se mantiene). Por turno: limpiadas, inspeccionadas, cobertura (misma meta), rechazo y aprobación a la primera; la tendencia queda solo en el total. Descartada la opción B (corte por hora de término, 18:00 como el reporte de pendientes). Implementado en v6.4 (`seccionSupervisora` → `por_turno`). |
+| 17/09/2026 | **Segunda revisión adversarial del incremento → correcciones:** (a) rechazada y rehecha por OTRA persona ya no le cuenta a la rechazada como pieza hecha (seguía sumando A por los ítems heredados a su nombre); (b) `reasignar()` hereda la franja (antes la re-limpieza caía en otro ciclo y esquivaba la gradualidad); (c) `pasada_a_otro` respeta la franja; (d) asignación sin checklist resoluble no entra a Asignadas; (e) la banda «alerta» del semáforo vs meta (−10 / +2 puntos) queda documentada en la ficha y en Ajustes; (f) la ficha en Reportes muestra error + «Reintentar» si el cálculo falla; (g) el tour describía mal la etapa B. **Pendiente de decisión:** créditos heredados de la persona rechazada cuando otra rehace (ver «Cómo quedó construido»). |

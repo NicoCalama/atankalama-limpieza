@@ -111,4 +111,20 @@ final class AuditoriaController
         }
         return Response::ok(['auditoria' => $auditoria->toArray()]);
     }
+
+    /**
+     * POST /api/auditoria/{id}/iniciar — la pantalla de inspección avisa que el inspector
+     * abrió la pieza. Marca el inicio para el KPI "tiempo por auditación". Idempotente y
+     * silencioso: si la pieza no está pendiente no hace nada (responde 200 igual, para que
+     * la pantalla nunca se rompa por esto).
+     */
+    public function iniciar(Request $request): Response
+    {
+        $habitacionId = $request->rutaInt('id');
+        if ($habitacionId === null || $request->usuario === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
+        }
+        $registrado = $this->servicio()->registrarInicio($habitacionId);
+        return Response::ok(['registrado' => $registrado]);
+    }
 }

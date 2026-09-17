@@ -353,6 +353,12 @@ final class Kernel
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
         ]);
+        // Apertura de la pieza en inspección (KPI "tiempo por auditación"). Tiene un segmento
+        // más que /api/auditoria/{id}, así no colisiona con el POST del veredicto.
+        $router->post('/api/auditoria/{id}/iniciar', [$auditoria, 'iniciar'], [
+            $authCheck,
+            new PermissionCheck('auditoria.ver_bandeja'),
+        ]);
 
         // Tickets
         $tickets = new TicketsController();
@@ -561,6 +567,10 @@ final class Kernel
         // Reportes y KPIs
         $reportes = new ReportesController();
         $router->get('/api/reportes/kpis', [$reportes, 'kpis'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/ficha', [$reportes, 'ficha'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);

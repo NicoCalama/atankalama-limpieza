@@ -152,6 +152,7 @@ Ver [auditoria.md](auditoria.md).
 | GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes |
 | POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` | Veredicto |
 | GET | `/api/auditoria/{id}/historial` | `habitaciones.ver_historial` | Detalle histórico |
+| POST | `/api/auditoria/{habitacion_id}/iniciar` | `auditoria.ver_bandeja` | Marca el inicio de la inspección (`ejecuciones_checklist.auditoria_iniciada_at`) de la última ejecución completada; lo dispara el detalle al abrirse. Alimenta el KPI «tiempo por auditación» (v6.4). Devuelve `{ registrado: bool }` |
 
 ---
 
@@ -275,7 +276,25 @@ Ver [logs.md](logs.md).
 
 ---
 
-## 18. Rate limiting
+## 18. Reportes y KPIs
+
+Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo). Todos requieren `reportes.ver`. Filtros de período: `desde`, `hasta` (fecha local `YYYY-MM-DD`) y `hotel`.
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/reportes/kpis` | `reportes.ver` | KPIs del equipo y detalle por trabajador para el período |
+| GET | `/api/reportes/ficha` | `reportes.ver` | **Ficha de KPIs (v6.4)**: `config` (umbrales σ, min datos, meta cobertura), `trabajadores` (dos etapas A/B, asignadas, cobertura/realización/cumplimiento/calidad, créditos por hab, ritmo), `comparativa` (Δ, z y semáforo vs el grupo) y `supervisoras` (sección vs meta + tendencia, con `por_turno` según el calendario de Turnos del trabajador; inspectoras con tiempo por auditación y aporte a cobertura) |
+| GET | `/api/reportes/exportar` | `reportes.ver` | Excel con los KPIs del período |
+| GET | `/api/reportes/resumen-mensual` | `reportes.ver` | Resumen del mes por trabajador (habitaciones y créditos) |
+| GET | `/api/reportes/exportar-mensual` | `reportes.ver` | Excel del resumen mensual por trabajador |
+| GET | `/api/reportes/resumen-mensual-auditores` | `reportes.ver` | Resumen del mes de inspecciones por inspector |
+| GET | `/api/reportes/exportar-mensual-auditores` | `reportes.ver` | Excel del resumen mensual de inspecciones |
+| GET | `/api/reportes/auditorias-pendientes` | `reportes.ver` | Piezas limpiadas hoy sin veredicto, por turno |
+| GET | `/api/reportes/exportar-auditorias-pendientes` | `reportes.ver` | Excel de las inspecciones pendientes de hoy |
+
+---
+
+## 19. Rate limiting
 
 **Fuera del MVP.** Post-MVP: rate limit por IP:
 - 5 intentos de login / 15 min.
@@ -283,6 +302,6 @@ Ver [logs.md](logs.md).
 
 ---
 
-## 19. Referencias cruzadas
+## 20. Referencias cruzadas
 
 Cada sección enlaza al doc de detalle correspondiente. Este índice es la fuente maestra — si un endpoint no aparece aquí, no existe en el backend.

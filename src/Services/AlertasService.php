@@ -16,6 +16,14 @@ final class AlertasService
         'fin_turno_anticipo_minutos' => '30',
         'recalculo_intervalo_minutos' => '15',
         'tiempo_fallback_nueva_habitacion' => '30',
+        // Reportes — comparación con el grupo (docs/kpis-sueldos.md, Nivel 3). Misma bolsa de
+        // config que los umbrales predictivos para reutilizar Ajustes → Alertas y su endpoint.
+        'reportes_sigma_amarillo'  => '1',   // hasta 1σ de desviación = en línea; 1–2σ = atención
+        'reportes_sigma_rojo'      => '2',   // más de 2σ del lado de alerta = fuera de rango
+        'reportes_min_datos'       => '10',  // piezas mínimas en el período para recibir semáforo y entrar al promedio
+        'reportes_meta_cobertura'  => '90',  // % de cobertura de auditoría objetivo de la sección (Supervisora)
+        'reportes_meta_rechazo'    => '5',   // % de rechazo máximo aceptable de la sección
+        'reportes_meta_aprobacion' => '95',  // % de aprobación a la primera objetivo de la sección
     ];
 
     /**

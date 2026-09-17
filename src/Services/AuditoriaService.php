@@ -198,6 +198,31 @@ final class AuditoriaService
     }
 
     /**
+     * Registra el instante en que un inspector ABRE una habitación pendiente para revisarla
+     * (KPI "tiempo por auditación", docs/kpis-sueldos.md S1.2): duración = auditorias.created_at
+     * − este valor. Se SOBREESCRIBE en cada apertura: si la supervisora entra, se distrae y
+     * vuelve a entrar, lo que se mide es la sesión real de revisión, no la primera mirada.
+     * No-op (false) si la pieza no tiene una ejecución completada esperando veredicto.
+     */
+    public function registrarInicio(int $habitacionId): bool
+    {
+        $ejec = Database::fetchOne(
+            "SELECT id FROM #__ejecuciones_checklist
+              WHERE habitacion_id = ? AND estado = 'completada'
+              ORDER BY id DESC LIMIT 1",
+            [$habitacionId]
+        );
+        if ($ejec === null) {
+            return false;
+        }
+        Database::execute(
+            'UPDATE #__ejecuciones_checklist SET auditoria_iniciada_at = ? WHERE id = ?',
+            [Database::now(), (int) $ejec['id']]
+        );
+        return true;
+    }
+
+    /**
      * Prioridad de la bandeja: nochero primero, luego "se va hoy" (checkout,
      * cb_frontdesk_status ya sincronizado de Cloudbeds — mismo dato que usa el badge
      * "Se va hoy" de habitaciones.php). Si la supervisora arrastró manualmente (ver

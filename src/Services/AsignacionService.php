@@ -182,7 +182,10 @@ final class AsignacionService
      */
     public function reasignar(int $habitacionId, int $usuarioId, string $fecha, string $motivo, ?int $asignadoPor = null): Asignacion
     {
-        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor);
+        // Hereda la franja de la asignación que reemplaza: rehacer una pieza es el MISMO ciclo
+        // (pieza · fecha · franja) para los KPIs de la ficha (docs/kpis-sueldos.md), no una limpieza nueva.
+        $franja = $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
+        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja);
         Logger::audit($asignadoPor, 'asignacion.reasignar', 'asignacion', $asignacion->id, [
             'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo,
         ]);

@@ -17,7 +17,7 @@
             </a>
             <div class="min-w-0">
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Alertas</h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Umbrales de alertas predictivas</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Umbrales de alertas predictivas y de comparación en Reportes</p>
             </div>
             <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
@@ -55,10 +55,10 @@
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" x-text="campo.descripcion"></p>
                     <div class="relative">
-                        <input type="number" min="1" step="1" x-model="form[campo.clave]"
+                        <input type="number" :min="campo.min || 1" :max="campo.max || null" step="1" x-model="form[campo.clave]"
                                :class="modificado(campo.clave) ? 'ring-2 ring-amber-400 border-amber-400' : 'border-gray-300 dark:border-gray-600'"
                                class="w-full min-h-[44px] px-3 py-2 pr-16 rounded-lg bg-white dark:bg-gray-900 border text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 dark:text-gray-400 pointer-events-none">minutos</span>
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 dark:text-gray-400 pointer-events-none" x-text="campo.unidad || 'minutos'"></span>
                     </div>
                 </div>
             </template>
@@ -140,6 +140,43 @@ function alertasConfigApp() {
                 descripcion: 'Tiempo estimado de limpieza cuando no hay histórico para un trabajador.',
                 default: '30',
             },
+            // ── Reportes → comparación con el grupo (docs/kpis-sueldos.md, Nivel 3) ──
+            {
+                clave: 'reportes_sigma_amarillo',
+                label: 'Semáforo amarillo (desviaciones)',
+                descripcion: 'En Reportes, un KPI de un trabajador se marca en amarillo cuando se aleja del promedio del equipo más de esta cantidad de desviaciones estándar (σ).',
+                default: '1', unidad: 'σ', min: 1,
+            },
+            {
+                clave: 'reportes_sigma_rojo',
+                label: 'Semáforo rojo (desviaciones)',
+                descripcion: 'Se marca en rojo cuando se aleja más de esta cantidad de desviaciones. Debe ser mayor que el amarillo.',
+                default: '2', unidad: 'σ', min: 1,
+            },
+            {
+                clave: 'reportes_min_datos',
+                label: 'Mínimo de piezas para comparar',
+                descripcion: 'Trabajadores con menos piezas que esto en el período no reciben semáforo ni entran en el promedio del grupo (no distorsionan).',
+                default: '10', unidad: 'piezas', min: 1,
+            },
+            {
+                clave: 'reportes_meta_cobertura',
+                label: 'Meta de cobertura de inspección',
+                descripcion: 'Porcentaje de las piezas limpiadas que la sección debería alcanzar a inspeccionar (KPI de la Supervisora en Reportes). Hasta 10 puntos por debajo se marca en alerta (amarillo); más abajo, crítico (rojo).',
+                default: '90', unidad: '%', min: 1, max: 100,
+            },
+            {
+                clave: 'reportes_meta_rechazo',
+                label: 'Meta de rechazo de la sección',
+                descripcion: 'Porcentaje máximo de piezas rechazadas (sobre las inspeccionadas) que la sección debería tener. Hasta 2 puntos por encima se marca en alerta (amarillo); más arriba, crítico (rojo).',
+                default: '5', unidad: '%', min: 1, max: 100,
+            },
+            {
+                clave: 'reportes_meta_aprobacion',
+                label: 'Meta de aprobación a la primera',
+                descripcion: 'Porcentaje de piezas inspeccionadas que deberían aprobarse sin rehacer (KPI de la Supervisora en Reportes). Hasta 10 puntos por debajo se marca en alerta (amarillo); más abajo, crítico (rojo).',
+                default: '95', unidad: '%', min: 1, max: 100,
+            },
         ],
         form: {},
         original: {},
@@ -184,8 +221,9 @@ function alertasConfigApp() {
             for (const c of this.campos) {
                 if (this.modificado(c.clave)) {
                     const n = parseInt(this.form[c.clave], 10);
-                    if (isNaN(n) || n < 1) {
-                        this.mostrarToast(c.label + ' debe ser un número ≥ 1.', 'error');
+                    const min = c.min || 1;
+                    if (isNaN(n) || n < min || (c.max && n > c.max)) {
+                        this.mostrarToast(c.label + ' debe ser un número entre ' + min + ' y ' + (c.max || '∞') + '.', 'error');
                         return;
                     }
                     payload[c.clave] = String(n);

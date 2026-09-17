@@ -246,6 +246,238 @@
             </div>
         </template>
 
+        <!-- ═══ Ficha de KPIs · Trabajador (N1 + N2 + N3) — mismo rango/hotel que los KPIs de arriba ═══ -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.ficha">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-violet-600 dark:text-violet-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Ficha de KPIs · Trabajador</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Créditos y piezas en dos etapas, asignado vs. aprobado, y comparación con el equipo.</p>
+                    </div>
+                </div>
+                <span class="text-xs text-gray-400 dark:text-gray-500" x-show="ficha" x-text="ficha ? (ficha.trabajadores.length + ' personas') : ''"></span>
+            </header>
+
+            <template x-if="fichaCargando && !ficha">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Calculando ficha...</div>
+            </template>
+
+            <template x-if="fichaError && !fichaCargando">
+                <div class="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                    <i data-lucide="alert-circle" class="w-8 h-8 text-red-500"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">No pudimos calcular la ficha, intenta de nuevo en un momento.</p>
+                    <button @click="cargarFicha()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="ficha && ficha.trabajadores.length === 0">
+                <div class="p-8 text-center">
+                    <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">No hay actividad registrada en este período.</p>
+                </div>
+            </template>
+
+            <template x-if="ficha && ficha.trabajadores.length > 0">
+                <div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700/40">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700/40">Trabajador</th>
+                                    <template x-for="c in fichaCols" :key="c.clave">
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap" :title="c.ayuda" x-text="c.titulo"></th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                <template x-for="t in ficha.trabajadores" :key="t.usuario_id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30" :class="t.datos_suficientes ? '' : 'opacity-70'">
+                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap sticky left-0 bg-white dark:bg-gray-800">
+                                            <span x-text="primerNombre(t.nombre)"></span>
+                                            <template x-if="!t.datos_suficientes">
+                                                <span class="ml-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500" title="Menos piezas que el mínimo configurado: sin semáforo y fuera del promedio.">pocos datos</span>
+                                            </template>
+                                        </td>
+                                        <template x-for="c in fichaCols" :key="c.clave">
+                                            <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                                <span x-text="fmtCol(t, c)"></span>
+                                                <template x-if="c.cmp">
+                                                    <span class="inline-block w-2 h-2 rounded-full ml-1 align-middle" :class="dotSem(t, c.clave)" :title="cmpTitle(t, c.clave)"></span>
+                                                </template>
+                                            </td>
+                                        </template>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot class="bg-gray-50 dark:bg-gray-700/40 border-t border-gray-200 dark:border-gray-700">
+                                <tr>
+                                    <td class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700/40">Promedio equipo</td>
+                                    <template x-for="c in fichaCols" :key="'p-' + c.clave">
+                                        <td class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap" x-text="fmtPromedio(c)"></td>
+                                    </template>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <p class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle"></span> en línea con el equipo</span>
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle"></span> atención (≥ <span x-text="ficha.config.sigma_amarillo"></span>σ)</span>
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span> fuera de rango (≥ <span x-text="ficha.config.sigma_rojo"></span>σ)</span>
+                        <span><span class="inline-block w-2 h-2 rounded-full bg-blue-500 align-middle"></span> informativo</span>
+                        <span>· mínimo <span x-text="ficha.config.min_datos"></span> piezas para comparar · pasa el mouse por un punto para ver la diferencia vs. el promedio</span>
+                    </p>
+                </div>
+            </template>
+        </section>
+
+        <!-- ═══ Supervisora · Inspección (N1 + N2 + N3) ═══ -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.supervisora">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Supervisora · Inspección</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Cobertura de la sección contra su meta y tendencia, y el trabajo de cada inspectora.</p>
+                    </div>
+                </div>
+                <span class="text-xs text-gray-400 dark:text-gray-500" x-show="ficha"
+                      x-text="ficha ? (ficha.supervisoras.seccion.auditadas_humanas + ' inspeccionadas de ' + ficha.supervisoras.seccion.completadas + ' limpiadas') : ''"></span>
+            </header>
+
+            <template x-if="fichaCargando && !ficha">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Calculando...</div>
+            </template>
+
+            <template x-if="fichaError && !fichaCargando">
+                <div class="flex flex-col items-center justify-center py-8 gap-3 text-center">
+                    <i data-lucide="alert-circle" class="w-8 h-8 text-red-500"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">No pudimos calcular esta sección, intenta de nuevo en un momento.</p>
+                    <button @click="cargarFicha()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="ficha">
+                <div class="p-4 space-y-4">
+                    <!-- N2 · Sección vs metas + tendencia -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <template x-for="k in seccionCards()" :key="k.clave">
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-1">
+                                <div class="flex items-start justify-between gap-1">
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 leading-tight" x-text="k.titulo"></p>
+                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5" :class="dotEstado(k.d.estado)"></span>
+                                </div>
+                                <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-none">
+                                    <span x-text="k.d.valor === null ? '—' : k.d.valor"></span><span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-1" x-show="k.d.valor !== null">%</span>
+                                </p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500" x-text="'Meta: ' + k.metaTxt"></p>
+                                <p class="text-xs" :class="tendenciaClase(k.d.tendencia)" x-text="tendenciaTxt(k.d)"></p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- N2 · Por turno: turno que tenía el trabajador ese día (calendario de Turnos). Ver la carga
+                         real de cada turno y si el equipo de inspección va holgado o apretado en cada uno. -->
+                    <template x-if="ficha.supervisoras.seccion.por_turno && ficha.supervisoras.seccion.por_turno.length > 0">
+                        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Turno que tenía el trabajador ese día en el calendario de Turnos. «Sin turno» = día sin turno cargado para esa persona.">Por turno</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Limpiadas</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspecc.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Cobertura</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazo</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider whitespace-nowrap">Aprob. 1ª</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+                                    <template x-for="t in ficha.supervisoras.seccion.por_turno" :key="t.turno">
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap" x-text="t.nombre"></td>
+                                            <td class="px-3 py-2 text-right tabular-nums" x-text="t.completadas"></td>
+                                            <td class="px-3 py-2 text-right tabular-nums" x-text="t.auditadas_humanas"></td>
+                                            <td class="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                                                <span class="inline-block w-2 h-2 rounded-full mr-1 align-middle" :class="dotEstado(t.cobertura_estado)"></span><span x-text="fmtPct(t.cobertura_pct)"></span>
+                                            </td>
+                                            <td class="px-3 py-2 text-right tabular-nums" x-text="fmtPct(t.rechazo_pct)"></td>
+                                            <td class="px-3 py-2 text-right tabular-nums" x-text="fmtPct(t.aprobacion_pct)"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot class="bg-gray-50 dark:bg-gray-700/50 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                    <tr>
+                                        <td class="px-3 py-2">Total</td>
+                                        <td class="px-3 py-2 text-right tabular-nums" x-text="ficha.supervisoras.seccion.completadas"></td>
+                                        <td class="px-3 py-2 text-right tabular-nums" x-text="ficha.supervisoras.seccion.auditadas_humanas"></td>
+                                        <td class="px-3 py-2 text-right tabular-nums" x-text="fmtPct(ficha.supervisoras.seccion.cobertura.valor)"></td>
+                                        <td class="px-3 py-2 text-right tabular-nums" x-text="fmtPct(ficha.supervisoras.seccion.rechazo.valor)"></td>
+                                        <td class="px-3 py-2 text-right tabular-nums" x-text="fmtPct(ficha.supervisoras.seccion.aprobacion_primera.valor)"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </template>
+
+                    <!-- N1 + N3 · Por inspectora -->
+                    <template x-if="ficha.supervisoras.inspectoras.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay inspecciones humanas registradas en este período.</p>
+                    </template>
+                    <template x-if="ficha.supervisoras.inspectoras.length > 0">
+                        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspectora</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspecc.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprob.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">C/obs.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechaz.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Minutos promedio desde que abre la pieza hasta que da el veredicto. Solo inspecciones desde que se activó la medición.">T. por insp.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Lo que ella inspeccionó sobre todo lo limpiado en la sección.">Aporte cobert.</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <template x-for="i in ficha.supervisoras.inspectoras" :key="i.usuario_id">
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap" x-text="primerNombre(i.nombre)"></td>
+                                            <td class="px-3 py-2 text-right whitespace-nowrap">
+                                                <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="i.total"></span>
+                                                <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.total, '')"></span>
+                                            </td>
+                                            <td class="px-3 py-2 text-right text-emerald-700 dark:text-emerald-400 font-semibold" x-text="i.aprobadas"></td>
+                                            <td class="px-3 py-2 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="i.con_observacion"></td>
+                                            <td class="px-3 py-2 text-right text-red-700 dark:text-red-400 font-semibold" x-text="i.rechazadas"></td>
+                                            <td class="px-3 py-2 text-right whitespace-nowrap">
+                                                <span class="text-gray-700 dark:text-gray-300" x-text="i.tiempo_auditacion === null ? '—' : (i.tiempo_auditacion + ' min')"></span>
+                                                <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="i.tiempo_auditacion === null ? 'sin medición' : deltaTxt(i.cmp.tiempo_auditacion, ' min')"></span>
+                                            </td>
+                                            <td class="px-3 py-2 text-right whitespace-nowrap">
+                                                <span class="text-gray-700 dark:text-gray-300" x-text="fmtPct(i.aporte_cobertura_pct)"></span>
+                                                <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.aporte_cobertura_pct, ' pts')"></span>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot class="bg-gray-50 dark:bg-gray-700/40 border-t border-gray-200 dark:border-gray-700">
+                                    <tr class="text-xs text-gray-600 dark:text-gray-300">
+                                        <td class="px-3 py-2 font-semibold">Promedio</td>
+                                        <td class="px-3 py-2 text-right" x-text="fmtNull(ficha.supervisoras.comparativa.total.promedio)"></td>
+                                        <td class="px-3 py-2" colspan="3"></td>
+                                        <td class="px-3 py-2 text-right" x-text="ficha.supervisoras.comparativa.tiempo_auditacion.promedio === null ? '—' : (ficha.supervisoras.comparativa.tiempo_auditacion.promedio + ' min')"></td>
+                                        <td class="px-3 py-2 text-right" x-text="fmtPct(ficha.supervisoras.comparativa.aporte_cobertura_pct.promedio)"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </template>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                        Las piezas aprobadas automáticamente al cierre del día no cuentan como inspeccionadas (bajan la cobertura). La cifra bajo cada valor es la diferencia con el promedio simple de las inspectoras.
+                    </p>
+                </div>
+            </template>
+        </section>
+
         <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
@@ -482,6 +714,27 @@ function reportes() {
 
         trabajadoras: [],
 
+        // Ficha de KPIs (docs/kpis-sueldos.md): Trabajador N1-N3 + Supervisora N1-N3, mismo rango/hotel.
+        ficha:         null,
+        fichaCargando: false,
+        fichaSeq:      0,     // nº de la última carga pedida: una respuesta vieja que llega tarde no pisa a la nueva
+        fichaError:    false, // la ficha se carga aparte de los KPIs clásicos: tiene su propio estado de error
+        fichaCols: [
+            { clave: 'creditos',         titulo: 'Créditos',     fmt: 'num',      cmp: true,  ayuda: 'Créditos aprobados (auditados + no auditados), incluidas áreas comunes. Solo ítems obligatorios; rechazadas fuera. Si uno mismo rehace su pieza rechazada recupera la mitad al segundo intento y nada desde el tercero.' },
+            { clave: 'ab',               titulo: 'Audit. / no',  fmt: 'ab',       cmp: false, ayuda: 'Créditos auditados por una persona / no auditados (cuentan igual como aprobados).' },
+            { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una vez por pieza por turno. Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
+            { clave: 'cobertura_pct',    titulo: 'Cobert.',      fmt: 'pct',      cmp: false, ayuda: 'Qué parte de sus piezas fue inspeccionada por una persona (señal de la supervisión, no del trabajador).' },
+            { clave: 'tiempo_promedio',  titulo: 'T. prom.',     fmt: 'min',      cmp: true,  ayuda: 'Minutos promedio por pieza. Alerta hacia los dos lados: muy lento o sospechosamente rápido.' },
+            { clave: 'esperado',         titulo: 'Asignadas',    fmt: 'esperado', cmp: false, ayuda: 'Lo asignado en el período: piezas · créditos del checklist vigente, una vez por pieza por turno. Pegajoso: no se quita al rechazar ni si la pieza pasa a otra persona. Una asignación retirada sin trabajo que nadie más tomó no cuenta.' },
+            { clave: 'realizacion_pct',  titulo: 'Realiz.',      fmt: 'pct',      cmp: true,  ayuda: '(Aprobadas + Rechazadas) ÷ Asignadas — cuánto de lo asignado ejecutó.' },
+            { clave: 'cumplimiento_pct', titulo: 'Cumplim.',     fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ Asignadas — cuánto de lo asignado quedó bien.' },
+            { clave: 'calidad_pct',      titulo: 'Calidad',      fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ (Aprobadas + Rechazadas) — de lo que hizo, cuánto pasó.' },
+            { clave: 'rechazo_pct',      titulo: 'Rechazo',      fmt: 'pct',      cmp: true,  ayuda: 'Rechazadas ÷ (Aprobadas + Rechazadas) — lo que hubo que rehacer.' },
+            { clave: 'eficiencia_pct',   titulo: 'Eficiencia',   fmt: 'pct',      cmp: true,  ayuda: 'Créditos aprobados ÷ créditos asignados, solo piezas de huésped. Un rechazo baja este número: rehaciendo uno mismo se recupera la mitad al segundo intento y nada desde el tercero.' },
+            { clave: 'creditos_por_hab', titulo: 'Créd./pieza',  fmt: 'num',      cmp: true,  ayuda: 'Créditos de piezas de huésped ÷ piezas: dificultad o mezcla del trabajo (informativo, sin rojo).' },
+            { clave: 'ritmo',            titulo: 'Ritmo',        fmt: 'ritmo',    cmp: true,  ayuda: 'Créditos de piezas de huésped por hora trabajada en ellas. Alerta hacia los dos lados.' },
+        ],
+
         subtitulo: 'Cargando...',
 
         // Resumen mensual (independiente)
@@ -535,6 +788,7 @@ function reportes() {
         async cargar() {
             this.cargando = true;
             this.error    = false;
+            this.cargarFicha(); // en paralelo, con los mismos filtros; no bloquea los KPIs clásicos
             try {
                 var params = new URLSearchParams({
                     desde:      this.desde,
@@ -749,6 +1003,106 @@ function reportes() {
             } catch (e) { /* silencioso */ } finally {
                 this.auditPendExportando = false;
             }
+        },
+
+        // ── Ficha de KPIs ──────────────────────────────────────────────────────
+        async cargarFicha() {
+            // La ficha es la llamada más pesada de la pantalla: si el usuario cambia de período antes de
+            // que responda, gana la ÚLTIMA pedida, no la última en llegar (mismo período que los KPIs).
+            var seq = ++this.fichaSeq;
+            this.fichaCargando = true;
+            this.fichaError = false;
+            try {
+                var params = new URLSearchParams({ desde: this.desde, hasta: this.hasta, hotel: this.hotel });
+                var resp = await fetch(u('/api/reportes/ficha?' + params.toString()));
+                var json = await resp.json();
+                if (seq !== this.fichaSeq) return;
+                this.ficha = json.ok ? json.data : null;
+                this.fichaError = !json.ok;
+            } catch (e) {
+                if (seq === this.fichaSeq) { this.ficha = null; this.fichaError = true; }
+            } finally {
+                if (seq === this.fichaSeq) {
+                    this.fichaCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        },
+
+        fmtNull(v) { return (v === null || v === undefined) ? '—' : v; },
+        fmtPct(v)  { return (v === null || v === undefined) ? '—' : (v + ' %'); },
+
+        fmtCol(t, c) {
+            var v = t[c.clave];
+            switch (c.fmt) {
+                case 'pct':      return this.fmtPct(v);
+                case 'min':      return v === null ? '—' : (v + ' min');
+                case 'ritmo':    return v === null ? '—' : (v + ' cr/h');
+                case 'ab':       return t.creditos_auditados + ' / ' + t.creditos_no_auditados;
+                case 'esperado': return t.esperado_hab + ' · ' + t.esperado_creditos + ' cr';
+                default:         return this.fmtNull(v);
+            }
+        },
+
+        fmtPromedio(c) {
+            if (!this.ficha || !c.cmp) return '';
+            var s = this.ficha.comparativa[c.clave];
+            if (!s || s.promedio === null) return '—';
+            var sufijo = c.fmt === 'pct' ? ' %' : (c.fmt === 'min' ? ' min' : (c.fmt === 'ritmo' ? ' cr/h' : ''));
+            return s.promedio + sufijo + (s.sigma !== null ? ' ±' + s.sigma : '');
+        },
+
+        // Semáforo del Nivel 3 (comparación con el grupo): color del punto junto a cada valor.
+        dotSem(t, kpi) {
+            var c = t.cmp && t.cmp[kpi];
+            if (!c) return 'bg-gray-300 dark:bg-gray-600';
+            return {
+                ok:          'bg-emerald-500',
+                alerta:      'bg-amber-400',
+                critico:     'bg-red-500',
+                informativo: 'bg-blue-500',
+            }[c.estado] || 'bg-gray-300 dark:bg-gray-600';
+        },
+
+        cmpTitle(t, kpi) {
+            var c = t.cmp && t.cmp[kpi];
+            if (!c || c.estado === 'sin_datos') return 'Pocos datos para comparar con el equipo.';
+            var signo = c.delta > 0 ? '+' : '';
+            return 'Diferencia vs. promedio del equipo: ' + signo + c.delta + ' (' + c.z + 'σ)';
+        },
+
+        dotEstado(estado) {
+            return {
+                ok: 'bg-emerald-500', alerta: 'bg-amber-400', critico: 'bg-red-500', informativo: 'bg-blue-500',
+            }[estado] || 'bg-gray-300 dark:bg-gray-600';
+        },
+
+        seccionCards() {
+            if (!this.ficha) return [];
+            var s = this.ficha.supervisoras.seccion;
+            return [
+                { clave: 'cobertura',          titulo: 'Cobertura de inspección',     d: s.cobertura,          metaTxt: '≥ ' + s.cobertura.meta + ' %' },
+                { clave: 'rechazo',            titulo: 'Rechazo de la sección',       d: s.rechazo,            metaTxt: '≤ ' + s.rechazo.meta + ' %' },
+                { clave: 'aprobacion_primera', titulo: 'Aprobación a la 1ª (sección)', d: s.aprobacion_primera, metaTxt: '≥ ' + s.aprobacion_primera.meta + ' %' },
+            ];
+        },
+
+        tendenciaTxt(d) {
+            if (!d || d.tendencia === 'sin_datos') return 'Sin período anterior para comparar';
+            var flecha = { mejora: '▲', empeora: '▼', igual: '=' }[d.tendencia] || '';
+            var signo = d.delta > 0 ? '+' : '';
+            return flecha + ' ' + signo + d.delta + ' pts vs. período anterior (' + d.anterior + ' %)';
+        },
+
+        tendenciaClase(t) {
+            return { mejora: 'text-emerald-600 dark:text-emerald-400', empeora: 'text-red-600 dark:text-red-400' }[t]
+                || 'text-gray-400 dark:text-gray-500';
+        },
+
+        deltaTxt(delta, sufijo) {
+            if (delta === null || delta === undefined) return '';
+            var signo = delta > 0 ? '+' : '';
+            return signo + delta + (sufijo || '') + ' vs. prom.';
         },
 
         filtrarPorTrabajadora(uid) {

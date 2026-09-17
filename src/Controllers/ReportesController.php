@@ -45,6 +45,28 @@ final class ReportesController
         ]);
     }
 
+    /**
+     * GET /api/reportes/ficha?desde&hasta&hotel — la ficha completa de KPIs
+     * (docs/kpis-sueldos.md): Trabajador N1-N3 y Supervisora N1-N3 sobre un rango libre.
+     */
+    public function ficha(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
+        }
+
+        [$desde, $hasta, $hotel] = $this->parsearFiltros($request);
+
+        $ficha = $this->service->fichaKpis($desde, $hasta, $hotel);
+        $ficha['filtros'] = ['desde' => $desde, 'hasta' => $hasta, 'hotel' => $hotel];
+
+        return Response::ok($ficha);
+    }
+
     /** GET /api/reportes/resumen-mensual?anio=2026&mes=4&hotel=ambos */
     public function resumenMensual(Request $request): Response
     {
