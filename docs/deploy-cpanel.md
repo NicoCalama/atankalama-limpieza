@@ -515,3 +515,50 @@ viejos). Activar el toggle "Separar por hotel", elegir un hotel, "Personalizar" 
 la tarjeta pasa de "Usa el compartido" a mostrar el override; la vista Compartido y el otro hotel
 quedan intactos. `POST /api/habitaciones/{id}/iniciar` de una pieza cualquiera no debe dar 500
 `TEMPLATE_NO_ENCONTRADO`.
+
+### 11.5 SQL del release "ficha de KPIs en Reportes" → v6.4 (phpMyAdmin)
+
+Reportes trae la ficha completa de KPIs (`docs/kpis-sueldos.md`). **Dos cambios de datos**, ambos
+**ANTES de subir el código** (`ReportesService` lee la columna nueva y el controller consulta el permiso):
+
+1. Columna `auditoria_iniciada_at` en `ejecuciones_checklist` (inicio de la inspección → KPI «tiempo por auditación»).
+2. Permiso `reportes.ver_supervisoras` (privacidad jerárquica de tiempos), concedido a los roles que
+   administran la matriz (los que tienen `permisos.asignar_a_rol`), NO a las supervisoras.
+
+**Vía recomendada (PHP CLI o cron de una sola vez, ver v2.5), idempotente:**
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-auditoria-iniciada-at.php
+/opt/alt/php84/usr/bin/php scripts/migrate-add-permiso-reportes-supervisoras.php
+```
+
+**Fallback phpMyAdmin** (equivalente, con prefijo `limpieza_`):
+
+```sql
+-- 1) Inicio de la inspección (se sobreescribe en cada apertura del detalle).
+ALTER TABLE limpieza_ejecuciones_checklist ADD COLUMN auditoria_iniciada_at VARCHAR(30) NULL;
+
+-- 2) Permiso nuevo + concesión a los roles administradores.
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'reportes.ver_supervisoras',
+       'Ver los KPIs y tiempos de las supervisoras en Reportes (sección Supervisora · Inspección)',
+       'Reportes', 'global'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'reportes.ver_supervisoras');
+
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT DISTINCT rp.rol_id, 'reportes.ver_supervisoras'
+  FROM limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'permisos.asignar_a_rol'
+   AND NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos x
+                    WHERE x.rol_id = rp.rol_id AND x.permiso_codigo = 'reportes.ver_supervisoras');
+```
+
+Si el código sube antes que el SQL: `GET /api/reportes/ficha` cae con 500 (columna inexistente) y
+la sección de supervisoras no aparece para nadie (permiso inexistente) — por eso el SQL va **antes**.
+**Sin `.env`, sin `vendor/`, sin `sw.js`/assets (no cambió ningún asset → sin bump de `CACHE_VERSION`).**
+
+**Smoke específico:** badge home = **v6.4** (incógnito); en Reportes, con Admin, aparecen «Ficha de
+KPIs · Trabajador» (columna «Asignadas») y «Supervisora · Inspección» con la tabla «Por turno»; con una
+supervisora (si tuviera `reportes.ver`) NO aparece la segunda. Contraste de rutas: `GET /api/reportes/ficha`
+→ 401 sin sesión (existe) vs ruta inventada → 404; `POST /api/auditoria/1/iniciar` → 401. Abrir una pieza
+pendiente en Inspección y aprobarla: en Reportes, «T. por insp.» de esa inspectora deja de ser «—».

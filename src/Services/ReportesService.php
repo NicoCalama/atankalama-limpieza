@@ -860,7 +860,7 @@ final class ReportesService
      *
      * @return array<string, mixed>
      */
-    public function fichaKpis(string $desde, string $hasta, string $hotel): array
+    public function fichaKpis(string $desde, string $hasta, string $hotel, bool $incluirSupervisoras = true): array
     {
         $alertas = new AlertasService();
         $config = [
@@ -882,7 +882,9 @@ final class ReportesService
             'config'       => $config,
             'trabajadores' => $trabajadores,
             'comparativa'  => $comparativa,
-            'supervisoras' => $this->fichaSupervisoras($desde, $hasta, $hotel, $config),
+            // Privacidad jerárquica: la sección de las supervisoras (con sus tiempos) solo viaja a
+            // quien tiene reportes.ver_supervisoras; el controller decide, el servicio obedece.
+            'supervisoras' => $incluirSupervisoras ? $this->fichaSupervisoras($desde, $hasta, $hotel, $config) : null,
         ];
     }
 

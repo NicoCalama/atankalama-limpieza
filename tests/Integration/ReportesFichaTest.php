@@ -285,6 +285,18 @@ final class ReportesFichaTest extends TestCase
         $this->assertSame(0.0, $sofia['cmp']['total']);
     }
 
+    public function testLaSeccionDeSupervisorasSoloViajaConElPermiso(): void
+    {
+        // Privacidad jerárquica: sin reportes.ver_supervisoras el bloque no se calcula ni se envía.
+        $sin = $this->rep->fichaKpis(date('Y-m-d'), date('Y-m-d'), 'ambos', false);
+        $this->assertNull($sin['supervisoras']);
+        $this->assertNotEmpty($sin['trabajadores'], 'la ficha del trabajador sigue completa');
+
+        $con = $this->rep->fichaKpis(date('Y-m-d'), date('Y-m-d'), 'ambos', true);
+        $this->assertIsArray($con['supervisoras']);
+        $this->assertArrayHasKey('inspectoras', $con['supervisoras']);
+    }
+
     public function testRegistrarInicioSoloEnPiezasPendientes(): void
     {
         $aud = new AuditoriaService();

@@ -84,6 +84,11 @@ return [
     ['logs.ver', 'Ver el visor de logs', 'Logs', 'global'],
 
     ['reportes.ver', 'Ver el módulo de reportes y KPIs exportables', 'Reportes', 'global'],
+    // Privacidad jerárquica de tiempos (jefatura, 16/09/2026): nadie ve sus propios tiempos, solo el
+    // nivel de arriba. La sección «Supervisora · Inspección» (tiempo por auditación de las
+    // supervisoras) queda tras este permiso, pensado para Admin/jefatura; una supervisora con
+    // `reportes.ver` ve a sus trabajadoras y nada de sí misma.
+    ['reportes.ver_supervisoras', 'Ver los KPIs y tiempos de las supervisoras en Reportes (sección Supervisora · Inspección)', 'Reportes', 'global'],
 
     ['disponibilidad.notificar_supervisora', 'Marcarse disponible para más habitaciones', 'Disponibilidad', 'propio'],
 

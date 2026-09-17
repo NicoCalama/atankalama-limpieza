@@ -331,7 +331,12 @@
             </template>
         </section>
 
-        <!-- ═══ Supervisora · Inspección (N1 + N2 + N3) ═══ -->
+        <!-- ═══ Supervisora · Inspección (N1 + N2 + N3) ═══
+             Privacidad jerárquica de tiempos (jefatura, 16/09): nadie ve sus propios tiempos, solo el nivel
+             de arriba. Esta sección (tiempo por auditación de las supervisoras) se renderiza solo con
+             reportes.ver_supervisoras; el backend tampoco la envía sin el permiso. La bandera gatea el tour. -->
+        <div data-vg-context='{"ve_supervisoras": <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>}' hidden></div>
+        <?php if ($usuario->tienePermiso('reportes.ver_supervisoras')): ?>
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.supervisora">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0">
@@ -477,6 +482,7 @@
                 </div>
             </template>
         </section>
+        <?php endif; ?>
 
         <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">

@@ -61,7 +61,9 @@ final class ReportesController
 
         [$desde, $hasta, $hotel] = $this->parsearFiltros($request);
 
-        $ficha = $this->service->fichaKpis($desde, $hasta, $hotel);
+        // Privacidad jerárquica de tiempos: la sección de las supervisoras (con su tiempo por
+        // auditación) solo se calcula y se envía a quien tiene reportes.ver_supervisoras.
+        $ficha = $this->service->fichaKpis($desde, $hasta, $hotel, $usuario->tienePermiso('reportes.ver_supervisoras'));
         $ficha['filtros'] = ['desde' => $desde, 'hasta' => $hasta, 'hotel' => $hotel];
 
         return Response::ok($ficha);

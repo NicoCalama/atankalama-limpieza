@@ -239,6 +239,7 @@ final class ToursAnchorTest extends TestCase
                 'habitaciones.marcar_completada',
                 'habitaciones.ver_todas',
                 'auditoria.ver_bandeja',
+                'reportes.ver_supervisoras', // la sección «Supervisora · Inspección» de Reportes se renderiza solo con este permiso
                 'espacios.ver',
                 'espacios.crear_editar',
                 'tickets.ver_todos',

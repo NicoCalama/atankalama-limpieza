@@ -283,7 +283,7 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/api/reportes/kpis` | `reportes.ver` | KPIs del equipo y detalle por trabajador para el período |
-| GET | `/api/reportes/ficha` | `reportes.ver` | **Ficha de KPIs (v6.4)**: `config` (umbrales σ, min datos, meta cobertura), `trabajadores` (dos etapas A/B, asignadas, cobertura/realización/cumplimiento/calidad, créditos por hab, ritmo), `comparativa` (Δ, z y semáforo vs el grupo) y `supervisoras` (sección vs meta + tendencia, con `por_turno` según el calendario de Turnos del trabajador; inspectoras con tiempo por auditación y aporte a cobertura) |
+| GET | `/api/reportes/ficha` | `reportes.ver` | **Ficha de KPIs (v6.4)**: `config` (umbrales σ, min datos, meta cobertura), `trabajadores` (dos etapas A/B, asignadas, cobertura/realización/cumplimiento/calidad, créditos por hab, ritmo), `comparativa` (Δ, z y semáforo vs el grupo) y `supervisoras` (sección vs meta + tendencia, con `por_turno` según el calendario de Turnos del trabajador; inspectoras con tiempo por auditación y aporte a cobertura). **`supervisoras` viaja `null` si el usuario no tiene `reportes.ver_supervisoras`** (privacidad jerárquica de tiempos: nadie ve sus propios tiempos, solo el nivel de arriba) |
 | GET | `/api/reportes/exportar` | `reportes.ver` | Excel con los KPIs del período |
 | GET | `/api/reportes/resumen-mensual` | `reportes.ver` | Resumen del mes por trabajador (habitaciones y créditos) |
 | GET | `/api/reportes/exportar-mensual` | `reportes.ver` | Excel del resumen mensual por trabajador |

@@ -1152,7 +1152,10 @@ final class Tours
                              'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
                             ['sel' => '[data-tour="rep.ficha"]', 'titulo' => 'La ficha del trabajador',
                              'texto' => 'Por persona: lo que quedó bien, separando lo inspeccionado (A) de lo que nadie inspeccionó (B, cuenta igual a su favor), lo asignado y sus porcentajes. El color la compara con el grupo (amarillo se aleja, rojo lejos).'],
+                            // Solo quien tiene reportes.ver_supervisoras ve esta sección (privacidad jerárquica de
+                            // tiempos): la vista emite la bandera ve_supervisoras en data-vg-context.
                             ['sel' => '[data-tour="rep.supervisora"]', 'titulo' => 'La supervisora y su sección',
+                             'requiere' => ['ve_supervisoras'],
                              'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, tiempo por inspección y aporte. Lo aprobado solo por el sistema no cuenta.'],
                         ],
                     ],
