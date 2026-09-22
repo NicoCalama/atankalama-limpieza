@@ -13,6 +13,12 @@
  */
 declare(strict_types=1);
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 $root = dirname(__DIR__);
 
 // Las 32 tablas (deben coincidir con docs/database-schema.sql).

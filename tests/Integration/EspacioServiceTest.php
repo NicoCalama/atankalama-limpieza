@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Tests\Integration;
 
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\ChecklistService;
 use Atankalama\Limpieza\Services\EspacioException;
 use Atankalama\Limpieza\Services\EspacioService;
@@ -133,7 +134,7 @@ final class EspacioServiceTest extends TestCase
         $this->assertNull($filaPieza['habitacion_id']);
     }
 
-    public function testPedirLimpiezaYAutoCierreSinAuditoria(): void
+    public function testPedirLimpiezaYQuedaPendienteDeInspeccion(): void
     {
         $trabajadorId = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
         $espacioId = $this->svc->crear('Piscina', '1_sur', ['Barrer', 'Vidrios', 'Cloro']);
@@ -154,12 +155,50 @@ final class EspacioServiceTest extends TestCase
         }
         $chk->completar($ejec->id, $trabajadorId);
 
-        // Auto-cierre: estado aprobada, ejecución completada, sin auditoría
+        // Desde v6.2 las áreas pasan por inspección: quedan pendientes, sin auditoría todavía,
+        // y aparecen en la bandeja como cualquier pieza.
         $estadoFin = (string) Database::fetchOne('SELECT estado FROM habitaciones WHERE id = ?', [$espacioId])['estado'];
-        $this->assertSame('aprobada', $estadoFin);
+        $this->assertSame('completada_pendiente_auditoria', $estadoFin);
         $ejecFin = $chk->obtenerEjecucion($ejec->id);
         $this->assertSame('completada', $ejecFin->estado);
         $this->assertNull(Database::fetchOne('SELECT id FROM auditorias WHERE ejecucion_id = ?', [$ejec->id]));
+        $ids = array_map(static fn(array $f): int => (int) $f['id'], (new AuditoriaService())->bandejaPendientes());
+        $this->assertContains($espacioId, $ids);
+    }
+
+    public function testBandejaMuestraElAreaUnaSolaVezConLimpiezasViejasSinInspeccionar(): void
+    {
+        // Regresión: las áreas arrastran ejecuciones 'completada' de cuando se cerraban solas
+        // (nunca inspeccionadas). La bandeja unía TODAS y repetía el área una vez por cada
+        // una (y el cierre de las 23:55 fallaba con las filas repetidas).
+        $trabajadorId = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
+        $espacioId = $this->svc->crear('Piscina', '1_sur', ['Barrer']);
+        $chk = new ChecklistService();
+
+        $limpiar = function () use ($chk, $espacioId, $trabajadorId): int {
+            $this->svc->pedirLimpieza($espacioId, $trabajadorId, $this->hoy);
+            $ejec = $chk->iniciarEjecucion($espacioId, $trabajadorId, $this->hoy);
+            foreach ($chk->estadoEjecucion($ejec->id)['items'] as $it) {
+                $chk->marcarItem($ejec->id, (int) $it['id'], true, $trabajadorId);
+            }
+            $chk->completar($ejec->id, $trabajadorId);
+            return $ejec->id;
+        };
+
+        // 1ª limpieza, cerrada sin inspección (como el auto-cierre antiguo): la ejecución
+        // queda 'completada' para siempre.
+        $limpiar();
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada' WHERE id = ?", [$espacioId]);
+
+        // 2ª limpieza: esta sí queda pendiente de inspección.
+        $ejec2 = $limpiar();
+
+        $filas = array_values(array_filter(
+            (new AuditoriaService())->bandejaPendientes(),
+            static fn(array $f): bool => (int) $f['id'] === $espacioId
+        ));
+        $this->assertCount(1, $filas);
+        $this->assertSame($ejec2, (int) $filas[0]['ejecucion_id']);
     }
 
     public function testPedirLimpiezaConTrabajadorInvalidoLanza(): void

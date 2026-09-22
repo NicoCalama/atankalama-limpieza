@@ -702,18 +702,26 @@ final class ReportesService
             $u = ' AND ec.usuario_id = ?';
         }
 
+        // aprobado_automatico (cierre de día 23:55, sin inspección real) — regla del 15/09:
+        // «aprobada para el trabajador, no auditada para la supervisora».
+        //  - De UN trabajador: cuenta como aprobada (decisión de Gerencia 2026-09-16: no pierde
+        //    puntos porque nadie alcanzó a inspeccionar).
+        //  - De la sección (sin trabajador): queda FUERA del numerador y del total — mide
+        //    inspecciones reales, igual que «Aprobación a la 1ª (sección)» de la ficha (S2.3).
+        $porTrabajador = $usuarioId !== null;
+        $veredictosOk = $porTrabajador
+            ? "'aprobado', 'aprobado_con_observacion', 'aprobado_automatico'"
+            : "'aprobado', 'aprobado_con_observacion'";
+        $sinAutomaticas = $porTrabajador ? '' : " AND a.veredicto != 'aprobado_automatico'";
+
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_con_observacion') THEN 1 ELSE 0 END) AS aprobadas
+                    SUM(CASE WHEN a.veredicto IN ({$veredictosOk}) THEN 1 ELSE 0 END) AS aprobadas
                FROM #__auditorias a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
-              WHERE a.created_at >= ? AND a.created_at < ?
-                -- aprobado_automatico (cierre de día 23:55) queda FUERA de este KPI: mide
-                -- desempeño real del trabajador, y una pieza sin auditoría real no aporta
-                -- evidencia de si la limpieza era buena o no.
-                AND a.veredicto != 'aprobado_automatico'
+              WHERE a.created_at >= ? AND a.created_at < ?{$sinAutomaticas}
                     {$h}{$u}",
             $params
         );
@@ -731,7 +739,9 @@ final class ReportesService
             'valor'    => $valor,
             'unidad'   => '%',
             'meta'     => $meta,
-            'contexto' => "{$aprobadas} de {$total} inspeccionadas",
+            'contexto' => $porTrabajador
+                ? "{$aprobadas} de {$total} (cuenta las aprobadas en el cierre automático)"
+                : "{$aprobadas} de {$total} inspeccionadas",
             'estado'   => $valor >= $meta ? 'ok' : ($valor >= 85.0 ? 'alerta' : 'critico'),
         ];
     }

@@ -45,12 +45,13 @@ final class EstadoHabitacionServiceTest extends TestCase
         $this->assertFalse($this->svc->puedeTransicionar(Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_APROBADA));
     }
 
-    public function testEnProgresoAAprobadaEsAutoCierreDeEspacio(): void
+    public function testEnProgresoNoPasaDirectoAAprobada(): void
     {
-        // Las áreas comunes se auto-cierran al completar (en_progreso → aprobada), sin auditoría.
-        // Las piezas de huésped NO usan este camino: ChecklistService::completar las manda a
-        // 'completada_pendiente_auditoria' según es_espacio_comun. Ver docs/areas-comunes.md
-        $this->assertTrue($this->svc->puedeTransicionar(Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_APROBADA));
+        // Desde v6.2 las áreas comunes también pasan por inspección: ya no hay auto-cierre
+        // en_progreso → aprobada. Las únicas vías a 'aprobada' sin auditoría usan forzar:true
+        // (marcarSinAseoCliente, sync de Cloudbeds). Ver docs/areas-comunes.md
+        $this->assertFalse($this->svc->puedeTransicionar(Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_APROBADA));
+        $this->assertTrue($this->svc->puedeTransicionar(Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA));
     }
 
     public function testAprobadaVuelveASuciaEnNuevoCiclo(): void

@@ -448,8 +448,8 @@ final class Tours
             // ════════════════════════════════════════════════════════════
             //  ÁREAS COMUNES — vista: views/espacios.php
             //  Ruta /espacios (fija). Espacios que no son piezas de huésped
-            //  (piscina, pasillos…), servicio on-demand, SIN inspección (se
-            //  auto-cierran al completar). Ver docs/areas-comunes.md
+            //  (piscina, pasillos…), servicio on-demand. Desde v6.2 pasan por la
+            //  misma inspección que las piezas de huésped. Ver docs/areas-comunes.md
             // ════════════════════════════════════════════════════════════
             'espacios' => [
                 'nombre'    => 'Áreas comunes',
@@ -459,7 +459,7 @@ final class Tours
                     // ── 1. El trabajo diario: pedir una limpieza. ──
                     [
                         'id'       => 'pedir',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Pedir una limpieza',
                         'pregunta' => '¿Cómo mando a limpiar un área?',
                         'requiere' => [],
@@ -471,8 +471,8 @@ final class Tours
                             ],
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
-                                'titulo' => 'No pasan por inspección',
-                                'texto'  => 'El badge te dice si está lista, pendiente o en limpieza. Las áreas no se inspeccionan: se cierran solas cuando el trabajador termina.',
+                                'titulo' => 'También se inspeccionan',
+                                'texto'  => 'El badge te dice si está lista, pendiente, en limpieza o por inspeccionar. Igual que las habitaciones, un supervisor revisa el área antes de darla por aprobada.',
                             ],
                         ],
                     ],

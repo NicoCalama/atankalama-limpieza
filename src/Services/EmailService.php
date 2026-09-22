@@ -42,7 +42,7 @@ final class EmailService
         string $destinatario,
         string $nombre,
         string $rut,
-        string $passwordTemporal,
+        #[\SensitiveParameter] string $passwordTemporal,
         string $motivo = 'creacion'
     ): bool {
         if (!$this->habilitado || $destinatario === '') return false;
@@ -142,7 +142,7 @@ final class EmailService
         }
     }
 
-    private function plantillaPasswordTemporal(string $nombre, string $rut, string $pwd, string $motivo): string
+    private function plantillaPasswordTemporal(string $nombre, string $rut, #[\SensitiveParameter] string $pwd, string $motivo): string
     {
         $appUrl     = htmlspecialchars(rtrim(Config::get('APP_URL', 'http://localhost:8000'), '/'));
         $appNombre  = htmlspecialchars(Config::get('APP_NAME', 'Atankalama Limpieza'));

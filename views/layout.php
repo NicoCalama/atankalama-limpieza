@@ -174,6 +174,19 @@
                 // El scope del SW queda en BASE_PATH/ (raíz en dev, /limpieza/ en prod);
                 // sw.js deriva su prefijo de ese scope.
                 navigator.serviceWorker.register(u('/sw.js')).catch(function() {});
+
+                // Tras «Forzar actualización» (Ajustes): desregistrar el SW borró la
+                // suscripción push de este dispositivo. Se recrea sola si el permiso sigue
+                // concedido (suscribir() no vuelve a preguntar cuando ya está 'granted').
+                var pushPendiente = false;
+                try { pushPendiente = localStorage.getItem('push_resuscribir') === '1'; } catch (e) {}
+                if (pushPendiente && typeof PushManager !== 'undefined' && PushManager.estado() === 'granted') {
+                    navigator.serviceWorker.ready.then(function () {
+                        return PushManager.suscribir();
+                    }).then(function (ok) {
+                        if (ok) { try { localStorage.removeItem('push_resuscribir'); } catch (e) {} }
+                    }).catch(function () {});
+                }
             });
         }
 

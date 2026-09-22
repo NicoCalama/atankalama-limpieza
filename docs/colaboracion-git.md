@@ -42,7 +42,7 @@ Requisitos del entorno de desarrollo:
 Servidor local de desarrollo:
 
 ```bash
-php -S localhost:8000 -t public/
+php -S localhost:8000 -t public/ public/index.php
 ```
 
 ---

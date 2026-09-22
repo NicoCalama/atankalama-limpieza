@@ -6,3 +6,7 @@ deployment/cron/*.sh text eol=lf
 # Los PDF (manuales de usuario) son binarios: NUNCA convertir fin de línea
 # (autocrlf en Windows corrompería el PDF al hacer checkout).
 *.pdf binary
+
+# Los .htaccess los interpreta LiteSpeed en el hosting: SIEMPRE LF (no arriesgar que un
+# CRLF deje una directiva de acceso como "Require all denied" sin reconocer).
+.htaccess text eol=lf

@@ -1,6 +1,5 @@
 # .htaccess de PRODUCCIÓN — public_html/limpieza/ (docroot del subpath)
-# Patrón Maisterchef: front controller + deny de sensibles. app_core/ tiene su
-# propio .htaccess con "Require all denied".
+# Patrón Maisterchef: front controller + deny de sensibles.
 
 Options -Indexes -MultiViews
 ServerSignature Off
@@ -8,6 +7,12 @@ ServerSignature Off
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /limpieza/
+
+    # Bloqueos por rewrite (LiteSpeed no aplica el "Require all denied" de app_core/.htaccess):
+    # nada de app_core/ se sirve por web, ni archivos ocultos (.env*, .DS_Store), ni logs de PHP.
+    RewriteRule (^|/)app_core(/|$) - [F,L]
+    RewriteRule (^|/)\. - [F,L]
+    RewriteRule (^|/)error_log$ - [F,L]
 
     # Preservar el header Authorization para PHP (CGI/suPHP lo descarta)
     RewriteCond %{HTTP:Authorization} .
@@ -20,8 +25,7 @@ ServerSignature Off
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
 
-# Denegar archivos sensibles por nombre (defensa en profundidad; el código
-# entero ya está denegado dentro de app_core/).
+# Denegar archivos sensibles por nombre (defensa en profundidad).
 <FilesMatch "^(\.env.*|composer\.(json|lock|phar)|phpunit\.xml|\.gitignore|\.gitattributes|README\.md)$">
     Require all denied
 </FilesMatch>

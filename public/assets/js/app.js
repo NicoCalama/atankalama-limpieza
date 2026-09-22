@@ -195,6 +195,35 @@ async function comprimirFotoParaSubir(file, maxLado, calidad) {
     }
 }
 
+// --- Helpers: agrupar/filtrar usuarios por perfil para selectores de "asignar responsable" ---
+// Compartidos entre tickets.js (asignar a un ticket existente) y modal-ticket-nuevo.js
+// (asignar al crear) para no duplicar el criterio de orden/agrupación en dos archivos.
+function agruparUsuariosPorPerfil(usuarios) {
+    var orden = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
+    var mapa = {};
+    usuarios.forEach(function (u) {
+        var p = u.perfil || 'Sin perfil';
+        (mapa[p] = mapa[p] || []).push(u);
+    });
+    var extras = Object.keys(mapa).filter(function (p) { return orden.indexOf(p) === -1; })
+                                  .sort(function (a, b) { return a.localeCompare(b, 'es'); });
+    return orden.concat(extras).filter(function (p) { return mapa[p]; }).map(function (p) {
+        return {
+            perfil: p,
+            usuarios: mapa[p].sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); }),
+        };
+    });
+}
+
+function filtrarIdsPorRol(usuarios, nombreRol) {
+    var rolNorm = String(nombreRol).trim().toLowerCase();
+    return usuarios.filter(function (u) {
+        var cumpleRoles = u.roles && u.roles.some(function (r) { return String(r).toLowerCase() === rolNorm; });
+        var cumplePerfil = u.perfil && String(u.perfil).toLowerCase() === rolNorm;
+        return cumpleRoles || cumplePerfil;
+    }).map(function (u) { return Number(u.id); });
+}
+
 // --- Alpine component: homeApp (placeholder, se completa en items 44-47) ---
 function homeApp() {
     return {

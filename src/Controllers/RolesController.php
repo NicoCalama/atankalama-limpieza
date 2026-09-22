@@ -120,7 +120,12 @@ final class RolesController
         if ($usuarioId === null || $rolId === null) {
             return Response::error('CAMPOS_REQUERIDOS', 'usuario_id y rol_id son obligatorios.', 400);
         }
-        $this->rbac->quitarRolAUsuario($usuarioId, $rolId, $request->usuario->id);
+        try {
+            $this->rbac->quitarRolAUsuario($usuarioId, $rolId, $request->usuario->id);
+        } catch (RbacException $e) {
+            // p. ej. 409 ULTIMO_ADMIN (anti-bloqueo): sin este catch caía como 500 genérico.
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
         return Response::ok(['mensaje' => 'Rol quitado.']);
     }
 }

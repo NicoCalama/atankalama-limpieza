@@ -52,6 +52,10 @@ final class Kernel
         // salgan con BASE_PATH (dev raíz vs prod subpath). Sin extensión a
         // propósito: el server embebido de PHP no rutea URIs con extensión.
         $router->get('/manifest', [$paginas, 'manifest']);
+        // Recursos modulares de vistas (CSS y JS extraídos a views/recursos/). Públicos: los
+        // pide el navegador como <script>/<link>; servirRecurso solo entrega .css/.js de esa
+        // carpeta. En desarrollo requiere el router del server embebido (ver public/index.php).
+        $router->get('/views/recursos/{ruta*}', [$paginas, 'servirRecurso']);
         $router->get('/', [$paginas, 'raiz'], [$optionalAuth]);
         $router->get('/login', [$paginas, 'login'], [$optionalAuth]);
         $router->get('/home', [$paginas, 'home'], [$optionalAuth]);

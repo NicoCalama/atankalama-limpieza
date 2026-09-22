@@ -10,7 +10,15 @@
  */
 
 require_once __DIR__ . '/componentes/avatar.php';
+
+$ticketsCssFile = __DIR__ . '/recursos/tickets/tickets.css';
+$ticketsJsFile  = __DIR__ . '/recursos/tickets/tickets.js';
+$ticketsCssV = @filemtime($ticketsCssFile) ?: '1';
+$ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
 ?>
+
+<link rel="stylesheet" href="<?= u('/views/recursos/tickets/tickets.css') ?>?v=<?= $ticketsCssV ?>">
+<script src="<?= u('/views/recursos/tickets/tickets.js') ?>?v=<?= $ticketsJsV ?>"></script>
 
 <div x-data="ticketsApp()"
      x-init="cargar().then(() => abrirDesdeUrl()); iniciarRefresco()"
@@ -18,8 +26,8 @@ require_once __DIR__ . '/componentes/avatar.php';
      @visibilitychange.window="alVolverVisible()">
 
     <!-- Header sticky -->
-    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
+    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 xl:px-8">
+        <div class="flex items-center justify-between gap-3">
             <div class="flex items-center gap-3 min-w-0">
                 <i data-lucide="wrench" class="w-6 h-6 text-rose-600 dark:text-rose-400 flex-shrink-0"></i>
                 <div class="min-w-0">
@@ -64,7 +72,7 @@ require_once __DIR__ . '/componentes/avatar.php';
          :class="toast.tipo === 'exito' ? 'bg-green-600' : 'bg-red-600'"
          x-text="toast.mensaje"></div>
 
-    <main class="pb-24 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-4">
+    <main class="pb-24 md:pb-8 px-4 py-4 xl:px-8 space-y-4">
 
         <!-- Filtros -->
         <section data-tour="tk.filtros" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
@@ -164,6 +172,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 flex-wrap mb-1">
+                                        <span class="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300" x-text="'#' + t.id"></span>
                                         <span class="px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
                                               :class="claseBadgePrioridad(t.prioridad)"
                                               x-text="etiquetaPrioridad(t.prioridad)"></span>
@@ -191,7 +200,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                         <span x-text="'Por ' + (t.levantado_por_nombre || 'usuario')"></span>
                                         · <span x-text="fechaRelativa(t.created_at)"></span>
-                                        <template x-if="t.asignado_a_nombre">
+                                        <template x-if="(t.responsables && t.responsables.length > 0) || t.asignado_a_nombre">
                                             <!-- SVG inline (no data-lucide): ver docs/contexto/errores-conocidos.md
                                                  — createIcons() rompe la referencia de Alpine y duplica el icono. -->
                                             <span> · <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 inline" viewBox="0 0 24 24"
@@ -199,7 +208,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                                                 <circle cx="9" cy="7" r="4"></circle>
                                                 <polyline points="16 11 18 13 22 9"></polyline>
-                                            </svg> <span x-text="t.asignado_a_nombre"></span></span>
+                                            </svg> <span x-text="formatearResponsables(t.responsables) || t.asignado_a_nombre"></span></span>
                                         </template>
                                     </p>
                                 </div>
@@ -215,6 +224,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                         <table class="w-full text-sm" data-tour="tk.tabla">
                             <thead class="bg-gray-50 dark:bg-gray-700/40">
                                 <tr>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">#</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Prioridad</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Estado</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400">Ticket</th>
@@ -229,6 +239,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     <tr class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 transition"
                                         :class="claseBordePrioridad(t.prioridad)"
                                         @click="abrirDetalle(t)">
+                                        <td class="px-3 py-3 whitespace-nowrap font-mono text-xs font-bold text-gray-600 dark:text-gray-300" x-text="'#' + t.id"></td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span class="px-2 py-0.5 rounded text-xs font-semibold"
                                                   :class="claseBadgePrioridad(t.prioridad)"
@@ -256,7 +267,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                 <span x-text="esperaTexto(t)"></span>
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400" x-text="t.asignado_a_nombre || '—'"></td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400" x-text="formatearResponsables(t.responsables) || t.asignado_a_nombre || '—'"></td>
                                         <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-500"
                                             :title="'Por ' + (t.levantado_por_nombre || 'usuario') + ' · ' + fechaCorta(t.created_at)">
                                             <span x-text="fechaRelativa(t.created_at)"></span>
@@ -282,6 +293,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                     <div class="flex items-start justify-between gap-2 mb-3">
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 flex-wrap mb-1">
+                                <span class="font-mono text-xs font-bold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300" x-text="'#' + detalle.ticket.id"></span>
                                 <span class="px-2 py-0.5 rounded text-xs font-semibold"
                                       :class="claseBadgePrioridad(detalle.ticket.prioridad)"
                                       x-text="etiquetaPrioridad(detalle.ticket.prioridad)"></span>
@@ -322,10 +334,33 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     <p class="text-gray-900 dark:text-gray-100" x-text="detalle.ticket.habitacion_numero + ' · ' + nombreHotelCorto(detalle.ticket.hotel_codigo)"></p>
                                 </div>
                             </template>
-                            <template x-if="detalle.ticket.asignado_a">
+                            <template x-if="(detalle.ticket.responsables && detalle.ticket.responsables.length > 0) || detalle.ticket.asignado_a">
                                 <div>
-                                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Asignado a</p>
-                                    <p class="text-gray-900 dark:text-gray-100" x-text="detalle.ticket.asignado_a_nombre || ('#' + detalle.ticket.asignado_a)"></p>
+                                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Responsables</p>
+                                    <div class="flex flex-wrap gap-1.5 mt-1">
+                                        <template x-if="detalle.ticket.responsables && detalle.ticket.responsables.length > 0">
+                                            <template x-for="r in detalle.ticket.responsables" :key="r.id">
+                                                <span class="badge-responsable">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                                        <circle cx="9" cy="7" r="4"></circle>
+                                                        <polyline points="16 11 18 13 22 9"></polyline>
+                                                    </svg>
+                                                    <span x-text="r.nombre"></span>
+                                                </span>
+                                            </template>
+                                        </template>
+                                        <template x-if="(!detalle.ticket.responsables || detalle.ticket.responsables.length === 0) && detalle.ticket.asignado_a">
+                                            <span class="badge-responsable">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                                    <circle cx="9" cy="7" r="4"></circle>
+                                                    <polyline points="16 11 18 13 22 9"></polyline>
+                                                </svg>
+                                                <span x-text="detalle.ticket.asignado_a_nombre || ('#' + detalle.ticket.asignado_a)"></span>
+                                            </span>
+                                        </template>
+                                    </div>
                                 </div>
                             </template>
                             <template x-if="detalle.ticket.resuelto_at">
@@ -379,7 +414,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                             Cambiar prioridad
                                         </button>
                                     </template>
-                                    <template x-if="detalle.ticket.estado === 'abierto' || detalle.ticket.estado === 'en_progreso'">
+                                    <template x-if="(puedeGestionar || puedeResolverAsignado) && (detalle.ticket.estado === 'abierto' || detalle.ticket.estado === 'en_progreso')">
                                         <button @click="cambiarEstado('resuelto')" :disabled="detalle.enviando"
                                                 class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white transition">
                                             Marcar resuelto
@@ -399,30 +434,78 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     </template>
                                 </div>
 
-                                <!-- Panel de asignar responsable -->
+                                <!-- Panel de asignar responsable (múltiple y por grupo) -->
                                 <template x-if="puedeGestionar && detalle.mostrarAsignar">
-                                    <div class="space-y-2">
-                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Asignar responsable</p>
-                                        <select x-model.number="detalle.asignarUsuarioId"
-                                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
-                                            <option :value="null">Selecciona una persona</option>
+                                    <div class="space-y-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide font-semibold">
+                                                Asignar responsables (<span x-text="detalle.asignarUsuarioIds.length"></span> seleccionados)
+                                            </p>
+                                            <button type="button" @click="limpiarResponsables()"
+                                                    x-show="detalle.asignarUsuarioIds.length > 0"
+                                                    class="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium">
+                                                Limpiar selección
+                                            </button>
+                                        </div>
+
+                                        <!-- Atajos rápidos de grupo (Supervisora, Trabajador) -->
+                                        <div class="flex flex-wrap items-center gap-1.5">
+                                            <span class="text-xs text-gray-500 dark:text-gray-400 mr-1">Atajos:</span>
+                                            <button type="button" @click="asignarGrupo('Supervisora')"
+                                                    :class="estaGrupoSeleccionado('Supervisora') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                                <span>+ Todas las Supervisoras</span>
+                                            </button>
+                                            <button type="button" @click="asignarGrupo('Trabajador')"
+                                                    :class="estaGrupoSeleccionado('Trabajador') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                                <span>+ Todos los Trabajadores</span>
+                                            </button>
+                                            <button type="button" @click="asignarGrupo('Mantenimiento')"
+                                                    :class="estaGrupoSeleccionado('Mantenimiento') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                                <span>+ Todo Mantenimiento</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Lista seleccionable con checkboxes agrupada por perfil -->
+                                        <div class="asignar-responsables-scroll border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
                                             <template x-for="g in gruposAsignables()" :key="g.perfil">
-                                                <optgroup :label="g.perfil">
-                                                    <template x-for="u in g.usuarios" :key="u.id">
-                                                        <option :value="u.id" x-text="u.nombre"></option>
-                                                    </template>
-                                                </optgroup>
+                                                <div class="p-2">
+                                                    <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-2 py-1" x-text="g.perfil"></p>
+                                                    <div class="space-y-0.5">
+                                                        <template x-for="u in g.usuarios" :key="u.id">
+                                                            <div @click="toggleResponsable(u.id)"
+                                                                 class="responsable-item"
+                                                                 :class="estaResponsableSeleccionado(u.id) ? 'seleccionado' : ''">
+                                                                <div class="flex items-center gap-2 min-w-0">
+                                                                    <input type="checkbox"
+                                                                           :checked="estaResponsableSeleccionado(u.id)"
+                                                                           class="rounded text-blue-600 focus:ring-blue-500 pointer-events-none">
+                                                                    <span class="text-sm text-gray-900 dark:text-gray-100 truncate" x-text="u.nombre"></span>
+                                                                </div>
+                                                                <span class="text-xs text-gray-400 dark:text-gray-500" x-text="u.perfil"></span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
                                             </template>
-                                        </select>
-                                        <div class="flex justify-end gap-2">
+                                        </div>
+
+                                        <template x-if="responsablesOcultos.length > 0">
+                                            <p class="text-xs text-gray-600 dark:text-gray-400">
+                                                Responsables que no aparecen en esta lista:
+                                                <span class="font-medium" x-text="responsablesOcultos.map(function (r) { return r.nombre; }).join(', ')"></span>.
+                                                Se mantienen al guardar si siguen activos; «Limpiar selección» los quita.
+                                            </p>
+                                        </template>
+
+                                        <div class="flex justify-end gap-2 pt-1">
                                             <button type="button" @click="detalle.mostrarAsignar = false"
                                                     class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
                                                 Cancelar
                                             </button>
-                                            <button type="button" @click="asignarResponsable()"
-                                                    :disabled="detalle.enviando || !detalle.asignarUsuarioId"
-                                                    class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
-                                                Asignar
+                                            <button type="button" @click="asignarResponsables()"
+                                                    :disabled="detalle.enviando || detalle.asignarUsuarioIds.length === 0"
+                                                    class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition inline-flex items-center gap-1.5">
+                                                <span x-text="'Guardar asignación (' + detalle.asignarUsuarioIds.length + ')'"></span>
                                             </button>
                                         </div>
                                     </div>
@@ -535,586 +618,3 @@ require_once __DIR__ . '/componentes/avatar.php';
     </div>
 </div>
 
-<script>
-function ticketsApp() {
-    return {
-        tickets: [],
-        total: 0,
-        cargando: false,
-        sinConexion: !navigator.onLine,
-        estado: localStorage.getItem('tickets_estado') || 'abierto',
-        hotel: localStorage.getItem('tickets_hotel') || 'ambos',
-        // null la primera vez (o si el valor guardado no es válido para el rol actual —
-        // localStorage no distingue quién inició sesión en un dispositivo compartido):
-        // el default por rol (mios / sin_asignar) se resuelve en cargar(), una vez que
-        // se sabe si el usuario gestiona (tickets.ver_todos) o no.
-        alcance: localStorage.getItem('tickets_alcance'),
-        _intervalId: null,
-
-        toast: { visible: false, tipo: 'exito', mensaje: '' },
-
-        detalle: { abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false, asignarUsuarioId: null },
-        cierreFotos: [], // [{ file, url }] — fotos opcionales al cerrar, máx. 3
-        usuariosAsignables: [], // cargados on-demand la primera vez que se abre el panel de asignar
-
-        // Sin chip "Resueltos" a propósito: "Cerrados" agrupa resuelto+cerrado (ver
-        // TicketService::listar()). El estado 'resuelto' sigue existiendo igual — solo
-        // no tiene un chip de filtro separado.
-        estadosFiltro: [
-            { valor: '', etiqueta: 'Todos' },
-            { valor: 'abierto', etiqueta: 'Abiertos' },
-            { valor: 'en_progreso', etiqueta: 'En progreso' },
-            { valor: 'cerrado', etiqueta: 'Cerrados' }
-        ],
-
-        hotelesFiltro: [
-            { valor: 'ambos', etiqueta: 'Ambos' },
-            { valor: '1_sur', etiqueta: 'Atankalama' },
-            { valor: 'inn', etiqueta: 'Atankalama INN' }
-        ],
-
-        // Trabajador (solo tickets.ver_propios): sus asignados vs. los que puede tomar.
-        alcanceFiltroPropio: [
-            { valor: 'mios', etiqueta: 'Asignados a mí' },
-            { valor: 'sin_asignar', etiqueta: 'Sin asignar' }
-        ],
-        // Quien gestiona (tickets.ver_todos — Supervisora/Recepción/Admin/Mantenimiento):
-        // por defecto los que nadie ha tomado, con "Asignados a mí" para roles que también
-        // ejecutan tickets (ej. Mantenimiento) y "Todos" para ver el histórico completo.
-        alcanceFiltroGestion: [
-            { valor: 'sin_asignar', etiqueta: 'Sin asignar' },
-            { valor: 'mios', etiqueta: 'Asignados a mí' },
-            { valor: 'todos', etiqueta: 'Todos' }
-        ],
-        get alcanceFiltro() {
-            return this.puedeVerTodos ? this.alcanceFiltroGestion : this.alcanceFiltroPropio;
-        },
-
-        get puedeCrear() {
-            return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.crear'));
-        },
-        get puedeVerTodos() {
-            return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.ver_todos'));
-        },
-        get puedeGestionar() {
-            return this.puedeVerTodos;
-        },
-        get puedeEditarPrioridad() {
-            return !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.editar_prioridad'));
-        },
-        get puedeResolverAsignado() {
-            var yo = Alpine.store('auth') && Alpine.store('auth').usuario;
-            return !!(yo && this.detalle.ticket && Number(this.detalle.ticket.asignado_a) === Number(yo.id));
-        },
-        // "Tomar": autoasignarse un ticket abierto y SIN dueño — "todos los tickets pueden ser
-        // tomados por cualquier persona". Quien gestiona también puede (además de reasignar).
-        get puedeTomar() {
-            if (!this.detalle.ticket || this.detalle.ticket.estado !== 'abierto') return false;
-            if (this.puedeGestionar) return true;
-            var tienePropios = !!(Alpine.store('auth') && Alpine.store('auth').tienePermiso && Alpine.store('auth').tienePermiso('tickets.ver_propios'));
-            return tienePropios && !this.detalle.ticket.asignado_a;
-        },
-
-        async cargar() {
-            this.cargando = true;
-            // puedeVerTodos depende de Alpine.store('auth'), que carga los permisos en
-            // paralelo (async) apenas arranca la página. Sin esto, la primera carga (el
-            // x-init de arriba) puede correr ANTES de que los permisos lleguen y el filtro
-            // por defecto (alcance/hotel) saldría mal solo la primera vez. Ver mismo patrón
-            // en auditoria-detalle.php.
-            var auth = Alpine.store('auth');
-            if (auth && !auth.cargado) {
-                await auth.cargar();
-            }
-            // Default de "alcance" según rol (mios / sin_asignar) — se resuelve acá porque
-            // depende de puedeVerTodos. Si lo guardado en localStorage no es válido para el
-            // rol actual (dispositivo compartido entre trabajador y supervisor, por ejemplo),
-            // se recalcula.
-            var alcancesValidos = this.alcanceFiltro.map(function (a) { return a.valor; });
-            if (alcancesValidos.indexOf(this.alcance) === -1) {
-                this.alcance = this.puedeVerTodos ? 'sin_asignar' : 'mios';
-                localStorage.setItem('tickets_alcance', this.alcance);
-            }
-            try {
-                var params = [];
-                if (this.estado) params.push('estado=' + encodeURIComponent(this.estado));
-                if (this.puedeVerTodos && this.hotel && this.hotel !== 'ambos') params.push('hotel=' + encodeURIComponent(this.hotel));
-                params.push('alcance=' + encodeURIComponent(this.alcance));
-                var url = '/api/tickets' + (params.length ? '?' + params.join('&') : '');
-                var r = await apiFetch(url);
-                if (r && r.ok) {
-                    this.tickets = r.data.tickets || [];
-                    this.total = r.data.total || 0;
-                }
-            } catch (e) {
-                // Silencioso — estado de error por toast si falla al actuar
-            } finally {
-                this.cargando = false;
-                this.$nextTick(function () { lucide.createIcons(); });
-            }
-        },
-
-        iniciarRefresco() {
-            var self = this;
-            this._intervalId = setInterval(function () { self.cargar(); }, 60000);
-            window.addEventListener('online', function () { self.sinConexion = false; self.cargar(); });
-            window.addEventListener('offline', function () { self.sinConexion = true; });
-        },
-
-        alVolverVisible() {
-            if (!document.hidden) this.cargar();
-        },
-
-        setEstado(valor) {
-            this.estado = valor;
-            localStorage.setItem('tickets_estado', valor);
-            this.cargar();
-        },
-
-        setHotel(valor) {
-            this.hotel = valor;
-            localStorage.setItem('tickets_hotel', valor);
-            this.cargar();
-        },
-
-        setAlcance(valor) {
-            this.alcance = valor;
-            localStorage.setItem('tickets_alcance', valor);
-            this.cargar();
-        },
-
-        onTicketCreado(ticket) {
-            var fallidas = (ticket && ticket._adjuntos_fallidos) || [];
-            if (fallidas.length > 0) {
-                this.mostrarToast('error', 'Ticket creado, pero ' + fallidas.length + ' foto(s) no se pudieron subir.');
-            } else {
-                this.mostrarToast('exito', 'Ticket creado. Gracias por reportar.');
-            }
-            this.cargar();
-        },
-
-        // Deep-link desde la notificación de un comentario (ver TicketService::comentar,
-        // url '/tickets?ticket={id}') — sin esto, la campanita solo llevaría a la lista
-        // genérica y la Supervisora tendría que buscar el ticket a mano.
-        async abrirDesdeUrl() {
-            var id = parseInt(new URLSearchParams(window.location.search).get('ticket'), 10);
-            if (!id) return;
-            var enLista = this.tickets.find(function (t) { return t.id === id; });
-            if (enLista) {
-                this.abrirDetalle(enLista);
-                return;
-            }
-            // No está en la página actual (los filtros activos no lo incluyen) — se pide suelto.
-            try {
-                var r = await apiFetch('/api/tickets/' + id);
-                if (r && r.ok) this.abrirDetalle(r.data.ticket);
-            } catch (e) {
-                // Deep-link no crítico: si falla, el usuario igual puede buscarlo a mano.
-            }
-        },
-
-        async abrirDetalle(t) {
-            this.detalle = {
-                abierto: true, ticket: t, enviando: false, mostrarCierre: false, mostrarAsignar: false,
-                asignarUsuarioId: null, mostrarPrioridad: false, prioridadNueva: null,
-                comentarios: [], comentarioNuevo: '', avisarSupervisora: false, enviandoComentario: false,
-            };
-            this.$nextTick(function () { lucide.createIcons(); });
-            // La fila de la lista no trae adjuntos (listar() no hace ese join) — se
-            // completan acá sin perder hotel_codigo/habitacion_numero/levantado_por_nombre
-            // que sí trae la lista y que obtener() no devuelve.
-            try {
-                var r = await apiFetch('/api/tickets/' + t.id);
-                if (r && r.ok && this.detalle.ticket && this.detalle.ticket.id === t.id) {
-                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, { adjuntos: r.data.adjuntos });
-                }
-            } catch (e) {
-                // Sin adjuntos no bloqueamos el detalle — se ve igual, solo sin fotos.
-            }
-            try {
-                var rc = await apiFetch('/api/tickets/' + t.id + '/comentarios');
-                if (rc && rc.ok && this.detalle.ticket && this.detalle.ticket.id === t.id) {
-                    this.detalle.comentarios = rc.data.comentarios || [];
-                }
-            } catch (e) {
-                // Sin comentarios no bloqueamos el detalle — se ve igual, solo sin historial.
-            }
-        },
-
-        cerrarDetalle() {
-            this.limpiarCierreFotos();
-            this.detalle = {
-                abierto: false, ticket: null, enviando: false, mostrarCierre: false, mostrarAsignar: false,
-                asignarUsuarioId: null, mostrarPrioridad: false, prioridadNueva: null,
-                comentarios: [], comentarioNuevo: '', avisarSupervisora: false, enviandoComentario: false,
-            };
-        },
-
-        async comentar() {
-            if (!this.detalle.ticket || !this.detalle.comentarioNuevo || this.detalle.enviandoComentario) return;
-            this.detalle.enviandoComentario = true;
-            try {
-                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/comentarios', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        comentario: this.detalle.comentarioNuevo,
-                        avisar_supervisora: this.detalle.avisarSupervisora,
-                    })
-                });
-                if (r && r.ok) {
-                    this.detalle.comentarios = r.data.comentarios || [];
-                    this.detalle.comentarioNuevo = '';
-                    this.detalle.avisarSupervisora = false;
-                    this.mostrarToast('exito', 'Comentario agregado.');
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos agregar el comentario.');
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviandoComentario = false;
-            }
-        },
-
-        async abrirAsignar() {
-            this.detalle.asignarUsuarioId = (this.detalle.ticket && this.detalle.ticket.asignado_a) || null;
-            this.detalle.mostrarAsignar = true;
-            if (this.usuariosAsignables.length === 0) {
-                try {
-                    var r = await apiFetch('/api/tickets/usuarios-asignables');
-                    if (r && r.ok) this.usuariosAsignables = r.data.usuarios || [];
-                } catch (e) {
-                    this.mostrarToast('error', 'No pudimos cargar la lista de personas.');
-                }
-            }
-        },
-
-        // Agrupa por perfil respetando la jerarquía y ordena alfabético dentro del grupo.
-        // localeCompare('es') para que los nombres con tilde queden donde corresponde.
-        // El servidor ya filtra a solo Trabajadores cuando quien asigna no tiene
-        // tickets.asignar_a_cualquier_perfil (ver TicketsController::usuariosAsignables).
-        gruposAsignables() {
-            var orden = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
-            var mapa = {};
-            this.usuariosAsignables.forEach(function (u) {
-                var p = u.perfil || 'Sin perfil';
-                (mapa[p] = mapa[p] || []).push(u);
-            });
-            // Perfiles fuera de la jerarquía (roles creados a mano en RBAC) van al final.
-            var extras = Object.keys(mapa).filter(function (p) { return orden.indexOf(p) === -1; })
-                                          .sort(function (a, b) { return a.localeCompare(b, 'es'); });
-            return orden.concat(extras).filter(function (p) { return mapa[p]; }).map(function (p) {
-                return {
-                    perfil: p,
-                    usuarios: mapa[p].sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es'); }),
-                };
-            });
-        },
-
-        async asignarResponsable() {
-            if (!this.detalle.ticket || !this.detalle.asignarUsuarioId || this.detalle.enviando) return;
-            this.detalle.enviando = true;
-            try {
-                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/asignar', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ usuario_id: this.detalle.asignarUsuarioId })
-                });
-                if (r && r.ok) {
-                    var nombre = (this.usuariosAsignables.find((u) => u.id === this.detalle.asignarUsuarioId) || {}).nombre;
-                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket, {
-                        asignado_a_nombre: nombre || this.detalle.ticket.asignado_a_nombre,
-                    });
-                    this.detalle.mostrarAsignar = false;
-                    this.mostrarToast('exito', 'Responsable asignado.');
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos asignar el responsable.');
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviando = false;
-            }
-        },
-
-        abrirPrioridad() {
-            this.detalle.prioridadNueva = this.detalle.ticket.prioridad;
-            this.detalle.mostrarPrioridad = true;
-        },
-
-        async guardarPrioridad() {
-            if (!this.detalle.ticket || !this.detalle.prioridadNueva || this.detalle.enviando) return;
-            this.detalle.enviando = true;
-            try {
-                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/prioridad', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prioridad: this.detalle.prioridadNueva })
-                });
-                if (r && r.ok) {
-                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket);
-                    this.detalle.mostrarPrioridad = false;
-                    this.mostrarToast('exito', 'Prioridad actualizada.');
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cambiar la prioridad.');
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviando = false;
-            }
-        },
-
-        urlAdjunto(ruta) {
-            return (window.BASE_PATH || '') + '/uploads/' + ruta;
-        },
-
-        async onCierreFotoSeleccionada(event) {
-            var espacio = 3 - this.cierreFotos.length;
-            var archivos = Array.from(event.target.files || []).slice(0, espacio);
-            event.target.value = '';
-            // Comprimir antes de mostrar/subir — ver comprimirFotoParaSubir() en app.js.
-            for (var i = 0; i < archivos.length; i++) {
-                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
-                this.cierreFotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
-            }
-        },
-
-        quitarCierreFoto(idx) {
-            URL.revokeObjectURL(this.cierreFotos[idx].url);
-            this.cierreFotos.splice(idx, 1);
-        },
-
-        limpiarCierreFotos() {
-            this.cierreFotos.forEach(function (f) { URL.revokeObjectURL(f.url); });
-            this.cierreFotos = [];
-        },
-
-        cancelarCierre() {
-            this.detalle.mostrarCierre = false;
-            this.limpiarCierreFotos();
-        },
-
-        async confirmarCierre() {
-            if (!this.detalle.ticket || this.detalle.enviando) return;
-            this.detalle.enviando = true;
-            try {
-                var datos = new FormData();
-                this.cierreFotos.forEach(function (f) { datos.append('fotos[]', f.file); });
-                var r = await apiPostForm('/api/tickets/' + this.detalle.ticket.id + '/cerrar', datos);
-                if (r && r.ok) {
-                    this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket, { adjuntos: r.data.adjuntos });
-                    this.detalle.mostrarCierre = false;
-                    this.limpiarCierreFotos();
-                    var fallidas = r.data.adjuntos_fallidos || [];
-                    this.mostrarToast(
-                        fallidas.length > 0 ? 'error' : 'exito',
-                        fallidas.length > 0 ? 'Ticket cerrado, pero ' + fallidas.length + ' foto(s) no se pudieron subir.' : 'Ticket cerrado.'
-                    );
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cerrar el ticket.');
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviando = false;
-            }
-        },
-
-        async tomar() {
-            if (!this.detalle.ticket || this.detalle.enviando) return;
-            var usuarioId = Alpine.store('auth') && Alpine.store('auth').usuario && Alpine.store('auth').usuario.id;
-            if (!usuarioId) return;
-            this.detalle.enviando = true;
-            try {
-                var rA = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/asignar', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ usuario_id: usuarioId })
-                });
-                if (!rA || !rA.ok) {
-                    this.mostrarToast('error', (rA && rA.error && rA.error.mensaje) || 'No pudimos tomar el ticket.');
-                    return;
-                }
-                await this.cambiarEstado('en_progreso');
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviando = false;
-            }
-        },
-
-        async cambiarEstado(nuevo) {
-            if (!this.detalle.ticket || this.detalle.enviando) return;
-            this.detalle.enviando = true;
-            try {
-                var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/estado', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ estado: nuevo })
-                });
-                if (r && r.ok) {
-                    this.detalle.ticket = { ...this.detalle.ticket, ...r.data.ticket };
-                    this.mostrarToast('exito', 'Ticket actualizado.');
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos actualizar.');
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-            } finally {
-                this.detalle.enviando = false;
-            }
-        },
-
-        mostrarToast(tipo, mensaje) {
-            this.toast = { visible: true, tipo: tipo, mensaje: mensaje };
-            var self = this;
-            setTimeout(function () { self.toast.visible = false; }, 2500);
-        },
-
-        // --- Helpers visuales ---
-
-        etiquetaAlcanceActual() {
-            var op = this.alcanceFiltro.find(function (a) { return a.valor === this.alcance; }, this);
-            return op ? op.etiqueta : '';
-        },
-
-        nombreHotelCorto(codigo) {
-            if (codigo === 'inn') return 'Atankalama INN';
-            if (codigo === '1_sur') return 'Atankalama';
-            return codigo || '';
-        },
-
-        etiquetaPrioridad(p) {
-            if (p === 'urgente') return 'Urgente';
-            if (p === 'alta') return 'Alta';
-            if (p === 'normal') return 'Normal';
-            return 'Baja';
-        },
-
-        etiquetaEstado(e) {
-            if (e === 'abierto') return 'Abierto';
-            if (e === 'en_progreso') return 'En progreso';
-            if (e === 'resuelto') return 'Resuelto';
-            return 'Cerrado';
-        },
-
-        claseBordePrioridad(p) {
-            if (p === 'urgente') return 'border-l-4 border-l-red-600';
-            if (p === 'alta') return 'border-l-4 border-l-amber-500';
-            if (p === 'normal') return 'border-l-4 border-l-blue-500';
-            return '';
-        },
-
-        claseBadgePrioridad(p) {
-            if (p === 'urgente') return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
-            if (p === 'alta') return 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300';
-            if (p === 'normal') return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
-            return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
-        },
-
-        claseBadgeEstado(e) {
-            if (e === 'abierto') return 'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300';
-            if (e === 'en_progreso') return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300';
-            if (e === 'resuelto') return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
-            return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
-        },
-
-        // Semáforo de espera: cuánto lleva el ticket sin resolverse (created_at → ahora).
-        // Un ticket resuelto/cerrado congela el reloj y se pinta verde. Umbrales de
-        // negocio en horas: 12 / 24 / 36.
-        estaTerminado(t) {
-            return !!t && (t.estado === 'resuelto' || t.estado === 'cerrado');
-        },
-
-        esperaMinutos(t) {
-            if (!t || !t.created_at) return null;
-            var inicio = new Date(t.created_at).getTime();
-            var fin = this.estaTerminado(t)
-                ? new Date(t.resuelto_at || t.updated_at || t.created_at).getTime()
-                : Date.now();
-            if (isNaN(inicio) || isNaN(fin)) return null;
-            return Math.max(0, Math.floor((fin - inicio) / 60000));
-        },
-
-        esperaTexto(t) {
-            var min = this.esperaMinutos(t);
-            if (min === null) return '';
-            if (min < 60) return min + ' min';
-            var hrs = Math.floor(min / 60);
-            if (hrs < 24) return hrs + ' h';
-            var dias = Math.floor(hrs / 24);
-            var resto = hrs % 24;
-            return dias + ' d' + (resto > 0 ? ' ' + resto + ' h' : '');
-        },
-
-        // 'verde' | 'azul' | 'amarillo' | 'naranjo' | 'rojo'
-        nivelEspera(t) {
-            if (this.estaTerminado(t)) return 'verde';
-            var min = this.esperaMinutos(t);
-            if (min === null) return 'azul';
-            var hrs = min / 60;
-            if (hrs < 12) return 'azul';
-            if (hrs < 24) return 'amarillo';
-            if (hrs < 36) return 'naranjo';
-            return 'rojo';
-        },
-
-        claseEsperaChip(t) {
-            var n = this.nivelEspera(t);
-            if (n === 'verde')    return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
-            if (n === 'amarillo') return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
-            if (n === 'naranjo')  return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
-            if (n === 'rojo')     return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
-            return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
-        },
-
-        claseEsperaPunto(t) {
-            var n = this.nivelEspera(t);
-            if (n === 'verde')    return 'bg-green-500';
-            if (n === 'amarillo') return 'bg-yellow-500';
-            if (n === 'naranjo')  return 'bg-orange-500';
-            if (n === 'rojo')     return 'bg-red-600';
-            return 'bg-blue-500';
-        },
-
-        tituloEspera(t) {
-            return this.estaTerminado(t)
-                ? 'Tiempo total hasta resolverse'
-                : 'Tiempo en espera desde que se reportó';
-        },
-
-        fechaCorta(iso) {
-            try {
-                var d = new Date(iso);
-                var dd = String(d.getDate()).padStart(2, '0');
-                var mm = String(d.getMonth() + 1).padStart(2, '0');
-                var yyyy = d.getFullYear();
-                var hh = String(d.getHours()).padStart(2, '0');
-                var mi = String(d.getMinutes()).padStart(2, '0');
-                return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + mi;
-            } catch (e) { return iso; }
-        },
-
-        fechaRelativa(iso) {
-            try {
-                var d = new Date(iso);
-                var diffMs = Date.now() - d.getTime();
-                var diffMin = Math.floor(diffMs / 60000);
-                if (diffMin < 1) return 'ahora';
-                if (diffMin < 60) return 'hace ' + diffMin + ' min';
-                var diffHr = Math.floor(diffMin / 60);
-                if (diffHr < 24) return 'hace ' + diffHr + ' h';
-                var diffD = Math.floor(diffHr / 24);
-                if (diffD < 7) return 'hace ' + diffD + ' d';
-                return this.fechaCorta(iso).slice(0, 10);
-            } catch (e) { return ''; }
-        }
-    };
-}
-</script>

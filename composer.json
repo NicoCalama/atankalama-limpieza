@@ -40,7 +40,7 @@
     "scripts": {
         "init-db": "php scripts/init-db.php",
         "test": "phpunit tests/",
-        "serve": "php -S localhost:8000 -t public/",
+        "serve": "php -S localhost:8000 -t public/ public/index.php",
         "lint-urls": "php scripts/lint-url-basepath.php",
         "lint-tokens": "php scripts/lint-prefix-tokens.php",
         "build-cpanel": "php scripts/build-cpanel-zip.php"

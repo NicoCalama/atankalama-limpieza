@@ -55,6 +55,25 @@
             </div>
         </div>
 
+        <template x-if="pendientes.length > 0">
+            <div class="relative mb-3 max-w-2xl mx-auto">
+                <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <input type="search" x-model="busqueda" placeholder="Buscar habitación..."
+                       aria-label="Buscar habitación"
+                       class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+            </div>
+        </template>
+
+        <template x-if="pendientes.length > 0 && pendientesFiltrados.length === 0">
+            <div class="max-w-2xl mx-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center">
+                <i data-lucide="search-x" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Sin resultados para "<span x-text="busqueda"></span>".</p>
+                <button @click="busqueda = ''" class="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                    Limpiar búsqueda
+                </button>
+            </div>
+        </template>
+
         <template x-if="cargando && pendientes.length === 0">
             <div class="min-h-[40vh] flex items-center justify-center">
                 <div class="flex flex-col items-center gap-3">
@@ -86,7 +105,7 @@
                 <div class="text-center max-w-xs">
                     <i data-lucide="check-circle" class="w-12 h-12 text-green-500 mx-auto mb-3"></i>
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Todo al día</h2>
-                    <p class="text-gray-600 dark:text-gray-400">No hay habitaciones pendientes de inspeccionar.</p>
+                    <p class="text-gray-600 dark:text-gray-400">No hay piezas pendientes de inspeccionar.</p>
                 </div>
             </div>
         </template>
@@ -101,6 +120,7 @@
                 <ul data-cola class="space-y-2">
                     <template x-for="hab in pendientes" :key="hab.id">
                         <li data-room-slot data-drag-room :data-room-id="hab.id" data-room-origin="worker" data-worker-id="0"
+                            x-show="coincideBusqueda(hab)"
                             @pointerdown="iniciarDrag($event)"
                             class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3 cursor-grab">
                             <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0"></i>
@@ -170,7 +190,21 @@ function auditoriaBandejaApp() {
         error: null,
         sinConexion: !navigator.onLine,
         hotel: localStorage.getItem('auditoria_hotel') || 'ambos',
+        busqueda: '',
         _intervalId: null,
+
+        // Filtro solo visual (x-show en cada <li>, ver el HTML): el x-for sigue recorriendo
+        // el array completo "pendientes" sin tocarlo, porque el motor de arrastre calcula
+        // índices sobre ese array — filtrarlo de verdad le rompería el reordenamiento.
+        coincideBusqueda(hab) {
+            var q = this.busqueda.trim().toLowerCase();
+            if (!q) return true;
+            return (hab.numero || '').toLowerCase().includes(q);
+        },
+        get pendientesFiltrados() {
+            var self = this;
+            return this.pendientes.filter(function (h) { return self.coincideBusqueda(h); });
+        },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos' },
@@ -220,7 +254,7 @@ function auditoriaBandejaApp() {
         subtitulo() {
             var total = this.pendientes.length;
             if (this.cargando && total === 0) return '';
-            return total === 1 ? '1 habitación pendiente' : total + ' habitaciones pendientes';
+            return total === 1 ? '1 pieza pendiente' : total + ' piezas pendientes';
         },
 
         hotelCorto(codigo) {

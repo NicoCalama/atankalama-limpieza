@@ -31,7 +31,7 @@ Tabla `tickets` (ver [database-schema.sql](database-schema.sql)):
 | `prioridad` | ENUM | `baja`, `normal`, `alta`, `urgente` |
 | `estado` | ENUM | `abierto`, `en_progreso`, `resuelto`, `cerrado` |
 | `levantado_por` | FK usuario | Quien creó el ticket |
-| `asignado_a` | FK usuario NULL | Quien se hará cargo |
+| `asignado_a` | FK usuario NULL | Responsable **principal** (compatibilidad). La lista completa vive en `tickets_asignados` |
 | `created_at`, `updated_at`, `resuelto_at` | TEXT | — |
 
 ---
@@ -90,8 +90,12 @@ Tool `crear_ticket(habitacion_id, titulo, descripcion, prioridad)` — mismo efe
 GET `/api/tickets?estado=abierto` — lista ordenada por prioridad desc + fecha asc.
 
 Acciones:
-- **Tomar** → `asignado_a = self`, estado `en_progreso`.
-- **Asignar a** → selector de usuario, estado `en_progreso`.
+- **Tomar** → solo en tickets sin responsable: se autoasigna y pasa a `en_progreso`.
+- **Asignar responsables** → uno o varios (o un grupo completo con los atajos). Reemplaza la lista
+  completa en `tickets_asignados`; `asignado_a` conserva al principal si sigue en la lista. Cualquiera
+  de los responsables puede pasar el ticket a `en_progreso` o `resuelto` (v6.5). Supervisora y
+  Recepción solo pueden **agregar** Trabajadores (`tickets.asignar_a_cualquier_perfil` es de Admin);
+  los responsables que ya estaban se conservan, y los que quedaron inactivos se quitan al guardar.
 - **Marcar resuelto** → estado `resuelto`, `resuelto_at = now`.
 - **Cerrar** → estado `cerrado` (solo si estaba resuelto).
 - **Reabrir** → estado `abierto` (revierte resuelto/cerrado).

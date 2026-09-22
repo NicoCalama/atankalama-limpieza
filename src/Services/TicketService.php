@@ -31,7 +31,7 @@ final class TicketService
         int $levantadoPor,
         ?int $habitacionId = null,
         ?string $idempotencyKey = null,
-        ?int $asignadoA = null,
+        int|array|null $asignadoA = null,
     ): Ticket {
         // Idempotencia (fase 1 del plan "eliminar No pudimos conectar con el servidor"):
         // el cliente genera un UUID por intento de envío y lo reusa en sus reintentos. Si
@@ -64,6 +64,13 @@ final class TicketService
             if ($hab === null) {
                 throw new TicketException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada en este hotel.', 404);
             }
+        }
+
+        // Validar responsables ANTES de insertar: si alguno no existe o está inactivo, asignar()
+        // fallaría después de crear el ticket (con su alerta y su audit) y cada reintento del
+        // usuario lo duplicaría.
+        if ($asignadoA !== null) {
+            $this->validarResponsables($asignadoA);
         }
 
         try {
@@ -120,10 +127,100 @@ final class TicketService
         return $this->obtenerOFallar($id);
     }
 
+    /**
+     * Normaliza los ids de responsables (enteros > 0, sin repetir) y exige que todos existan y
+     * estén activos. La usan asignar() y crear() — este último ANTES de insertar el ticket.
+     *
+     * @param int|list<int> $usuarios
+     * @return list<int>
+     */
+    private function validarResponsables(int|array $usuarios): array
+    {
+        $uids = $this->normalizarIds($usuarios);
+
+        if ($uids !== []) {
+            $placeholders = implode(',', array_fill(0, count($uids), '?'));
+            $encontrados = Database::fetchAll(
+                "SELECT id FROM #__usuarios WHERE id IN ({$placeholders}) AND activo = 1",
+                $uids
+            );
+            if (count($encontrados) !== count($uids)) {
+                throw new TicketException('USUARIO_NO_ENCONTRADO', 'Uno o más usuarios destino no fueron encontrados o están inactivos.', 404);
+            }
+        }
+        return $uids;
+    }
+
+    /**
+     * @param int|list<int> $usuarios
+     * @return list<int> enteros > 0, sin repetir, en el orden recibido
+     */
+    private function normalizarIds(int|array $usuarios): array
+    {
+        $uids = is_array($usuarios) ? $usuarios : [$usuarios];
+        return array_values(array_unique(array_filter(array_map('intval', $uids), static fn(int $id) => $id > 0)));
+    }
+
+    /**
+     * De estos ids, cuáles NO corresponden a un usuario activo (inactivos o inexistentes).
+     *
+     * @param list<int> $uids
+     * @return list<int>
+     */
+    private function idsInactivos(array $uids): array
+    {
+        if ($uids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($uids), '?'));
+        $activos = array_map(
+            static fn(array $r): int => (int) $r['id'],
+            Database::fetchAll("SELECT id FROM #__usuarios WHERE id IN ({$placeholders}) AND activo = 1", $uids)
+        );
+        return array_values(array_diff($uids, $activos));
+    }
+
     public function obtener(int $id): ?Ticket
     {
-        $fila = Database::fetchOne('SELECT * FROM #__tickets WHERE id = ?', [$id]);
-        return $fila === null ? null : Ticket::desdeFila($fila);
+        $fila = Database::fetchOne(
+            'SELECT t.*, ua.nombre AS asignado_a_nombre
+               FROM #__tickets t
+          LEFT JOIN #__usuarios ua ON ua.id = t.asignado_a
+              WHERE t.id = ?',
+            [$id]
+        );
+        if ($fila === null) {
+            return null;
+        }
+
+        $responsables = [];
+        try {
+            $asignados = Database::fetchAll(
+                'SELECT ta.usuario_id AS id, u.nombre
+                   FROM #__tickets_asignados ta
+                   JOIN #__usuarios u ON u.id = ta.usuario_id
+                  WHERE ta.ticket_id = ?
+               ORDER BY u.nombre ASC',
+                [$id]
+            );
+            // Solo id y nombre: el ticket lo ve también quien lo levantó (p. ej. un trabajador),
+            // y el email de los responsables no le hace falta a nadie en la UI.
+            $responsables = array_map(static fn(array $a): array => [
+                'id' => (int) $a['id'],
+                'nombre' => (string) $a['nombre'],
+            ], $asignados);
+        } catch (\Throwable) {
+            $responsables = [];
+        }
+
+        if (empty($responsables) && $fila['asignado_a'] !== null) {
+            $responsables = [[
+                'id' => (int) $fila['asignado_a'],
+                'nombre' => (string) ($fila['asignado_a_nombre'] ?? 'Responsable'),
+            ]];
+        }
+
+        return Ticket::desdeFila($fila, $responsables);
     }
 
     public function obtenerOFallar(int $id): Ticket
@@ -158,10 +255,7 @@ final class TicketService
         $estado = $filtros['estado'] ?? null;
         if (is_string($estado) && $estado !== '') {
             if ($estado === Ticket::ESTADO_CERRADO) {
-                // El chip "Cerrados" de la UI agrupa resuelto+cerrado (no hay chip
-                // "Resueltos" separado desde esta versión — ver estadosFiltro en
-                // tickets.php). Un query explícito por 'resuelto' —como el que arma el
-                // Copilot— sigue funcionando exacto, sin este agrupamiento.
+                // El chip "Cerrados" de la UI agrupa resuelto+cerrado
                 $sql .= ' AND t.estado IN (?, ?)';
                 $params[] = Ticket::ESTADO_RESUELTO;
                 $params[] = Ticket::ESTADO_CERRADO;
@@ -175,53 +269,168 @@ final class TicketService
             $sql .= ' AND t.levantado_por = ?';
             $params[] = $levantadoPor;
         }
-        // "Mis tickets" (permiso tickets.ver_propios, ver TicketsController::listar): son los
-        // ASIGNADOS a mí, no los que yo creé — decisión explícita, ver conversación de soporte.
+        // "Mis tickets": asignados a mí (soporta asignado_a y tickets_asignados)
         $asignadoA = $filtros['asignado_a'] ?? null;
         if (is_int($asignadoA)) {
-            $sql .= ' AND t.asignado_a = ?';
+            $sql .= ' AND (t.asignado_a = ? OR EXISTS (SELECT 1 FROM #__tickets_asignados ta WHERE ta.ticket_id = t.id AND ta.usuario_id = ?))';
+            $params[] = $asignadoA;
             $params[] = $asignadoA;
         }
-        // Complemento de asignado_a: los que TODAVÍA no tiene nadie — "todos los tickets
-        // pueden ser tomados por cualquier persona". Es el filtro "Sin asignar" en la UI,
-        // hermano de "Asignado a mí" (que usa asignado_a arriba). Ver TicketsController::listar.
+        // Complemento de asignado_a: los que todavía no tiene nadie
         if (($filtros['sin_asignar'] ?? false) === true) {
-            $sql .= ' AND t.asignado_a IS NULL';
+            $sql .= ' AND t.asignado_a IS NULL AND NOT EXISTS (SELECT 1 FROM #__tickets_asignados ta WHERE ta.ticket_id = t.id)';
         }
-        $sql .= ' ORDER BY t.prioridad DESC, t.created_at DESC';
-        return Database::fetchAll($sql, $params);
+        // prioridad es VARCHAR ('baja'|'normal'|'alta'|'urgente'): un ORDER BY alfabético
+        // dejaba 'alta' al final (después de 'baja'), no segunda tras 'urgente'. El CASE
+        // fuerza el orden real de severidad.
+        $sql .= " ORDER BY CASE t.prioridad
+                      WHEN 'urgente' THEN 4
+                      WHEN 'alta' THEN 3
+                      WHEN 'normal' THEN 2
+                      ELSE 1
+                  END DESC, t.created_at DESC";
+        $filas = Database::fetchAll($sql, $params);
+        if ($filas === []) {
+            return [];
+        }
+
+        // Cargar responsables múltiples en lote (batch) para evitar N+1
+        $ticketIds = array_column($filas, 'id');
+        $placeholders = implode(',', array_fill(0, count($ticketIds), '?'));
+        $porTicket = [];
+        try {
+            $asignados = Database::fetchAll(
+                "SELECT ta.ticket_id, ta.usuario_id, u.nombre
+                   FROM #__tickets_asignados ta
+                   JOIN #__usuarios u ON u.id = ta.usuario_id
+                  WHERE ta.ticket_id IN ({$placeholders})
+               ORDER BY u.nombre ASC",
+                $ticketIds
+            );
+            foreach ($asignados as $a) {
+                $porTicket[(int) $a['ticket_id']][] = [
+                    'id' => (int) $a['usuario_id'],
+                    'nombre' => (string) $a['nombre'],
+                ];
+            }
+        } catch (\Throwable) {
+            $porTicket = [];
+        }
+
+        foreach ($filas as &$f) {
+            $tid = (int) $f['id'];
+            $f['responsables'] = $porTicket[$tid] ?? (
+                $f['asignado_a'] !== null ? [[
+                    'id' => (int) $f['asignado_a'],
+                    'nombre' => (string) ($f['asignado_a_nombre'] ?? 'Responsable'),
+                ]] : []
+            );
+        }
+        unset($f);
+
+        return $filas;
     }
 
-    public function asignar(int $ticketId, int $usuarioId, int $asignadoPor): Ticket
+    /**
+     * Asigna uno o múltiples responsables a un ticket.
+     * Soporta: int $usuarioId | list<int> $usuarioIds.
+     *
+     * @param int $ticketId
+     * @param int|list<int> $usuarios
+     * @param int $asignadoPor
+     */
+    public function asignar(int $ticketId, int|array $usuarios, int $asignadoPor): Ticket
     {
         $ticket = $this->obtenerOFallar($ticketId);
         if ($ticket->estado === Ticket::ESTADO_CERRADO) {
             throw new TicketException('TICKET_CERRADO', 'No se puede modificar un ticket cerrado.', 409);
         }
-        $u = Database::fetchOne('SELECT id FROM #__usuarios WHERE id = ? AND activo = 1', [$usuarioId]);
-        if ($u === null) {
-            throw new TicketException('USUARIO_NO_ENCONTRADO', 'Usuario destino no encontrado o inactivo.', 404);
+
+        // Responsables actuales (tickets_asignados; asignado_a cubre tickets asignados antes de
+        // la tabla). Sirven para validar solo a los que se agregan y para avisar solo a los nuevos.
+        $actuales = Database::fetchAll(
+            'SELECT usuario_id FROM #__tickets_asignados WHERE ticket_id = ?',
+            [$ticketId]
+        );
+        $idsActuales = array_map(static fn(array $r): int => (int) $r['usuario_id'], $actuales);
+        if ($ticket->asignadoA !== null && !in_array($ticket->asignadoA, $idsActuales, true)) {
+            $idsActuales[] = $ticket->asignadoA;
         }
-        // asignado_at solo se resetea cuando el destinatario CAMBIA de verdad — reasignar al
-        // mismo usuario (ej. re-click de "Tomar") no debe reiniciar el cronómetro que después
-        // alimenta el reporte de tiempo de resolución (asignado_at → resuelto_at).
-        if ($ticket->asignadoA === $usuarioId) {
-            Database::execute(
-                "UPDATE #__tickets SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                [$ticketId]
-            );
-        } else {
-            Database::execute(
-                "UPDATE #__tickets
-                    SET asignado_a = ?, asignado_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-                        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-                  WHERE id = ?",
-                [$usuarioId, $ticketId]
-            );
+
+        // La lista que llega es la COMPLETA nueva. Los que se AGREGAN deben existir y estar
+        // activos. Los que ya eran responsables y hoy están inactivos se sacan sin error: no
+        // pueden trabajar el ticket, y la UI no los muestra, así que nadie podría desmarcarlos.
+        $uids = $this->normalizarIds($usuarios);
+        $this->validarResponsables(array_values(array_diff($uids, $idsActuales)));
+        $inactivos = $this->idsInactivos(array_values(array_intersect($uids, $idsActuales)));
+        $uids = array_values(array_diff($uids, $inactivos));
+
+        // asignado_a guarda un responsable "principal" (compatibilidad: reportes y código que
+        // leen una sola columna). Si el principal actual sigue en la lista se conserva, para que
+        // agregar o quitar co-responsables no lo cambie en silencio ni reinicie asignado_at
+        // (la lista llega ordenada por nombre desde la UI, así que "el primero" no es estable).
+        $primerId = ($ticket->asignadoA !== null && in_array($ticket->asignadoA, $uids, true))
+            ? $ticket->asignadoA
+            : ($uids[0] ?? null);
+        $cambioPrincipal = $primerId !== $ticket->asignadoA;
+
+        // Reemplazo atómico: si algo falla a mitad, el ticket no queda sin responsables ni con
+        // la lista a medias.
+        Database::transaction(function () use ($ticketId, $uids, $asignadoPor, $primerId, $cambioPrincipal): void {
+            Database::execute('DELETE FROM #__tickets_asignados WHERE ticket_id = ?', [$ticketId]);
+            foreach ($uids as $uid) {
+                Database::execute(
+                    "INSERT INTO #__tickets_asignados (ticket_id, usuario_id, asignado_por, created_at)
+                     VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                    [$ticketId, $uid, $asignadoPor]
+                );
+            }
+            if ($cambioPrincipal) {
+                Database::execute(
+                    "UPDATE #__tickets
+                        SET asignado_a = ?,
+                            asignado_at = " . ($primerId !== null ? "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')" : "NULL") . ",
+                            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                      WHERE id = ?",
+                    [$primerId, $ticketId]
+                );
+            } else {
+                Database::execute(
+                    "UPDATE #__tickets
+                        SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                      WHERE id = ?",
+                    [$ticketId]
+                );
+            }
+        });
+
+        Logger::audit($asignadoPor, 'ticket.asignar', 'ticket', $ticketId, ['asignados' => $uids]);
+
+        // Notificar por Push / Campanita a los nuevos asignados (excepto autoasignación)
+        $nuevosParaNotificar = array_diff($uids, $idsActuales, [$asignadoPor]);
+        if ($nuevosParaNotificar !== []) {
+            // La asignación ya quedó guardada: si el aviso falla, se registra y se sigue (un 500
+            // acá haría reintentar al usuario, y en crear() eso duplicaba el ticket).
+            try {
+                $this->push->notificar(
+                    array_values(array_map('intval', $nuevosParaNotificar)),
+                    'Ticket asignado',
+                    "Se te ha asignado el ticket: {$ticket->titulo}",
+                    '/tickets?ticket=' . $ticketId,
+                    [],
+                    false,
+                    'ticket_asignado'
+                );
+            } catch (\Throwable $e) {
+                Logger::warning('tickets', 'No se pudo avisar la asignación del ticket', [
+                    'ticket_id' => $ticketId, 'error' => $e->getMessage(),
+                ]);
+            }
         }
-        Logger::audit($asignadoPor, 'ticket.asignar', 'ticket', $ticketId, ['asignado_a' => $usuarioId]);
+
         return $this->obtenerOFallar($ticketId);
     }
+
 
     public function cambiarEstado(int $ticketId, string $nuevoEstado, int $usuarioId): Ticket
     {
@@ -409,9 +618,32 @@ final class TicketService
                 // Rol propio creado en RBAC, fuera de la jerarquía fija de arriba.
                 $perfil = $u['roles'][0];
             }
-            $resultado[] = ['id' => $u['id'], 'nombre' => $u['nombre'], 'perfil' => $perfil];
+            $resultado[] = [
+                'id' => $u['id'],
+                'nombre' => $u['nombre'],
+                'perfil' => $perfil,
+                'roles' => $u['roles'],
+            ];
         }
         return $resultado;
+    }
+
+    /**
+     * Obtiene los IDs de usuarios activos asignados a un rol determinado por su nombre.
+     *
+     * @return list<int>
+     */
+    public function obtenerIdsPorRol(string $nombreRol): array
+    {
+        $filas = Database::fetchAll(
+            'SELECT DISTINCT u.id
+               FROM #__usuarios u
+               JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+               JOIN #__roles r ON r.id = ur.rol_id
+              WHERE LOWER(r.nombre) = LOWER(?) AND u.activo = 1',
+            [trim($nombreRol)]
+        );
+        return array_map(static fn(array $f): int => (int) $f['id'], $filas);
     }
 
     /** @return list<array<string, mixed>> */

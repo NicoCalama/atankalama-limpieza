@@ -1027,13 +1027,10 @@ final class ChecklistService
             [$ejecucionId]
         );
 
-        // Áreas comunes no pasan por auditoría: se auto-cierran (en_progreso → aprobada = "listo").
-        // Las piezas de huésped quedan pendientes de auditoría. Ver docs/areas-comunes.md
+        // Áreas comunes pasan por la misma auditoría que las piezas de huésped —
+        // ver docs/areas-comunes.md (antes se auto-cerraban directo a aprobada).
         $esEspacio = $habitacion !== null && $habitacion->esEspacioComun;
-        $estadoDestino = $esEspacio
-            ? Habitacion::ESTADO_APROBADA
-            : Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA;
-        $this->habitaciones->cambiarEstado($ejec->habitacionId, $estadoDestino, $usuarioId, 'ui');
+        $this->habitaciones->cambiarEstado($ejec->habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $usuarioId, 'ui');
 
         // La nota de Recepción es para "la próxima limpieza": una vez completada, ya cumplió
         // su propósito. Se limpia acá (no en el veredicto de auditoría) porque el trabajador

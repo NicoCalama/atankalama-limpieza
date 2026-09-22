@@ -230,6 +230,12 @@ final class AuditoriaService
      * piezas nunca tocadas a mano (auditoria_orden NULL) caen después, ordenadas entre
      * sí por la regla automática. Ver docs/auditoria.md.
      *
+     * Incluye áreas comunes: desde v6.2 también pasan por inspección (ver
+     * docs/areas-comunes.md). Una fila por pieza: se une solo la ejecución completada MÁS
+     * RECIENTE (el mismo criterio de emitirVeredicto() y del detalle). Las áreas arrastran
+     * ejecuciones 'completada' de cuando se cerraban solas, y unirlas todas duplicaba la
+     * pieza en la bandeja, en el home de Recepción y en el cierre de día de las 23:55.
+     *
      * @return list<array<string, mixed>>
      */
     public function bandejaPendientes(?string $hotelCodigo = null): array
@@ -242,10 +248,10 @@ final class AuditoriaService
                   JOIN #__hoteles ho ON ho.id = h.hotel_id
                   JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
              LEFT JOIN #__ejecuciones_checklist ec
-                    ON ec.habitacion_id = h.id AND ec.estado = 'completada'
+                    ON ec.id = (SELECT MAX(ec2.id) FROM #__ejecuciones_checklist ec2
+                                 WHERE ec2.habitacion_id = h.id AND ec2.estado = 'completada')
                  WHERE h.estado = 'completada_pendiente_auditoria'
-                   AND h.activa = 1
-                   AND h.es_espacio_comun = 0";
+                   AND h.activa = 1";
         $params = [];
         if ($hotelCodigo !== null && $hotelCodigo !== 'ambos') {
             $sql .= ' AND ho.codigo = ?';

@@ -9,12 +9,12 @@ final class PasswordService
     private const CHARSET_SIN_AMBIGUOS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
     private const LONGITUD_TEMPORAL = 8;
 
-    public function hash(string $password): string
+    public function hash(#[\SensitiveParameter] string $password): string
     {
         return password_hash($password, PASSWORD_BCRYPT);
     }
 
-    public function verificar(string $password, string $hash): bool
+    public function verificar(#[\SensitiveParameter] string $password, string $hash): bool
     {
         return password_verify($password, $hash);
     }
@@ -36,7 +36,7 @@ final class PasswordService
         return $resultado;
     }
 
-    public function validarFortaleza(string $password): bool
+    public function validarFortaleza(#[\SensitiveParameter] string $password): bool
     {
         if (strlen($password) < 8) {
             return false;

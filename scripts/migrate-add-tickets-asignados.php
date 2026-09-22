@@ -3,13 +3,8 @@
 declare(strict_types=1);
 
 /**
- * Migración: agrega la tabla tickets_comentarios (historial de comentarios de un ticket)
- * a una BD existente.
- *
- * Historial solo-append: sin edición ni borrado. `avisado` queda en 1 cuando al enviar el
- * comentario se disparó una notificación a la Supervisora (ver TicketService::comentar()).
- * En installs frescos la tabla la crea init-db.php desde los schemas; este script la agrega
- * a BDs ya creadas.
+ * Migración: agrega la tabla tickets_asignados (asignación múltiple y por grupos a tickets)
+ * a una BD existente y migra los asignados previos (asignado_a).
  *
  * Portable (SQLite dev + MariaDB prod) e idempotente: seguro de correr múltiples veces.
  */
@@ -30,40 +25,52 @@ Config::load(dirname(__DIR__));
 $driver    = Database::driver();
 $esMaria   = $driver === 'mysql' || $driver === 'mariadb';
 $pdo       = Database::pdo();
-$tabla     = Database::tabla('tickets_comentarios');
+$tabla     = Database::tabla('tickets_asignados');
 $tTickets  = Database::tabla('tickets');
 $tUsuarios = Database::tabla('usuarios');
 
 if ($esMaria) {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS {$tabla} (
-            id               INT AUTO_INCREMENT PRIMARY KEY,
             ticket_id        INT NOT NULL,
             usuario_id       INT NOT NULL,
-            comentario       TEXT NOT NULL,
-            avisado          TINYINT NOT NULL DEFAULT 0,
+            asignado_por     INT NOT NULL,
             created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+            PRIMARY KEY (ticket_id, usuario_id),
             FOREIGN KEY (ticket_id) REFERENCES {$tTickets}(id) ON DELETE CASCADE,
-            FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT
+            FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE CASCADE,
+            FOREIGN KEY (asignado_por) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 } else {
-    // FK con el MISMO prefijo que tickets/usuarios (en dev el prefijo es '', pero no
-    // hardcodear 'tickets'/'usuarios' por si algún día hay prefijo en SQLite).
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS {$tabla} (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
             ticket_id        INTEGER NOT NULL,
             usuario_id       INTEGER NOT NULL,
-            comentario       TEXT NOT NULL,
-            avisado          INTEGER NOT NULL DEFAULT 0,
+            asignado_por     INTEGER NOT NULL,
             created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            PRIMARY KEY (ticket_id, usuario_id),
             FOREIGN KEY (ticket_id) REFERENCES {$tTickets}(id) ON DELETE CASCADE,
-            FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT
+            FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE CASCADE,
+            FOREIGN KEY (asignado_por) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT
         )"
     );
 }
 echo "Tabla {$tabla} lista.\n";
 
-$pdo->exec("CREATE INDEX IF NOT EXISTS idx_tickets_comentarios_ticket ON {$tabla}(ticket_id)");
+$pdo->exec("CREATE INDEX IF NOT EXISTS idx_tickets_asignados_usuario ON {$tabla}(usuario_id)");
+
+// Migrar asignaciones existentes de forma idempotente
+$insertSql = $esMaria
+    ? "INSERT IGNORE INTO {$tabla} (ticket_id, usuario_id, asignado_por, created_at)
+       SELECT id, asignado_a, levantado_por, COALESCE(asignado_at, created_at)
+         FROM {$tTickets}
+        WHERE asignado_a IS NOT NULL"
+    : "INSERT OR IGNORE INTO {$tabla} (ticket_id, usuario_id, asignado_por, created_at)
+       SELECT id, asignado_a, levantado_por, COALESCE(asignado_at, created_at)
+         FROM {$tTickets}
+        WHERE asignado_a IS NOT NULL";
+
+$pdo->exec($insertSql);
+echo "Asignaciones previas migradas a {$tabla}.\n";
 echo "Migración completa.\n";

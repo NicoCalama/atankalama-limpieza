@@ -25,6 +25,12 @@ declare(strict_types=1);
  *   php scripts/migrate-estado-aprobada-automatica.php
  */
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;

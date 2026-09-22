@@ -17,7 +17,12 @@ $ticketPuedeAsignar = $usuario->tienePermiso('tickets.ver_todos');
 // Elegir la prioridad al crear (en vez de nacer siempre en 'normal') exige el mismo
 // permiso que después permite cambiarla — ver TicketsController::crear() y ::cambiarPrioridad().
 $ticketPuedeEditarPrioridad = $usuario->tienePermiso('tickets.editar_prioridad');
+
+$modalTicketNuevoJsFile = __DIR__ . '/../recursos/componentes/modal-ticket-nuevo.js';
+$modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
 ?>
+<script src="<?= u('/views/recursos/componentes/modal-ticket-nuevo.js') ?>?v=<?= $modalTicketNuevoJsV ?>"></script>
+
 <div x-data="modalTicketNuevo(<?= $ticketPuedeAsignar ? 'true' : 'false' ?>, <?= $ticketPuedeEditarPrioridad ? 'true' : 'false' ?>)"
      @abrir-modal-ticket.window="abrir($event.detail || {})">
 
@@ -127,17 +132,58 @@ $ticketPuedeEditarPrioridad = $usuario->tienePermiso('tickets.editar_prioridad')
                     </div>
                 </template>
 
-                <!-- Asignar a (opcional, solo Admin/Supervisor — tickets.ver_todos) -->
+                <!-- Asignar a (opcional, solo Admin/Supervisor — tickets.ver_todos). Mismo patrón
+                     (agrupado por perfil, alfabético, atajos de grupo completo) que el panel de
+                     "Asignar responsable" de un ticket ya creado, ver tickets.php. -->
                 <template x-if="puedeAsignar">
                     <div>
-                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Asignar a (opcional)</label>
-                        <select x-model.number="form.asignado_a"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
-                            <option :value="null">Sin asignar</option>
-                            <template x-for="u in usuariosAsignables" :key="u.id">
-                                <option :value="u.id" x-text="u.nombre"></option>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Asignar a (opcional, <span x-text="form.asignadoIds.length"></span> seleccionados)
+                            </label>
+                            <button type="button" @click="limpiarResponsables()"
+                                    x-show="form.asignadoIds.length > 0"
+                                    class="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium">
+                                Limpiar selección
+                            </button>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
+                            <button type="button" @click="asignarGrupo('Supervisora')"
+                                    :class="estaGrupoSeleccionado('Supervisora') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                <span>+ Todas las Supervisoras</span>
+                            </button>
+                            <button type="button" @click="asignarGrupo('Trabajador')"
+                                    :class="estaGrupoSeleccionado('Trabajador') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                <span>+ Todos los Trabajadores</span>
+                            </button>
+                            <button type="button" @click="asignarGrupo('Mantenimiento')"
+                                    :class="estaGrupoSeleccionado('Mantenimiento') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                <span>+ Todo Mantenimiento</span>
+                            </button>
+                        </div>
+
+                        <div class="asignar-responsables-scroll border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                            <template x-for="g in gruposAsignables()" :key="g.perfil">
+                                <div class="p-2">
+                                    <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-2 py-1" x-text="g.perfil"></p>
+                                    <div class="space-y-0.5">
+                                        <template x-for="u in g.usuarios" :key="u.id">
+                                            <div @click="toggleResponsable(u.id)"
+                                                 class="responsable-item"
+                                                 :class="estaResponsableSeleccionado(u.id) ? 'seleccionado' : ''">
+                                                <div class="flex items-center gap-2 min-w-0">
+                                                    <input type="checkbox"
+                                                           :checked="estaResponsableSeleccionado(u.id)"
+                                                           class="rounded text-blue-600 focus:ring-blue-500 pointer-events-none">
+                                                    <span class="text-sm text-gray-900 dark:text-gray-100 truncate" x-text="u.nombre"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
                             </template>
-                        </select>
+                        </div>
                     </div>
                 </template>
 
@@ -197,248 +243,3 @@ $ticketPuedeEditarPrioridad = $usuario->tienePermiso('tickets.editar_prioridad')
     </div>
 </div>
 
-<script>
-function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
-    return {
-        abierto: false,
-        enviando: false,
-        error: null,
-        puedeAsignar: puedeAsignar,
-        puedeEditarPrioridad: puedeEditarPrioridad,
-        hoteles: [],
-        habitaciones: [],
-        usuariosAsignables: [], // cargados on-demand, solo si puedeAsignar
-        _datosCargados: false,
-        busquedaHabitacion: '',
-        abrirBuscador: false,
-        habitacionSeleccionadaNumero: null,
-        fotos: [], // [{ file, url }] — máx. 3, el server vuelve a validar igual
-        form: {
-            hotel_id: null,
-            habitacion_id: null,
-            descripcion: '',
-            asignado_a: null,
-            prioridad: 'normal',
-        },
-
-        // Dictado por voz de la descripción (Web Speech API) — mismo patrón que
-        // auditoria-detalle.php (comentario de observación/rechazo).
-        grabando: false,
-        reconocimiento: null,
-        dictadoReinicios: 0,
-
-        get soportaDictado() {
-            return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-        },
-
-        async abrir(detail) {
-            this.reset();
-            this.abierto = true;
-            await this.asegurarDatos();
-            if (detail && detail.habitacionId) {
-                var hab = this.habitaciones.find(h => h.id === detail.habitacionId);
-                if (hab) this.seleccionarHabitacion(hab);
-                else this.form.habitacion_id = detail.habitacionId;
-            }
-            if (detail && detail.hotelCodigo) {
-                var h = this.hoteles.find(x => x.codigo === detail.hotelCodigo);
-                if (h) this.form.hotel_id = h.id;
-            }
-            this.$nextTick(function () { lucide.createIcons(); });
-        },
-
-        cerrar() {
-            this.detenerDictado();
-            this.abierto = false;
-            this.abrirBuscador = false;
-            this.limpiarFotos();
-        },
-
-        // Dicta la descripción por voz. El texto reconocido se agrega al que ya haya
-        // (no lo reemplaza), para poder mezclar teclado y voz. Ver auditoria-detalle.php,
-        // mismo patrón (reinicio automático en Safari/iOS, tope de seguridad, permisos).
-        toggleDictado() {
-            if (this.grabando) {
-                this.detenerDictado();
-                return;
-            }
-            if (!this.soportaDictado) return;
-
-            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            var reco = new SpeechRecognition();
-            var self = this;
-            reco.lang = 'es-CL';
-            reco.continuous = true;
-            reco.interimResults = false;
-
-            reco.onresult = function (event) {
-                var textoNuevo = '';
-                for (var i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        textoNuevo += event.results[i][0].transcript;
-                    }
-                }
-                textoNuevo = textoNuevo.trim();
-                if (textoNuevo === '') return;
-                self.dictadoReinicios = 0; // hubo voz real: el contador de seguridad se reinicia
-                var actual = self.form.descripcion.trim();
-                self.form.descripcion = (actual === '' ? textoNuevo : actual + ' ' + textoNuevo).slice(0, 500);
-            };
-
-            reco.onerror = function (event) {
-                // 'no-speech' (pausa) y 'aborted' (nuestro propio stop) son normales:
-                // no cortan el dictado, los maneja onend.
-                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                    self.grabando = false;
-                    self.error = 'Permiso de micrófono denegado.';
-                } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                    self.grabando = false;
-                    self.error = 'No pudimos usar el micrófono.';
-                }
-            };
-
-            reco.onend = function () {
-                // Safari/iOS ignora continuous y corta al primer silencio. Mientras no se
-                // toque "detener", reanudamos para poder hacer pausas y seguir hablando.
-                if (!self.grabando) return;
-                if (self.dictadoReinicios >= 30) { self.grabando = false; return; } // tope: micrófono en silencio
-                self.dictadoReinicios++;
-                setTimeout(function () {
-                    if (!self.grabando) return;
-                    try { reco.start(); } catch (e) { self.grabando = false; }
-                }, 250);
-            };
-
-            this.reconocimiento = reco;
-            this.dictadoReinicios = 0;
-            this.grabando = true;
-            reco.start();
-        },
-
-        detenerDictado() {
-            this.grabando = false;
-            this.dictadoReinicios = 0;
-            if (this.reconocimiento) {
-                try { this.reconocimiento.stop(); } catch (e) {}
-            }
-        },
-
-        reset() {
-            this.form = { hotel_id: null, habitacion_id: null, descripcion: '', asignado_a: null, prioridad: 'normal' };
-            this.error = null;
-            this.enviando = false;
-            this.busquedaHabitacion = '';
-            this.abrirBuscador = false;
-            this.habitacionSeleccionadaNumero = null;
-            this.limpiarFotos();
-        },
-
-        async onFotosSeleccionadas(event) {
-            var espacio = 3 - this.fotos.length;
-            var archivos = Array.from(event.target.files || []).slice(0, espacio);
-            event.target.value = ''; // permite volver a elegir el mismo archivo si se saca y se agrega de nuevo
-            // Comprimir antes de mostrar/subir — ver comprimirFotoParaSubir() en app.js.
-            for (var i = 0; i < archivos.length; i++) {
-                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
-                this.fotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
-            }
-        },
-
-        quitarFoto(idx) {
-            URL.revokeObjectURL(this.fotos[idx].url);
-            this.fotos.splice(idx, 1);
-        },
-
-        limpiarFotos() {
-            this.fotos.forEach(function (f) { URL.revokeObjectURL(f.url); });
-            this.fotos = [];
-        },
-
-        async asegurarDatos() {
-            if (this._datosCargados) return;
-            try {
-                var rh = await apiFetch('/api/hoteles');
-                if (rh && rh.ok) this.hoteles = rh.data.hoteles || [];
-                var rhab = await apiFetch('/api/habitaciones');
-                if (rhab && rhab.ok) this.habitaciones = rhab.data.habitaciones || [];
-                if (this.puedeAsignar) {
-                    var ru = await apiFetch('/api/tickets/usuarios-asignables');
-                    if (ru && ru.ok) this.usuariosAsignables = ru.data.usuarios || [];
-                }
-                this._datosCargados = true;
-            } catch (e) {
-                // Sin datos no bloqueamos: user puede elegir hotel manualmente si se cargó
-            }
-        },
-
-        habitacionesFiltradas() {
-            var q = (this.busquedaHabitacion || '').trim().toLowerCase();
-            if (!q) return this.habitaciones;
-            return this.habitaciones.filter(function (h) {
-                return (h.numero || '').toString().toLowerCase().includes(q);
-            });
-        },
-
-        seleccionarHabitacion(hab) {
-            this.form.habitacion_id = hab.id;
-            this.form.hotel_id = hab.hotel_id;
-            this.habitacionSeleccionadaNumero = hab.numero;
-            this.abrirBuscador = false;
-            this.busquedaHabitacion = '';
-        },
-
-        quitarHabitacion() {
-            this.form.habitacion_id = null;
-            this.habitacionSeleccionadaNumero = null;
-        },
-
-        nombreHotelCorto(codigo) {
-            if (codigo === 'inn') return 'Inn';
-            if (codigo === '1_sur') return 'Atankalama';
-            return codigo || '';
-        },
-
-        formValido() {
-            return this.form.hotel_id !== null
-                && (this.form.descripcion || '').trim().length > 0;
-        },
-
-        async crear() {
-            if (!this.formValido() || this.enviando) return;
-            this.enviando = true;
-            this.error = null;
-            try {
-                var descripcion = (this.form.descripcion || '').trim();
-                // Título auto-generado desde la descripción (primeros 80 chars, sin saltos de línea)
-                var titulo = descripcion.replace(/\s+/g, ' ').slice(0, 80);
-
-                var datos = new FormData();
-                datos.append('hotel_id', this.form.hotel_id);
-                datos.append('titulo', titulo);
-                datos.append('descripcion', descripcion);
-                datos.append('prioridad', this.puedeEditarPrioridad ? this.form.prioridad : 'normal');
-                if (this.form.habitacion_id !== null) datos.append('habitacion_id', this.form.habitacion_id);
-                if (this.puedeAsignar && this.form.asignado_a !== null) datos.append('asignado_a', this.form.asignado_a);
-                this.fotos.forEach(function (f) { datos.append('fotos[]', f.file); });
-
-                var r = await apiPostForm('/api/tickets', datos);
-                if (r && r.ok) {
-                    // adjuntos_fallidos no aborta la creación (ver TicketsController::crear) — se
-                    // relaya en el detail del evento para que la página lo muestre en el toast.
-                    var detalle = Object.assign({}, r.data.ticket, {
-                        _adjuntos_fallidos: r.data.adjuntos_fallidos || [],
-                    });
-                    this.$dispatch('ticket-creado', detalle);
-                    this.cerrar();
-                } else {
-                    this.error = (r && r.error && r.error.mensaje) || 'No pudimos crear el ticket.';
-                }
-            } catch (e) {
-                this.error = 'No pudimos conectar con el servidor.';
-            } finally {
-                this.enviando = false;
-            }
-        }
-    };
-}
-</script>

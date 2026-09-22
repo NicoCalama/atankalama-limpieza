@@ -30,7 +30,7 @@ require_once __DIR__ . '/componentes/avatar.php';
 ?>
 
 <div x-data="asignacionesApp()"
-     x-init="cargar(); iniciarRefresco();"
+     x-init="cargar(); iniciarRefresco(); vigilarAnchoMobil();"
      @visibilitychange.window="alVolverVisible()">
 
     <!-- Header sticky -->
@@ -166,9 +166,11 @@ require_once __DIR__ . '/componentes/avatar.php';
             <!-- Barra de modo (compartida por ambos modos) -->
             <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto flex items-center justify-between gap-2">
                 <div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5">
+                    <!-- En celular no hay Tablero (arrastrar y soltar no funciona bien con
+                         el dedo en listas largas) — solo Clásico. En PC se mantienen ambos. -->
                     <button @click="setModo('tablero')"
                             :class="modo === 'tablero' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
-                            class="min-h-[36px] px-3 text-sm font-medium rounded-md inline-flex items-center gap-1.5 transition">
+                            class="hidden sm:inline-flex min-h-[36px] px-3 text-sm font-medium rounded-md items-center gap-1.5 transition">
                         <i data-lucide="layout-grid" class="w-4 h-4"></i> Tablero
                     </button>
                     <button @click="setModo('clasico')"
@@ -248,13 +250,15 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                              data-room-origin="worker"
                                                              :data-worker-id="tr.usuario.id"
                                                              @pointerdown="iniciarDrag($event)">
-                                                            <span class="font-semibold text-sm text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                                                            <span class="text-[10px] text-gray-500 dark:text-gray-400" x-text="hab.tipo_nombre"></span>
-                                                            <span class="text-[10px] px-1.5 py-0.5 rounded"
-                                                                  :class="claseBadgeHab(hab.estado)"
-                                                                  x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                            <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
+                                                            <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
+                                                            <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                  :class="claseBadgeHab(hab.estado)">
+                                                                <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
+                                                                <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                            </span>
                                                             <template x-if="hab.franja">
-                                                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
+                                                                <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize flex-shrink-0"
                                                                       x-text="hab.franja"></span>
                                                             </template>
                                                         </div>
@@ -370,24 +374,31 @@ require_once __DIR__ . '/componentes/avatar.php';
                 <div>
                     <main class="pb-32 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-6">
 
-                        <!-- Sección: Sin asignar -->
-                        <section>
-                            <div class="flex items-center justify-between mb-2">
-                                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
-                                    <i data-lucide="clipboard-list" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i>
-                                    Sin asignar
-                                    <span class="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full"
-                                          x-text="data.sin_asignar.length"></span>
-                                </h2>
+                        <!-- Sección: Sin asignar. Acordeón solo en celular (mismo patrón que
+                             "Volver a limpiar" y las fichas de "Equipo"). -->
+                        <section x-data="{ abierta: false }">
+                            <div class="flex items-center justify-between mb-2 gap-2">
+                                <button type="button" @click="abierta = !abierta" :aria-expanded="abierta"
+                                        class="flex items-center gap-2 text-left cursor-pointer sm:cursor-default">
+                                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
+                                        <i data-lucide="clipboard-list" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i>
+                                        Sin asignar
+                                        <span class="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full"
+                                              x-text="data.sin_asignar.length"></span>
+                                    </h2>
+                                    <i data-lucide="chevron-down" class="sm:hidden w-4 h-4 text-gray-400 flex-shrink-0 transition-transform"
+                                       :class="abierta ? 'rotate-180' : ''"></i>
+                                </button>
                                 <template x-if="puedeAutoAsignar && data.sin_asignar.length > 0 && data.trabajadores.length > 0">
                                     <button @click="autoAsignar()" :disabled="autoEjecutando"
-                                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center gap-1.5 disabled:opacity-50">
+                                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center gap-1.5 disabled:opacity-50 flex-shrink-0">
                                         <i data-lucide="shuffle" class="w-4 h-4"></i>
                                         <span x-text="autoEjecutando ? 'Asignando...' : 'Auto-asignar'"></span>
                                     </button>
                                 </template>
                             </div>
 
+                            <div :class="abierta ? '' : 'hidden sm:block'">
                             <template x-if="data.sin_asignar.length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="check-circle-2" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
@@ -419,35 +430,45 @@ require_once __DIR__ . '/componentes/avatar.php';
                                     </template>
                                 </div>
                             </template>
+                            </div>
                         </section>
 
-                        <!-- Sección: Volver a limpiar (2ª limpieza del día — ocupación día/noche) -->
+                        <!-- Sección: Volver a limpiar (2ª limpieza del día — ocupación día/noche).
+                             Acordeón solo en celular (mismo patrón que las fichas de "Equipo"): puede
+                             traer decenas de piezas y empujar todo el resto de la pantalla. -->
                         <template x-if="data.re_limpiar && data.re_limpiar.length > 0">
-                            <section>
-                                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 mb-1">
-                                    <i data-lucide="rotate-cw" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
-                                    Volver a limpiar
-                                    <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
-                                          x-text="data.re_limpiar.length"></span>
-                                </h2>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Piezas ya limpias hoy que necesitan otra pasada (ocupación de día/noche). Al asignarlas se re-abren y la limpieza arranca de cero.</p>
-                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-                                    <template x-for="grupo in reLimpiarAgrupado()" :key="grupo.key">
-                                        <div>
-                                            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
-                                               x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
-                                            <div class="flex flex-wrap gap-2">
-                                                <template x-for="hab in grupo.habitaciones" :key="hab.id">
-                                                    <button @click="toggleSeleccion(hab.id)"
-                                                            :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
-                                                            class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
-                                                        <span x-text="hab.numero"></span>
-                                                        <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
-                                                    </button>
-                                                </template>
+                            <section x-data="{ abierta: false }">
+                                <button type="button" @click="abierta = !abierta" :aria-expanded="abierta"
+                                        class="w-full flex items-center justify-between gap-2 mb-1 text-left cursor-pointer sm:cursor-default">
+                                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
+                                        <i data-lucide="rotate-cw" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
+                                        Volver a limpiar
+                                        <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
+                                              x-text="data.re_limpiar.length"></span>
+                                    </h2>
+                                    <i data-lucide="chevron-down" class="sm:hidden w-4 h-4 text-gray-400 flex-shrink-0 transition-transform"
+                                       :class="abierta ? 'rotate-180' : ''"></i>
+                                </button>
+                                <div :class="abierta ? '' : 'hidden sm:block'">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Piezas ya limpias hoy que necesitan otra pasada (ocupación de día/noche). Al asignarlas se re-abren y la limpieza arranca de cero.</p>
+                                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                                        <template x-for="grupo in reLimpiarAgrupado()" :key="grupo.key">
+                                            <div>
+                                                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
+                                                   x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <template x-for="hab in grupo.habitaciones" :key="hab.id">
+                                                        <button @click="toggleSeleccion(hab.id)"
+                                                                :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
+                                                                class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
+                                                            <span x-text="hab.numero"></span>
+                                                            <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                 </div>
                             </section>
                         </template>
@@ -480,8 +501,9 @@ require_once __DIR__ . '/componentes/avatar.php';
                             <template x-if="trabajadoresEquipoFiltrados().length > 0">
                                 <div class="space-y-2">
                                     <template x-for="tr in trabajadoresEquipoFiltrados()" :key="tr.usuario.id">
-                                        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-                                            <div class="flex items-start gap-3 mb-3">
+                                        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4" x-data="{ abierta: false }">
+                                            <button type="button" @click="abierta = !abierta" :aria-expanded="abierta"
+                                                    class="w-full flex items-start gap-3 mb-3 text-left cursor-pointer sm:cursor-default">
                                                 <span x-html="avatarUsuario(tr.usuario)"></span>
                                                 <div class="flex-1 min-w-0">
                                                     <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></p>
@@ -493,8 +515,13 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                         </template>
                                                     </p>
                                                 </div>
-                                            </div>
+                                                <!-- Acordeón: solo celular (< sm). En PC la ficha siempre queda abierta,
+                                                     como antes — ver ":class" del contenedor de abajo. -->
+                                                <i data-lucide="chevron-down" class="sm:hidden w-4 h-4 text-gray-400 flex-shrink-0 mt-1 transition-transform"
+                                                   :class="abierta ? 'rotate-180' : ''"></i>
+                                            </button>
 
+                                            <div :class="abierta ? '' : 'hidden sm:block'">
                                             <template x-if="tr.cola.length === 0">
                                                 <p class="text-xs text-gray-500 dark:text-gray-400 italic">Sin habitaciones asignadas.</p>
                                             </template>
@@ -503,14 +530,16 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                 <ul class="space-y-1.5">
                                                     <template x-for="(hab, idx) in tr.cola" :key="hab.habitacion_id">
                                                         <li class="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                                            <div class="flex items-center gap-2 min-w-0">
-                                                                <span class="font-semibold text-sm text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                                                                <span class="text-[10px] text-gray-500 dark:text-gray-400" x-text="hab.tipo_nombre"></span>
-                                                                <span class="text-[10px] px-1.5 py-0.5 rounded"
-                                                                      :class="claseBadgeHab(hab.estado)"
-                                                                      x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                            <div class="flex items-center gap-2 min-w-0 flex-1">
+                                                                <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
+                                                                <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
+                                                                <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                      :class="claseBadgeHab(hab.estado)">
+                                                                    <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
+                                                                    <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                                </span>
                                                                 <template x-if="hab.franja">
-                                                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize"
+                                                                    <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize flex-shrink-0"
                                                                           x-text="hab.franja"></span>
                                                                 </template>
                                                             </div>
@@ -518,24 +547,44 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                                 <div class="flex items-center gap-1.5 flex-shrink-0">
                                                                     <!-- Modo Clásico nunca tuvo reorden de cola (a diferencia del
                                                                          Tablero, que lo hace arrastrando) — subir/bajar cubre el
-                                                                         mismo endpoint sin necesitar drag-and-drop acá. -->
+                                                                         mismo endpoint sin necesitar drag-and-drop acá. En celular
+                                                                         se apilan en un solo control angosto (ocupa la mitad del
+                                                                         ancho de los dos botones sueltos de PC); en PC se mantienen
+                                                                         los botones originales sin cambios. -->
+                                                                    <div class="flex sm:hidden flex-col w-[22px] h-9 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 flex-shrink-0">
+                                                                        <button @click="moverEnCola(tr, hab, -1)" :disabled="idx === 0"
+                                                                                title="Subir" aria-label="Subir en la cola"
+                                                                                class="flex-1 flex items-center justify-center text-gray-600 dark:text-gray-300
+                                                                                       hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                                                            <i data-lucide="chevron-up" class="w-3 h-3"></i>
+                                                                        </button>
+                                                                        <div class="border-t border-gray-300 dark:border-gray-600"></div>
+                                                                        <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === tr.cola.length - 1"
+                                                                                title="Bajar" aria-label="Bajar en la cola"
+                                                                                class="flex-1 flex items-center justify-center text-gray-600 dark:text-gray-300
+                                                                                       hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                                                            <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                                                                        </button>
+                                                                    </div>
                                                                     <button @click="moverEnCola(tr, hab, -1)" :disabled="idx === 0"
                                                                             title="Subir" aria-label="Subir en la cola"
-                                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg
+                                                                            class="hidden sm:flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg
                                                                                    border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300
                                                                                    hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
                                                                         <i data-lucide="chevron-up" class="w-4 h-4"></i>
                                                                     </button>
                                                                     <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === tr.cola.length - 1"
                                                                             title="Bajar" aria-label="Bajar en la cola"
-                                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg
+                                                                            class="hidden sm:flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg
                                                                                    border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300
                                                                                    hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
                                                                         <i data-lucide="chevron-down" class="w-4 h-4"></i>
                                                                     </button>
                                                                     <button @click="abrirReasignar(tr, hab)"
-                                                                            class="min-h-[36px] px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
-                                                                        Reasignar
+                                                                            title="Reasignar" aria-label="Reasignar"
+                                                                            class="min-h-[36px] min-w-[36px] px-0 sm:px-2.5 sm:min-w-0 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition flex items-center justify-center">
+                                                                        <i data-lucide="repeat" class="w-4 h-4 sm:hidden"></i>
+                                                                        <span class="hidden sm:inline">Reasignar</span>
                                                                     </button>
                                                                     <button @click="desasignar(tr, hab)"
                                                                             title="Desasignar"
@@ -551,6 +600,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                     </template>
                                                 </ul>
                                             </template>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -709,6 +759,7 @@ function asignacionesApp() {
         fecha: window.hoyServidor(),
         modo: localStorage.getItem('asignaciones_modo') || 'tablero',
         esTactil: !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches),
+        esMobil: false,
         // Buscador de "Equipo del día" — un solo campo, compartido por Tablero y
         // Clásico (misma instancia de componente). No filtra "Sin asignar".
         busquedaEquipo: '',
@@ -808,6 +859,23 @@ function asignacionesApp() {
             localStorage.setItem('asignaciones_modo', m);
             this.seleccionadas = [];
             this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // En celular el Tablero (arrastrar y soltar) no está disponible — solo Clásico.
+        // Si el modo guardado en localStorage es 'tablero' (típico: se eligió en PC) y
+        // la pantalla es de celular, se muestra Clásico igual, SIN pisar la preferencia
+        // guardada — al volver a PC, el usuario recupera su Tablero tal como lo dejó.
+        vigilarAnchoMobil() {
+            if (!window.matchMedia) return;
+            var mq = window.matchMedia('(max-width: 639px)');
+            var self = this;
+            var aplicar = function () {
+                self.esMobil = mq.matches;
+                if (self.esMobil && self.modo === 'tablero') self.modo = 'clasico';
+            };
+            aplicar();
+            if (mq.addEventListener) mq.addEventListener('change', aplicar);
+            else mq.addListener(aplicar);
         },
 
         setHotel(valor) {
@@ -1185,6 +1253,22 @@ function asignacionesApp() {
                 'aprobada_con_observacion': 'Aprobada c/obs.',
                 'aprobada_automatica': 'Aprobada auto.',
                 'rechazada': 'Rechazada'
+            };
+            return map[estado] || estado;
+        },
+
+        // Versión corta de etiquetaEstadoHab() para la fila de la cola en celular:
+        // el texto completo ("Por inspeccionar", "Aprobada c/obs.") no cabe en una
+        // sola línea junto al nombre y los botones — ver rediseño mobile de Asignaciones.
+        etiquetaEstadoHabCorta(estado) {
+            var map = {
+                'sucia': 'Pend.',
+                'en_progreso': 'En prog.',
+                'completada_pendiente_auditoria': 'Por insp.',
+                'aprobada': 'Aprob.',
+                'aprobada_con_observacion': 'Aprob. c/obs.',
+                'aprobada_automatica': 'Aprob. auto.',
+                'rechazada': 'Rech.'
             };
             return map[estado] || estado;
         },

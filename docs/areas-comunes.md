@@ -32,9 +32,21 @@ el flujo de limpieza probado. El costo es un flag y algunos filtros (§4).
 
 ---
 
-## 2. Ciclo de vida (sin auditoría)
+## 2. Ciclo de vida
 
-Los espacios **no pasan por auditoría** (decisión de producto: limpiar la piscina no requiere el
+> **Vigente desde v6.2 (cambio del jefe, reintegrado en v6.5): los espacios SÍ pasan por
+> inspección.** Al completar el checklist quedan en `completada_pendiente_auditoria`, aparecen en
+> la bandeja de Inspección como cualquier pieza, y el cierre automático de las 23:55 los aprueba
+> (`aprobada_automatica`) si nadie alcanzó a revisarlos. Se quitó la transición
+> `en_progreso → aprobada` de `EstadoHabitacionService`. Siguen sin tocar Cloudbeds (no tienen
+> `cloudbeds_room_id`: la escritura `clean` se omite). **Decisión de producto pendiente**
+> (Nicolás, 22/09/2026): confirmar si se queda así y, si se queda, si las áreas cuentan en la tasa
+> de rechazo, la cobertura de la supervisora, el reporte de las 23:50 y la escalera 100/50/0 de la
+> ficha de KPIs — hoy `ReportesService::hotelCond` las sigue excluyendo de esos KPIs.
+>
+> El resto de esta sección describe el diseño ORIGINAL (auto-cierre), que rigió hasta v6.1.
+
+Los espacios **no pasaban por auditoría** (decisión de producto: limpiar la piscina no requiere el
 control de una habitación de huésped). Se **auto-cierran** al completar el checklist:
 
 ```
@@ -100,7 +112,7 @@ Los espacios se filtran de los flujos de piezas con `es_espacio_comun = 0`:
 |---|---|
 | Round-robin automático (`autoAsignar`) | Solo piezas (`= 0`) — los espacios se asignan a mano |
 | Vista de asignaciones "sin asignar" (`vistaConsolidada`) | Solo piezas — los espacios viven en su pantalla |
-| Bandeja de auditoría | Solo piezas — los espacios no se auditan |
+| Bandeja de auditoría (`bandejaPendientes`) | Piezas **y espacios** desde v6.2 (ver §2); una fila por pieza, unida a su ejecución completada más reciente |
 | Listado de habitaciones (`HabitacionService::listar`) | Solo piezas por defecto |
 | KPIs de tiempos / tasas de piezas (`ReportesService::hotelCond`) | Solo piezas |
 | **KPIs de CRÉDITOS** (`kpiCreditos`, `resumenMensual`, `trabajadoras`) | **Piezas + espacios** desde jul-2026 (`hotelCondCreditos`): los créditos de los ítems de áreas comunes suman al total del trabajador. El conteo `habitaciones` del resumen sigue siendo solo piezas |
@@ -136,7 +148,7 @@ automáticamente cada N días.
 
 ## 7. Fuera de alcance (MVP)
 
-- Auditoría de espacios (se auto-cierran). Si más adelante se quiere, se activa el flujo de 3 estados.
+- ~~Auditoría de espacios (se auto-cierran).~~ Activada en v6.2 — ver §2 (decisión definitiva pendiente).
 - Cadencia automática (§6).
 - Ocupación día/noche y varias limpiezas por día → feature **F**, doc aparte.
 

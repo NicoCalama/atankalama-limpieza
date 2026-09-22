@@ -5,6 +5,12 @@
  * Uso: php scripts/generate-icons.php
  */
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 $sizes = [192, 512];
 $outDir = __DIR__ . '/../public/assets/img';
 

@@ -12,7 +12,8 @@ use Atankalama\Limpieza\Models\Habitacion;
 /**
  * Gestión de áreas comunes (espacios): piscina, pasillos, patio, bodega, etc. Se modelan como
  * "habitaciones especiales" (es_espacio_comun=1, sin cloudbeds_room_id) con checklist propio.
- * No pasan por Cloudbeds ni por auditoría (se auto-cierran al completar). Ver docs/areas-comunes.md
+ * No pasan por Cloudbeds, pero sí por la misma auditoría que las piezas de huésped.
+ * Ver docs/areas-comunes.md
  */
 final class EspacioService
 {

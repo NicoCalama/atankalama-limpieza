@@ -84,7 +84,7 @@ su tipo de limpieza por `maxGuests`. Ver [docs/cloudbeds-import-inventario.md](d
 ### 5. Levantar el servidor de desarrollo
 
 ```bash
-php -S localhost:8000 -t public/
+php -S localhost:8000 -t public/ public/index.php
 ```
 
 Abre http://localhost:8000 — te redirige al login.
@@ -107,7 +107,7 @@ La contraseña temporal la imprime `seed.php` al correrlo; debe cambiarse en el 
 
 ```bash
 # Servidor de desarrollo
-composer serve                              # alias de: php -S localhost:8000 -t public/
+composer serve                              # alias de: php -S localhost:8000 -t public/ public/index.php
 
 # Base de datos
 php scripts/init-db.php                     # aplica schema (usa DB existente)

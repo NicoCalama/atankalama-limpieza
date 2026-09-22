@@ -1,2 +1,7 @@
-# app_core/ es solo código: inaccesible por web, PHP lo lee por filesystem.
+# app_core/ es solo código: PHP lo lee por filesystem, nunca por web.
+# LiteSpeed puede ignorar "Require"; la regla de rewrite se aplica siempre.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^ - [F]
+</IfModule>
 Require all denied

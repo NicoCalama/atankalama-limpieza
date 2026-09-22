@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
@@ -166,8 +172,10 @@ function seedAdminInicial(): void
         return;
     }
 
+    // Contraseña temporal al azar (se imprime una sola vez abajo y se exige cambiarla en el
+    // primer login). Nunca una fija en el código: el seed vive en git (regla 1 de CLAUDE.md).
     $passwordService  = new PasswordService();
-    $passwordTemporal = 'Admin2025!';
+    $passwordTemporal = $passwordService->generarTemporal();
     $hash             = $passwordService->hash($passwordTemporal);
 
     Database::execute(

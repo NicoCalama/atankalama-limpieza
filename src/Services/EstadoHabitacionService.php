@@ -15,10 +15,15 @@ final class EstadoHabitacionService
      * Reglas (ver docs/habitaciones.md §3):
      * - sucia → en_progreso
      * - en_progreso → completada_pendiente_auditoria | sucia (reset excepcional por supervisora)
-     *              → aprobada (auto-cierre de áreas comunes, que no pasan por auditoría; ver docs/areas-comunes.md)
+     *   (áreas comunes pasan por el mismo camino — ya no hay auto-cierre directo a aprobada;
+     *   ver docs/areas-comunes.md)
      * - completada_pendiente_auditoria → aprobada | aprobada_con_observacion | aprobada_automatica | rechazada
      *   (aprobada_automatica = cierre de día 23:55, sin auditoría real; ver scripts/aprobar-pendientes-cierre-dia.php)
      * - rechazada / aprobada* → sucia (sync Cloudbeds en nuevo ciclo, o re-pedir limpieza de un espacio)
+     *
+     * ESTADO_APROBADA no aparece como destino directo de EN_PROGRESO: las únicas vías a "aprobada"
+     * sin pasar por auditoría usan forzar:true, que se salta esta matriz a propósito —
+     * ver HabitacionesController::marcarSinAseoCliente() y CloudbedsSyncService (línea ~201).
      */
     private const TRANSICIONES = [
         Habitacion::ESTADO_SUCIA => [
@@ -27,7 +32,6 @@ final class EstadoHabitacionService
         Habitacion::ESTADO_EN_PROGRESO => [
             Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
             Habitacion::ESTADO_SUCIA,
-            Habitacion::ESTADO_APROBADA,
         ],
         Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA => [
             Habitacion::ESTADO_APROBADA,

@@ -37,11 +37,16 @@ final class Ticket
         public readonly string $updatedAt,
         public readonly ?string $resueltoAt,
         public readonly ?int $novedadId = null,
+        /** @var list<array{id: int, nombre: string}> */
+        public readonly array $responsables = [],
     ) {
     }
 
-    /** @param array<string, mixed> $fila */
-    public static function desdeFila(array $fila): self
+    /**
+     * @param array<string, mixed> $fila
+     * @param list<array{id: int, nombre: string}> $responsables
+     */
+    public static function desdeFila(array $fila, array $responsables = []): self
     {
         return new self(
             id: (int) $fila['id'],
@@ -58,6 +63,7 @@ final class Ticket
             updatedAt: (string) $fila['updated_at'],
             resueltoAt: $fila['resuelto_at'] !== null ? (string) $fila['resuelto_at'] : null,
             novedadId: isset($fila['novedad_id']) ? (int) $fila['novedad_id'] : null,
+            responsables: $responsables,
         );
     }
 
@@ -77,6 +83,7 @@ final class Ticket
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'resuelto_at' => $this->resueltoAt,
+            'responsables' => $this->responsables,
         ];
     }
 }

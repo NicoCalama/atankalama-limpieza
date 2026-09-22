@@ -147,31 +147,56 @@ $visibles = array_filter($secciones, fn($s) => $s['visible']);
             <?php endforeach; ?>
         </div>
 
-        <!-- Notificaciones push -->
-        <div x-data="pushToggle()" x-init="init()" class="mt-4" data-tour="aj.push">
-            <template x-if="soportado">
+        <!-- Notificaciones push + Forzar actualización: mismo grid de 2 columnas que las
+             secciones de arriba. -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <div x-data="pushToggle()" x-init="init()" data-tour="aj.push">
+                <template x-if="soportado">
+                    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
+                        <div class="w-11 h-11 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="bell" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notificaciones push</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"
+                               x-text="suscrito ? 'Activadas en este dispositivo' : (denegado ? 'Bloqueadas en este navegador' : 'Recibe alertas aunque la app esté cerrada')"></p>
+                        </div>
+                        <template x-if="!denegado">
+                            <button @click="toggle()" :disabled="cargando"
+                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
+                                    :class="suscrito ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'">
+                                <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200"
+                                      :class="suscrito ? 'translate-x-5' : 'translate-x-0'"></span>
+                            </button>
+                        </template>
+                        <template x-if="denegado">
+                            <span class="text-xs text-red-500 font-medium">Bloqueado</span>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Forzar actualización: descarta la copia local de la app (Service Worker +
+                 caché) cuando quedó pegada en una versión vieja tras un despliegue — el
+                 equivalente a Ctrl/Cmd+Shift+R que además sirve en celulares, donde ese
+                 atajo no existe. -->
+            <div x-data="forzarActualizacion()">
                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-4">
-                    <div class="w-11 h-11 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                        <i data-lucide="bell" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                    <div class="w-11 h-11 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                        <span :class="actualizando ? 'animate-spin' : ''">
+                            <i data-lucide="refresh-cw" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                        </span>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Notificaciones push</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"
-                           x-text="suscrito ? 'Activadas en este dispositivo' : (denegado ? 'Bloqueadas en este navegador' : 'Recibe alertas aunque la app esté cerrada')"></p>
+                        <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">Forzar actualización</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Si la app se ve rara tras una actualización, usa esto para descargarla de nuevo</p>
                     </div>
-                    <template x-if="!denegado">
-                        <button @click="toggle()" :disabled="cargando"
-                                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none"
-                                :class="suscrito ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'">
-                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200"
-                                  :class="suscrito ? 'translate-x-5' : 'translate-x-0'"></span>
-                        </button>
-                    </template>
-                    <template x-if="denegado">
-                        <span class="text-xs text-red-500 font-medium">Bloqueado</span>
-                    </template>
+                    <button @click="ejecutar()" :disabled="actualizando"
+                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 disabled:opacity-50 transition flex-shrink-0">
+                        <span x-text="actualizando ? 'Actualizando...' : 'Actualizar'"></span>
+                    </button>
                 </div>
-            </template>
+            </div>
         </div>
     </main>
 </div>
@@ -217,6 +242,47 @@ function pushToggle() {
                 this.denegado = Notification.permission === 'denied';
             }
             this.cargando = false;
+        }
+    };
+}
+
+// Descarta la copia local del Service Worker y su Cache Storage (assets/páginas
+// precacheadas), sin tocar localStorage (ahí vive la cola offline del checklist: acciones pendientes del
+// trabajador que no deben perderse). Tras el reload, layout.php vuelve a registrar
+// el Service Worker desde cero — descarga todo de nuevo, versión real del servidor.
+function forzarActualizacion() {
+    return {
+        actualizando: false,
+
+        async ejecutar() {
+            if (this.actualizando) return;
+            this.actualizando = true;
+            try {
+                if ('serviceWorker' in navigator) {
+                    // Solo el Service Worker de ESTA app (scope BASE_PATH/): atankalama.com
+                    // puede alojar otras apps con su propio Service Worker, y esas no se tocan.
+                    var scopeApp = window.location.origin + (window.BASE_PATH || '') + '/';
+                    var registros = (await navigator.serviceWorker.getRegistrations())
+                        .filter(function (r) { return r.scope === scopeApp; });
+                    // Desregistrar el SW borra también la suscripción push del dispositivo: se
+                    // anota para recrearla sola después del reload (ver layout.php).
+                    for (var i = 0; i < registros.length; i++) {
+                        var sub = registros[i].pushManager ? await registros[i].pushManager.getSubscription() : null;
+                        if (sub) {
+                            try { localStorage.setItem('push_resuscribir', '1'); } catch (e) {}
+                        }
+                    }
+                    await Promise.all(registros.map(function (r) { return r.unregister(); }));
+                }
+                if ('caches' in window) {
+                    // Solo los cachés de esta app (sw.js los nombra 'atankalama-*').
+                    var claves = (await caches.keys()).filter(function (k) { return k.indexOf('atankalama-') === 0; });
+                    await Promise.all(claves.map(function (k) { return caches.delete(k); }));
+                }
+            } catch (e) {
+                // Si algo falla igual recargamos: en el peor caso queda como un reload normal.
+            }
+            window.location.reload();
         }
     };
 }

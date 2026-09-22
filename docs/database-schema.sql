@@ -563,6 +563,21 @@ CREATE TABLE tickets_comentarios (
 
 CREATE INDEX idx_tickets_comentarios_ticket ON tickets_comentarios(ticket_id);
 
+-- Responsables asignados a un ticket (soporta múltiples asignados y asignación por grupo).
+-- tickets.asignado_a sigue guardando el primero (compatibilidad); la lista completa vive acá.
+CREATE TABLE tickets_asignados (
+    ticket_id        INTEGER NOT NULL,
+    usuario_id       INTEGER NOT NULL,
+    asignado_por     INTEGER NOT NULL,
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (ticket_id, usuario_id),
+    FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (asignado_por) REFERENCES usuarios(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_tickets_asignados_usuario ON tickets_asignados(usuario_id);
+
 -- ============================================================================
 -- BLOQUE 7 — LOGS
 -- ============================================================================

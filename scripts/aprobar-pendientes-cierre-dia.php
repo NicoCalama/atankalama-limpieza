@@ -29,18 +29,22 @@ declare(strict_types=1);
  *   php scripts/aprobar-pendientes-cierre-dia.php
  */
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Models\Auditoria;
-use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Services\AuditoriaException;
 use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
-use Atankalama\Limpieza\Services\HabitacionService;
 
 Config::load(dirname(__DIR__));
 
@@ -54,8 +58,10 @@ if ($sistemaId === null) {
 }
 $sistemaId = (int) $sistemaId['id'];
 
-$habitaciones = new HabitacionService();
-$pendientes   = $habitaciones->listar('ambos', Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA);
+// bandejaPendientes() (no HabitacionService::listar()) porque esta última excluye
+// es_espacio_comun=1 a propósito para la pantalla "Habitaciones" — acá sí queremos
+// áreas comunes, ahora que también pasan por auditoría (ver docs/areas-comunes.md).
+$pendientes = (new AuditoriaService())->bandejaPendientes();
 
 echo 'Cierre de día automático' . ($dryRun ? '  [DRY-RUN — no muta nada]' : '') . "\n";
 echo str_repeat('=', 64) . "\n";

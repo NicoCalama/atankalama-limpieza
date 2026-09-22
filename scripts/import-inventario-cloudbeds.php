@@ -20,6 +20,12 @@ declare(strict_types=1);
  * Requiere que el catálogo esté sembrado (php scripts/seed.php) antes de correrlo.
  */
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;

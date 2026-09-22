@@ -171,8 +171,9 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                 </button>
             </div>
 
-            <!-- Contador de resultados -->
-            <p class="text-sm text-gray-500 dark:text-gray-400" x-text="habitacionesFiltradas.length + ' habitación' + (habitacionesFiltradas.length === 1 ? '' : 'es')"></p>
+            <!-- Contador de resultados (incluye cuántas de las que se ven son nochero) -->
+            <p class="text-sm text-gray-500 dark:text-gray-400"
+               x-text="habitacionesFiltradas.length + ' habitación' + (habitacionesFiltradas.length === 1 ? '' : 'es') + resumenNocheros()"></p>
         </div>
         <?php endif; ?>
 
@@ -621,6 +622,14 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         // hotel/estado/edificio/piso/búsqueda) — es lo que afecta "Quitar todas".
         get nocherosActivosFiltrados() {
             return this.habitacionesFiltradas.filter(function (h) { return h.es_nochero; });
+        },
+
+        // Complemento del contador de resultados: " · N nocheros" (vacío si no hay
+        // ninguna con los filtros actuales, para no ensuciar el contador siempre).
+        resumenNocheros() {
+            var n = this.nocherosActivosFiltrados.length;
+            if (n === 0) return '';
+            return ' · ' + n + ' nochero' + (n === 1 ? '' : 's');
         },
 
         alCambiarEdificioModal() {

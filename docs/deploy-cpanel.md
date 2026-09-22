@@ -159,9 +159,9 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 ## 7. Smokes post-deploy (obligatorios)
 
 > Hacerlos INMEDIATAMENTE después del paso 4/5: desde que el código queda
-> publicado, el admin existe con la contraseña conocida del seed (`Admin2025!`).
-> El login del smoke fuerza el cambio y cierra esa ventana — no dejarla abierta
-> horas.
+> publicado, el admin existe con la contraseña temporal que imprimió `seed.php`
+> (al azar desde v6.5; antes era una fija). El login del smoke fuerza el cambio y
+> cierra esa ventana — no dejarla abierta horas.
 
 | Check | Esperado |
 |---|---|
@@ -170,7 +170,8 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 | `https://atankalama.com/limpieza/manifest` | 200, `start_url":"/limpieza/home` |
 | `https://atankalama.com/limpieza/app_core/.env` | **403** (si da 200, PARAR: revisar `.htaccess` de app_core) |
 | `https://atankalama.com/limpieza/app_core/src/Core/Config.php` | **403** |
-| Login `11111111-1` / `Admin2025!` | fuerza cambio de contraseña → home admin |
+| `https://atankalama.com/limpieza/app_core/CHANGELOG.md` | **403** (un archivo estático: si se ve el texto, app_core está expuesto — ver §11.6) |
+| Login `11111111-1` / contraseña temporal del seed | fuerza cambio de contraseña → home admin |
 | Cookie del navegador | `limpieza_session` con path `/limpieza` |
 | File Manager: `app_core/database/` | SIN `atankalama.db` (si existe → el `.env` no se está leyendo) |
 | DevTools → Application | Service worker activo con scope `/limpieza/`; prompt "Instalar app" disponible |
@@ -305,6 +306,11 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-08-20…22 | **v5 / v5.1 / v5.2** (jefe, FTP sin git) | Desplegados por el jefe **directo por FTP, sin registrar acá** (antes de pasar a git el 29/08). Contenido resumido en el CHANGELOG: **v5** (asignar responsable a un ticket, tomar un ticket sin dueño, «Reportar un problema» también dentro de la habitación y en el menú inferior, fotos en tickets con compresión), **v5.1** (colores por estado en Asignaciones, confiar en el estado real de Cloudbeds, fix de cambio de estado), **v5.2** (contador + buscador en Habitaciones). Además el jefe sumó módulos nuevos (Edificios/Mapeo, importar usuarios XLSX). Todo se importó al repo el 29/08 (`b506af1` + fix `b4d1db6`). **Este hueco queda a propósito: no se reconstruyen los detalles de FTP que no se anotaron en su momento.** |
 | 2026-08-31 | **Vista guiada de Edificios y Tickets** → **v5.3** (`760215a`) | **Primer deploy por git de la nueva etapa de colaboración.** Delta por **FTP**, 5 archivos (`build/limpieza-vg-v53-delta.zip`, armado con `zip-stage.ps1`), **todos a `app_core/`**: `src/Support/{Tours,TourResolver}.php` + `views/{edificios,habitacion-detalle}.php` + `CHANGELOG.md`. Completa la ayuda guiada «?» para las features v5 del jefe: pantalla `edificios` (3 recorridos: crear/mapear/editar-borrar), tour de tickets enriquecido (**«Asignar responsable»** + fotos + foto de cierre), recorrido **«Reportar un problema»** en `habitacion.detalle` (ancla `hab.reportar`), y pantalla NUEVA `tickets.trabajador` resuelta por rol en `TourResolver` (`/tickets` sale del MAP; gate `tickets.ver_propios`). Incluye también el fix `b4d1db6` del 29/08 (anclas de turnos/usuarios) que se había pusheado sin desplegar. **Sin SQL, sin `sw.js`/assets (ningún asset cambió → sin bump de `CACHE_VERSION`), sin `.env` (`VISTA_GUIADA_HABILITADA` ya estaba en `true` desde v3), sin `vendor/`.** Suite 399/399. Smokes verdes: badge home = **v5.3** (incógnito), `/api/health` 200, y funcional: «?» en Ajustes→Edificios (3 recorridos), en Tickets (Reportar/Gestionar-con-asignar/Filtrar) y en el detalle de habitación («Reportar un problema»). **Gate de divergencia verificado antes de subir: prod estaba en v5.2 (el jefe no tocó nada por FTP desde el 22/08).** |
 | 2026-09-13 | **Ayuda guiada de las features del v6 + fixes de seguridad** → **v6.1** (`05f75bf`) | Delta por **FTP**, 10 archivos (`build/limpieza-v61-delta.zip`, armado con `zip-stage.ps1`), **todos a `app_core/`**: `src/Support/Tours.php` + `views/habitacion-detalle.php` (bandera `data-vg-context` que gatea el recorrido «Dar por limpia») + 3 **fixes de seguridad** (`src/Controllers/TicketsController.php` bypass del guard al asignar responsable al crear un ticket; `src/Helpers/ExcelExport.php` y `src/Services/EspacioService.php::exportarCsv` neutralización de fórmulas CSV/Excel) + 4 **neutros** (`src/Services/ChecklistService.php` delay antifraude configurable vía `CHECKLIST_DELAY_MINIMO_SEGUNDOS` —default 180s = mismo comportamiento en prod— y 3 nits de PHPStan en `Auditoria/Habitacion/TurnoService`) + `CHANGELOG.md`. Completa la ayuda «?» para las features v6 del jefe: `asig.fecha` (planificar otro día), `hab.marcar-limpia` (dar por limpia sin checklist, gate `habitaciones.marcar_limpia_manual`), Espacios `esp.{buscar,tabla,exportar}`, Tickets `tk.tabla` (+ tabla en «mis tickets»), Reportes `rep.auditorias_pendientes`. **Las anclas `data-tour` ya estaban en prod** (markup del jefe, verificado ancla por ancla) → basta subir `Tours.php` server-rendered. **Sin SQL, sin permisos nuevos, sin `sw.js`/assets (los diffs de `vista-guiada.{js,css}` docroot eran puro CRLF vs LF → contenido idéntico → sin bump de `CACHE_VERSION`), sin `.env`, sin `vendor/`.** Suite 400/400, PHPStan verde. Smokes: badge home = **v6.1** (confirmado por Nicolás), `/api/health` 200 (db+env ok), login renderiza sin 500. **Contexto:** cierra el limbo del v6 del jefe (desplegado por FTP con el `CHANGELOG` en «sin publicar» → el parser ignoraba la fila y el badge mostraba v5.3); este deploy datea v6 y agrega v6.1. **Deuda anotada (NO tocada acá):** el repo quedó atrás en `public/assets/js/drag-asignaciones.js` — prod tiene el fix «click vs arrastre» del v6 (329 líneas) y el repo el de v4 (305); backportear aparte para no pisar el fix del jefe. |
+| 2026-09-15 | **Cierre de día 23:55 + rename a Inspección + teclado** → **v6.2** (jefe, FTP directo) | Subido por el jefe **sin git** (cierre de día automático, estado `aprobada_automatica`, `cloudbeds_room_name`, rename Auditoría→Inspección, accesibilidad de teclado, fixes). Sus migraciones las corrió él (prod ya las tenía). Reintegrado al repo el mismo día (`7736999`, `c8def5d`, `85e44cc`). |
+| 2026-09-16 | **Anti-bloqueo de admins** → **v6.3** (`594fdf2`) | Delta por **FTP**, 11 archivos (`build/limpieza-v63-delta.zip`, incluía también la reintegración v6.2). Sin SQL. Badge v6.3 confirmado. |
+| 2026-09-16…21 | **Subida del jefe desde su copia local** (sin git, sin registrar) | ⚠️ **Revirtió** la v6.3 (`Database`, `RbacService`, `UsuarioService` y `modal-usuario-detalle` quedaron como copias viejas exactas), `Tours.php` (base v5.3), el `CHANGELOG` (el badge volvió a v5.3) y la bandera `data-vg-context` de `habitacion-detalle`. **Agregó:** tickets con varios responsables (tabla `tickets_asignados` + `scripts/migrate-add-tickets-asignados.php`), JS/CSS en `views/recursos/` servidos por la ruta `/views/recursos/{ruta*}`, áreas comunes por inspección, «Forzar actualización» y una cola offline a medio desplegar. Detectado en la revisión del 21/09 (descarga completa de prod); reintegrado en **v6.5**. |
+| 2026-09-17 | v6.4 (ficha de KPIs) — **NO desplegada** | El delta armado (`build/cpanel-v64`) quedó obsoleto: su `Kernel.php` borraba `/views/recursos` (rompía Tickets) y su `AuditoriaService` dejaba las áreas atrapadas en «Por inspeccionar». Su contenido sale en **v6.5** (§11.6). |
+| 2026-09-22 | **Mitigación: `app_core/` expuesto por web** (manual en cPanel) | `app_core/CHANGELOG.md` respondía 200: LiteSpeed no aplicaba el `Require all denied` de `app_core/.htaccess`, así que los scripts de `app_core/scripts/` se podían ejecutar por URL. Reglas `RewriteRule … [F]` en ambos `.htaccess` + borrado de archivos sobrantes (ver §11.6). **Pendiente de confirmar por Nicolás.** |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -562,3 +568,79 @@ KPIs · Trabajador» (columna «Asignadas») y «Supervisora · Inspección» co
 supervisora (si tuviera `reportes.ver`) NO aparece la segunda. Contraste de rutas: `GET /api/reportes/ficha`
 → 401 sin sesión (existe) vs ruta inventada → 404; `POST /api/auditoria/1/iniciar` → 401. Abrir una pieza
 pendiente en Inspección y aprobarla: en Reportes, «T. por insp.» de esa inspectora deja de ser «—».
+
+### 11.6 Release "reintegración del jefe + seguridad" → v6.5 (incluye la v6.4)
+
+Junta en un solo deploy: la **v6.4** (ficha de KPIs, nunca desplegada), la **reintegración** de lo que el jefe
+subió directo a prod entre el 16 y el 21/09, la **reposición de la v6.3** (anti-bloqueo) que esa subida revirtió,
+y **arreglos de seguridad**. Detalle en el CHANGELOG (filas v6.4 y v6.5).
+
+**0. Antes que nada — mitigación de `app_core/` (22/09, a mano en cPanel).** Si todavía no se hizo:
+
+- en `public_html/limpieza/.htaccess`, justo debajo de `RewriteBase /limpieza/`, las reglas
+  `RewriteRule (^|/)app_core(/|$) - [F,L]`, `RewriteRule (^|/)\. - [F,L]` y `RewriteRule (^|/)error_log$ - [F,L]`;
+- `public_html/limpieza/app_core/.htaccess` con `RewriteEngine On` + `RewriteRule ^ - [F]` además del
+  `Require all denied`;
+- borrar del servidor lo que sobra: `scratch.php`, `docs/` y `.DS_Store` del docroot, y en `app_core/`:
+  `.env_local` (**no** `.env`), `database/atankalama.db*` (**no** `database/seeds/`), `scripts/dryrun.log`,
+  `storage/logs/fallback.log`, `error_log`.
+
+Los dos `.htaccess` del repo (`deployment/cpanel/`) ya traen esas reglas y viajan en el delta. **Prueba:**
+`https://atankalama.com/limpieza/app_core/CHANGELOG.md` debe dar **403**. **Nunca** probar abriendo la URL de un
+script: eso lo ejecuta. Desde v6.5 cada script de `app_core/scripts/` además se niega a correr si lo pide la web
+(guarda «solo consola»), así que la protección ya no depende solo del `.htaccess`.
+
+**1. SQL, ANTES de subir el código** (idempotente):
+
+1. **`tickets_asignados`** (la usa Tickets). Lo más probable es que ya exista, porque la feature del jefe está
+   viva (chequeo: `SHOW TABLES LIKE 'limpieza_tickets_asignados';`). Igual correr el bloque completo: es
+   idempotente, y el `INSERT IGNORE` del final completa los tickets asignados antes de la tabla (si faltan,
+   se ven con «Responsable» en vez del nombre y no aparecen en «Asignados a mí»):
+
+   ```sql
+   CREATE TABLE IF NOT EXISTS limpieza_tickets_asignados (
+       ticket_id    INT NOT NULL,
+       usuario_id   INT NOT NULL,
+       asignado_por INT NOT NULL,
+       created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+       PRIMARY KEY (ticket_id, usuario_id),
+       FOREIGN KEY (ticket_id) REFERENCES limpieza_tickets(id) ON DELETE CASCADE,
+       FOREIGN KEY (usuario_id) REFERENCES limpieza_usuarios(id) ON DELETE CASCADE,
+       FOREIGN KEY (asignado_por) REFERENCES limpieza_usuarios(id) ON DELETE RESTRICT
+   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+   CREATE INDEX IF NOT EXISTS idx_tickets_asignados_usuario ON limpieza_tickets_asignados(usuario_id);
+   -- Backfill: el responsable único que ya tenían los tickets.
+   INSERT IGNORE INTO limpieza_tickets_asignados (ticket_id, usuario_id, asignado_por, created_at)
+   SELECT id, asignado_a, levantado_por, COALESCE(asignado_at, created_at)
+     FROM limpieza_tickets WHERE asignado_a IS NOT NULL;
+   ```
+
+   (Equivale a `php scripts/migrate-add-tickets-asignados.php`.)
+2. **La v6.4**: la columna `auditoria_iniciada_at` y el permiso `reportes.ver_supervisoras` — el SQL de §11.5, tal
+   cual.
+
+Los scripts de migración ahora son **solo consola**: correrlos por la Terminal de cPanel o como cron de una sola
+vez (ver v2.5), o usar el SQL de arriba en phpMyAdmin.
+
+**2. Archivos.** Delta por FTP (`build/limpieza-v65-delta.zip`, armado con `scripts/zip-stage.ps1`; la lista
+exacta va en el ZIP). Dos cuidados:
+
+- `app.js` y `custom.css` van a **las dos copias**: la del docroot (`assets/…`, la que se sirve) **y**
+  `app_core/public/assets/…`. El `?v=` de cache-busting sale de la fecha de la copia de `app_core`: si solo se sube
+  la del docroot, el `?v=` no cambia y los celulares siguen con la versión vieja cacheada. Con eso **no** hace falta
+  subir `CACHE_VERSION` del `sw.js`.
+- Limpieza opcional en `app_core/public/`: `assets/js/cola-offline.js` (la cola offline a medio desplegar del jefe;
+  ya nadie la carga).
+
+Sin `.env`, sin `vendor/`.
+
+**3. Smoke específico:**
+
+- badge home = **v6.5** (incógnito) y `app_core/CHANGELOG.md` → 403;
+- Tickets: asignar un ticket a dos trabajadores y que **el segundo** pueda marcarlo resuelto; «Tomar» un ticket
+  sin dueño lo deja «En progreso»;
+- Inspección: un área común terminada aparece **una sola vez** y sigue ahí después de 5 minutos (refresco
+  automático);
+- Reportes: aparece la ficha de KPIs (§11.5);
+- Ajustes → Usuarios: el último administrador tiene deshabilitados Desactivar y quitar el rol (anti-bloqueo de
+  vuelta).

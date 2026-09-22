@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
+use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Core\Url;
@@ -417,6 +418,37 @@ final class PaginasController
 
         $json = json_encode($manifest, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '{}';
         return new Response(200, $json, 'application/manifest+json; charset=utf-8');
+    }
+
+    /**
+     * Sirve recursos estáticos específicos de vistas (CSS y JS modulados en views/recursos/).
+     * Cumple con la regla de separación de assets y caché por filemtime().
+     */
+    public function servirRecurso(Request $request): Response
+    {
+        $ruta = $request->ruta['ruta'] ?? '';
+        if (preg_match('#^[a-zA-Z0-9_\-\./]+\.(css|js)$#', $ruta) !== 1) {
+            return Response::error('RECURSO_INVALIDO', 'Recurso inválido.', 404);
+        }
+
+        $base = realpath(Config::basePath() . '/views/recursos');
+        if ($base === false) {
+            return Response::error('RECURSO_NO_ENCONTRADO', 'Directorio de recursos no encontrado.', 404);
+        }
+
+        $absoluta = realpath($base . DIRECTORY_SEPARATOR . $ruta);
+        if ($absoluta === false || !str_starts_with($absoluta, $base . DIRECTORY_SEPARATOR)) {
+            return Response::error('RECURSO_NO_ENCONTRADO', 'Recurso no encontrado.', 404);
+        }
+
+        $contenido = file_get_contents($absoluta);
+        if ($contenido === false) {
+            return Response::error('ERROR_LECTURA', 'Error al leer el recurso.', 500);
+        }
+
+        $mime = str_ends_with($ruta, '.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+        return (new Response(200, $contenido, $mime))
+            ->conHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
 
     private static function redirect(string $url): Response

@@ -440,19 +440,22 @@ final class UsuarioService
             [$usuarioId, $desde90]
         );
 
-        // Tickets: levantados o asignados a la persona
+        // Tickets: levantados o asignados a la persona. "Asignado" incluye ser corresponsable
+        // (tickets_asignados): asignado_a guarda solo al responsable principal.
+        $esResponsable = '(t.asignado_a = ? OR EXISTS (SELECT 1 FROM #__tickets_asignados ta
+                                                          WHERE ta.ticket_id = t.id AND ta.usuario_id = ?))';
         $tickets = Database::fetchAll(
-            "SELECT id, habitacion_id, hotel_id, titulo, descripcion, prioridad, estado,
-                    levantado_por, asignado_a, created_at, updated_at, resuelto_at,
+            "SELECT t.id, t.habitacion_id, t.hotel_id, t.titulo, t.descripcion, t.prioridad, t.estado,
+                    t.levantado_por, t.asignado_a, t.created_at, t.updated_at, t.resuelto_at,
                     CASE
-                        WHEN levantado_por = ? AND asignado_a = ? THEN 'levantado_y_asignado'
-                        WHEN levantado_por = ? THEN 'levantado'
+                        WHEN t.levantado_por = ? AND {$esResponsable} THEN 'levantado_y_asignado'
+                        WHEN t.levantado_por = ? THEN 'levantado'
                         ELSE 'asignado'
                     END AS relacion
-               FROM #__tickets
-              WHERE levantado_por = ? OR asignado_a = ?
-              ORDER BY created_at DESC",
-            [$usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId]
+               FROM #__tickets t
+              WHERE t.levantado_por = ? OR {$esResponsable}
+              ORDER BY t.created_at DESC",
+            [$usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId, $usuarioId]
         );
 
         // Últimas 50 notificaciones del inbox

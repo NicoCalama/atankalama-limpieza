@@ -20,6 +20,7 @@
 .chip-estado-completada_pendiente_auditoria { background-color: var(--ce-completada_pendiente_auditoria-bg, #ececfd); color: var(--ce-completada_pendiente_auditoria-fg, #383a89); }
 .chip-estado-aprobada { background-color: var(--ce-aprobada-bg, #e3f8ea); color: var(--ce-aprobada-fg, #137135); }
 .chip-estado-aprobada_con_observacion { background-color: var(--ce-aprobada_con_observacion-bg, #e3f8ea); color: var(--ce-aprobada_con_observacion-fg, #137135); }
+.chip-estado-aprobada_automatica { background-color: var(--ce-aprobada_automatica-bg, #daf4f9); color: var(--ce-aprobada_automatica-fg, #036879); }
 .chip-estado-rechazada { background-color: var(--ce-rechazada-bg, #fde4e4); color: var(--ce-rechazada-fg, #882727); }
 
 /* Acento por hotel en tarjetas: borde izquierdo + tinte de fondo + etiqueta */
@@ -40,6 +41,7 @@
 .chip-estado-completada_pendiente_auditoria-activo { background-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); color: #fff; border-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); }
 .chip-estado-aprobada-activo { background-color: var(--ce-aprobada-solid, #22c55e); color: #fff; border-color: var(--ce-aprobada-solid, #22c55e); }
 .chip-estado-aprobada_con_observacion-activo { background-color: var(--ce-aprobada_con_observacion-solid, #22c55e); color: #fff; border-color: var(--ce-aprobada_con_observacion-solid, #22c55e); }
+.chip-estado-aprobada_automatica-activo { background-color: var(--ce-aprobada_automatica-solid, #06b6d4); color: #fff; border-color: var(--ce-aprobada_automatica-solid, #06b6d4); }
 .chip-estado-rechazada-activo { background-color: var(--ce-rechazada-solid, #ef4444); color: #fff; border-color: var(--ce-rechazada-solid, #ef4444); }
 
 /* Franja de estado al pie de la ficha de habitación: relleno sólido con el color
@@ -49,6 +51,7 @@
 .banner-estado-completada_pendiente_auditoria { background-color: var(--ce-completada_pendiente_auditoria-solid, #6366f1); }
 .banner-estado-aprobada { background-color: var(--ce-aprobada-solid, #22c55e); }
 .banner-estado-aprobada_con_observacion { background-color: var(--ce-aprobada_con_observacion-solid, #22c55e); }
+.banner-estado-aprobada_automatica { background-color: var(--ce-aprobada_automatica-solid, #06b6d4); }
 .banner-estado-rechazada { background-color: var(--ce-rechazada-solid, #ef4444); }
 
 /* Safe area para bottom nav en dispositivos con notch (iOS) */
@@ -163,3 +166,100 @@ body.arrastrando [data-drag-room] { cursor: grabbing; }
 .slot-insert-fin   { box-shadow: inset 0 -3px 0 0 #2563eb; }
 .dark .slot-insert-antes { box-shadow: inset 0 3px 0 0 #60a5fa; }
 .dark .slot-insert-fin   { box-shadow: inset 0 -3px 0 0 #60a5fa; }
+
+/* Selector de responsables de ticket (agrupado por perfil, con checkboxes): compartido
+   entre tickets.php (asignar a un ticket existente) y el modal global "Nuevo ticket"
+   (modal-ticket-nuevo.php, se abre desde cualquier pantalla) — global, no en tickets.css. */
+.asignar-responsables-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.asignar-responsables-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.asignar-responsables-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.asignar-responsables-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.4);
+    border-radius: 9999px;
+}
+
+.dark .asignar-responsables-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.5);
+}
+
+/* Pills de filtro de grupo rápido (Supervisora, Trabajador, Mantenimiento) */
+.btn-grupo-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: 1px solid;
+    user-select: none;
+}
+
+.btn-grupo-pill-activo {
+    background-color: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+.btn-grupo-pill-inactivo {
+    background-color: #f3f4f6;
+    color: #374151;
+    border-color: #e5e7eb;
+}
+
+.btn-grupo-pill-inactivo:hover {
+    background-color: #e5e7eb;
+    color: #111827;
+}
+
+.dark .btn-grupo-pill-inactivo {
+    background-color: #374151;
+    color: #d1d5db;
+    border-color: #4b5563;
+}
+
+.dark .btn-grupo-pill-inactivo:hover {
+    background-color: #4b5563;
+    color: #f9fafb;
+}
+
+/* Item seleccionable de responsable individual */
+.responsable-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+    user-select: none;
+}
+
+.responsable-item:hover {
+    background-color: #f3f4f6;
+}
+
+.dark .responsable-item:hover {
+    background-color: #374151;
+}
+
+.responsable-item.seleccionado {
+    background-color: #eff6ff;
+}
+
+.dark .responsable-item.seleccionado {
+    background-color: rgba(30, 58, 138, 0.3);
+}

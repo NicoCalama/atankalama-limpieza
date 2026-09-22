@@ -179,7 +179,7 @@ Ver [alertas-predictivas.md](alertas-predictivas.md).
 
 ## 10. Tickets
 
-Ver [tickets.md](tickets.md).
+Ver [tickets.md](tickets.md). Los tickets incluyen `responsables` (lista de `{id, nombre}`; sin email) además de `asignado_a` (responsable principal, por compatibilidad).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
@@ -187,8 +187,8 @@ Ver [tickets.md](tickets.md).
 | GET | `/api/tickets` | `tickets.ver_todos` | Todos |
 | GET | `/api/tickets/mios` | `tickets.ver_propios` | Propios |
 | GET | `/api/tickets/{id}` | propietario o `tickets.ver_todos` | Detalle |
-| PUT | `/api/tickets/{id}/asignar` | `tickets.ver_todos` | Asignar a usuario |
-| PUT | `/api/tickets/{id}/estado` | `tickets.ver_todos` | Cambiar estado |
+| PUT | `/api/tickets/{id}/asignar` | `tickets.ver_todos`; con solo `tickets.ver_propios`, autoasignarse un ticket sin dueño («Tomar») | Asigna uno o varios responsables: `usuario_ids` (array), `usuario_id` o `grupo_rol`. Reemplaza la lista completa (tabla `tickets_asignados`); `asignado_a` conserva al responsable principal si sigue en la lista. Designar a alguien que no es Trabajador exige `tickets.asignar_a_cualquier_perfil` (403 `PERFIL_NO_ASIGNABLE`) |
+| PUT | `/api/tickets/{id}/estado` | `tickets.ver_todos` (cualquier transición) o ser **cualquiera de los responsables** (solo `en_progreso` / `resuelto`) | Cambiar estado |
 
 ---
 

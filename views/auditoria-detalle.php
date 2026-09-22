@@ -324,10 +324,17 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                             <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
                         </div>
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">¿Aprobar habitación?</h3>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            <span x-text="esEspacio ? '¿Aprobar el área?' : '¿Aprobar habitación?'"></span>
+                        </h3>
                     </div>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                        Se marcará como aprobada y pasará a estado "Clean" en Cloudbeds. Esta acción no se puede deshacer.
+                        <template x-if="esEspacio">
+                            <span>Se marcará como aprobada. Esta acción no se puede deshacer.</span>
+                        </template>
+                        <template x-if="!esEspacio">
+                            <span>Se marcará como aprobada y pasará a estado "Clean" en Cloudbeds. Esta acción no se puede deshacer.</span>
+                        </template>
                     </p>
                     <div class="flex gap-3">
                         <button x-ref="btnCancelarAprobar" @click="mostrarConfirmarAprobar = false"
@@ -382,6 +389,13 @@ function auditoriaDetalleApp(habitacionId) {
         dictadoReinicios: 0,
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
+
+        // Áreas comunes (EspacioService::TIPO_NOMBRE) también pasan por acá desde que
+        // se auditan igual que las habitaciones de huésped — ver docs/areas-comunes.md.
+        // No sincronizan con Cloudbeds, así que el modal de aprobar no debe prometerlo.
+        get esEspacio() {
+            return !!this.habitacion && this.habitacion.tipo_nombre === 'Área común';
+        },
 
         get esAuditada() {
             if (this.auditoria) return true;

@@ -200,7 +200,7 @@ Cuando el usuario apruebe un default razonable, deja constancia con un comentari
 
 ```powershell
 # Servidor local de desarrollo
-php -S localhost:8000 -t public/
+php -S localhost:8000 -t public/ public/index.php
 
 # Crear/recrear la base de datos desde migraciones + seeds
 php scripts/init-db.php
@@ -255,7 +255,7 @@ Los módulos UI no requieren tests automatizados en el MVP.
 
 ## Cuando termines un módulo
 
-1. Asegúrate de que el código corre sin errores (`php -S localhost:8000 -t public/`)
+1. Asegúrate de que el código corre sin errores (`php -S localhost:8000 -t public/ public/index.php`)
 2. Si es módulo backend: corre los tests
 3. **Propón** el commit (con mensaje descriptivo). Si el usuario ya te lo pidió, ejecútalo sin volver a preguntar
 4. Si hubo defaults razonables o decisiones de diseño, inclúyelas en el cuerpo del commit

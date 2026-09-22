@@ -3,7 +3,7 @@
  * Vista de Áreas comunes (espacios). Ver docs/areas-comunes.md
  *
  * Espacios que no son habitaciones de huésped (piscina, pasillos, patio, bodega…), con checklist
- * propio, servicio on-demand y sin auditoría (se auto-cierran al completar).
+ * propio, servicio on-demand. Pasan por la misma auditoría que las habitaciones de huésped.
  *
  * Endpoints:
  *  - GET    /api/espacios?hotel=              { espacios, trabajadores, fecha }
@@ -433,7 +433,8 @@ function espaciosApp() {
             { valor: '', etiqueta: 'Todos' },
             { valor: 'aprobada', etiqueta: 'Listo' },
             { valor: 'sucia', etiqueta: 'Pendiente' },
-            { valor: 'en_progreso', etiqueta: 'En limpieza' }
+            { valor: 'en_progreso', etiqueta: 'En limpieza' },
+            { valor: 'completada_pendiente_auditoria', etiqueta: 'Por inspeccionar' }
         ],
         columnas: [
             { clave: 'numero', etiqueta: 'Nombre' },
@@ -555,8 +556,18 @@ function espaciosApp() {
             return op ? op.etiqueta : 'Ambos hoteles';
         },
 
+        // Ahora que las áreas pasan por auditoría (ver docs/areas-comunes.md), pueden llegar a
+        // cualquiera de los 7 estados de Habitacion — mismo mapeo que asignaciones.php/habitaciones.php.
         etiquetaEstado(estado) {
-            var map = { 'aprobada': 'Listo', 'sucia': 'Limpieza pendiente', 'en_progreso': 'En limpieza' };
+            var map = {
+                'aprobada': 'Listo',
+                'sucia': 'Limpieza pendiente',
+                'en_progreso': 'En limpieza',
+                'completada_pendiente_auditoria': 'Por inspeccionar',
+                'aprobada_con_observacion': 'Listo c/obs.',
+                'aprobada_automatica': 'Listo (auto)',
+                'rechazada': 'Rechazada'
+            };
             return map[estado] || 'Listo';
         },
         claseBadge(estado) {
@@ -564,7 +575,11 @@ function espaciosApp() {
             var map = {
                 'aprobada': 'chip-estado-aprobada',
                 'sucia': 'chip-estado-sucia',
-                'en_progreso': 'chip-estado-en_progreso'
+                'en_progreso': 'chip-estado-en_progreso',
+                'completada_pendiente_auditoria': 'chip-estado-completada_pendiente_auditoria',
+                'aprobada_con_observacion': 'chip-estado-aprobada_con_observacion',
+                'aprobada_automatica': 'chip-estado-aprobada_automatica',
+                'rechazada': 'chip-estado-rechazada'
             };
             return map[estado] || 'chip-estado-aprobada';
         },
@@ -690,6 +705,9 @@ function espaciosApp() {
                     this.mostrarToast('exito', 'Limpieza pedida a ' + tr.nombre + '.');
                     this.cerrarPedir();
                     this.cargar();
+                } else if (r && r.encolado) {
+                    this.mostrarToast('exito', 'Sin conexión: se pedirá la limpieza apenas vuelva internet.');
+                    this.cerrarPedir();
                 } else {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos pedir la limpieza.');
                 }

@@ -37,7 +37,7 @@ final class AuthService
      *   - Cualquier fallo (RUT inválido, credenciales, usuario inactivo) suma un intento
      *   - Login exitoso limpia el contador para esa clave
      */
-    public function login(string $rutInput, string $password, ?string $ip = null, ?string $userAgent = null): array
+    public function login(string $rutInput, #[\SensitiveParameter] string $password, ?string $ip = null, ?string $userAgent = null): array
     {
         $this->asegurarTablaIntentosLogin();
 
@@ -225,7 +225,12 @@ final class AuthService
         return $this->usuarios->buscarPorId((int) $sesion['usuario_id']);
     }
 
-    public function cambiarContrasena(int $usuarioId, string $actual, string $nueva, string $confirmacion): void
+    public function cambiarContrasena(
+        int $usuarioId,
+        #[\SensitiveParameter] string $actual,
+        #[\SensitiveParameter] string $nueva,
+        #[\SensitiveParameter] string $confirmacion,
+    ): void
     {
         if ($nueva !== $confirmacion) {
             throw new AuthException('PWD_NO_COINCIDE', 'La nueva contraseña y su confirmación no coinciden.', 400);

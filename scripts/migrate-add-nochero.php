@@ -15,6 +15,12 @@ declare(strict_types=1);
  * backfill: el valor por defecto (es_nochero=0, nochero_hasta NULL) ya describe las filas existentes.
  */
 
+// Solo consola: nunca debe poder ejecutarse abriendo su URL.
+if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
+    http_response_code(404);
+    exit;
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
