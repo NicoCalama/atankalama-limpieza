@@ -310,7 +310,8 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-09-16 | **Anti-bloqueo de admins** → **v6.3** (`594fdf2`) | Delta por **FTP**, 11 archivos (`build/limpieza-v63-delta.zip`, incluía también la reintegración v6.2). Sin SQL. Badge v6.3 confirmado. |
 | 2026-09-16…21 | **Subida del jefe desde su copia local** (sin git, sin registrar) | ⚠️ **Revirtió** la v6.3 (`Database`, `RbacService`, `UsuarioService` y `modal-usuario-detalle` quedaron como copias viejas exactas), `Tours.php` (base v5.3), el `CHANGELOG` (el badge volvió a v5.3) y la bandera `data-vg-context` de `habitacion-detalle`. **Agregó:** tickets con varios responsables (tabla `tickets_asignados` + `scripts/migrate-add-tickets-asignados.php`), JS/CSS en `views/recursos/` servidos por la ruta `/views/recursos/{ruta*}`, áreas comunes por inspección, «Forzar actualización» y una cola offline a medio desplegar. Detectado en la revisión del 21/09 (descarga completa de prod); reintegrado en **v6.5**. |
 | 2026-09-17 | v6.4 (ficha de KPIs) — **NO desplegada** | El delta armado (`build/cpanel-v64`) quedó obsoleto: su `Kernel.php` borraba `/views/recursos` (rompía Tickets) y su `AuditoriaService` dejaba las áreas atrapadas en «Por inspeccionar». Su contenido sale en **v6.5** (§11.6). |
-| 2026-09-22 | **Mitigación: `app_core/` expuesto por web** (manual en cPanel) | `app_core/CHANGELOG.md` respondía 200: LiteSpeed no aplicaba el `Require all denied` de `app_core/.htaccess`, así que los scripts de `app_core/scripts/` se podían ejecutar por URL. Reglas `RewriteRule … [F]` en ambos `.htaccess` + borrado de archivos sobrantes (ver §11.6). **Pendiente de confirmar por Nicolás.** |
+| 2026-09-22 | **Mitigación: `app_core/` expuesto por web** (manual en cPanel) | `app_core/CHANGELOG.md` respondía 200: LiteSpeed no aplicaba el `Require all denied` de `app_core/.htaccess`, así que los scripts de `app_core/scripts/` se podían ejecutar por URL. Reglas `RewriteRule … [F]` en ambos `.htaccess` + borrado de archivos sobrantes (ver §11.6). **Confirmado:** `app_core/CHANGELOG.md` → 403 tras el deploy de v6.5. |
+| 2026-09-22 | **Reintegración del jefe + ficha de KPIs + seguridad** → **v6.5** (incluye la v6.4; `ccf125b`, CHANGELOG `03a6472`) | Delta por **FTP**, 89 archivos (`build/limpieza-v65-delta.zip`, calculado comparando HEAD contra la descarga de prod del 21/09 — no con `git diff`, porque prod tenía cambios fuera de git). **SQL previo** en phpMyAdmin: `tickets_asignados` (idempotente, con backfill) + v6.4 (§11.5). Repone la v6.3 (anti-bloqueo) y los recorridos de ayuda perdidos; scripts con guarda «solo consola»; `.htaccess` con `RewriteRule [F]`. Verificado: badge v6.5 y todo funcionando (Nicolás); `app_core/CHANGELOG.md` → 403, `/api/health` 200, `/api/reportes/ficha` 401, `/views/recursos/tickets/tickets.js` 200. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -542,13 +543,14 @@ Reportes trae la ficha completa de KPIs (`docs/kpis-sueldos.md`). **Dos cambios 
 
 ```sql
 -- 1) Inicio de la inspección (se sobreescribe en cada apertura del detalle).
-ALTER TABLE limpieza_ejecuciones_checklist ADD COLUMN auditoria_iniciada_at VARCHAR(30) NULL;
+ALTER TABLE limpieza_ejecuciones_checklist ADD COLUMN IF NOT EXISTS auditoria_iniciada_at VARCHAR(30) NULL;
 
 -- 2) Permiso nuevo + concesión a los roles administradores.
 INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
 SELECT 'reportes.ver_supervisoras',
        'Ver los KPIs y tiempos de las supervisoras en Reportes (sección Supervisora · Inspección)',
        'Reportes', 'global'
+  FROM DUAL
  WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'reportes.ver_supervisoras');
 
 INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
