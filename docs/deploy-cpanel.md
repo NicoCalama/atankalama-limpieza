@@ -312,6 +312,8 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-09-17 | v6.4 (ficha de KPIs) — **NO desplegada** | El delta armado (`build/cpanel-v64`) quedó obsoleto: su `Kernel.php` borraba `/views/recursos` (rompía Tickets) y su `AuditoriaService` dejaba las áreas atrapadas en «Por inspeccionar». Su contenido sale en **v6.5** (§11.6). |
 | 2026-09-22 | **Mitigación: `app_core/` expuesto por web** (manual en cPanel) | `app_core/CHANGELOG.md` respondía 200: LiteSpeed no aplicaba el `Require all denied` de `app_core/.htaccess`, así que los scripts de `app_core/scripts/` se podían ejecutar por URL. Reglas `RewriteRule … [F]` en ambos `.htaccess` + borrado de archivos sobrantes (ver §11.6). **Confirmado:** `app_core/CHANGELOG.md` → 403 tras el deploy de v6.5. |
 | 2026-09-22 | **Reintegración del jefe + ficha de KPIs + seguridad** → **v6.5** (incluye la v6.4; `ccf125b`, CHANGELOG `03a6472`) | Delta por **FTP**, 89 archivos (`build/limpieza-v65-delta.zip`, calculado comparando HEAD contra la descarga de prod del 21/09 — no con `git diff`, porque prod tenía cambios fuera de git). **SQL previo** en phpMyAdmin: `tickets_asignados` (idempotente, con backfill) + v6.4 (§11.5). Repone la v6.3 (anti-bloqueo) y los recorridos de ayuda perdidos; scripts con guarda «solo consola»; `.htaccess` con `RewriteRule [F]`. Verificado: badge v6.5 y todo funcionando (Nicolás); `app_core/CHANGELOG.md` → 403, `/api/health` 200, `/api/reportes/ficha` 401, `/views/recursos/tickets/tickets.js` 200. |
+| 2026-09-22 | **RUT en los buscadores** → **v6.6** (`5117eea`, CHANGELOG `f9919aa`) | El modal global «Cambiar contraseña» dejaba 3 campos de contraseña ocultos y fuera de un `<form>` en todas las páginas: Chrome tomaba cada pantalla por un login y escribía el RUT guardado en el buscador (y la lista quedaba filtrada por ese RUT). Fix: `<template x-if>` + `<form>`. 1 archivo (`views/componentes/modal-cambiar-password.php`) + `CHANGELOG.md`; su archivo viajó también en el delta de la v6.7, que se calculó contra la v6.5 porque la subida de la v6.6 no estaba confirmada. Sin SQL ni assets. |
+| 2026-09-22 | **Pieza en curso primero + piezas en progreso solo para Admin** → **v6.7** (`325753d`, CHANGELOG `76f03db`) | Delta por **FTP**, 13 archivos (`build/limpieza-v67-delta.zip`, contra el deploy de la v6.5; incluye el de la v6.6). Antes de armarlo se comprobó que las copias de prod de los 11 archivos que ya existían eran idénticas a la base del repo (sin cambios del jefe). **SQL** del permiso `asignaciones.mover_en_progreso` (§11.7) corrido en phpMyAdmin (confirmado por Nicolás). Sin assets → sin bump de `CACHE_VERSION`; sin `.env` ni `vendor/`. Verificado: badge v6.7 (Nicolás); `/api/health` 200, `/login` 200, `app_core/CHANGELOG.md` y `app_core/views/componentes/candado-en-progreso.php` → 403, `POST /api/asignaciones/reasignar` sin sesión → 401. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -647,7 +649,7 @@ Sin `.env`, sin `vendor/`.
 - Ajustes → Usuarios: el último administrador tiene deshabilitados Desactivar y quitar el rol (anti-bloqueo de
   vuelta).
 
-### 11.7 Release "habitación actual + piezas en progreso" → v6.7 (preparado, sin desplegar)
+### 11.7 Release "habitación actual + piezas en progreso" → v6.7 (desplegado el 22/09/2026)
 
 Dos cambios (detalle en la fila v6.7 del CHANGELOG):
 
