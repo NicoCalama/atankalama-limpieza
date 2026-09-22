@@ -136,6 +136,13 @@ Si `tiempo_promedio_personal` no se puede calcular (< 5 ejecuciones):
 
 Admin y Supervisora ven las mismas alertas (mismo permiso). Diferencia: Admin también ve alertas técnicas del sistema (implícito porque tiene `sistema.ver_salud`).
 
+**Pantalla completa — `GET /alertas`** (`views/alertas.php`, permiso `alertas.recibir_predictivas`):
+las dos Home muestran solo las 5 primeras y, cuando hay más, enlazan acá. Lista **todas** las
+alertas activas —de `GET /api/alertas`, ordenadas por prioridad y después por fecha— con los
+mismos botones de acción que la Home. Ojo con el número del enlace: la Home del Admin solo
+cuenta las críticas (P0 y P1), así que esta pantalla puede mostrar algunas más; la de la
+Supervisora cuenta todas.
+
 ---
 
 ## 6. Ciclo de vida en BD

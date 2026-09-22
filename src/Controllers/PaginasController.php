@@ -270,6 +270,28 @@ final class PaginasController
         ]);
     }
 
+    /**
+     * Pantalla «Todas las alertas»: destino del enlace "Ver todas las alertas (N)" que los
+     * dos Inicios muestran cuando hay más de 5. Mismo permiso que la bandeja del Inicio y
+     * que GET /api/alertas, de donde se alimenta.
+     */
+    public function alertas(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('alertas.recibir_predictivas')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('alertas', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Alertas',
+        ]);
+    }
+
     public function ajustesAlertas(Request $request): Response
     {
         if ($request->usuario === null) {

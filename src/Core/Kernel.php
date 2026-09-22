@@ -66,6 +66,7 @@ final class Kernel
         $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
+        $router->get('/alertas', [$paginas, 'alertas'], [$optionalAuth]);
         $router->get('/espacios', [$paginas, 'espacios'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
         $router->get('/usuarios', [$paginas, 'usuarios'], [$optionalAuth]);
