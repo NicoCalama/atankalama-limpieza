@@ -363,6 +363,7 @@ final class HomeController
             $sistema = [
                 'cloudbeds' => $this->home->sistemaCloudbeds(),
                 'errores_logs' => $this->home->sistemaErroresLogs($hoy),
+                'esquema' => $this->home->sistemaEsquema(),
                 'base_datos' => $this->home->sistemaBaseDatos(),
                 'usuarios_activos' => $this->home->sistemaUsuariosActivos($usuario->id),
                 'version_app' => $this->home->sistemaVersionApp(),
@@ -467,6 +468,9 @@ final class HomeController
         $estados = [
             $sistema['cloudbeds']['estado'] ?? 'OK',
             $sistema['base_datos']['estado'] ?? 'OK',
+            // Un release cuyo SQL no se corrió deja la app fallando en silencio: pesa
+            // igual que una caída de Cloudbeds en el indicador de la cabecera.
+            $sistema['esquema']['estado'] ?? 'OK',
         ];
         $severidad = $sistema['errores_logs']['severidad'] ?? 'baja';
         if ($severidad === 'alta') {

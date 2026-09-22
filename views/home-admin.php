@@ -375,6 +375,47 @@ if ($hora < 12) {
                                 </a>
                             </div>
 
+                            <!-- Esquema de base de datos: ¿corrió el SQL de los releases?
+                                 Nació del incidente del 22/09/2026 (el SQL de la v6.4 nunca
+                                 se aplicó y la app falló en silencio). Acá sí van los nombres
+                                 de lo que falta: esta pantalla exige sistema.ver_salud. -->
+                            <template x-if="data.sistema.esquema">
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4"
+                                     :class="claseBordeSistema(data.sistema.esquema.estado)">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-2">
+                                            <i data-lucide="database-zap" class="w-4 h-4" :class="claseIconoSistema(data.sistema.esquema.estado)"></i>
+                                            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Esquema de base de datos</span>
+                                        </div>
+                                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full"
+                                              :class="claseBadgeSistema(data.sistema.esquema.estado)"
+                                              x-text="etiquetaEstadoSistema(data.sistema.esquema.estado)"></span>
+                                    </div>
+                                    <template x-if="data.sistema.esquema.ok">
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Al día con el código.</p>
+                                    </template>
+                                    <template x-if="!data.sistema.esquema.ok">
+                                        <div>
+                                            <p class="text-xs text-gray-600 dark:text-gray-300">
+                                                Falta correr el SQL de un release: <span class="font-semibold" x-text="data.sistema.esquema.total"></span>
+                                                elemento(s). La app puede estar fallando sin avisar.
+                                            </p>
+                                            <ul class="mt-2 space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                                <template x-for="t in data.sistema.esquema.tablas" :key="'t-' + t">
+                                                    <li>Tabla: <span class="font-mono" x-text="t"></span></li>
+                                                </template>
+                                                <template x-for="c in data.sistema.esquema.columnas" :key="'c-' + c">
+                                                    <li>Columna: <span class="font-mono" x-text="c"></span></li>
+                                                </template>
+                                                <template x-for="p in data.sistema.esquema.permisos" :key="'p-' + p">
+                                                    <li>Permiso: <span class="font-mono" x-text="p"></span></li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
                             <!-- Base de datos -->
                             <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4"
                                  :class="claseBordeSistema(data.sistema.base_datos.estado)">

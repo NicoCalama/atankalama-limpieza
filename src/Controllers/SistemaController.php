@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Services\EsquemaService;
 use Throwable;
 
 final class SistemaController
@@ -17,6 +18,7 @@ final class SistemaController
         $checks = [
             'db' => $this->verificarBd(),
             'env' => $this->verificarEnv(),
+            'esquema' => $this->verificarEsquema(),
         ];
 
         $todoOk = !in_array(false, array_column($checks, 'ok'), true);
@@ -44,6 +46,38 @@ final class SistemaController
         } catch (Throwable $e) {
             return ['ok' => false, 'mensaje' => 'DB no responde'];
         }
+    }
+
+    /**
+     * ¿La base tiene lo que el código espera? Un release cuyo SQL no se corrió deja la
+     * app fallando en silencio (incidente del 22/09/2026, ver EsquemaService).
+     *
+     * Este endpoint es PÚBLICO, así que acá solo se dice CUÁNTO falta, nunca qué:
+     * los nombres de tablas y columnas le sirven más a un atacante que a nosotros. El
+     * detalle está en Inicio → Salud del sistema (detrás de permiso) y en
+     * `scripts/verificar-esquema.php`.
+     *
+     * El runbook ya prueba `/api/health` → 200 después de cada deploy: con esto, un SQL
+     * olvidado se cae ahí mismo el día del deploy en vez de a los días.
+     *
+     * @return array{ok: bool, mensaje?: string}
+     */
+    private function verificarEsquema(): array
+    {
+        try {
+            $r = (new EsquemaService())->faltantes();
+        } catch (Throwable $e) {
+            // Un fallo del verificador no puede tumbar el health: si no se puede
+            // comprobar, no se afirma que esté mal.
+            return ['ok' => true, 'mensaje' => 'No se pudo verificar el esquema'];
+        }
+        if ($r['ok']) {
+            return ['ok' => true];
+        }
+        return [
+            'ok' => false,
+            'mensaje' => "Faltan migraciones: {$r['total']} elemento(s). Ver Inicio → Salud del sistema.",
+        ];
     }
 
     /**

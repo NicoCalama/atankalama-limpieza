@@ -623,6 +623,34 @@ final class HomeService
      *
      * @return array<string, mixed>
      */
+    /**
+     * Esquema de la base: ¿corrió el SQL de los releases desplegados?
+     *
+     * A diferencia de `/api/health` —que es público y solo dice cuántos elementos faltan—,
+     * acá van los nombres: esta pantalla exige `sistema.ver_salud`. Ver EsquemaService y
+     * el incidente del 22/09/2026 en docs/deploy-cpanel.md §11.
+     *
+     * @return array{estado: string, ok: bool, total: int, tablas: list<string>, columnas: list<string>, permisos: list<string>}
+     */
+    public function sistemaEsquema(): array
+    {
+        try {
+            $r = (new EsquemaService())->faltantes();
+        } catch (\Throwable $e) {
+            // No poder verificar no es lo mismo que estar mal: no se pinta rojo por eso.
+            return ['estado' => 'OK', 'ok' => true, 'total' => 0, 'tablas' => [], 'columnas' => [], 'permisos' => []];
+        }
+
+        return [
+            'estado'   => $r['ok'] ? 'OK' : 'ERROR',
+            'ok'       => $r['ok'],
+            'total'    => $r['total'],
+            'tablas'   => $r['tablas'],
+            'columnas' => $r['columnas'],
+            'permisos' => $r['permisos'],
+        ];
+    }
+
     public function sistemaBaseDatos(): array
     {
         $dbPath = (string) Config::get('DB_PATH', 'database/atankalama.db');

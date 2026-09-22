@@ -165,7 +165,7 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 
 | Check | Esperado |
 |---|---|
-| `https://atankalama.com/limpieza/api/health` | 200 `{"ok":true,...}` |
+| `https://atankalama.com/limpieza/api/health` | 200 `{"ok":true,...}` — **incluye `checks.esquema`: si da 503 con «Faltan migraciones», el SQL del release no se corrió (ver §7.1)** |
 | `https://atankalama.com/limpieza/login` | 200, página de login con estilos |
 | `https://atankalama.com/limpieza/manifest` | 200, `start_url":"/limpieza/home` |
 | `https://atankalama.com/limpieza/app_core/.env` | **403** (si da 200, PARAR: revisar `.htaccess` de app_core) |
@@ -175,6 +175,41 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 | Cookie del navegador | `limpieza_session` con path `/limpieza` |
 | File Manager: `app_core/database/` | SIN `atankalama.db` (si existe → el `.env` no se está leyendo) |
 | DevTools → Application | Service worker activo con scope `/limpieza/`; prompt "Instalar app" disponible |
+
+### 7.1 Verificación de esquema (¿corrió el SQL del release?)
+
+**Por qué existe este paso.** El 22/09/2026 se descubrió que el SQL del §11.5 (v6.4) nunca se
+había corrido en producción. El código subió igual dentro del delta de la v6.5 y
+`POST /api/auditoria/{id}/iniciar` tiró **500 en cada apertura de inspección durante días**,
+sin que nadie lo notara: el frontend llama ese endpoint con un `.catch()` vacío. El KPI «tiempo
+por inspección» quedó con un hueco irrecuperable. El runbook pedía correr el SQL antes del
+código, pero **nada verificaba que se hubiera hecho**.
+
+Ahora sí. `EsquemaService` compara la base viva contra las dos fuentes de verdad que ya
+existen —`docs/database-schema*.sql` y `database/seeds/permisos.php`—, así que **cubre
+automáticamente cualquier release futuro**, sin que haya que anotar nada en ninguna lista.
+
+Se ve en tres lados:
+
+1. **`/api/health`** → pasa a **503** si falta algo. Es el smoke de la tabla de arriba, así que
+   un SQL olvidado se cae **el día del deploy**. Por ser público solo dice *cuántos* elementos
+   faltan, nunca cuáles.
+2. **Inicio → Salud del sistema** (permiso `sistema.ver_salud`) → tarjeta «Esquema de base de
+   datos» con el detalle: qué tablas, columnas y permisos faltan.
+3. **Por consola**, cuando querés el detalle sin entrar a la app:
+
+```bash
+/opt/alt/php84/usr/bin/php /home4/cat6852/public_html/limpieza/app_core/scripts/verificar-esquema.php
+```
+
+Sale con código 1 si falta algo, así que también sirve como cron. **Solo lee, nunca modifica.**
+
+Si reporta faltantes: corré el SQL del release (§11 de este documento) o el
+`scripts/migrate-*.php` que corresponda, y volvé a verificar. **El SQL va ANTES del código.**
+
+> No verifica *qué roles* tienen cada permiso: esa asignación se edita desde Ajustes → Roles y
+> Permisos y no tiene fuente de verdad en el código. Solo comprueba que el permiso exista en el
+> catálogo — que es justo lo que faltaba en el incidente.
 
 ## 8. Crons (4 wrappers)
 

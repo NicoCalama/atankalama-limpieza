@@ -138,11 +138,28 @@ CREATE TABLE #__tipos_habitacion (
     created_at   VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Edificios y mapeo de pisos (Ajustes → Edificios). Faltaba en este schema aunque sí
+-- estaba en el de SQLite y en producción: se repuso el 22/09/2026 al agregar el
+-- verificador de esquema, que compara la base viva contra ESTE archivo.
+CREATE TABLE #__edificios (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    hotel_id       INT NOT NULL,
+    nombre         VARCHAR(150) NOT NULL,
+    pisos          INT DEFAULT 1,
+    estado         VARCHAR(20) NOT NULL DEFAULT 'operativo',
+    orden          INT NOT NULL DEFAULT 0,
+    created_at     VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    FOREIGN KEY (hotel_id) REFERENCES #__hoteles(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE #__habitaciones (
     id                      INT AUTO_INCREMENT PRIMARY KEY,
     hotel_id                INT NOT NULL,
     numero                  VARCHAR(20) NOT NULL,
     tipo_habitacion_id      INT NOT NULL,
+    edificio_id             INT,                                  -- ID referencial de edificio (existente en BD)
+    edificio                VARCHAR(150),                         -- nombre del edificio (opcional)
+    piso                    INT,                                  -- número de piso (opcional)
     cloudbeds_room_id       VARCHAR(100),
     cloudbeds_room_name     VARCHAR(150),                          -- espejo crudo del roomName de Cloudbeds
     estado                  VARCHAR(40) NOT NULL DEFAULT 'sucia' CHECK (estado IN (

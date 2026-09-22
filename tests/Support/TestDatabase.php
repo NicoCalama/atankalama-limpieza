@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Tests\Support;
 
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Services\EsquemaService;
 use Atankalama\Limpieza\Services\PasswordService;
 
 final class TestDatabase
@@ -29,6 +30,10 @@ final class TestDatabase
             throw new \RuntimeException('No se pudo leer docs/database-schema.sql');
         }
         Database::pdo()->exec($schema);
+
+        // El verificador de esquema cachea su resultado por proceso: al recrear la base
+        // ese cache queda viejo y arrastra el estado de un test al siguiente.
+        EsquemaService::limpiarCache();
 
         self::sembrarMinimos();
     }
