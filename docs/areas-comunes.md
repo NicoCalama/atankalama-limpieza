@@ -134,6 +134,12 @@ Permisos nuevos (catálogo `database/seeds/permisos.php`, categoría "Espacios")
 Se otorgan a **Supervisora** y **Admin** (Admin ya tiene `__ALL__`). El trabajador no gestiona
 espacios; solo los limpia con su permiso existente `habitaciones.marcar_completada`.
 
+**Área en progreso (v6.7):** pedir la limpieza de un área que alguien está limpiando hoy la mueve igual
+que reasignarla (el trabajador pierde lo avanzado), así que además exige
+`asignaciones.mover_en_progreso` (solo Admin por defecto). Sin ese permiso, el backend responde
+403 `HABITACION_EN_PROGRESO` («El área X está en progreso: solo un administrador puede reasignarla
+o quitarla»), que la pantalla de Espacios muestra como aviso. Ver `docs/asignacion.md` §4.4.
+
 ---
 
 ## 6. Cadencia

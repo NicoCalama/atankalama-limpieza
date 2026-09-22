@@ -67,6 +67,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `asignaciones.asignar_manual` | Asignar/reasignar habitaciones manualmente a un trabajador | Asignaciones | global |
 | `asignaciones.auto_asignar` | Ejecutar round-robin automático | Asignaciones | global |
 | `asignaciones.reordenar_cola_trabajador` | Reordenar la cola de habitaciones pendientes de un trabajador | Asignaciones | global |
+| `asignaciones.mover_en_progreso` | Reasignar o quitar habitaciones que están en progreso (el trabajador pierde lo avanzado). Solo Admin por defecto (v6.7, decisión de jefatura 22/09/2026); sin él, la pieza en progreso se ve bloqueada y el backend responde 403 — ver `docs/asignacion.md` §4.4 | Asignaciones | global |
 
 ### 2.4 Auditoría
 
@@ -281,6 +282,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `asignaciones.asignar_manual` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.auto_asignar` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.reordenar_cola_trabajador` | ⚪ | ✅ | ⚪ | ✅ |
+| `asignaciones.mover_en_progreso` | ⚪ | ⚪ | ⚪ | ✅ |
 | `auditoria.ver_bandeja` | ⚪ | ✅ | ✅ | ✅ |
 | `auditoria.aprobar` | ⚪ | ✅ | ✅ | ✅ |
 | `auditoria.aprobar_con_observacion` | ⚪ | ✅ | ✅ | ✅ |

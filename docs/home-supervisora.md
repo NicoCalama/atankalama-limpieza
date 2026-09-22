@@ -328,7 +328,7 @@ Debajo de la barra, **lista vertical de trabajadores** con estado individual.
 
 **4.4.5 Botones de acción**
 - **"Ver carga"** (gris) — abre panel con sus habitaciones pendientes
-- **"Reasignar"** (si tiene permiso `asignaciones.asignar_manual`) — abre selector para mover habitaciones a otro trabajador
+- **"Reasignar"** (si tiene permiso `asignaciones.asignar_manual`) — abre selector para mover habitaciones a otro trabajador. Una pieza **en progreso** solo se puede elegir con `asignaciones.mover_en_progreso` (Admin por defecto): sin él sale deshabilitada, con candado y el aviso «En progreso: solo un administrador puede moverla»; con él, pide confirmación. Ver `docs/asignacion.md` §4.4.
 
 Botones visibles solo si: tiene permiso `asignaciones.asignar_manual`.
 

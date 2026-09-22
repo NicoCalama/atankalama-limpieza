@@ -117,11 +117,12 @@ Ver [habitaciones.md](habitaciones.md) §6.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual |
+| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote |
 | POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
-| POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar |
-| POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia |
+| POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
+| POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia. Quitar una en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
+| GET | `/api/usuarios/{id}/cola` | propia, o `asignaciones.asignar_manual` | Cola del trabajador. Sin `habitaciones.ver_todas` devuelve solo la **habitación actual** (la que tiene en curso; si no, la primera pendiente); con `?vista=completa` sobre la propia cola, todas las del día (pestaña Habitaciones del trabajador) |
 
 ---
 

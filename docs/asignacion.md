@@ -92,8 +92,24 @@ unificados (mouse + dedo)**. Se carga solo en esta pantalla (`<script src>?v=fil
 
 - Una pieza **ya auditada** (`completada_pendiente_auditoria` / `aprobada` /
   `aprobada_con_observacion`) **no se arrastra ni tiene X** (no es reasignable).
-- Mover o quitar una pieza **`en_progreso`** pide **confirmación** (se reinicia y el
-  trabajador pierde lo avanzado).
+- **Pieza `en_progreso` (desde v6.7, decisión de jefatura 22/09/2026):** reasignarla o
+  quitarla le borra al trabajador lo avanzado, así que solo puede hacerlo quien tiene
+  **`asignaciones.mover_en_progreso`** (por defecto solo Admin; se cambia en Ajustes → Roles
+  y Permisos).
+  - **Sin el permiso** (la supervisora): la pieza se ve **bloqueada**. No se arrastra y no
+    tiene X, «Reasignar», «Desasignar» ni flechas ▲▼. En su lugar lleva un candado, y debajo
+    de la cola del trabajador aparece «En progreso: solo un administrador puede moverla». Lo
+    mismo en el modal «Reasignar carga» del Inicio de la supervisora (la ficha sale
+    deshabilitada, con candado).
+  - **Con el permiso:** mover o quitar la pieza pide **confirmación** en las tres pantallas:
+    Tablero, Clásico y el Inicio.
+  - **El backend lo exige igual**, sin depender de la pantalla. `POST /api/asignaciones`,
+    `/reasignar`, `/desasignar`, «Pedir limpieza» de Espacios y el copilot responden
+    **403 `HABITACION_EN_PROGRESO`**. La regla vive en
+    `AsignacionService::exigirPuedeMoverEnProgreso`, con default restrictivo: un llamador que
+    no pasa el permiso no la mueve. Solo aplica a la asignación de **hoy**: planificar la
+    pieza para otra fecha no toca el aseo en curso. En un lote con una pieza en progreso no
+    se asigna ninguna.
 - Si el backend responde **409 `ESTADO_NO_DESASIGNABLE`** (carrera: alguien la
   auditó entremedio), se muestra un mensaje amable y se re-sincroniza.
 

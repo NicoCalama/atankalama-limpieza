@@ -156,7 +156,10 @@ final class CopilotToolExecutor
         $habitacionId = (int) ($input['habitacion_id'] ?? 0);
         $usuarioId = (int) ($input['usuario_id'] ?? 0);
         // La tool no recibe fecha: se asigna para hoy (caso de uso del copilot).
-        $asignacion = $this->asignaciones->asignarManual($habitacionId, $usuarioId, date('Y-m-d'), $usuario->id);
+        $asignacion = $this->asignaciones->asignarManual(
+            $habitacionId, $usuarioId, date('Y-m-d'), $usuario->id,
+            puedeMoverEnProgreso: $usuario->tienePermiso('asignaciones.mover_en_progreso'),
+        );
         return ['asignacion_id' => $asignacion->id, 'mensaje' => 'Habitación asignada correctamente.'];
     }
 

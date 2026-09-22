@@ -32,7 +32,10 @@ final class AsignacionesController
         $ids = array_values(array_map('intval', $habitacionIds));
 
         try {
-            $creadas = $this->svc->asignarMultiple($ids, $usuarioId, $fecha, $request->usuario?->id, $franja);
+            $creadas = $this->svc->asignarMultiple(
+                $ids, $usuarioId, $fecha, $request->usuario?->id, $franja,
+                puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
+            );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -76,7 +79,10 @@ final class AsignacionesController
         }
 
         try {
-            $a = $this->svc->reasignar($habitacionId, $usuarioId, $fecha, $motivo, $request->usuario?->id);
+            $a = $this->svc->reasignar(
+                $habitacionId, $usuarioId, $fecha, $motivo, $request->usuario?->id,
+                puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
+            );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -93,7 +99,10 @@ final class AsignacionesController
         }
 
         try {
-            $this->svc->desasignar($habitacionId, $fecha, $request->usuario?->id);
+            $this->svc->desasignar(
+                $habitacionId, $fecha, $request->usuario?->id,
+                puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
+            );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -174,5 +183,11 @@ final class AsignacionesController
         $fecha = is_string($fecha) ? $fecha : date('Y-m-d');
 
         return Response::ok($this->svc->vistaConsolidada($hotel, $fecha));
+    }
+
+    /** Reasignar o quitar una pieza en progreso (ver AsignacionService::exigirPuedeMoverEnProgreso). */
+    private function puedeMoverEnProgreso(Request $request): bool
+    {
+        return $request->usuario?->tienePermiso('asignaciones.mover_en_progreso') ?? false;
     }
 }

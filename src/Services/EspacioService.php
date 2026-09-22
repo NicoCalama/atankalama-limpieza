@@ -217,9 +217,10 @@ final class EspacioService
     /**
      * "Pedir limpieza": asigna el espacio a un trabajador para una fecha. Reusa asignarManual, que
      * resetea el estado terminal (aprobada) → sucia y crea la asignación (el trabajador lo verá en
-     * su cola). Ver docs/areas-comunes.md §2.
+     * su cola). Ver docs/areas-comunes.md §2. Pedírsela a otra persona mientras el área está en
+     * progreso la mueve igual que reasignarla: exige asignaciones.mover_en_progreso.
      */
-    public function pedirLimpieza(int $id, int $usuarioId, string $fecha, ?int $actorId = null): Asignacion
+    public function pedirLimpieza(int $id, int $usuarioId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false): Asignacion
     {
         $this->obtenerDetalle($id); // valida que exista y sea espacio
         // El trabajador debe existir y estar activo (evita un 500 por FK si llega un id inválido).
@@ -228,7 +229,7 @@ final class EspacioService
         if ($u === null) {
             throw new EspacioException('TRABAJADOR_INVALIDO', 'El trabajador no existe o está inactivo.', 400);
         }
-        return $this->asignaciones->asignarManual($id, $usuarioId, $fecha, $actorId);
+        return $this->asignaciones->asignarManual($id, $usuarioId, $fecha, $actorId, puedeMoverEnProgreso: $puedeMoverEnProgreso);
     }
 
     /**

@@ -19,6 +19,7 @@ return [
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
     ['asignaciones.reordenar_cola_trabajador', 'Reordenar la cola de un trabajador', 'Asignaciones', 'global'],
+    ['asignaciones.mover_en_progreso', 'Reasignar o quitar habitaciones que están en progreso (el trabajador pierde lo avanzado)', 'Asignaciones', 'global'],
 
     ['espacios.ver', 'Ver el listado de áreas comunes', 'Espacios', 'global'],
     ['espacios.crear_editar', 'Crear/editar áreas comunes y su checklist', 'Espacios', 'global'],

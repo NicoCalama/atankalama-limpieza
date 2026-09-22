@@ -646,3 +646,68 @@ Sin `.env`, sin `vendor/`.
 - Reportes: aparece la ficha de KPIs (§11.5);
 - Ajustes → Usuarios: el último administrador tiene deshabilitados Desactivar y quitar el rol (anti-bloqueo de
   vuelta).
+
+### 11.7 Release "habitación actual + piezas en progreso" → v6.7 (preparado, sin desplegar)
+
+Dos cambios (detalle en la fila v6.7 del CHANGELOG):
+
+- **Arreglo de la «habitación actual» del trabajador:** siempre es la que tiene en curso. Antes quedaba
+  trabado si le rechazaban una pieza mientras limpiaba otra. No lleva SQL.
+- **Permiso nuevo `asignaciones.mover_en_progreso`:** reasignar o quitar una pieza en progreso queda
+  solo para Admin. La supervisora la ve con candado.
+
+**Delta:** se calcula contra el **último deploy confirmado** en la tabla de arriba. Si la v6.6 (RUT en
+los buscadores) no alcanzó a subirse, su archivo (`views/componentes/modal-cambiar-password.php`)
+va en este mismo delta.
+
+**1. Permiso, ANTES de subir el código** (idempotente). Por la Terminal de cPanel o como cron de una
+sola vez (ver v2.5):
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-permiso-mover-en-progreso.php
+```
+
+O el equivalente en phpMyAdmin, con el mismo patrón de §11.5:
+
+```sql
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'asignaciones.mover_en_progreso',
+       'Reasignar o quitar habitaciones que están en progreso (el trabajador pierde lo avanzado)',
+       'Asignaciones', 'global'
+  FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'asignaciones.mover_en_progreso');
+
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT DISTINCT rp.rol_id, 'asignaciones.mover_en_progreso'
+  FROM limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'permisos.asignar_a_rol'
+   AND NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos x
+                    WHERE x.rol_id = rp.rol_id AND x.permiso_codigo = 'asignaciones.mover_en_progreso');
+```
+
+Se concede a los roles que administran la matriz (`permisos.asignar_a_rol`), igual que el de la v6.4.
+Si el código sube antes que el SQL, nadie tiene el permiso: tampoco el Admin puede mover una pieza en
+progreso hasta correrlo. Falla hacia el lado seguro.
+
+**2. Archivos**, todos a `app_core/`:
+
+- `src/Services/AsignacionService.php`, `src/Services/EspacioService.php` y
+  `src/Services/Copilot/CopilotToolExecutor.php`;
+- `src/Controllers/AsignacionesController.php`, `src/Controllers/EspaciosController.php` y
+  `src/Controllers/HomeController.php`;
+- `views/asignaciones.php`, `views/home-supervisora.php` y `views/componentes/candado-en-progreso.php`
+  (nuevo);
+- `database/seeds/permisos.php` y `scripts/migrate-add-permiso-mover-en-progreso.php` (nuevo);
+- `CHANGELOG.md`.
+
+No cambia ningún asset (`sw.js`, `app.js`, `custom.css`), así que no hay que subir `CACHE_VERSION`. Sin
+`.env` y sin `vendor/`.
+
+**3. Smoke específico** (con las piezas de test, nunca con una real):
+
+- badge home = **v6.7** (incógnito);
+- **como Supervisora:** en Asignaciones, una pieza en progreso muestra el candado y el aviso, sin
+  botones, y en el Tablero no se arrastra. En «Reasignar carga» del Inicio sale deshabilitada;
+- **como Admin:** la misma pieza tiene Reasignar/Quitar y pide confirmación. Cancelar para no moverla;
+- **como Trabajador:** con una pieza en curso, rechazar en Inspección otra que ya había terminado. El
+  Inicio debe seguir mostrando la que está limpiando.

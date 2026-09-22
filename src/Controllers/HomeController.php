@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Controllers;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\HomeService;
 
@@ -33,44 +34,30 @@ final class HomeController
 
         // Clasificar habitaciones por estado.
         //
-        // Flujo "una habitación a la vez": el trabajador NO ve la lista completa
-        // de sus habitaciones, solo la "actual" (la primera en progreso o, si no
-        // hay, la primera pendiente de la cola). La lista de "próximas" se calcula
-        // internamente para el conteo del progreso, pero deliberadamente NO se
-        // envía al cliente, para que no pueda espiarla ni adelantarse. Ver
-        // docs/home-trabajador.md §7 y docs/backlog-futuro.md.
+        // Flujo "una habitación a la vez": el Inicio muestra solo la "actual"; la cola completa
+        // se usa acá para el conteo del progreso. (La pestaña Habitaciones sí lista todo el día
+        // desde la v6, pero el orden lo sigue imponiendo el candado de iniciarEjecucion.) Ver
+        // docs/home-trabajador.md §6.2 y §7.
         $completadas = 0;
         $enProgreso = 0;
         $pendientes = 0;
-        $habitacionActual = null;
 
         foreach ($cola as $item) {
             $estado = $item['estado'];
 
-            if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'completada_pendiente_auditoria'], true)) {
-                $completadas++;
-                continue;
-            }
-
             if ($estado === 'en_progreso') {
                 $enProgreso++;
-                if ($habitacionActual === null) {
-                    $habitacionActual = $this->formatearHabitacion($item);
-                }
-                continue;
-            }
-
-            if ($estado === 'sucia' || $estado === 'rechazada') {
+            } elseif ($estado === 'sucia' || $estado === 'rechazada') {
                 $pendientes++;
-                if ($habitacionActual === null) {
-                    $habitacionActual = $this->formatearHabitacion($item);
-                }
-                continue;
+            } else {
+                // aprobada*, completada_pendiente_auditoria o cualquier otro estado
+                $completadas++;
             }
-
-            // Cualquier otro estado — contar como completada
-            $completadas++;
         }
+
+        // Misma regla que el candado de orden: primero la que tiene en curso.
+        $actual = AsignacionService::elegirHabitacionActual($cola);
+        $habitacionActual = $actual === null ? null : $this->formatearHabitacion($actual);
 
         $total = $completadas + $enProgreso + $pendientes;
 
@@ -167,7 +154,6 @@ final class HomeController
             $enProgreso = 0;
             $pendientes = 0;
             $rechazadas = 0;
-            $habActual = null;
             foreach ($cola as $item) {
                 $estado = $item['estado'];
                 if (in_array($estado, ['aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'completada_pendiente_auditoria'], true)) {
@@ -177,25 +163,18 @@ final class HomeController
                 if ($estado === 'rechazada') {
                     $rechazadas++;
                     $pendientes++;
-                    if ($habActual === null) {
-                        $habActual = $item;
-                    }
                     continue;
                 }
                 if ($estado === 'en_progreso') {
                     $enProgreso++;
-                    if ($habActual === null) {
-                        $habActual = $item;
-                    }
                     continue;
                 }
                 if ($estado === 'sucia') {
                     $pendientes++;
-                    if ($habActual === null) {
-                        $habActual = $item;
-                    }
                 }
             }
+            // La misma "actual" que ve el trabajador en su Inicio.
+            $habActual = AsignacionService::elegirHabitacionActual($cola);
             $total = count($cola);
 
             $hotelCodigo = $t['hotel_default'] ?? null;
@@ -288,6 +267,7 @@ final class HomeController
             'total_trabajadores' => count($equipo),
             'permisos' => [
                 'asignaciones_asignar_manual' => $usuario->tienePermiso('asignaciones.asignar_manual'),
+                'asignaciones_mover_en_progreso' => $usuario->tienePermiso('asignaciones.mover_en_progreso'),
                 'asignaciones_auto' => $usuario->tienePermiso('asignaciones.auto_asignar'),
                 'alertas_recibir_predictivas' => $usuario->tienePermiso('alertas.recibir_predictivas'),
                 'auditoria_ver_bandeja' => $usuario->tienePermiso('auditoria.ver_bandeja'),

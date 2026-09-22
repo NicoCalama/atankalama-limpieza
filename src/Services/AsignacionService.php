@@ -24,10 +24,21 @@ final class AsignacionService
     ) {
     }
 
-    public function asignarManual(int $habitacionId, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): Asignacion
-    {
+    /**
+     * @param bool $puedeMoverEnProgreso Si quien actúa tiene asignaciones.mover_en_progreso (ver
+     *                                   exigirPuedeMoverEnProgreso). Default false: seguro por omisión.
+     */
+    public function asignarManual(
+        int $habitacionId,
+        int $usuarioId,
+        string $fecha,
+        ?int $asignadoPor = null,
+        ?string $franja = null,
+        bool $puedeMoverEnProgreso = false,
+    ): Asignacion {
         $this->validarFecha($fecha);
         $franja = $this->validarFranja($franja);
+        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
         $this->desactivarAsignacionesActivas($habitacionId, $fecha);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
@@ -104,11 +115,22 @@ final class AsignacionService
      * @param list<int> $habitacionIds
      * @return list<Asignacion>
      */
-    public function asignarMultiple(array $habitacionIds, int $usuarioId, string $fecha, ?int $asignadoPor = null, ?string $franja = null): array
-    {
+    public function asignarMultiple(
+        array $habitacionIds,
+        int $usuarioId,
+        string $fecha,
+        ?int $asignadoPor = null,
+        ?string $franja = null,
+        bool $puedeMoverEnProgreso = false,
+    ): array {
+        // Todo el lote se valida antes de asignar nada: una pieza en progreso a mitad del lote
+        // no debe dejar asignadas las anteriores y el resto no.
+        foreach ($habitacionIds as $habitacionId) {
+            $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
+        }
         $creadas = [];
         foreach ($habitacionIds as $habitacionId) {
-            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja);
+            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso);
         }
         return $creadas;
     }
@@ -180,12 +202,18 @@ final class AsignacionService
     /**
      * Reasignar habitación (típicamente rechazada) a otro trabajador.
      */
-    public function reasignar(int $habitacionId, int $usuarioId, string $fecha, string $motivo, ?int $asignadoPor = null): Asignacion
-    {
+    public function reasignar(
+        int $habitacionId,
+        int $usuarioId,
+        string $fecha,
+        string $motivo,
+        ?int $asignadoPor = null,
+        bool $puedeMoverEnProgreso = false,
+    ): Asignacion {
         // Hereda la franja de la asignación que reemplaza: rehacer una pieza es el MISMO ciclo
         // (pieza · fecha · franja) para los KPIs de la ficha (docs/kpis-sueldos.md), no una limpieza nueva.
         $franja = $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
-        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja);
+        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso);
         Logger::audit($asignadoPor, 'asignacion.reasignar', 'asignacion', $asignacion->id, [
             'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo,
         ]);
@@ -203,9 +231,10 @@ final class AsignacionService
      * Si estaba en_progreso vuelve a 'sucia' (nadie la está limpiando ya); la
      * ejecución en curso queda huérfana, igual que al reasignar (ver comentario
      * en ChecklistService::iniciarEjecucion), y la próxima asignación arranca
-     * una ejecución nueva desde cero.
+     * una ejecución nueva desde cero. Por eso quitar una en_progreso exige el
+     * permiso asignaciones.mover_en_progreso (ver exigirPuedeMoverEnProgreso).
      */
-    public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null): void
+    public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false): void
     {
         $this->validarFecha($fecha);
 
@@ -233,6 +262,7 @@ final class AsignacionService
                 409
             );
         }
+        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
 
         Database::transaction(function () use ($habitacionId, $fecha, $hab): void {
             Database::execute(
@@ -502,33 +532,64 @@ final class AsignacionService
         if ($fecha === date('Y-m-d')) {
             $this->reconciliarPreasignaciones($fecha);
         }
+        // en_curso_propia: la pieza tiene una ejecución en progreso del mismo trabajador, colgando
+        // de esta asignación activa. Es la misma condición del candado "una a la vez" de
+        // ChecklistService::iniciarEjecucion, y la usa elegirHabitacionActual().
         $filas = Database::fetchAll(
-            'SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
-                    ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
+            "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+                    ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
+                    EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
+                             WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id
+                               AND ec.estado = 'en_progreso') AS en_curso_propia
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
               WHERE a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
-              ORDER BY a.orden_cola, a.id',
+              ORDER BY a.orden_cola, a.id",
             [$usuarioId, $fecha]
         );
         return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
     }
 
     /**
-     * Habitación "actual" del trabajador en el flujo una-a-la-vez: la primera de
-     * la cola (orden_cola) que NO está completada — en_progreso, sucia o rechazada.
+     * Habitación "actual" del trabajador en el flujo una-a-la-vez (docs/home-trabajador.md §6.2).
      * Devuelve null si no queda ninguna pendiente (cola vacía o todo completado).
      *
-     * Misma selección que HomeController::trabajador para mantener una sola fuente
-     * de verdad de "cuál es la habitación que le toca ahora".
+     * Una sola fuente de verdad: la usan este endpoint de cola, el candado de orden de
+     * ChecklistService::iniciarEjecucion y HomeController (Inicio del trabajador y equipo de la
+     * supervisora), vía elegirHabitacionActual().
      *
      * @return array<string, mixed>|null Fila de la cola (forma de colaDelTrabajador).
      */
     public function habitacionActualDeCola(int $usuarioId, string $fecha): ?array
     {
-        foreach ($this->colaDelTrabajador($usuarioId, $fecha) as $item) {
+        return self::elegirHabitacionActual($this->colaDelTrabajador($usuarioId, $fecha));
+    }
+
+    /**
+     * Elige la habitación actual de una cola ya cargada (filas de colaDelTrabajador, en orden):
+     *   1. la que el trabajador tiene EN CURSO (en_curso_propia), aunque haya pendientes antes;
+     *   2. si no tiene ninguna en curso, la primera pendiente de la cola (sucia, rechazada, o
+     *      en_progreso sin ejecución suya: una pieza que le movieron a medio limpiar).
+     *
+     * El punto 1 evita que el trabajador quede trabado cuando una pendiente queda antes que la
+     * que está limpiando: una pieza que ya había terminado y la rechazan (conserva su lugar), una
+     * pendiente que la supervisora sube en la cola o un nochero que vuelve a pendiente a las
+     * 16:00. Con "la primera sin terminar", el Inicio le mostraba esa pendiente (que el candado no
+     * le deja empezar) y la ficha no le cargaba el checklist de la que tiene en curso.
+     *
+     * @param list<array<string, mixed>> $cola
+     * @return array<string, mixed>|null
+     */
+    public static function elegirHabitacionActual(array $cola): ?array
+    {
+        foreach ($cola as $item) {
+            if ((bool) ($item['en_curso_propia'] ?? false)) {
+                return $item;
+            }
+        }
+        foreach ($cola as $item) {
             if (in_array($item['estado'], ['en_progreso', 'sucia', 'rechazada'], true)) {
                 return $item;
             }
@@ -612,6 +673,37 @@ final class AsignacionService
 
     // Scopeado por fecha: puede haber varias asignaciones activas de la misma habitación
     // en fechas distintas (planificación a futuro). Solo se apaga la de ESA fecha.
+    /**
+     * Reasignar o quitar una habitación EN PROGRESO le borra al trabajador lo que llevaba (su
+     * ejecución queda huérfana y quien la reciba parte de cero). Por decisión de jefatura
+     * (22/09/2026) queda reservado al permiso asignaciones.mover_en_progreso, que por defecto
+     * solo tiene Admin; la supervisora ve la pieza bloqueada. El llamador pasa si quien actúa
+     * tiene el permiso (los controllers lo leen del usuario de la sesión).
+     *
+     * Solo aplica a la asignación de HOY de una pieza que alguien tiene asignada: planificarla
+     * para otra fecha no toca el aseo en curso, y una en_progreso sin asignación activa no es
+     * trabajo de nadie que se pierda.
+     */
+    private function exigirPuedeMoverEnProgreso(int $habitacionId, string $fecha, bool $puedeMoverEnProgreso): void
+    {
+        if ($puedeMoverEnProgreso || $fecha !== date('Y-m-d')) {
+            return;
+        }
+        $hab = Database::fetchOne('SELECT numero, estado, es_espacio_comun FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+        if ($hab === null || $hab['estado'] !== Habitacion::ESTADO_EN_PROGRESO) {
+            return;
+        }
+        if ($this->obtenerActivaDeHabitacion($habitacionId, $fecha) === null) {
+            return;
+        }
+        $pieza = (bool) $hab['es_espacio_comun'] ? "El área {$hab['numero']}" : "La habitación {$hab['numero']}";
+        throw new AsignacionException(
+            'HABITACION_EN_PROGRESO',
+            "{$pieza} está en progreso: solo un administrador puede reasignarla o quitarla.",
+            403
+        );
+    }
+
     private function desactivarAsignacionesActivas(int $habitacionId, string $fecha): void
     {
         Database::execute(

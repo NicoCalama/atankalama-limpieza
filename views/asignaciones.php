@@ -23,10 +23,15 @@
  *  - POST /api/asignaciones/desasignar { habitacion_id, fecha }
  *  - PUT  /api/asignaciones/orden      { usuario_id, fecha, orden: [habitacion_id...] }
  *
+ * Piezas EN PROGRESO: reasignarlas o quitarlas le borra lo avanzado al trabajador, así que
+ * solo se puede con asignaciones.mover_en_progreso (Admin por defecto). Sin ese permiso se
+ * ven con candado, sin arrastre ni botones (el backend lo exige igual, 403).
+ *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
 
 require_once __DIR__ . '/componentes/avatar.php';
+require_once __DIR__ . '/componentes/candado-en-progreso.php';
 ?>
 
 <div x-data="asignacionesApp()"
@@ -243,7 +248,7 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                 <template x-for="hab in tr.cola" :key="hab.habitacion_id">
                                                     <li data-room-slot class="flex items-center gap-1.5">
                                                         <div class="flex-1 flex items-center gap-2 min-w-0 px-2.5 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg select-none"
-                                                             :class="esReasignable(hab.estado) ? '' : 'opacity-60'"
+                                                             :class="esReasignable(hab.estado) || esBloqueadaEnProgreso(hab.estado) ? '' : 'opacity-60'"
                                                              x-bind:data-drag-room="esReasignable(hab.estado) ? '' : null"
                                                              :data-room-id="hab.habitacion_id"
                                                              :data-room-estado="hab.estado"
@@ -271,9 +276,21 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                                 <i data-lucide="x" class="w-4 h-4"></i>
                                                             </button>
                                                         </template>
+                                                        <template x-if="esBloqueadaEnProgreso(hab.estado)">
+                                                            <span role="img" title="<?= avisoEnProgreso() ?>" aria-label="<?= avisoEnProgreso() ?>"
+                                                                  class="min-h-[36px] min-w-[36px] flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
+                                                                <?= svgCandado() ?>
+                                                            </span>
+                                                        </template>
                                                     </li>
                                                 </template>
                                             </ul>
+                                            <template x-if="tieneBloqueadaEnProgreso(tr)">
+                                                <p class="mt-1.5 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                                                    <?= svgCandado() ?>
+                                                    <span><?= avisoEnProgreso() ?>.</span>
+                                                </p>
+                                            </template>
                                         </div>
                                     </template>
                                 </div>
@@ -596,9 +613,21 @@ require_once __DIR__ . '/componentes/avatar.php';
                                                                     </button>
                                                                 </div>
                                                             </template>
+                                                            <template x-if="esBloqueadaEnProgreso(hab.estado)">
+                                                                <span role="img" title="<?= avisoEnProgreso() ?>" aria-label="<?= avisoEnProgreso() ?>"
+                                                                      class="min-h-[36px] min-w-[36px] flex items-center justify-center text-amber-600 dark:text-amber-400 flex-shrink-0">
+                                                                    <?= svgCandado() ?>
+                                                                </span>
+                                                            </template>
                                                         </li>
                                                     </template>
                                                 </ul>
+                                            </template>
+                                            <template x-if="tieneBloqueadaEnProgreso(tr)">
+                                                <p class="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                                                    <?= svgCandado() ?>
+                                                    <span><?= avisoEnProgreso() ?>.</span>
+                                                </p>
                                             </template>
                                             </div>
                                         </div>
@@ -784,6 +813,13 @@ function asignacionesApp() {
             // sentido en un día futuro donde no se conoce el estado real de las piezas.
             if (!this.esHoy) return false;
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('asignaciones.auto_asignar'));
+        },
+
+        // Reasignar o quitar una pieza EN PROGRESO le borra lo avanzado al trabajador: solo con
+        // asignaciones.mover_en_progreso (Admin por defecto). El backend lo exige igual.
+        get puedeMoverEnProgreso() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('asignaciones.mover_en_progreso'));
         },
 
         get esHoy() {
@@ -1164,7 +1200,18 @@ function asignacionesApp() {
         // --- Reasignar (modal clásico) ---
 
         esReasignable(estado) {
-            return estado === 'sucia' || estado === 'en_progreso' || estado === 'rechazada';
+            if (estado === 'en_progreso') return this.puedeMoverEnProgreso;
+            return estado === 'sucia' || estado === 'rechazada';
+        },
+
+        // En progreso y sin permiso para moverla: candado, sin arrastre ni botones.
+        esBloqueadaEnProgreso(estado) {
+            return estado === 'en_progreso' && !this.puedeMoverEnProgreso;
+        },
+
+        tieneBloqueadaEnProgreso(tr) {
+            var self = this;
+            return tr.cola.some(function (h) { return self.esBloqueadaEnProgreso(h.estado); });
         },
 
         abrirReasignar(tr, hab) {
@@ -1197,7 +1244,11 @@ function asignacionesApp() {
 
         async confirmarReasignar(dest) {
             if (this.modalReasignar.enviando) return;
-            if (!this.modalReasignar.habitacion) return;
+            var hab = this.modalReasignar.habitacion;
+            if (!hab) return;
+            // Mismo aviso que al arrastrarla en el Tablero (solo llega acá quien puede moverla).
+            if (hab.estado === 'en_progreso' &&
+                !confirm('La habitación ' + hab.numero + ' está en progreso. Si la mueves, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
             this.modalReasignar.enviando = true;
             try {
                 var r = await apiPost('/api/asignaciones/reasignar', {
@@ -1225,7 +1276,10 @@ function asignacionesApp() {
         async desasignar(tr, hab) {
             // DEFAULT APLICADO (aprobado por el usuario): confirm() nativo, mismo
             // patrón que autoAsignar() en esta misma página.
-            if (!confirm('¿Quitar la habitación ' + hab.numero + ' de la cola de ' + tr.usuario.nombre + '? Quedará sin asignar.')) return;
+            var pregunta = hab.estado === 'en_progreso'
+                ? 'La habitación ' + hab.numero + ' está en progreso. Si la quitas, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?'
+                : '¿Quitar la habitación ' + hab.numero + ' de la cola de ' + tr.usuario.nombre + '? Quedará sin asignar.';
+            if (!confirm(pregunta)) return;
             try {
                 var r = await apiPost('/api/asignaciones/desasignar', {
                     habitacion_id: hab.habitacion_id,

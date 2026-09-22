@@ -132,7 +132,10 @@ final class EspaciosController
         $fecha = $request->inputString('fecha', date('Y-m-d'));
 
         try {
-            $asignacion = $this->espacios->pedirLimpieza($id, $usuarioId, $fecha, $request->usuario?->id);
+            $asignacion = $this->espacios->pedirLimpieza(
+                $id, $usuarioId, $fecha, $request->usuario?->id,
+                puedeMoverEnProgreso: $request->usuario?->tienePermiso('asignaciones.mover_en_progreso') ?? false,
+            );
         } catch (EspacioException | AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

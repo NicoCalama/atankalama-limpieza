@@ -18,6 +18,7 @@
  */
 
 require_once __DIR__ . '/componentes/avatar.php';
+require_once __DIR__ . '/componentes/candado-en-progreso.php';
 
 $primerNombre = explode(' ', $usuario->nombre)[0];
 
@@ -391,12 +392,23 @@ if ($hora < 12) {
                         <div class="flex flex-wrap gap-2" x-show="modalReasignar.habitacionesPendientes.length > 0">
                             <template x-for="hab in modalReasignar.habitacionesPendientes" :key="hab.habitacion_id">
                                 <button @click="modalReasignar.habSeleccionada = hab.habitacion_id"
+                                        :disabled="habBloqueadaEnProgreso(hab)"
+                                        :title="habBloqueadaEnProgreso(hab) ? '<?= avisoEnProgreso() ?>' : null"
                                         :class="modalReasignar.habSeleccionada === hab.habitacion_id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600'"
-                                        class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg border transition">
+                                        class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg border transition inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed">
+                                    <template x-if="habBloqueadaEnProgreso(hab)">
+                                        <span class="text-amber-600 dark:text-amber-400"><?= svgCandado() ?></span>
+                                    </template>
                                     <span x-text="hab.numero"></span>
                                 </button>
                             </template>
                         </div>
+                        <template x-if="modalReasignar.habitacionesPendientes.some(function (h) { return habBloqueadaEnProgreso(h); })">
+                            <p class="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                                <?= svgCandado() ?>
+                                <span><?= avisoEnProgreso() ?>.</span>
+                            </p>
+                        </template>
                     </div>
 
                     <!-- Paso 2: elegir destino -->
@@ -879,9 +891,21 @@ function homeSupervisora() {
                 });
         },
 
+        // Reasignar una pieza EN PROGRESO le borra lo avanzado al trabajador: solo con
+        // asignaciones.mover_en_progreso (Admin por defecto). El backend lo exige igual.
+        habBloqueadaEnProgreso(hab) {
+            var puede = !!(this.data && this.data.permisos && this.data.permisos.asignaciones_mover_en_progreso);
+            return hab.estado === 'en_progreso' && !puede;
+        },
+
         async confirmarReasignar(dest) {
             if (this.modalReasignar.enviando) return;
-            if (!this.modalReasignar.habSeleccionada) return;
+            var id = this.modalReasignar.habSeleccionada;
+            if (!id) return;
+            var hab = this.modalReasignar.habitacionesPendientes.find(function (h) { return h.habitacion_id === id; });
+            // Mismo aviso que en Asignaciones (solo llega acá quien puede moverla).
+            if (hab && hab.estado === 'en_progreso' &&
+                !confirm('La habitación ' + hab.numero + ' está en progreso. Si la mueves, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
             this.modalReasignar.enviando = true;
             try {
                 var payload = {

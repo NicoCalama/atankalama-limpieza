@@ -105,3 +105,17 @@ Se cerró por completo (opción "filtrar cola + forzar orden en iniciar"):
 
 Como una sola fuente de verdad, `habitacionActualDeCola` replica exactamente la
 selección de "habitación actual" que `HomeController::trabajador()` ya hacía.
+
+**Cambios posteriores:**
+
+- **v6 (13/09/2026, jefatura):** la pestaña "Habitaciones" del trabajador volvió a
+  listar toda su cola del día, pidiéndola con `?vista=completa` (solo su propia cola).
+  El "elegir" sigue cerrado: el candado de `iniciar` no cambió, y la ficha de una pieza
+  que no es la actual muestra «todavía no te toca», sin botón para empezarla. Ver
+  `docs/home-trabajador.md` §7.
+- **v6.7 (22/09/2026):** la "habitación actual" pasó a ser **la que el trabajador tiene en
+  curso** (ejecución suya en progreso) aunque haya pendientes antes en la cola; si no tiene
+  ninguna, la primera pendiente. Una sola regla para todos
+  (`AsignacionService::elegirHabitacionActual`). La "primera no-completada" original dejaba
+  trabado al trabajador cuando una pendiente quedaba antes que la pieza en curso, por
+  ejemplo una rechazada que conserva su lugar. Ver `docs/home-trabajador.md` §6.2.

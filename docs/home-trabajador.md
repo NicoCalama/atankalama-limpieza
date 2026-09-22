@@ -243,13 +243,24 @@ Esta es la sección más importante de la pantalla. Es el call-to-action princip
 
 La "habitación actual" es la **siguiente habitación que el sistema sugiere al trabajador**, calculada así:
 
-1. Si el trabajador tiene una habitación en estado `en_progreso` (ya empezada pero no terminada), esa es la habitación actual
-2. Si no tiene ninguna en progreso, es la primera habitación en estado `pendiente` según el orden de la cola del trabajador
-3. La cola se ordena por:
-   - Primero: por `orden_en_cola` que asigna la supervisora manualmente (si tiene)
-   - Segundo: por prioridad (si existe)
-   - Tercero: por número de habitación (orden natural)
+1. Si el trabajador tiene una habitación **en curso** (la empezó él y no la ha terminado), esa es la habitación actual, **aunque haya pendientes antes en la cola**.
+2. Si no tiene ninguna en curso, es la primera pendiente de la cola: `sucia`, `rechazada`, o `en_progreso` sin ejecución suya (una pieza que le movieron a medio limpiar, que él empieza de cero).
+3. La cola se ordena por `orden_cola`:
+   - Cada pieza queda **al final** en el orden en que se asigna. Si se asignan varias de una vez, van en el orden en que se seleccionaron; la auto-asignación reparte por número de habitación.
+   - La supervisora la reordena con ▲▼ (modo Clásico) o arrastrando dentro del trabajador (Tablero).
+   - «No puedo entrar ahora» / «No puedo terminar esta ahora» manda la pieza al final de la propia cola.
+   - Una pieza reasignada llega al final de la cola de quien la recibe.
 4. Si no hay habitaciones pendientes ni en progreso, ver estado vacío (sección 6.5)
+
+La misma regla la usan el Inicio del trabajador, el equipo del Inicio de la supervisora, `GET /api/usuarios/{id}/cola` y el candado de orden de `iniciarEjecucion` (`AsignacionService::elegirHabitacionActual`).
+
+> **Corrección 22/09/2026 (v6.7).** Hasta la v6.6 el código elegía la primera pieza sin
+> terminar de la cola, esté en curso o no (contra el punto 1). Si una pendiente quedaba
+> antes que la pieza en curso, el trabajador quedaba **trabado**: el Inicio le mostraba la
+> pendiente, el candado no lo dejaba empezarla («Ya tienes una habitación en curso») y la
+> ficha no le cargaba el checklist de la que tenía en curso. Pasaba cuando rechazaban una
+> pieza que ya había terminado (la rechazada conserva su lugar), cuando la supervisora subía
+> una pendiente o cuando un nochero volvía a pendiente a las 16:00.
 
 ### 6.3 Layout
 
@@ -413,6 +424,14 @@ Elementos:
 > tiene `habitaciones.ver_todas`, y `POST /api/habitaciones/{id}/iniciar` rechaza
 > con **409 `NO_ES_TU_HABITACION_ACTUAL`** si intenta adelantarse a otra que no es
 > la actual. Detalle en `docs/backlog-futuro.md` (gap "e", Resolución).
+>
+> **Cambio de la v6 (13/09/2026, jefatura):** la pestaña **Habitaciones** del trabajador
+> volvió a listar **todas** sus piezas del día, en el orden de la cola y con su estado. Pide
+> su propia cola con `GET /api/usuarios/{id}/cola?vista=completa`. El Inicio sigue mostrando
+> solo la actual, y el orden se sigue imponiendo: si toca una pieza que no es la actual, la
+> ficha muestra «Esta habitación es tuya, pero todavía no te toca», sin botón para
+> empezarla, y el backend responde 409 `NO_ES_TU_HABITACION_ACTUAL` si lo intenta igual.
+> Puede **ver** su día completo, pero no **elegir** el orden.
 >
 > El texto original se conserva abajo solo como referencia histórica.
 
