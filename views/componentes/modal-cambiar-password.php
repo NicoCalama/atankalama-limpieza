@@ -3,6 +3,12 @@
  * Modal reutilizable para cambio de contraseña del propio usuario.
  * Se abre con: window.dispatchEvent(new CustomEvent('abrir-modal-cambiar-password'))
  * Endpoint: POST /api/auth/cambiar-contrasena
+ *
+ * layout.php lo incluye en TODAS las páginas. Por eso los campos de contraseña existen
+ * en el DOM solo mientras el modal está abierto (<template x-if>) y van dentro de su
+ * propio <form>. Si quedaran siempre en la página y fuera de un <form>, el gestor de
+ * contraseñas del navegador tomaría cada pantalla por un login y rellenaría el RUT
+ * guardado en el campo de texto anterior: el buscador de Habitaciones, Usuarios, etc.
  */
 ?>
 
@@ -27,71 +33,76 @@
             </button>
         </header>
 
-        <div class="p-4 space-y-4">
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
-                <div class="relative">
-                    <input :type="ver.actual ? 'text' : 'password'" x-model="form.actual" autocomplete="current-password"
-                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <button type="button" @click="ver.actual = !ver.actual"
-                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                        <i :data-lucide="ver.actual ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
-                    </button>
+        <!-- Solo con el modal abierto y dentro de su <form>: ver el comentario del encabezado. -->
+        <template x-if="abierto">
+            <form @submit.prevent="enviar()">
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña actual</label>
+                        <div class="relative">
+                            <input :type="ver.actual ? 'text' : 'password'" x-model="form.actual" autocomplete="current-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <button type="button" @click="ver.actual = !ver.actual"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="ver.actual ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
+                        <div class="relative">
+                            <input :type="ver.nueva ? 'text' : 'password'" x-model="form.nueva" autocomplete="new-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <button type="button" @click="ver.nueva = !ver.nueva"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="ver.nueva ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Mínimo 8 caracteres.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
+                        <div class="relative">
+                            <input :type="ver.confirmar ? 'text' : 'password'" x-model="form.confirmar" autocomplete="new-password"
+                                   class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <button type="button" @click="ver.confirmar = !ver.confirmar"
+                                    class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <i :data-lucide="ver.confirmar ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div x-show="error" x-cloak
+                         class="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm rounded-lg px-3 py-2"
+                         x-text="error"></div>
+
+                    <div x-show="exito" x-cloak
+                         class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-3 py-2">
+                        Contraseña actualizada correctamente.
+                    </div>
                 </div>
-            </div>
 
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nueva contraseña</label>
-                <div class="relative">
-                    <input :type="ver.nueva ? 'text' : 'password'" x-model="form.nueva" autocomplete="new-password"
-                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <button type="button" @click="ver.nueva = !ver.nueva"
-                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                        <i :data-lucide="ver.nueva ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                <!-- Footer -->
+                <footer class="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2">
+                    <button type="button" @click="cerrar()"
+                            class="min-h-[44px] px-4 py-2 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition">
+                        Cerrar
                     </button>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Mínimo 8 caracteres.</p>
-            </div>
-
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar nueva contraseña</label>
-                <div class="relative">
-                    <input :type="ver.confirmar ? 'text' : 'password'" x-model="form.confirmar" autocomplete="new-password"
-                           class="w-full min-h-[44px] px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <button type="button" @click="ver.confirmar = !ver.confirmar"
-                            class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-                        <i :data-lucide="ver.confirmar ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+                    <button type="submit" :disabled="!puedeEnviar() || guardando"
+                            class="min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition">
+                        <template x-if="guardando">
+                            <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+                                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
+                            </svg>
+                        </template>
+                        <span x-text="guardando ? 'Guardando...' : 'Cambiar contraseña'"></span>
                     </button>
-                </div>
-            </div>
-
-            <div x-show="error" x-cloak
-                 class="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm rounded-lg px-3 py-2"
-                 x-text="error"></div>
-
-            <div x-show="exito" x-cloak
-                 class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm rounded-lg px-3 py-2">
-                Contraseña actualizada correctamente.
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <footer class="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-end gap-2">
-            <button type="button" @click="cerrar()"
-                    class="min-h-[44px] px-4 py-2 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition">
-                Cerrar
-            </button>
-            <button type="button" @click="enviar()" :disabled="!puedeEnviar() || guardando"
-                    class="min-h-[44px] inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium transition">
-                <template x-if="guardando">
-                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
-                        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" class="opacity-75"></path>
-                    </svg>
-                </template>
-                <span x-text="guardando ? 'Guardando...' : 'Cambiar contraseña'"></span>
-            </button>
-        </footer>
+                </footer>
+            </form>
+        </template>
     </div>
 </div>
 
