@@ -844,4 +844,31 @@ final class ChecklistServiceTest extends TestCase
         $this->asignaciones->asignarManual($id, $this->usuarioId, $this->fecha);
         return $id;
     }
+
+    /**
+     * Incidente del 23/09/2026: un trabajador con toda su cola ya aprobada —el sync las cerró
+     * porque Cloudbeds las daba por limpias— apretaba "Comenzar limpieza" y recibía "empezá por
+     * tu habitación actual", una habitación que no existía. Sin salida y sin explicación.
+     * Ver docs/incidente-2026-09-23.md
+     */
+    public function testSinNingunaPiezaEmpezableAvisaEnVezDeMandarloALaHabitacionActual(): void
+    {
+        Database::execute(
+            "UPDATE habitaciones SET estado = 'aprobada' WHERE id = ?",
+            [$this->habitacionId]
+        );
+
+        $this->assertNull(
+            $this->asignaciones->habitacionActualDeCola($this->usuarioId, $this->fecha),
+            'Precondición: no le queda ninguna pieza que pueda empezar'
+        );
+
+        try {
+            $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha, true);
+            $this->fail('Tenía que rechazar el inicio');
+        } catch (ChecklistException $e) {
+            $this->assertSame('SIN_HABITACION_PARA_EMPEZAR', $e->codigo);
+            $this->assertStringContainsString('supervisora', $e->getMessage());
+        }
+    }
 }

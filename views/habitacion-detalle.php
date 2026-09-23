@@ -841,6 +841,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     await this.cargar();
                 } else {
                     alert((json && json.error && json.error.mensaje) || 'No pudimos iniciar.');
+                    // La pantalla puede estar mostrando datos viejos —el sync pudo aprobar la
+                    // pieza mientras estaba abierta—, así que se recarga: si ya no se puede
+                    // empezar, el botón desaparece en vez de quedar ahí invitando a apretarlo
+                    // de nuevo. Caso real del 23/09/2026.
+                    await this.cargar();
                 }
             } catch (e) {
                 alert('No pudimos conectar con el servidor.');

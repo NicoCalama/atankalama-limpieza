@@ -203,7 +203,17 @@ final class CloudbedsSyncService
                             $this->avisarAprobacionDeshecha($hab, $hotel, $frontdesk);
                             $actualizadas++;
                         }
-                    } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [Habitacion::ESTADO_APROBADA, Habitacion::ESTADO_APROBADA_CON_OBSERVACION], true)) {
+                    } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [
+                        Habitacion::ESTADO_APROBADA,
+                        Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+                        // 'aprobada_automatica' YA es una aprobación cerrada: la pieza está
+                        // limpia y la marca dice que NADIE la inspeccionó. Re-aprobarla acá la
+                        // convertía en 'aprobada' (49 piezas el 23/09/2026), con dos efectos:
+                        // borraba esa marca —los KPIs de cobertura la contaban como
+                        // inspeccionada— y le movía el updated_at, del que depende
+                        // conservarAprobacionDelDia(). Se deja como está.
+                        Habitacion::ESTADO_APROBADA_AUTOMATICA,
+                    ], true)) {
                         // Decisión de negocio (2026-08-21): Cloudbeds es la fuente madre del
                         // estado real. Si ya reporta 'clean' pero acá sigue sucia/en_progreso/
                         // pendiente auditoría/rechazada, se fuerza a 'aprobada' saltando checklist
@@ -283,10 +293,30 @@ final class CloudbedsSyncService
      */
     private function conservarAprobacionDelDia(Habitacion $hab, ?string $frontdesk, ?bool $ocupada): bool
     {
+        // Solo se conserva una APROBACIÓN. estaEnEstadoTerminal() también abarca
+        // 'rechazada', y una pieza rechazada tiene que volver a la cola igual: a esa no la
+        // aprobó nadie, hay que rehacerla.
+        if (!in_array($hab->estado, [
+            Habitacion::ESTADO_APROBADA,
+            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+            Habitacion::ESTADO_APROBADA_AUTOMATICA,
+        ], true)) {
+            return false;
+        }
+
         // Aprobación de otro día: manda el ciclo normal, se revierte como siempre.
         if (!$this->habitaciones->cambioDeEstadoHoy($hab->id)) {
             return false;
         }
+
+        // 'turnover' = se va un huésped y entra otro el MISMO día. Cloudbeds la reporta
+        // ocupada, pero justamente ahí la pieza necesita aseo entremedio: es el caso que
+        // menos podemos saltarnos. Detectado el 23/09/2026 en las piezas 710 y 107, que
+        // quedaron conservadas todo el día.
+        if ($frontdesk === 'turnover') {
+            return false;
+        }
+
         return $ocupada === true || in_array($frontdesk, ['check-in', 'stayover'], true);
     }
 

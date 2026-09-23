@@ -680,7 +680,19 @@ final class ChecklistService
         // Reanudar la misma habitación en progreso ya se resolvió arriba ($existente).
         if ($exigirOrden) {
             $actual = $this->asignaciones->habitacionActualDeCola($usuarioId, $fecha);
-            if ($actual === null || (int) $actual['habitacion_id'] !== $habitacionId) {
+            if ($actual === null) {
+                // No le queda NINGUNA pieza empezable: las que tiene asignadas y activas ya
+                // están aprobadas (p.ej. el sync las cerró porque Cloudbeds las daba por
+                // limpias). Antes caía en "empezá por tu habitación actual" —una habitación
+                // que no existe—, así que el trabajador apretaba el botón sin entender por
+                // qué no pasaba nada. Caso real del 23/09/2026. Ver docs/home-trabajador.md
+                throw new ChecklistException(
+                    'SIN_HABITACION_PARA_EMPEZAR',
+                    'No tienes ninguna habitación para empezar ahora. Avísale a tu supervisora.',
+                    409
+                );
+            }
+            if ((int) $actual['habitacion_id'] !== $habitacionId) {
                 throw new ChecklistException(
                     'NO_ES_TU_HABITACION_ACTUAL',
                     'Debes empezar por tu habitación actual.',

@@ -358,4 +358,75 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertStringContainsString('101', (string) $alerta['titulo']);
         $this->assertSame($this->hotel1SurId, (int) $alerta['hotel_id']);
     }
+
+    // ── Regresiones del incidente del 23/09/2026 ──────────────────────────────
+    // Ver docs/incidente-2026-09-23.md
+
+    /**
+     * El cierre de día deja la pieza en 'aprobada_automatica' —la marca de que nadie la
+     * inspeccionó—. El sync la re-aprobaba a 'aprobada' en el tick siguiente (49 piezas ese
+     * día): borraba la marca, así que los KPIs de cobertura la contaban como inspeccionada.
+     */
+    public function testNoReApruebaLaPiezaQueCerroElCierreDeDia(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada_automatica' WHERE numero = '101'");
+
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'clean', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame(
+            'aprobada_automatica',
+            $r101['estado'],
+            'La marca de "la aprobó la máquina" tiene que sobrevivir al sync'
+        );
+    }
+
+    /**
+     * 'turnover' = se va un huésped y entra otro el mismo día. Cloudbeds la reporta ocupada,
+     * pero es justo cuando hay que limpiarla. Le pasó a las piezas 710 y 107, conservadas
+     * todo el 23/09/2026.
+     */
+    public function testDeshaceLaAprobacionEnUnTurnoverAunqueCloudbedsLaReporteOcupada(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'turnover', 'roomOccupied' => true],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'Entre un huésped y el siguiente hay que limpiar');
+    }
+
+    /**
+     * La regla se llama "conservar la APROBACIÓN", pero el guard de afuera pregunta por
+     * estado terminal, que también abarca 'rechazada'. A una pieza rechazada no la aprobó
+     * nadie: tiene que volver a la cola aunque haya alguien adentro.
+     */
+    public function testNoConservaUnaPiezaRechazadaAunqueEsteOcupada(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'rechazada' WHERE numero = '101'");
+
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-in', 'roomOccupied' => true],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'Una pieza rechazada hay que rehacerla igual');
+    }
 }
