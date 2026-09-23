@@ -629,7 +629,8 @@ function homeSupervisora() {
                 'trabajador_disponible': 'user-check',
                 'ticket_nuevo': 'wrench',
                 'habitacion_saltada': 'skip-forward',
-                'inventario_cambios_pendientes': 'refresh-cw'
+                'inventario_cambios_pendientes': 'refresh-cw',
+                'aprobacion_deshecha': 'rotate-ccw'
             };
             return map[tipo] || 'bell';
         },
@@ -643,7 +644,8 @@ function homeSupervisora() {
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
                 'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
                 'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-                'inventario_cambios_pendientes': 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400'
+                'inventario_cambios_pendientes': 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400',
+                'aprobacion_deshecha': 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -677,6 +679,12 @@ function homeSupervisora() {
             } else if (al.tipo === 'habitacion_rechazada') {
                 // "Resolver ahora" no implementado en H2d — se hará cuando exista la auditoría express.
                 if (puedeAsignar) botones.push({ accion: 'reasignar_hab', etiqueta: 'Reasignar', clase: btnPrimario });
+            } else if (al.tipo === 'aprobacion_deshecha') {
+                // Cloudbeds la volvió a marcar sucia: se va a limpiar de nuevo. Ver la ficha
+                // es lo útil (historial de movimientos + ocupación), no reasignar.
+                if (al.contexto && al.contexto.habitacion_id) {
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                }
             } else if (al.tipo === 'trabajador_disponible') {
                 if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario });
             } else if (al.tipo === 'cloudbeds_sync_failed') {
@@ -704,6 +712,11 @@ function homeSupervisora() {
                 var usuarioId2 = al.contexto && al.contexto.usuario_id;
                 var tr2 = this.data.equipo.find(function (t) { return t.usuario.id === usuarioId2; });
                 if (tr2) this.abrirReasignar(tr2);
+                return;
+            }
+            if (accion === 'ir_habitacion') {
+                var habId = al.contexto && al.contexto.habitacion_id;
+                if (habId) window.location.href = u('/habitaciones/' + habId);
                 return;
             }
             if (accion === 'reasignar_hab') {

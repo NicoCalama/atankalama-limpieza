@@ -277,4 +277,85 @@ final class CloudbedsSyncServiceTest extends TestCase
         $historial = $this->sync->historial(10);
         $this->assertCount(1, $historial);
     }
+
+    // ── No deshacer la aprobación del día cuando el 'dirty' viene de un check-in ──
+    // Incidente real del 22/09/2026 (pieza 706): aprobada a las 11:15, Cloudbeds aceptó el
+    // 'clean', entró un huésped, y 25 min después el sync la devolvió a sucia. La limpiaron
+    // dos veces. Ese día le pasó a ~8 piezas.
+
+    /** El caso roto: pieza aprobada hoy, huésped adentro. NO se toca. */
+    public function testNoDeshaceLaAprobacionDelDiaSiLaPiezaEstaOcupada(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-in', 'roomOccupied' => true],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('aprobada', $r101['estado'], 'La aprobación del día no debe deshacerse con el huésped adentro');
+
+        $alertas = Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
+        $this->assertSame([], $alertas, 'Si no se deshizo nada, no hay que alertar');
+    }
+
+    /** El caso legítimo: se fue el huésped, la pieza hay que rehacerla de verdad. */
+    public function testSiDeshaceLaAprobacionCuandoLaPiezaQuedoDesocupada(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'Tras el check-out la re-limpieza es legítima');
+    }
+
+    /** Ciclo normal: la aprobación es de otro día, se revierte aunque esté ocupada. */
+    public function testDeshaceLaAprobacionDeOtroDiaAunqueEsteOcupada(): void
+    {
+        // updated_at de anteayer en UTC: sea cual sea el desfase con Chile, no es hoy.
+        Database::execute(
+            "UPDATE habitaciones SET updated_at = ? WHERE numero = '101'",
+            [gmdate('Y-m-d\TH:i:s.000\Z', time() - 2 * 86400)]
+        );
+
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'El aseo del día siguiente tiene que seguir entrando a la cola');
+    }
+
+    /** Deshacer una aprobación ya no es mudo: queda alerta para la supervisora. */
+    public function testAlDeshacerUnaAprobacionLevantaAlertaParaLaSupervisora(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
+        $this->assertNotNull($alerta, 'La supervisora tiene que enterarse de que alguien va a limpiar de nuevo');
+        $this->assertSame(1, (int) $alerta['prioridad']);
+        $this->assertStringContainsString('101', (string) $alerta['titulo']);
+        $this->assertSame($this->hotel1SurId, (int) $alerta['hotel_id']);
+    }
 }

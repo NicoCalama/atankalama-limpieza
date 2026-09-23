@@ -178,10 +178,12 @@ final class CloudbedsSyncService
                     // (cada ~10 min) sin una llamada aparte a getRooms. Fuente = Cloudbeds
                     // siempre; no es editable en la app.
                     $nombreCompleto = trim((string) ($room['roomName'] ?? ''));
+                    $frontdesk = self::normalizarFrontdesk($room['frontdeskStatus'] ?? null);
+                    $ocupada = array_key_exists('roomOccupied', $room) ? (bool) $room['roomOccupied'] : null;
                     $this->habitaciones->actualizarOcupacionCloudbeds(
                         $hab->id,
-                        self::normalizarFrontdesk($room['frontdeskStatus'] ?? null),
-                        array_key_exists('roomOccupied', $room) ? (bool) $room['roomOccupied'] : null,
+                        $frontdesk,
+                        $ocupada,
                         self::normalizarFecha($room['arrivalDate'] ?? null),
                         self::normalizarFecha($room['departureDate'] ?? null),
                         $mapaHuespedes[$cloudbedsRoomId] ?? null,
@@ -189,8 +191,18 @@ final class CloudbedsSyncService
                     );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
-                        $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
-                        $actualizadas++;
+                        if ($this->conservarAprobacionDelDia($hab, $frontdesk, $ocupada)) {
+                            Logger::info('cloudbeds', 'aprobación del día conservada: Cloudbeds la marcó sucia con huésped adentro', [
+                                'habitacion_id' => $hab->id,
+                                'numero' => $hab->numero,
+                                'estado' => $hab->estado,
+                                'frontdesk' => $frontdesk,
+                            ]);
+                        } else {
+                            $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
+                            $this->avisarAprobacionDeshecha($hab, $hotel, $frontdesk);
+                            $actualizadas++;
+                        }
                     } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [Habitacion::ESTADO_APROBADA, Habitacion::ESTADO_APROBADA_CON_OBSERVACION], true)) {
                         // Decisión de negocio (2026-08-21): Cloudbeds es la fuente madre del
                         // estado real. Si ya reporta 'clean' pero acá sigue sucia/en_progreso/
@@ -252,6 +264,68 @@ final class CloudbedsSyncService
      * @param string $condicion 'clean' | 'dirty' (minúscula: Cloudbeds la exige así, igual que
      *                          la devuelve getHousekeepingStatus — 'Clean' es rechazado).
      */
+    /**
+     * ¿Hay que conservar la aprobación de hoy aunque Cloudbeds diga 'dirty'?
+     *
+     * Cloudbeds marca una pieza 'dirty' apenas entra un huésped: para ellos es la marca del
+     * servicio del día SIGUIENTE, no una limpieza pendiente. Si la app le hace caso sin
+     * distinguir, deshace la aprobación del día y manda a limpiar de nuevo una pieza recién
+     * hecha y ocupada.
+     *
+     * Pasó de verdad: el 22/09/2026 la pieza 706 se aprobó a las 11:15, la escritura a
+     * Cloudbeds respondió `success: true`, y 25 minutos después el sync la devolvió a sucia
+     * porque había entrado un huésped. La limpiaron dos veces. Ese día le pasó a ~8 piezas.
+     *
+     * La re-limpieza LEGÍTIMA del mismo día (se fue un huésped y entra otro) llega con la
+     * pieza DESOCUPADA y frontdesk 'check-out'/'turnover', así que sigue revirtiendo igual
+     * que antes. Y los nocheros no dependen de esta rama: los revierte su propio barrido de
+     * las 16:00 (ver scripts/sync-cloudbeds.php).
+     */
+    private function conservarAprobacionDelDia(Habitacion $hab, ?string $frontdesk, ?bool $ocupada): bool
+    {
+        // Aprobación de otro día: manda el ciclo normal, se revierte como siempre.
+        if (!$this->habitaciones->cambioDeEstadoHoy($hab->id)) {
+            return false;
+        }
+        return $ocupada === true || in_array($frontdesk, ['check-in', 'stayover'], true);
+    }
+
+    /**
+     * La sincronización deshizo una aprobación: queda en el log y le llega a la supervisora.
+     *
+     * Antes esto pasaba MUDO —la rama de al lado (Cloudbeds la aprueba sola) sí registraba un
+     * WARNING—, así que alguien volvía a limpiar sin que nadie supiera por qué. La asimetría
+     * costó horas de diagnóstico el 22/09/2026.
+     */
+    private function avisarAprobacionDeshecha(Habitacion $hab, Hotel $hotel, ?string $frontdesk): void
+    {
+        Logger::warning('cloudbeds', 'aprobación deshecha: Cloudbeds reporta la pieza sucia', [
+            'habitacion_id' => $hab->id,
+            'numero' => $hab->numero,
+            'estado_previo' => $hab->estado,
+            'frontdesk' => $frontdesk,
+        ]);
+
+        try {
+            $this->alertas->levantar(
+                AlertaActiva::TIPO_APROBACION_DESHECHA,
+                "Habitación {$hab->numero} volvió a sucia",
+                'Estaba aprobada, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza.',
+                ['habitacion_id' => $hab->id, 'frontdesk' => $frontdesk],
+                $hotel->id,
+                // Una alerta por pieza: si el sync la vuelve a ver sucia en el siguiente tick
+                // no se apila otra. Ver AlertasService::levantar().
+                "habitacion:{$hab->id}",
+            );
+        } catch (\Throwable $e) {
+            // Avisar es importante, pero no puede tumbar la sincronización entera.
+            Logger::error('cloudbeds', 'no se pudo levantar la alerta de aprobación deshecha', [
+                'habitacion_id' => $hab->id,
+                'mensaje' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function escribirEstadoRoomCondition(Habitacion $habitacion, string $condicion): bool
     {
         $hotel = $this->hoteles->buscarPorId($habitacion->hotelId);

@@ -795,7 +795,8 @@ function homeAdmin() {
                 'fin_turno_pendientes': 'clock',
                 'trabajador_disponible': 'user-check',
                 'ticket_nuevo': 'wrench',
-                'habitacion_saltada': 'skip-forward'
+                'habitacion_saltada': 'skip-forward',
+                'aprobacion_deshecha': 'rotate-ccw'
             };
             return map[tipo] || 'bell';
         },
@@ -808,7 +809,8 @@ function homeAdmin() {
                 'fin_turno_pendientes': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'trabajador_disponible': 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
                 'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
-                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+                'aprobacion_deshecha': 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -830,7 +832,7 @@ function homeAdmin() {
             } else if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
                 botones.push({ accion: 'ir_asignaciones', etiqueta: 'Ver asignaciones', clase: btnSecundario });
                 if (puedeAsignar) botones.push({ accion: 'ir_asignaciones', etiqueta: 'Reasignar', clase: btnPrimario });
-            } else if (al.tipo === 'habitacion_rechazada') {
+            } else if (al.tipo === 'habitacion_rechazada' || al.tipo === 'aprobacion_deshecha') {
                 if (al.contexto && al.contexto.habitacion_id) {
                     botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
                 }

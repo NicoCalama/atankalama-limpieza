@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Helpers\Fechas;
 use Atankalama\Limpieza\Models\Habitacion;
 
 final class HabitacionService
@@ -376,6 +377,25 @@ final class HabitacionService
             "UPDATE #__habitaciones SET nochero_ultima_reversion = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             [$hoy, $id]
         );
+    }
+
+    /**
+     * ¿La pieza pasó a su estado actual HOY (día de Chile)?
+     *
+     * `updated_at` solo lo mueve cambiarEstado(); actualizarOcupacionCloudbeds() NO lo toca.
+     * Así que para una pieza en estado terminal esto equivale a «se aprobó hoy», sin
+     * necesidad de una columna nueva. Lo usa la sincronización para no deshacer el trabajo
+     * del día (ver CloudbedsSyncService::conservarAprobacionDelDia).
+     */
+    public function cambioDeEstadoHoy(int $id, ?string $hoyLocal = null): bool
+    {
+        $hoyLocal ??= date('Y-m-d');
+        $fila = Database::fetchOne('SELECT updated_at FROM #__habitaciones WHERE id = ?', [$id]);
+        $updatedAt = $fila['updated_at'] ?? null;
+        if (!is_string($updatedAt) || $updatedAt === '') {
+            return false;
+        }
+        return Fechas::fechaLocalDeUtc($updatedAt) === $hoyLocal;
     }
 
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion

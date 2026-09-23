@@ -92,6 +92,22 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 2. "Asignar" → si tiene permiso.
 **Resolución automática:** cuando el ticket pasa a `resuelto` o `cerrado`.
 
+### 3.7 P1 — `aprobacion_deshecha`
+
+**Disparador:** la sincronización devolvió a `sucia` una pieza que ya estaba aprobada, porque
+Cloudbeds la reporta `dirty`. Es decir: alguien la va a limpiar de nuevo.
+**Contexto:** `{ habitacion_id, frontdesk }`.
+**Título:** "Habitación {numero} volvió a sucia"
+**Descripción:** "Estaba aprobada, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza."
+**Botones:**
+1. "Ver habitación" → la ficha, con el historial de movimientos y la ocupación.
+**Dedupe:** `habitacion:{id}` — una alerta por pieza, no una por cada tick del sync.
+
+> **Por qué existe.** Antes esto pasaba **mudo**: la rama de al lado (Cloudbeds la aprueba sola)
+> sí registraba un WARNING, pero deshacer una aprobación no dejaba rastro. El 22/09/2026 costó
+> horas entender por qué la pieza 706 se limpió dos veces. Ver la regla en
+> `CloudbedsSyncService::conservarAprobacionDelDia()`.
+
 ---
 
 ## 4. Algoritmo predictivo — `trabajador_en_riesgo`

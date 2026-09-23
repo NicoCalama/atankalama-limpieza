@@ -14,6 +14,9 @@ final class AlertaActiva
     public const TIPO_TICKET_NUEVO = 'ticket_nuevo';
     public const TIPO_HABITACION_SALTADA = 'habitacion_saltada';
     public const TIPO_INVENTARIO_CAMBIOS = 'inventario_cambios_pendientes';
+    // La sincronización deshizo una aprobación del día porque Cloudbeds reportó la pieza
+    // 'dirty'. Antes pasaba en silencio y alguien la volvía a limpiar sin saber por qué.
+    public const TIPO_APROBACION_DESHECHA = 'aprobacion_deshecha';
 
     public const TIPOS_VALIDOS = [
         self::TIPO_CLOUDBEDS_SYNC_FAILED,
@@ -24,6 +27,7 @@ final class AlertaActiva
         self::TIPO_TICKET_NUEVO,
         self::TIPO_HABITACION_SALTADA,
         self::TIPO_INVENTARIO_CAMBIOS,
+        self::TIPO_APROBACION_DESHECHA,
     ];
 
     public const PRIORIDAD_POR_TIPO = [
@@ -35,6 +39,7 @@ final class AlertaActiva
         self::TIPO_TICKET_NUEVO => 2,
         self::TIPO_HABITACION_SALTADA => 2,
         self::TIPO_INVENTARIO_CAMBIOS => 2,
+        self::TIPO_APROBACION_DESHECHA => 1,
     ];
 
     public function __construct(

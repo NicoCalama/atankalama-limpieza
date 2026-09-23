@@ -129,11 +129,44 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
       - Matchear por cloudbeds_room_id.
       - Si cleaningStatus=Dirty y estado actual en app es (aprobada | aprobada_con_observacion | rechazada):
           → hubo check-out, pasar a 'sucia', crear nueva ejecución disponible.
+          → EXCEPCIÓN (ver abajo): si la aprobación es de HOY y la pieza está OCUPADA,
+            NO se revierte — ese 'dirty' es la marca del servicio del día siguiente.
+          → Si sí se revierte, queda WARNING en el log + alerta P1 'aprobacion_deshecha'.
       - Si cleaningStatus=Dirty y estado actual es 'sucia': no-op.
       - Si cleaningStatus=Clean y estado actual es 'completada_pendiente_auditoria': WARN (inconsistencia — auditamos por un lado, Cloudbeds por otro).
 3. Actualizar sync_historial: finalizada_at=now, resultado=exito|parcial|error, contadores.
 4. Si hubo error → crear alerta P0 cloudbeds_sync_failed.
 ```
+
+### 4.x La excepción del check-in (incidente del 22/09/2026)
+
+**Cloudbeds marca una pieza `dirty` apenas entra un huésped.** Para ellos eso no significa «está
+sucia ahora», sino «va a necesitar aseo mañana» — está en su propia documentación de housekeeping.
+
+La app leía ese `dirty` sin distinguir y **deshacía la aprobación del día**, mandando a limpiar de
+nuevo una pieza recién hecha y ocupada. El caso testigo: la pieza **706** se aprobó a las 11:15, la
+escritura a Cloudbeds respondió `success: true`, entró un huésped, y a las 11:41 el sync la devolvió
+a sucia. La limpiaron dos veces. Ese día le pasó a ~8 piezas; en la semana previa, a varias por día.
+
+**La regla** (`CloudbedsSyncService::conservarAprobacionDelDia()`):
+
+```
+Cloudbeds dice 'dirty' y la pieza está en estado terminal:
+  ¿Cambió de estado HOY (updated_at, día de Chile)?
+    ├─ NO → revertir            (ciclo normal del día siguiente)
+    └─ SÍ → ¿ocupada, o frontdesk 'check-in'/'stayover'?
+              ├─ SÍ → NO revertir, INFO al log
+              └─ NO → revertir + WARNING + alerta P1
+```
+
+**Qué NO rompe:**
+- La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con
+  frontdesk `check-out`/`turnover` → sigue revirtiendo igual que siempre.
+- Los **nocheros** no dependen de esta rama: los revierte su propio barrido de las 16:00
+  (`scripts/sync-cloudbeds.php`), que además avisa `dirty` a Cloudbeds.
+
+`updated_at` sirve como «cuándo se aprobó» porque solo lo mueve `cambiarEstado()`;
+`actualizarOcupacionCloudbeds()` no lo toca.
 
 ---
 
