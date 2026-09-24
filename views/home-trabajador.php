@@ -178,7 +178,13 @@ if ($hora < 12) {
                             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5" data-tour="htr.actual">
                                 <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Habitación actual</p>
                                 <div class="mb-4">
-                                    <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
+                                    <!-- Hotel de la pieza: misma etiqueta y colores que la tarjeta de Habitaciones -->
+                                    <div class="flex items-start gap-3">
+                                        <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
+                                        <span class="mt-1 text-xs uppercase tracking-wide font-semibold"
+                                              :class="etiquetaHotel(data.habitacion_actual.hotel_codigo)"
+                                              x-text="hotelCorto(data.habitacion_actual.hotel_codigo)"></span>
+                                    </div>
                                     <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
                                     <div class="mt-2 flex items-center gap-2 flex-wrap">
                                         <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
@@ -348,6 +354,19 @@ function homeTrabajador() {
             if (!document.hidden) {
                 this.cargar();
             }
+        },
+
+        // Etiqueta del hotel de la pieza: mismo texto y color que hotelCorto()/etiquetaHotel()
+        // de habitaciones.php (clases .hotel-chip-* de custom.css, editables en Ajustes → Colores).
+        hotelCorto(codigo) {
+            if (codigo === '1_sur') return 'Atankalama';
+            if (codigo === 'inn') return 'Atankalama INN';
+            return codigo || '';
+        },
+
+        etiquetaHotel(codigo) {
+            if (codigo === '1_sur' || codigo === 'inn') return 'hotel-chip-' + codigo;
+            return 'text-gray-500 dark:text-gray-400';
         },
 
         porcentaje(valor) {
