@@ -651,27 +651,14 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             return !!this.motivoSaltar;
         },
 
-        // Badge de ocupación (frontdeskStatus de Cloudbeds). Mismo mapa/colores que
-        // badgeOcupacion() en habitaciones.php, para no inventar un lenguaje visual nuevo.
+        // Badges de ocupación y código de Cloudbeds: versión compartida en app.js
+        // (la misma que usan Habitaciones y la bandeja de Inspección).
         badgeOcupacion(fs) {
-            var map = {
-                'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
-                'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
-                'turnover': { t: 'Cambio', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
-                'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
-            };
-            var c = map[fs];
-            if (!c) return '';
-            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
+            return htmlBadgeOcupacion(fs);
         },
 
-        // Badge del código de ocupación de Cloudbeds. Mismo patrón/colores que
-        // badgeCodigoRoomName() en habitaciones.php, para no inventar un lenguaje visual nuevo.
         badgeCodigoRoomName(nombreCompleto) {
-            var partes = (nombreCompleto || '').trim().split(/\s+/);
-            if (partes.length < 2) return '';
-            var codigo = partes[partes.length - 1];
-            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-pink-500 text-white">' + escapeHtml(codigo) + '</span>';
+            return htmlBadgeCodigoRoomName(nombreCompleto);
         },
 
         // YYYY-MM-DD (cb_arrival_date/cb_departure_date) → DD/MM/YYYY, sin pasar por Date():

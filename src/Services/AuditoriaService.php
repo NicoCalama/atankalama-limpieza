@@ -242,6 +242,7 @@ final class AuditoriaService
     {
         $sql = "SELECT h.id, h.numero, h.estado, h.es_nochero, h.auditoria_orden,
                        (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
+                       h.cb_frontdesk_status, h.cloudbeds_room_name,
                        ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre,
                        ec.id AS ejecucion_id, ec.usuario_id AS trabajador_id
                   FROM #__habitaciones h

@@ -456,6 +456,21 @@ final class AuditoriaServiceTest extends TestCase
         $this->assertCount(0, $this->svc->bandejaPendientes('1_sur'));
     }
 
+    public function testBandejaIncluyeOcupacionYCodigoCloudbeds(): void
+    {
+        // La tarjeta de Inspección muestra los mismos badges que la ficha del trabajador:
+        // ocupación (cb_frontdesk_status) y código de camas (cloudbeds_room_name), en vivo.
+        Database::execute(
+            "UPDATE habitaciones SET cb_frontdesk_status = 'stayover', cloudbeds_room_name = '101-EXE3 2S' WHERE id = ?",
+            [$this->habitacionId]
+        );
+
+        $fila = $this->svc->bandejaPendientes('1_sur')[0];
+        $this->assertSame('stayover', $fila['cb_frontdesk_status']);
+        $this->assertSame('101-EXE3 2S', $fila['cloudbeds_room_name']);
+        $this->assertFalse($fila['se_va_hoy']);
+    }
+
     public function testItemsDesmarcadosEnAprobadoLimpioLanza(): void
     {
         try {

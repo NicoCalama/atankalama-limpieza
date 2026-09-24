@@ -150,7 +150,7 @@ Ver [auditoria.md](auditoria.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes |
+| GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes. Por pieza: `id`, `numero`, `estado`, `es_nochero`, `auditoria_orden`, `se_va_hoy`, `cb_frontdesk_status`, `cloudbeds_room_name`, `hotel_codigo`, `tipo_nombre`, `ejecucion_id`, `trabajador_id` |
 | POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` | Veredicto |
 | GET | `/api/auditoria/{id}/historial` | `habitaciones.ver_historial` | Detalle histórico |
 | POST | `/api/auditoria/{habitacion_id}/iniciar` | `auditoria.ver_bandeja` | Marca el inicio de la inspección (`ejecuciones_checklist.auditoria_iniciada_at`) de la última ejecución completada; lo dispara el detalle al abrirse. Alimenta el KPI «tiempo por auditación» (v6.4). Devuelve `{ registrado: bool }` |

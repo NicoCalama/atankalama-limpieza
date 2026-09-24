@@ -125,6 +125,12 @@ Una habitación con auditoría:
 
 Las habitaciones auditadas **no aparecen** por defecto (la bandeja lista `completada_pendiente_auditoria`).
 
+Cada tarjeta muestra, además del número, tipo, hotel y Nochero, **los mismos badges que ve el trabajador en su ficha** (`htmlBadgeOcupacion()` / `htmlBadgeCodigoRoomName()` en `public/assets/js/app.js`), para que la supervisora sepa qué revisar sin abrir la pieza:
+- **Ocupación** (`cb_frontdesk_status`): Llega hoy / Se va hoy / Cambio / Sigue. Libre (`unused`) no lleva badge.
+- **Código de camas** (último token de `cloudbeds_room_name`, ej. «2S»).
+
+Son datos en vivo de Cloudbeds (no una foto del momento de la limpieza). Se muestran siempre, también en el celular: la fila hace wrap en vez de esconderlos.
+
 Filtro opcional: "Incluir auditadas hoy" → muestra con opacidad 50% y badge. Útil para revisar decisiones recientes.
 
 ### 5.2 En detalle histórico

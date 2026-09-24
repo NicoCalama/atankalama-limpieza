@@ -1039,27 +1039,13 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             return textos[estado] || estado;
         },
 
-        // Badge de ocupación (frontdeskStatus de Cloudbeds). Ver docs/ocupacion-y-sabanas.md
+        // Badges de ocupación y código de Cloudbeds: versión compartida en app.js.
         badgeOcupacion(fs) {
-            var map = {
-                'check-in': { t: 'Llega hoy', c: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200' },
-                'check-out': { t: 'Se va hoy', c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
-                'turnover': { t: 'Cambio', c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200' },
-                'stayover': { t: 'Sigue', c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' }
-            };
-            var c = map[fs];
-            if (!c) return '';
-            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + c.c + '">' + escapeHtml(c.t) + '</span>';
+            return htmlBadgeOcupacion(fs);
         },
 
-        // Badge del código de ocupación de Cloudbeds: último token del roomName completo
-        // ('511-EXE3 2S' -> '2S'). Espejo crudo de Cloudbeds (cloudbeds_room_name), se
-        // refresca solo, nunca editable en la app. Sin espacio en el nombre -> sin badge.
         badgeCodigoRoomName(nombreCompleto) {
-            var partes = (nombreCompleto || '').trim().split(/\s+/);
-            if (partes.length < 2) return '';
-            var codigo = partes[partes.length - 1];
-            return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-pink-500 text-white">' + escapeHtml(codigo) + '</span>';
+            return htmlBadgeCodigoRoomName(nombreCompleto);
         }
     };
 }

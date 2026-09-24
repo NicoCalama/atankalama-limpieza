@@ -135,8 +135,16 @@
                                         <template x-if="hab.es_nochero">
                                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Nochero</span>
                                         </template>
-                                        <template x-if="hab.se_va_hoy">
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">Se va hoy</span>
+                                        <!-- Ocupación y código de camas: los mismos badges que ve el
+                                             trabajador en su ficha (htmlBadge* en app.js), en vivo desde
+                                             Cloudbeds. Sin clases hidden/sm:/md: — el equipo trabaja en el
+                                             celular; si no caben, la fila (flex-wrap) los baja de línea.
+                                             El badge de ocupación ya cubre «Se va hoy» (check-out). -->
+                                        <template x-if="hab.cb_frontdesk_status && hab.cb_frontdesk_status !== 'unused'">
+                                            <span x-html="htmlBadgeOcupacion(hab.cb_frontdesk_status)"></span>
+                                        </template>
+                                        <template x-if="hab.cloudbeds_room_name">
+                                            <span x-html="htmlBadgeCodigoRoomName(hab.cloudbeds_room_name)"></span>
                                         </template>
                                     </div>
                                 </div>
