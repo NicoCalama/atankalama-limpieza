@@ -276,7 +276,7 @@ Si reporta faltantes: corré el SQL del release (§11 de este documento) o el
    olvidarse ninguno:
    - `git diff --name-only <commit-del-último-deploy> HEAD` — el commit de
      referencia es el que quedó anotado en la última fila de §11.
-   - **Descartar** de esa lista `docs/**` y `tests/**`: no se despliegan (el build
+   - **Descartar** de esa lista `docs/**`, `tests/**` y `.claude/**`: no se despliegan (el build
      tampoco los copia, salvo los 2 `database-schema*.sql`).
    - **Mapeo repo → servidor:** la raíz del repo (`src/`, `views/`, `scripts/`,
      `public/`, `CHANGELOG.md`, `composer.*`) va bajo
