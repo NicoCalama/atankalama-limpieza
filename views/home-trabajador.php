@@ -179,12 +179,10 @@ if ($hora < 12) {
                                 <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Habitación actual</p>
                                 <div class="mb-4">
                                     <!-- Hotel de la pieza: misma etiqueta y colores que la tarjeta de Habitaciones -->
-                                    <div class="flex items-start gap-3">
-                                        <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
-                                        <span class="mt-1 text-xs uppercase tracking-wide font-semibold"
-                                              :class="etiquetaHotel(data.habitacion_actual.hotel_codigo)"
-                                              x-text="hotelCorto(data.habitacion_actual.hotel_codigo)"></span>
-                                    </div>
+                                    <p class="text-xs uppercase tracking-wide font-semibold"
+                                       :class="etiquetaHotel(data.habitacion_actual.hotel_codigo)"
+                                       x-text="hotelCorto(data.habitacion_actual.hotel_codigo)"></p>
+                                    <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.habitacion_actual.numero"></p>
                                     <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="data.habitacion_actual.tipo"></p>
                                     <div class="mt-2 flex items-center gap-2 flex-wrap">
                                         <span x-html="badgeEstado(data.habitacion_actual.estado)"></span>
