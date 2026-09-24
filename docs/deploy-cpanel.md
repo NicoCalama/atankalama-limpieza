@@ -283,6 +283,16 @@ Si reporta faltantes: corré el SQL del release (§11 de este documento) o el
      `public_html/limpieza/app_core/…` con la misma ruta relativa. Los archivos del
      docroot (`deployment/cpanel/docroot/index.php` y `.htaccess`) van a
      `public_html/limpieza/…` — rara vez cambian.
+   - **⚠️ EXCEPCIÓN — los estáticos de `public/` van al DOCROOT, no a `app_core/`.**
+     `public/assets/**`, `public/sw.js`, `public/offline.html` y `public/uploads/`
+     se sirven desde `public_html/limpieza/…` (así los copia
+     `build-cpanel-zip.php`), y el `.htaccess` del docroot tira **403 a todo
+     `app_core/`**: un `assets/js/app.js` subido a `app_core/public/assets/` **no
+     lo sirve nadie**. Subí las **dos** copias — la del docroot, que es la que ve
+     el navegador, y la de `app_core/public/…`, de la que `layout.php` saca el
+     `?v=filemtime(…)` que rompe la caché. Con una sola: o el código no llega, o
+     el `?v=` miente. (Pasó en el deploy de la v6.12, 24/09/2026: los badges
+     nuevos no aparecían porque `app.js` había ido solo a `app_core/`.)
    - **`vendor/` solo si cambió `composer.lock`** (agregar/actualizar dependencias).
      Si cambió, correr `composer install --no-dev` en local y subir `vendor/`
      entero — o, más simple, hacer ESE deploy con el ZIP completo. Un cambio de
