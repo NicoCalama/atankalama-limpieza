@@ -298,6 +298,16 @@ Si reporta faltantes: corré el SQL del release (§11 de este documento) o el
      entero — o, más simple, hacer ESE deploy con el ZIP completo. Un cambio de
      solo-código nunca toca `vendor/`.
    - El `.env` del server **NO se toca nunca** (nunca está en el delta).
+   - **ZIP del delta (la forma preferida de subirlo, decidido el 25/09/2026).** Se
+     arma copiando los archivos a `build/stage/limpieza/…` —la misma estructura
+     del servidor— y empaquetando con `scripts/zip-stage.ps1` en
+     `build/limpieza-v<versión>-delta.zip` (ej. `limpieza-v613-delta.zip`). La
+     carpeta de stage es **una sola**: se vacía antes de armar y **se borra apenas
+     se verifica el ZIP** (firma `PK`, `unzip -t` y archivos idénticos a los del
+     repo), así que en `build/` queda solo el ZIP. Antes cada deploy dejaba su
+     propia carpeta (`cpanel-v67`, `stage-v612`…) y se acumulaban. Si el ZIP se
+     sube por FileZilla, que sea en modo **Binario**: en ASCII llega corrupto
+     (pasó en la v6.12).
    - Cuando el cambio toca *muchos* archivos, mueve archivos de lugar, o cambia
      `vendor/`, hacé el **ZIP completo** en su lugar (`php
      scripts/build-cpanel-zip.php` + método de §11 con `limpieza_old`): más simple
