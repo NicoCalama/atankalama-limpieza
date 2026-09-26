@@ -75,7 +75,20 @@ Transición `resuelto → abierto` (reabrir) es posible si alguien detecta que n
    - **Prioridad** (radio: baja/normal/alta/urgente, default normal).
 3. POST `/api/tickets` → crea fila, estado `abierto`.
 4. Se crea alerta P2 `ticket_nuevo` dirigida a usuarios con `tickets.ver_todos`.
-5. Toast: "Ticket creado. Gracias por reportar."
+5. El modal muestra la confirmación en su lugar: «¡Reporte enviado!», el número de ticket y, si
+   alguna foto no se pudo subir, cuántas. Queda a la vista hasta que la persona toca «Listo»
+   (antes era un aviso de 2,5 s que solo existía en `/tickets`: desde la pieza o el Inicio el modal
+   se cerraba sin decir nada).
+
+**Envío con mala señal (v6.14).** Cada reporte lleva una `idempotency_key` que se genera al primer
+intento y se reusa en los reintentos: si la respuesta se perdió pero el ticket sí se creó, el
+servidor devuelve ese mismo ticket en vez de duplicarlo. El envío tiene un plazo de 60 s (a los
+10 s avisa que la señal está lenta); si se cumple, el botón pasa a «Reintentar». Mientras envía el
+modal no se cierra, y no deja enviar mientras se procesa una foto.
+
+**Desde la pieza o el Inicio.** Esas pantallas le pasan al modal el hotel y el número de la pieza.
+Un trabajador no tiene `habitaciones.ver_todas`, así que el modal no puede buscarlos en
+`/api/habitaciones`; hasta la v6.13 el formulario quedaba sin hotel y no dejaba enviar.
 
 ### 5.2 Desde copilot
 

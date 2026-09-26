@@ -3,11 +3,14 @@
  * Modal reutilizable "Nuevo ticket".
  * Incluir en layout.php (si el usuario tiene permiso tickets.crear).
  *
- * Para abrirlo desde cualquier parte, dispatch del evento:
- *   this.$dispatch('abrir-modal-ticket', { habitacionId: 42, hotelCodigo: '1_sur' })
+ * Para abrirlo desde cualquier parte, dispatch del evento (todo opcional):
+ *   this.$dispatch('abrir-modal-ticket', { habitacionId: 42, habitacionNumero: '302', hotelId: 2, hotelCodigo: 'inn' })
+ * Quien reporta desde una pieza manda hotelId/hotelCodigo y el número: un trabajador no
+ * puede leer /api/habitaciones, así que el modal no los encontraría por su cuenta.
  *
- * Al crearse exitosamente, emite 'ticket-creado' con el ticket como detail.
- * La página consumidora puede escuchar para refrescar listas.
+ * Al crearse, el propio modal muestra la confirmación (número de ticket y fotos que no
+ * subieron) hasta que la persona toca «Listo», y emite 'ticket-creado' con el ticket como
+ * detail para que la página consumidora refresque sus listas.
  */
 // Asignar de inmediato al crear: mismo permiso que ya gatea /asignar (panel "Asignar
 // responsable" de tickets.php) y el mismo componente se usa en toda la app (aquí y en
@@ -35,12 +38,34 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Reportar problema</h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Cuéntanos qué pasa y lo revisaremos.</p>
                 </div>
-                <button @click="cerrar()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                <button @click="cerrar()" :disabled="enviando" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                 </button>
             </div>
 
-            <form @submit.prevent="crear()" class="space-y-3">
+            <!-- Confirmación: queda a la vista hasta que la persona toca «Listo» -->
+            <div x-show="resultado" x-cloak class="text-center py-2" role="status" aria-live="polite">
+                <div class="mx-auto w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-green-600 dark:text-green-400" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 6 9 17l-5-5"></path>
+                    </svg>
+                </div>
+                <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">¡Reporte enviado!</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Quedó como el ticket <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="resultado ? '#' + resultado.id : ''"></span>. Lo vamos a revisar.
+                </p>
+                <template x-if="resultado && resultado.fotosFallidas > 0">
+                    <p class="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-sm text-left"
+                       x-text="resultado.fotosFallidas === 1 ? 'El reporte llegó, pero 1 foto no se pudo subir.' : 'El reporte llegó, pero ' + resultado.fotosFallidas + ' fotos no se pudieron subir.'"></p>
+                </template>
+                <button type="button" @click="cerrar()"
+                        class="mt-5 w-full min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
+                    Listo
+                </button>
+            </div>
+
+            <form x-show="!resultado" @submit.prevent="crear()" class="space-y-3">
                 <!-- Hotel (requerido) -->
                 <div>
                     <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Hotel *</label>
@@ -49,7 +74,8 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px] disabled:opacity-60">
                         <option :value="null">Selecciona un hotel</option>
                         <template x-for="h in hoteles" :key="h.id">
-                            <option :value="h.id" x-text="h.nombre"></option>
+                            <!-- :selected porque el hotel puede quedar fijado antes de que llegue la lista -->
+                            <option :value="h.id" :selected="Number(h.id) === Number(form.hotel_id)" x-text="h.nombre"></option>
                         </template>
                     </select>
                 </div>
@@ -200,7 +226,8 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                             </div>
                         </template>
                     </div>
-                    <div x-show="fotos.length < 3" class="flex gap-2">
+                    <p x-show="procesandoFotos > 0" x-cloak class="text-xs text-gray-500 dark:text-gray-400 mb-2">Procesando foto...</p>
+                    <div x-show="fotos.length + procesandoFotos < 3" class="flex gap-2">
                         <label class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                             <i data-lucide="camera" class="w-4 h-4"></i>
                             <span>Tomar foto</span>
@@ -221,13 +248,18 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                     <div class="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm rounded-lg" x-text="error"></div>
                 </template>
 
+                <!-- Aviso de señal lenta: sigue enviando, todavía no se cortó -->
+                <p x-show="enviando && senalLenta" x-cloak class="text-xs text-amber-700 dark:text-amber-400">
+                    La señal está lenta. Seguimos enviando: no cierres esta ventana.
+                </p>
+
                 <!-- Acciones -->
                 <div class="flex gap-2 pt-2">
-                    <button type="button" @click="cerrar()"
-                            class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                    <button type="button" @click="cerrar()" :disabled="enviando"
+                            class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-gray-100 transition">
                         Cancelar
                     </button>
-                    <button type="submit" :disabled="enviando || !formValido()"
+                    <button type="submit" :disabled="enviando || procesandoFotos > 0 || !formValido()"
                             class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white transition inline-flex items-center justify-center gap-2">
                         <template x-if="enviando">
                             <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -235,7 +267,7 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                             </svg>
                         </template>
-                        <span x-text="enviando ? 'Enviando...' : 'Crear ticket'"></span>
+                        <span x-text="textoBotonEnviar()"></span>
                     </button>
                 </div>
             </form>

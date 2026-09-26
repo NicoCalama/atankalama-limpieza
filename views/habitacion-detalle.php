@@ -843,8 +843,16 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
 
         reportarProblema() {
             // Mismo contrato que home-trabajador.php: modal-ticket-nuevo.php (incluido
-            // globalmente en layout.php) escucha este evento y precarga la habitación.
-            window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: { habitacionId: this.habitacionId } }));
+            // globalmente en layout.php) escucha este evento y precarga la habitación. Van
+            // también el hotel y el número: sin ellos el modal de un trabajador quedaba sin
+            // hotel (no puede leer /api/habitaciones) y no dejaba enviar.
+            var h = this.habitacion || {};
+            window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: {
+                habitacionId: this.habitacionId,
+                habitacionNumero: h.numero || null,
+                hotelId: h.hotel_id != null ? Number(h.hotel_id) : null,
+                hotelCodigo: h.hotel_codigo || null,
+            } }));
         },
 
         // Trae desde Cloudbeds el estado (ocupación incluida) de todas las habitaciones

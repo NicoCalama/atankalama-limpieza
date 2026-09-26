@@ -162,13 +162,9 @@ function ticketsApp() {
             this.cargar();
         },
 
-        onTicketCreado(ticket) {
-            var fallidas = (ticket && ticket._adjuntos_fallidos) || [];
-            if (fallidas.length > 0) {
-                this.mostrarToast('error', 'Ticket creado, pero ' + fallidas.length + ' foto(s) no se pudieron subir.');
-            } else {
-                this.mostrarToast('exito', 'Ticket creado. Gracias por reportar.');
-            }
+        onTicketCreado() {
+            // La confirmación (número de ticket y fotos que no subieron) la muestra el propio
+            // modal hasta que tocan «Listo»; acá solo se refresca la lista.
             this.cargar();
         },
 

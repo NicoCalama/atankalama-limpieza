@@ -390,7 +390,11 @@ function homeTrabajador() {
         reportarProblema() {
             var detail = {};
             if (this.data && this.data.habitacion_actual) {
+                // Número y hotel además del id: el modal de un trabajador no puede buscarlos
+                // en /api/habitaciones (ver modal-ticket-nuevo.js, abrir()).
                 detail.habitacionId = this.data.habitacion_actual.id;
+                detail.habitacionNumero = this.data.habitacion_actual.numero;
+                detail.hotelCodigo = this.data.habitacion_actual.hotel_codigo;
             }
             window.dispatchEvent(new CustomEvent('abrir-modal-ticket', { detail: detail }));
         },
