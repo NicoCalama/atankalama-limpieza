@@ -21,6 +21,8 @@ campos ricos. Cada fila trae (ver `docs/cloudbeds.md` §3.1):
 
 **No hace falta llamar a `getReservations`.** Las "reglas de cada hotel" (cadencia de sábanas) no se
 exponen por la API: Cloudbeds da el estado, la **regla de N días la implementamos nosotros** (configurable).
+*(Excepción posterior: la **cantidad de huéspedes** no viene en `getHousekeepingStatus` y sí sale de
+`getReservations` — ver §2.5, v6.15.)*
 
 ---
 
@@ -52,8 +54,33 @@ lleva badge para reducir ruido visual. Es una dimensión **separada** de nuestro
 "Sábanas"); extender los badges de ocupación a la vista de Asignaciones queda como mejora futura.
 
 ### 2.4 Dependencia
-La ocupación es tan fresca como el sync (hoy **2×/día**). Para que sea útil en el día dinámico conviene
-subir la cadencia → es el **Gap C** (separado, pero este feature lo hace más valioso).
+La ocupación es tan fresca como el sync: hoy cada **30 min** (auto-regulado, ver `docs/cloudbeds.md`
+§4.1), más el botón «Actualizar ahora». *(Cuando se escribió esto era 2×/día; subir la cadencia fue el
+**Gap C**.)*
+
+### 2.5 Cantidad de huéspedes (v6.15)
+Pedido del equipo de aseo (25/09/2026): Flexkeeping mostraba en la ficha de la pieza «Guests: 4», las
+fechas de llegada y salida, y también la llegada del mismo día ([Mobile room overview](https://help.mews.com/s/article/mobile-room-overview?language=en_US)).
+Sirve para saber cuántas camas y cuánta ropa hay que cambiar: una triple con un solo huésped es una
+cama, no tres. **Solo se muestra; los créditos no cambian** (tema aparte, a conversar con jefatura).
+
+- **Fuente:** `getHousekeepingStatus` no lo trae, así que el sync hace **una consulta más por hotel**:
+  `getReservations` con `checkInTo = checkOutFrom = hoy`, `datesQueryMode=rooms`, `includeAllRooms=true`
+  (`CloudbedsClient::obtenerReservasDelDia`). Cada reserva trae `rooms[]` con `roomID`, `adults`,
+  `children`, `roomStatus`, `roomCheckIn` y `roomCheckOut`. Probado contra Cloudbeds el 25/09: una
+  página y 40–90 KB por hotel. *(Con `status=checked_in` eran 300–700 KB y traía reservas de 2022 que
+  Cloudbeds sigue dando «en casa» sin pieza asignada; filtrar por fechas las deja fuera.)*
+- **Regla** (`CloudbedsSyncService::mapaCantidadHuespedes`), mismo criterio que Flexkeeping —reserva
+  actual + llegada del día—, contando adultos + niños y sumando si dos reservas comparten la pieza:
+  - `cb_huespedes`: los que están en la pieza (`in_house`). Si ya no queda nadie adentro, **los que
+    salieron hoy**: es lo que usó la pieza que se va a limpiar.
+  - `cb_huespedes_llegan`: los que llegan hoy y todavía no hacen check-in.
+  - Se ignoran las piezas sin `roomID` y lo cancelado. 0 se guarda como «sin dato» (null).
+- **Si falla:** el sync de limpieza sigue igual y las dos columnas quedan en null (no se muestra un
+  número de otra hora).
+- **Dónde se ve:** solo en la tarjeta «Habitación actual» del Inicio del trabajador y en Inspección
+  (pedido explícito de Nicolás; en la ficha de la pieza y en Habitaciones no, salvo que lo pidan).
+- **Ojo:** es el número de la **reserva** en Cloudbeds; si recepción no lo actualiza, muestra lo reservado.
 
 ---
 
@@ -103,7 +130,8 @@ obligatorio, lo que ripplearía en el KPI de créditos (conteo de obligatorios);
 
 ## 5. Fuera de alcance (MVP)
 
-- Leer `getReservations` (no hace falta: todo sale de `getHousekeepingStatus`).
+- Leer `getReservations` (no hacía falta: todo salía de `getHousekeepingStatus`). *Desde la v6.15 sí
+  se lee, solo para la cantidad de huéspedes — ver §2.5.*
 - Escribir el housekeeper/asignación a Cloudbeds.
 - Subir la cadencia del sync (**Gap C**, feature aparte — pero recomendado junto con esto).
 - Disparar automáticamente la 2ª limpieza en `turnover` (**Gap F automático**, feature aparte).

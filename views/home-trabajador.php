@@ -196,6 +196,26 @@ if ($hora < 12) {
                                             </span>
                                         </template>
                                     </div>
+                                    <!-- Huéspedes, como lo mostraba Flexkeeping en la ficha de la pieza: la
+                                         ocupación de Cloudbeds, cuántas personas hay (o salieron hoy), las
+                                         fechas de la reserva y cuántas llegan hoy. Ver docs/ocupacion-y-sabanas.md §2.5 -->
+                                    <template x-if="tieneRecuadroHuespedes(data.habitacion_actual)">
+                                        <div class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                            <p class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700/60 text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-200"
+                                               x-text="textoOcupacionRecuadro(data.habitacion_actual.ocupacion)"></p>
+                                            <div class="px-3 py-2 space-y-0.5 text-sm">
+                                                <p class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                                                   x-show="data.habitacion_actual.huespedes"
+                                                   x-text="textoPersonas(data.habitacion_actual.huespedes)"></p>
+                                                <p class="text-gray-600 dark:text-gray-400"
+                                                   x-show="data.habitacion_actual.fecha_llegada || data.habitacion_actual.fecha_salida"
+                                                   x-text="textoFechasReserva(data.habitacion_actual)"></p>
+                                                <p class="font-medium text-sky-700 dark:text-sky-300"
+                                                   x-show="data.habitacion_actual.huespedes_llegan"
+                                                   x-text="textoLlegan(data.habitacion_actual.huespedes_llegan)"></p>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                                 <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
                                    class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
@@ -365,6 +385,35 @@ function homeTrabajador() {
         etiquetaHotel(codigo) {
             if (codigo === '1_sur' || codigo === 'inn') return 'hotel-chip-' + codigo;
             return 'text-gray-500 dark:text-gray-400';
+        },
+
+        // Recuadro de huéspedes: solo si Cloudbeds dice algo de la pieza (libre y sin datos → nada).
+        tieneRecuadroHuespedes(hab) {
+            if (!hab) return false;
+            return !!(hab.huespedes || hab.huespedes_llegan || (hab.ocupacion && hab.ocupacion !== 'unused'));
+        },
+
+        // Encabezado del recuadro: mismo texto que el badge de ocupación (htmlBadgeOcupacion en app.js).
+        textoOcupacionRecuadro(ocupacion) {
+            var textos = { 'stayover': 'Sigue', 'check-out': 'Se va hoy', 'check-in': 'Llega hoy', 'turnover': 'Cambio' };
+            return textos[ocupacion] || 'Huéspedes';
+        },
+
+        textoFechasReserva(hab) {
+            var partes = [];
+            if (hab.fecha_llegada) partes.push('Entrada ' + this.fechaCorta(hab.fecha_llegada));
+            if (hab.fecha_salida) partes.push('Salida ' + this.fechaCorta(hab.fecha_salida));
+            return partes.join(' · ');
+        },
+
+        textoLlegan(n) {
+            return (Number(n) === 1 ? 'Llega hoy: ' : 'Llegan hoy: ') + textoPersonas(n);
+        },
+
+        // 'YYYY-MM-DD' → 'DD/MM' (formato chileno, sin año: son fechas de la estadía actual).
+        fechaCorta(iso) {
+            var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+            return m ? m[3] + '/' + m[2] : (iso || '');
         },
 
         porcentaje(valor) {

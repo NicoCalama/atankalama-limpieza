@@ -59,6 +59,8 @@ Wrapper en `src/Services/CloudbedsClient.php`. Métodos:
 |---|---|---|
 | `obtenerHabitaciones(string $propertyId): array` | `GET /getRooms` | Listar habitaciones (paginado: `count`/`total`) |
 | `obtenerEstadosHabitaciones(string $propertyId, ?string $fecha = null): array` | `GET /getHousekeepingStatus` | Estados de limpieza (data plano: `roomID` + `roomCondition`) |
+| `obtenerAsignacionesReservas(string $propertyId, ?string $fecha = null): array` | `GET /getReservationAssignments` | Nombre del huésped por pieza (`cb_huesped`) |
+| `obtenerReservasDelDia(string $propertyId, string $fecha): array` | `GET /getReservations` | Cantidad de huéspedes por pieza (`cb_huespedes`, `cb_huespedes_llegan`; v6.15). Filtra `checkInTo`/`checkOutFrom` = el día, `datesQueryMode=rooms`, `includeAllRooms=true`; paginado. Ver `docs/ocupacion-y-sabanas.md` §2.5 |
 | `actualizarEstadoHabitacion(string $propertyId, string $roomId, string $estadoCloudbeds): HttpResponse` | `POST /postHousekeepingStatus` | Cambiar a Clean/Dirty |
 
 Nota: endpoints validados contra la API v1.1 real el 30/06/2026. **`getRoomsStatus` NO existe (devuelve 404)** — el endpoint correcto para leer estados de limpieza es `getHousekeepingStatus`. `getRooms` está **paginado** (`count`/`total`); trae 20 por página aunque la propiedad tenga más. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
@@ -103,8 +105,9 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
   throttlean: el siguiente tick reintenta.
 - **Crontab recomendado (cPanel):** `*/10 * * * * php /ruta/al/proyecto/scripts/sync-cloudbeds.php`
 - **Flags:** `--force` salta el throttle; `--hotel=<codigo>` sincroniza una sola propiedad.
-- Con el intervalo default (30 min) son ~96 requests/día a Cloudbeds (2 GET por corrida) —
-  irrelevante para sus rate limits. La frecuencia importa doble desde que el sync también refresca
+- Con el intervalo default (30 min) son ~290 requests/día a Cloudbeds: 3 GET por hotel en cada
+  corrida (`getHousekeepingStatus`, `getReservationAssignments` y, desde la v6.15, `getReservations`)
+  × 2 hoteles — irrelevante para su límite de 5 req/s por propiedad. La frecuencia importa doble desde que el sync también refresca
   la **ocupación** (frontdeskStatus/arrival) — ver `docs/ocupacion-y-sabanas.md`.
 - *(Histórico: hasta el 02/07/2026 el modelo era 2 corridas/día en horas fijas
   `sync_schedule_morning`/`sync_schedule_afternoon`; esas claves fueron reemplazadas por

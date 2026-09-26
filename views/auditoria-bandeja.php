@@ -146,6 +146,15 @@
                                         <template x-if="hab.cloudbeds_room_name">
                                             <span x-html="htmlBadgeCodigoRoomName(hab.cloudbeds_room_name)"></span>
                                         </template>
+                                        <!-- Personas al lado del código de camas («2S · 2 personas»): cuántas
+                                             hay o salieron hoy, y cuántas llegan hoy (Cloudbeds). Así la
+                                             supervisora sabe cuántas camas revisar. -->
+                                        <template x-if="hab.cb_huespedes">
+                                            <span x-html="htmlBadgePersonas(hab.cb_huespedes)"></span>
+                                        </template>
+                                        <template x-if="hab.cb_huespedes_llegan">
+                                            <span x-html="htmlBadgeLlegan(hab.cb_huespedes_llegan)"></span>
+                                        </template>
                                     </div>
                                 </div>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria flex-shrink-0">

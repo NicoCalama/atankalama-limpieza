@@ -91,6 +91,79 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertNull($r102['cb_arrival_date']); // '-' se normaliza a null
     }
 
+    public function testSincronizarGuardaLaCantidadDeHuespedesComoFlexkeeping(): void
+    {
+        // Lo que mostraba Flexkeeping en la pieza: los huéspedes de la reserva actual y los
+        // que llegan ese mismo día. Sale de getReservations (getHousekeepingStatus no lo trae).
+        $hoy = date('Y-m-d');
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'clean', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'turnover', 'roomOccupied' => false],
+            ],
+        ]);
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]); // getReservationAssignments
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'total' => 3,
+            'data' => [
+                // 101: sigue alojado (2 adultos).
+                ['status' => 'checked_in', 'rooms' => [
+                    ['roomID' => 'CB_R101', 'adults' => '2', 'children' => '0', 'roomStatus' => 'in_house', 'roomCheckIn' => '2026-09-20', 'roomCheckOut' => '2099-01-01'],
+                    // Cancelada en la misma pieza: no suma.
+                    ['roomID' => 'CB_R101', 'adults' => '5', 'children' => '0', 'roomStatus' => 'cancelled', 'roomCheckIn' => $hoy, 'roomCheckOut' => '2099-01-01'],
+                ]],
+                // 102: salieron hoy 1 adulto + 1 niño...
+                ['status' => 'checked_out', 'rooms' => [
+                    ['roomID' => 'CB_R102', 'adults' => '1', 'children' => '1', 'roomStatus' => 'checked_out', 'roomCheckIn' => '2026-09-20', 'roomCheckOut' => $hoy],
+                ]],
+                // ...y llegan 3 hoy. Más una reserva vieja «en casa» sin pieza asignada (roomID
+                // vacío), como las que Cloudbeds arrastra desde 2022: se ignora.
+                ['status' => 'confirmed', 'rooms' => [
+                    ['roomID' => 'CB_R102', 'adults' => '3', 'children' => '0', 'roomStatus' => 'not_checked_in', 'roomCheckIn' => $hoy, 'roomCheckOut' => '2099-01-01'],
+                    ['roomID' => '', 'adults' => '1', 'children' => '0', 'roomStatus' => 'in_house', 'roomCheckIn' => '2022-12-05', 'roomCheckOut' => '2022-12-06'],
+                ]],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        // La consulta del día: una sola, con las fechas de hoy.
+        $this->assertStringContainsString('/getReservations?', $this->transport->peticiones[2]['url']);
+        $this->assertStringContainsString('checkInTo=' . $hoy, $this->transport->peticiones[2]['url']);
+
+        $r101 = Database::fetchOne("SELECT cb_huespedes, cb_huespedes_llegan FROM habitaciones WHERE numero='101'");
+        $this->assertSame(2, (int) $r101['cb_huespedes']);
+        $this->assertNull($r101['cb_huespedes_llegan']);
+
+        $r102 = Database::fetchOne("SELECT cb_huespedes, cb_huespedes_llegan FROM habitaciones WHERE numero='102'");
+        $this->assertSame(2, (int) $r102['cb_huespedes'], 'ya no queda nadie adentro: cuentan los que salieron hoy');
+        $this->assertSame(3, (int) $r102['cb_huespedes_llegan']);
+    }
+
+    public function testSiGetReservationsFallaElSyncSigueYLaCantidadQuedaVacia(): void
+    {
+        // Dato secundario: si Cloudbeds no responde esta consulta, el sync de limpieza sigue
+        // igual y la pieza queda sin número (mejor que mostrar uno de otra hora).
+        Database::execute("UPDATE habitaciones SET cb_huespedes = 2, cb_huespedes_llegan = 1 WHERE numero = '101'");
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [['roomID' => 'CB_R101', 'roomCondition' => 'clean', 'frontdeskStatus' => 'stayover', 'roomOccupied' => true]],
+        ]);
+        $this->transport->encolarOk(200, ['success' => true, 'data' => []]); // getReservationAssignments
+        // getReservations: sin respuestas programadas → falla de red en todos los intentos.
+
+        $syncId = $this->sync->sincronizar(null, 'manual');
+
+        $hist = Database::fetchOne('SELECT resultado FROM cloudbeds_sync_historial WHERE id = ?', [$syncId]);
+        $this->assertSame('exito', $hist['resultado']);
+        $r101 = Database::fetchOne("SELECT cb_frontdesk_status, cb_huespedes, cb_huespedes_llegan FROM habitaciones WHERE numero='101'");
+        $this->assertSame('stayover', $r101['cb_frontdesk_status'], 'la ocupación se guarda igual');
+        $this->assertNull($r101['cb_huespedes']);
+        $this->assertNull($r101['cb_huespedes_llegan']);
+    }
+
     public function testSincronizarConRespuestaSinSuccessGeneraError(): void
     {
         // Regresión del bug del endpoint equivocado: un 404 (o cualquier respuesta

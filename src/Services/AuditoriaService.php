@@ -242,7 +242,7 @@ final class AuditoriaService
     {
         $sql = "SELECT h.id, h.numero, h.estado, h.es_nochero, h.auditoria_orden,
                        (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
-                       h.cb_frontdesk_status, h.cloudbeds_room_name,
+                       h.cb_frontdesk_status, h.cloudbeds_room_name, h.cb_huespedes, h.cb_huespedes_llegan,
                        ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre,
                        ec.id AS ejecucion_id, ec.usuario_id AS trabajador_id
                   FROM #__habitaciones h
@@ -268,6 +268,8 @@ final class AuditoriaService
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
             $fila['se_va_hoy'] = ((int) ($fila['se_va_hoy'] ?? 0)) === 1;
             $fila['auditoria_orden'] = $fila['auditoria_orden'] !== null ? (int) $fila['auditoria_orden'] : null;
+            $fila['cb_huespedes'] = $fila['cb_huespedes'] !== null ? (int) $fila['cb_huespedes'] : null;
+            $fila['cb_huespedes_llegan'] = $fila['cb_huespedes_llegan'] !== null ? (int) $fila['cb_huespedes_llegan'] : null;
         }
         unset($fila);
         return $filas;

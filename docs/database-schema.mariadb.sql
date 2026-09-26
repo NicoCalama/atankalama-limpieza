@@ -175,6 +175,8 @@ CREATE TABLE #__habitaciones (
     cb_departure_date       VARCHAR(10),                          -- salida prevista (YYYY-MM-DD)
     cb_ocupacion_sync_at    VARCHAR(30),                          -- cuándo se refrescó la ocupación
     cb_huesped              VARCHAR(150),                         -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
+    cb_huespedes            INT,                                  -- adultos+niños en la pieza hoy (si ya salieron, los que salieron hoy). getReservations
+    cb_huespedes_llegan     INT,                                  -- adultos+niños que llegan hoy y aún no hacen check-in. getReservations
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
     -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md

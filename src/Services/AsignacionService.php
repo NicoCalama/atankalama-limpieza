@@ -537,6 +537,7 @@ final class AsignacionService
         // ChecklistService::iniciarEjecucion, y la usa elegirHabitacionActual().
         $filas = Database::fetchAll(
             "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+                    h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
                     EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
                              WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id

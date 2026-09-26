@@ -36,6 +36,12 @@ final class CloudbedsClient
     /** Tope de páginas anti-loop (100 * 50 = 5000 habitaciones). */
     private const HABITACIONES_MAX_PAGINAS = 50;
 
+    /** Tamaño de página para getReservations. Cloudbeds admite hasta 100. */
+    private const RESERVAS_PAGE_SIZE = 100;
+
+    /** Tope de páginas anti-loop (100 * 20 = 2000 reservas en un día). */
+    private const RESERVAS_MAX_PAGINAS = 20;
+
     private readonly string $baseUrl;
     private readonly string $apiKey;
 
@@ -228,6 +234,80 @@ final class CloudbedsClient
         }
         $response = $this->ejecutarConReintentos('GET', '/getReservationAssignments?' . $query, $this->claveParaPropiedad($propertyId));
         return $response->json();
+    }
+
+    /**
+     * Reservas con alguna pieza que toca `fecha` (GET /getReservations con checkInTo y
+     * checkOutFrom = fecha, datesQueryMode=rooms, includeAllRooms=true). Cada reserva trae
+     * `rooms[]` con roomID, adults, children, roomStatus (in_house | checked_out |
+     * not_checked_in | cancelled), roomCheckIn y roomCheckOut: de ahí sale cuántos
+     * huéspedes hay en cada pieza, que getHousekeepingStatus no trae.
+     *
+     * Probado contra Cloudbeds el 25/09/2026: una página y ~40–90 KB por hotel. Filtrar
+     * por fechas deja fuera las reservas viejas que Cloudbeds sigue dando «en casa» sin
+     * pieza asignada (status=checked_in las traía, y pesaba 300–700 KB).
+     *
+     * Paginado igual que getRooms. Devuelve { success, data: [reservas], count, total }, o
+     * la primera respuesta tal cual si no trae success=true, `data` o `total` numérico.
+     *
+     * @return array<string, mixed>
+     */
+    public function obtenerReservasDelDia(string $propertyId, string $fecha): array
+    {
+        $apiKey = $this->claveParaPropiedad($propertyId);
+        $primera = $this->obtenerPaginaReservasDelDia($propertyId, $fecha, $apiKey, 1);
+
+        $total = $primera['total'] ?? null;
+        if (($primera['success'] ?? null) !== true || !is_array($primera['data'] ?? null) || !is_numeric($total)) {
+            return $primera;
+        }
+        $total = (int) $total;
+
+        $reservas = array_values(array_filter($primera['data'], 'is_array'));
+        $pagina = 1;
+        while (count($reservas) < $total && $pagina < self::RESERVAS_MAX_PAGINAS) {
+            $pagina++;
+            $siguiente = $this->obtenerPaginaReservasDelDia($propertyId, $fecha, $apiKey, $pagina);
+            $nuevas = is_array($siguiente['data'] ?? null) ? array_values(array_filter($siguiente['data'], 'is_array')) : [];
+            if ($nuevas === []) {
+                Logger::warning('cloudbeds', 'getReservations devolvió página vacía antes de total', [
+                    'propertyID' => $propertyId,
+                    'pagina' => $pagina,
+                    'acumuladas' => count($reservas),
+                    'total' => $total,
+                ]);
+                break;
+            }
+            foreach ($nuevas as $reserva) {
+                $reservas[] = $reserva;
+            }
+        }
+
+        return [
+            'success' => true,
+            'data' => $reservas,
+            'count' => count($reservas),
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * Una página de getReservations del día (pageNumber 1-based, pageSize fijo).
+     *
+     * @return array<string, mixed>
+     */
+    private function obtenerPaginaReservasDelDia(string $propertyId, string $fecha, string $apiKey, int $pageNumber): array
+    {
+        $query = http_build_query([
+            'propertyID' => $propertyId,
+            'checkInTo' => $fecha,
+            'checkOutFrom' => $fecha,
+            'datesQueryMode' => 'rooms',
+            'includeAllRooms' => 'true',
+            'pageNumber' => $pageNumber,
+            'pageSize' => self::RESERVAS_PAGE_SIZE,
+        ]);
+        return $this->ejecutarConReintentos('GET', '/getReservations?' . $query, $apiKey)->json();
     }
 
     /**

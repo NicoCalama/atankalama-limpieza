@@ -124,6 +124,9 @@ final class HabitacionService
      * @param string|null $frontdeskStatus check-in|check-out|stayover|turnover|unused (o null si desconocido)
      * @param string|null $huesped         guestName de getReservationAssignments (texto libre, puede incluir
      *                                     empresa); null si no hay reserva activa asignada a la pieza.
+     * @param int|null    $huespedes       adultos + niños en la pieza hoy (o los que salieron hoy si ya no
+     *                                     queda nadie), de getReservations; null si no se sabe.
+     * @param int|null    $huespedesLlegan adultos + niños que llegan hoy y aún no hacen check-in.
      */
     public function actualizarOcupacionCloudbeds(
         int $id,
@@ -133,11 +136,14 @@ final class HabitacionService
         ?string $departureDate,
         ?string $huesped = null,
         ?string $cloudbedsRoomName = null,
+        ?int $huespedes = null,
+        ?int $huespedesLlegan = null,
     ): void {
         Database::execute(
             "UPDATE #__habitaciones
                 SET cb_frontdesk_status = ?, cb_ocupada = ?, cb_arrival_date = ?, cb_departure_date = ?,
-                    cb_huesped = ?, cloudbeds_room_name = ?, cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                    cb_huesped = ?, cloudbeds_room_name = ?, cb_huespedes = ?, cb_huespedes_llegan = ?,
+                    cb_ocupacion_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE id = ?",
             [
                 $frontdeskStatus,
@@ -146,6 +152,8 @@ final class HabitacionService
                 $departureDate,
                 $huesped,
                 $cloudbedsRoomName,
+                $huespedes,
+                $huespedesLlegan,
                 $id,
             ]
         );

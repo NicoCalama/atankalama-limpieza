@@ -91,6 +91,33 @@ final class CloudbedsClientTest extends TestCase
         $this->assertCount(2, $data['data'][0]['rooms']);
     }
 
+    public function testObtenerReservasDelDiaPideLasFechasDelDiaYPagina(): void
+    {
+        $t = new FakeHttpTransport();
+        $t->encolarOk(200, ['success' => true, 'total' => 3, 'count' => 2, 'data' => [['reservationID' => 'A'], ['reservationID' => 'B']]]);
+        $t->encolarOk(200, ['success' => true, 'total' => 3, 'count' => 1, 'data' => [['reservationID' => 'C']]]);
+
+        $client = $this->crear($t);
+        $data = $client->obtenerReservasDelDia('209761', '2026-09-25');
+
+        // Las reservas que tocan el día, con sus piezas: sin datesQueryMode=rooms e
+        // includeAllRooms no vienen los adultos/niños por pieza.
+        $this->assertCount(2, $t->peticiones);
+        $url = $t->peticiones[0]['url'];
+        $this->assertStringContainsString('/getReservations?', $url);
+        $this->assertStringContainsString('propertyID=209761', $url);
+        $this->assertStringContainsString('checkInTo=2026-09-25', $url);
+        $this->assertStringContainsString('checkOutFrom=2026-09-25', $url);
+        $this->assertStringContainsString('datesQueryMode=rooms', $url);
+        $this->assertStringContainsString('includeAllRooms=true', $url);
+        $this->assertStringContainsString('pageNumber=1', $url);
+        $this->assertStringContainsString('pageNumber=2', $t->peticiones[1]['url']);
+
+        $this->assertTrue($data['success']);
+        $this->assertSame(['A', 'B', 'C'], array_map(static fn(array $r) => $r['reservationID'], $data['data']));
+        $this->assertSame(3, $data['total']);
+    }
+
     public function testObtenerEstadosLlamaGetHousekeepingStatus(): void
     {
         $t = new FakeHttpTransport();

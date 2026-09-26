@@ -155,6 +155,9 @@ final class CloudbedsSyncService
                 // Dato secundario para la ficha (quién sale/está en la pieza): un fallo acá NO aborta
                 // el sync de limpieza (housekeeping), que es lo crítico — solo queda sin huésped.
                 $mapaHuespedes = $this->mapaHuespedesPorHabitacion($hotel->cloudbedsPropertyId, $hotel->codigo);
+                // Cuántos huéspedes hay en cada pieza (getReservations). Mismo criterio: si falla,
+                // la pieza queda sin el número y el sync de limpieza sigue.
+                $mapaCantidades = $this->mapaCantidadHuespedes($hotel->cloudbedsPropertyId, $hotel->codigo, date('Y-m-d'));
 
                 foreach ($rooms as $room) {
                     if (!is_array($room)) {
@@ -188,6 +191,8 @@ final class CloudbedsSyncService
                         self::normalizarFecha($room['departureDate'] ?? null),
                         $mapaHuespedes[$cloudbedsRoomId] ?? null,
                         $nombreCompleto !== '' ? $nombreCompleto : null,
+                        $mapaCantidades[$cloudbedsRoomId]['actuales'] ?? null,
+                        $mapaCantidades[$cloudbedsRoomId]['llegan'] ?? null,
                     );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
@@ -548,6 +553,73 @@ final class CloudbedsSyncService
                 'hotel' => $hotelCodigo,
                 'mensaje' => $e->getMessage(),
             ]);
+        }
+        return $mapa;
+    }
+
+    /**
+     * Cuántos huéspedes (adultos + niños) tiene cada pieza hoy, a partir de getReservations
+     * (CloudbedsClient::obtenerReservasDelDia). Sigue el criterio de Flexkeeping: la reserva
+     * actual de la pieza y la llegada del mismo día.
+     *  - `actuales`: los que están en la pieza (in_house). Si ya no queda nadie adentro, los
+     *    que salieron hoy: es lo que usó la pieza que se va a limpiar.
+     *  - `llegan`: los que llegan hoy y todavía no hacen check-in.
+     * Si dos reservas comparten la pieza, se suman. Se ignoran las piezas sin roomID
+     * (reservas viejas que Cloudbeds sigue dando «en casa» sin pieza asignada) y lo cancelado.
+     * Nunca lanza: un fallo acá no debe abortar el sync de limpieza.
+     *
+     * @return array<string, array{actuales: int|null, llegan: int|null}>
+     */
+    private function mapaCantidadHuespedes(string $propertyId, string $hotelCodigo, string $hoy): array
+    {
+        $enCasa = [];
+        $salieronHoy = [];
+        $lleganHoy = [];
+        try {
+            $respuesta = $this->client->obtenerReservasDelDia($propertyId, $hoy);
+            if (($respuesta['success'] ?? null) !== true || !is_array($respuesta['data'] ?? null)) {
+                Logger::warning('cloudbeds', 'getReservations sin success=true: piezas sin cantidad de huéspedes', [
+                    'hotel' => $hotelCodigo,
+                ]);
+                return [];
+            }
+            foreach ($respuesta['data'] as $reserva) {
+                if (!is_array($reserva) || !is_array($reserva['rooms'] ?? null)) {
+                    continue;
+                }
+                foreach ($reserva['rooms'] as $pieza) {
+                    $roomId = is_array($pieza) ? (string) ($pieza['roomID'] ?? '') : '';
+                    if ($roomId === '') {
+                        continue;
+                    }
+                    $cantidad = (int) ($pieza['adults'] ?? 0) + (int) ($pieza['children'] ?? 0);
+                    $estado = (string) ($pieza['roomStatus'] ?? '');
+                    if ($estado === 'in_house') {
+                        $enCasa[$roomId] = ($enCasa[$roomId] ?? 0) + $cantidad;
+                    } elseif ($estado === 'checked_out' && substr((string) ($pieza['roomCheckOut'] ?? ''), 0, 10) === $hoy) {
+                        $salieronHoy[$roomId] = ($salieronHoy[$roomId] ?? 0) + $cantidad;
+                    } elseif ($estado === 'not_checked_in' && substr((string) ($pieza['roomCheckIn'] ?? ''), 0, 10) === $hoy) {
+                        $lleganHoy[$roomId] = ($lleganHoy[$roomId] ?? 0) + $cantidad;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Logger::warning('cloudbeds', 'no se pudo obtener la cantidad de huéspedes (getReservations)', [
+                'hotel' => $hotelCodigo,
+                'mensaje' => $e->getMessage(),
+            ]);
+            return [];
+        }
+
+        $mapa = [];
+        foreach (array_unique(array_merge(array_keys($enCasa), array_keys($salieronHoy), array_keys($lleganHoy))) as $roomId) {
+            $actuales = $enCasa[$roomId] ?? $salieronHoy[$roomId] ?? 0;
+            $llegan = $lleganHoy[$roomId] ?? 0;
+            // 0 (datos incompletos en Cloudbeds) se guarda como «sin dato», no como pieza vacía.
+            $mapa[(string) $roomId] = [
+                'actuales' => $actuales > 0 ? $actuales : null,
+                'llegan' => $llegan > 0 ? $llegan : null,
+            ];
         }
         return $mapa;
     }

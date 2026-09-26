@@ -266,6 +266,38 @@ function htmlBadgeCodigoRoomName(nombreCompleto) {
     return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-pink-500 text-white">' + escapeHtml(codigo) + '</span>';
 }
 
+// Cantidad de personas de una pieza (adultos + niños de la reserva en Cloudbeds), lo que
+// mostraba Flexkeeping («Guests: 4»): «1 persona», «3 personas». Sin dato → ''.
+// Ver docs/ocupacion-y-sabanas.md §2.5.
+function textoPersonas(n) {
+    n = Number(n);
+    if (!n || n < 1) return '';
+    return n === 1 ? '1 persona' : n + ' personas';
+}
+
+// Badge de personas para la bandeja de Inspección, al lado del código de camas: cuántas hay en
+// la pieza (o, si ya se fueron, cuántas salieron hoy). whitespace-nowrap: en el celular la columna
+// es angosta y el badge tiene que bajar de línea entero, no partirse. Sin dato → sin badge.
+function htmlBadgePersonas(n) {
+    var texto = textoPersonas(n);
+    if (!texto) return '';
+    var icono = '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        + '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>'
+        + '<path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
+    return '<span class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200">'
+        + icono + escapeHtml(texto) + '</span>';
+}
+
+// Badge corto de los que llegan hoy a la pieza («llegan 3»), aparte del de personas para que
+// cada uno baje de línea por su cuenta. Sin dato → sin badge.
+function htmlBadgeLlegan(n) {
+    n = Number(n);
+    if (!n || n < 1) return '';
+    var texto = (n === 1 ? 'llega ' : 'llegan ') + n;
+    return '<span class="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">'
+        + escapeHtml(texto) + '</span>';
+}
+
 // ─── Push Notifications ───────────────────────────────────────────────────────
 
 var PushManager = {
