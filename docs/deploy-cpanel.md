@@ -774,3 +774,43 @@ No cambia ningún asset (`sw.js`, `app.js`, `custom.css`), así que no hay que s
 - **como Admin:** la misma pieza tiene Reasignar/Quitar y pide confirmación. Cancelar para no moverla;
 - **como Trabajador:** con una pieza en curso, rechazar en Inspección otra que ya había terminado. El
   Inicio debe seguir mostrando la que está limpiando.
+
+### 11.8 Release "tickets que confirman + huéspedes en la pieza" → v6.14
+
+Dos cambios (detalle en la fila v6.14 del CHANGELOG): el formulario «Reportar problema» funciona desde
+la pieza y el Inicio y confirma el envío, y el sync lee cuántos huéspedes hay en cada pieza
+(`getReservations`) para mostrarlo en el Inicio del trabajador y en Inspección.
+
+**1. SQL, ANTES de subir el código.** El sync escribe las dos columnas nuevas en cada corrida: si el
+código llega primero, el UPDATE falla y **se corta el sync de limpieza entero** (alerta P0), no solo el
+número de huéspedes. Idempotente, en phpMyAdmin:
+
+```sql
+ALTER TABLE limpieza_habitaciones
+  ADD COLUMN IF NOT EXISTS cb_huespedes INT NULL,
+  ADD COLUMN IF NOT EXISTS cb_huespedes_llegan INT NULL;
+```
+
+(o `scripts/migrate-add-cantidad-huespedes.php` por la Terminal o un cron de una sola vez). Las
+columnas quedan en null hasta la siguiente sincronización (≤ 30 min, o «Actualizar ahora»).
+
+**2. Archivos** (`build/limpieza-v614-delta.zip`, estructura `limpieza/…`):
+
+- a `app_core/`: `src/Services/{CloudbedsClient,CloudbedsSyncService,HabitacionService,AsignacionService,AuditoriaService}.php`,
+  `src/Controllers/HomeController.php`, `views/{home-trabajador,habitacion-detalle,auditoria-bandeja}.php`,
+  `views/componentes/modal-ticket-nuevo.php`, `views/recursos/componentes/modal-ticket-nuevo.js`,
+  `views/recursos/tickets/tickets.js`, `scripts/migrate-add-cantidad-huespedes.php` (nuevo),
+  `docs/database-schema.sql` y `docs/database-schema.mariadb.sql` (los lee el verificador de esquema)
+  y `CHANGELOG.md`;
+- `public/assets/js/app.js` a **las dos copias**: `limpieza/assets/js/app.js` (docroot, la que ve el
+  navegador) y `limpieza/app_core/public/assets/js/app.js` (de donde sale el `?v=`).
+
+Sin `sw.js`, así que sin bump de `CACHE_VERSION`. Sin `.env` ni `vendor/`.
+
+**3. Smoke específico:**
+
+- badge **v6.14** (incógnito) y `/api/health` **200 con `checks.esquema.ok: true`** (503 = faltó el SQL);
+- **como Trabajador:** «Reportar un problema» desde una pieza abre con el hotel y la pieza cargados, y
+  el botón se habilita al escribir (no hace falta enviarlo; si se envía uno de prueba, cerrarlo después);
+- tras la siguiente sincronización: el Inicio del trabajador muestra el recuadro de huéspedes y la lista
+  de Inspección muestra «N personas» al lado del código de camas en las piezas ocupadas.
