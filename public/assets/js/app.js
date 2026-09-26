@@ -158,6 +158,11 @@ async function apiPostForm(url, formData) {
     });
 }
 
+// Lado largo máximo de las fotos que se suben: el mismo que guarda el servidor
+// (ImagenAdjuntoService::LADO_LARGO_PX). Subir más grande es gastar datos móviles en píxeles
+// que el servidor tira al redimensionar.
+var FOTO_LADO_MAX_PX = 1134;
+
 // --- Helper: comprimir foto en el navegador antes de subirla ---
 // Una foto de cámara de celular pesa 3-10MB a resolución completa; subir eso por una
 // conexión de hotel/celular tarda mucho y encima el servidor tiene que redimensionar/

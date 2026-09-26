@@ -227,7 +227,7 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             this.procesandoFotos += archivos.length;
             // Comprimir antes de mostrar/subir — ver comprimirFotoParaSubir() en app.js.
             for (var i = 0; i < archivos.length; i++) {
-                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
+                var comprimido = await comprimirFotoParaSubir(archivos[i], FOTO_LADO_MAX_PX, 0.8);
                 if (generacion !== this._generacion) return; // se abrió otro reporte mientras tanto
                 this.fotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
                 this.procesandoFotos = Math.max(0, this.procesandoFotos - 1);

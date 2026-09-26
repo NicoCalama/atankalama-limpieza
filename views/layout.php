@@ -12,8 +12,9 @@
         window.u = function (p) { return window.BASE_PATH + p; };
     </script>
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS. Versión fija: la URL sin versión redirige (302) a la última y esa
+         redirección se cachea solo 4 h, así que el teléfono la volvía a pedir seguido. -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -35,8 +36,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons. Versión fija: @latest redirige y esa redirección se cachea solo 60 s
+         (una consulta extra casi en cada página), y con cada versión nueva de Lucide (12 en
+         un mes) el teléfono volvía a bajar los ~100 KB enteros. Para actualizar, cambiar
+         el número a mano y probar que los íconos sigan. -->
+    <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
 
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>

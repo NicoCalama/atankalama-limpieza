@@ -2,12 +2,13 @@
  * Service Worker — Atankalama Limpieza
  *
  * Estrategia:
- *  - Assets estáticos (JS, CSS, fuentes): Cache First (sirve rápido, actualiza en background)
+ *  - Assets estáticos (JS, CSS, fuentes): Cache First, revalidando en background con una
+ *    petición condicional (304 sin cuerpo si no cambió)
  *  - Páginas HTML (/home, /habitaciones, etc.): Network First con fallback a cache offline
  *  - API (/api/*): Network Only — nunca cachear datos de la API
  */
 
-const CACHE_VERSION = 'v9'; // v9: tablero drag&drop de asignaciones — rediseño de asignaciones.php + nuevo asset drag-asignaciones.js; bump para propagar
+const CACHE_VERSION = 'v10'; // v10: la revalidación de assets pasa a ser condicional (304) en vez de bajar el archivo entero en cada página (datos móviles); bump para limpiar las copias viejas
 const CACHE_STATIC  = 'atankalama-static-' + CACHE_VERSION;
 const CACHE_PAGES   = 'atankalama-pages-' + CACHE_VERSION;
 
@@ -89,10 +90,17 @@ self.addEventListener('fetch', function(event) {
 // paralelo que refresca el cache para la PRÓXIMA carga. Así un asset que cambia
 // (p. ej. app.js tras un deploy) deja de quedar congelado indefinidamente; se
 // actualiza solo en la siguiente visita sin necesidad de subir CACHE_VERSION.
+//
+// Datos móviles: antes la revalidación iba con cache:'reload', que se salta el HTTP cache y
+// bajaba el archivo ENTERO en cada página (~70 KB por vista con la ayuda guiada activa). Con
+// cache:'no-cache' va una petición condicional (If-Modified-Since): si no cambió, el servidor
+// responde 304 sin cuerpo (<1 KB). Se sigue revalidando TODO, también lo que lleva ?v=: así,
+// si un deploy sube un asset sin que cambie su ?v= (p. ej. app.js solo al docroot y no a
+// app_core, de donde sale el filemtime), el teléfono igual toma el archivo nuevo.
 async function cacheFirst(request, cacheName) {
     var cached = await caches.match(request);
 
-    var fetchPromise = fetch(new Request(request.url, { cache: 'reload' })).then(function(response) {
+    var fetchPromise = fetch(new Request(request.url, { cache: 'no-cache' })).then(function(response) {
         if (response && response.ok) {
             // Clonar ACÁ, sincrónico, mientras el body sigue intacto. Si esto es un cache
             // miss, `response` (el original) se devuelve abajo y el respondWith empieza a

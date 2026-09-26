@@ -135,7 +135,9 @@ function ticketsApp() {
 
         iniciarRefresco() {
             var self = this;
-            this._intervalId = setInterval(function () { self.cargar(); }, 60000);
+            // Cada minuto, solo con la pantalla a la vista: en segundo plano no se consulta (datos
+            // móviles). Al volver se refresca al tiro (alVolverVisible), igual que antes.
+            this._intervalId = setInterval(function () { if (!document.hidden) self.cargar(); }, 60000);
             window.addEventListener('online', function () { self.sinConexion = false; self.cargar(); });
             window.addEventListener('offline', function () { self.sinConexion = true; });
         },
@@ -413,7 +415,7 @@ function ticketsApp() {
             var archivos = Array.from(event.target.files || []).slice(0, espacio);
             event.target.value = '';
             for (var i = 0; i < archivos.length; i++) {
-                var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
+                var comprimido = await comprimirFotoParaSubir(archivos[i], FOTO_LADO_MAX_PX, 0.8);
                 this.cierreFotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
             }
         },

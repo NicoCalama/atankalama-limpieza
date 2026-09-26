@@ -360,8 +360,11 @@ function homeTrabajador() {
         },
 
         iniciarRefresco() {
-            // Refresco automático cada 5 minutos
-            this._intervalId = setInterval(() => this.cargar(), 300000);
+            // Refresco automático cada 5 minutos, solo con la app a la vista: con la pantalla
+            // apagada o en otra app no hay nadie mirando y se gastaban datos del plan. Al volver
+            // a la app se refresca al tiro (alVolverVisible), así que lo que se ve está igual de
+            // actualizado que antes.
+            this._intervalId = setInterval(() => { if (!document.hidden) this.cargar(); }, 300000);
 
             // Detectar conexión
             window.addEventListener('online', () => { this.sinConexion = false; this.cargar(); });
