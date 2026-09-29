@@ -38,6 +38,7 @@ final class EsquemaServiceTest extends TestCase
         $this->assertSame([], $r['tablas'], 'Tablas reportadas como faltantes en una base recién creada');
         $this->assertSame([], $r['columnas'], 'Columnas reportadas como faltantes en una base recién creada');
         $this->assertSame([], $r['permisos'], 'Permisos reportados como faltantes en una base recién creada');
+        $this->assertSame([], $r['checks'], 'CHECK reportados como desactualizados en una base recién creada');
         $this->assertTrue($r['ok']);
         $this->assertSame(0, $r['total']);
     }
@@ -133,6 +134,117 @@ final class EsquemaServiceTest extends TestCase
                 "Columnas de {$tabla} que faltan en el schema de SQLite"
             );
         }
+    }
+
+    // ── Listas de los CHECK ─────────────────────────────────────────────────────
+    // La base de producción se creó el 07/07/2026 con un CHECK en alertas_activas.tipo de 7
+    // tipos. Los dos que se sumaron después fallaban al guardarse con SQLSTATE[23000] y el
+    // verificador no lo veía: solo miraba tablas, columnas y permisos.
+
+    /** El parser tiene que ver las listas de verdad (si no, los tests de abajo pasarían por nada). */
+    public function testElParserLeeLasListasDeLosCheck(): void
+    {
+        $checks = EsquemaService::checksDeSchema(EsquemaService::archivoDeSchema('sqlite'));
+
+        $this->assertContains('aprobacion_deshecha', $checks['alertas_activas.tipo'] ?? []);
+        $this->assertContains('aprobada_automatica', $checks['habitaciones.estado'] ?? []);
+        $this->assertSame(['0', '1', '2', '3'], $checks['alertas_activas.prioridad'] ?? null);
+    }
+
+    /** El caso exacto de producción: el CHECK de tipos se quedó con la lista del 07/07. */
+    public function testDetectaUnCheckQueRechazaTiposNuevos(): void
+    {
+        $this->recrearAlertasActivas(
+            "CHECK (tipo IN ('cloudbeds_sync_failed', 'trabajador_en_riesgo', 'habitacion_rechazada',
+                'fin_turno_pendientes', 'trabajador_disponible', 'ticket_nuevo', 'habitacion_saltada'))"
+        );
+
+        $r = (new EsquemaService())->faltantes();
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame(
+            ["alertas_activas.tipo: 'inventario_cambios_pendientes', 'aprobacion_deshecha'"],
+            $r['checks']
+        );
+        $this->assertSame([], $r['columnas'], 'La tabla recreada tiene todas sus columnas');
+        $this->assertSame(1, $r['total'], 'Una columna desactualizada es UN elemento, no uno por valor');
+    }
+
+    /** Sin CHECK en la base, la columna acepta cualquier valor: no hay nada que arreglar. */
+    public function testUnaColumnaSinCheckEnLaBaseNoSeReporta(): void
+    {
+        $this->recrearAlertasActivas('');
+
+        $this->assertSame([], (new EsquemaService())->faltantes()['checks']);
+    }
+
+    /** Una lista MÁS ancha que la del schema tampoco es problema (lo que sobra no es error). */
+    public function testUnCheckMasAnchoQueElSchemaNoSeReporta(): void
+    {
+        $tipos = EsquemaService::checksDeSchema(EsquemaService::archivoDeSchema('sqlite'))['alertas_activas.tipo'];
+        $tipos[] = 'tipo_de_una_version_futura';
+        $this->recrearAlertasActivas("CHECK (tipo IN ('" . implode("', '", $tipos) . "'))");
+
+        $this->assertSame([], (new EsquemaService())->faltantes()['checks']);
+    }
+
+    /**
+     * Producción es MariaDB, que devuelve el CHECK en information_schema con su propio formato.
+     * Los tests corren sobre SQLite, así que el formato se prueba acá directo.
+     */
+    public function testLeeElFormatoDeMariaDb(): void
+    {
+        $this->assertSame(
+            ['tipo', ['cloudbeds_sync_failed', 'ticket_nuevo']],
+            EsquemaService::valoresDeClausulaIn("`tipo` in ('cloudbeds_sync_failed','ticket_nuevo')")
+        );
+        $this->assertSame(['prioridad', ['0', '1', '2', '3']], EsquemaService::valoresDeClausulaIn('`prioridad` in (0,1,2,3)'));
+        // Paréntesis envolventes y la comilla doblada del SQL del schema. (MariaDB imprime una
+        // comilla interna como \' — ningún valor de la app lleva comillas, así que no se soporta.)
+        $this->assertSame(['x', ["it's"]], EsquemaService::valoresDeClausulaIn("(`x` in ('it''s'))"));
+
+        // Otras formas de CHECK no enumeran valores: se ignoran en vez de adivinar.
+        $this->assertNull(EsquemaService::valoresDeClausulaIn("`x` in ('a') or `x` is null"));
+        $this->assertNull(EsquemaService::valoresDeClausulaIn('`hora_fin` > `hora_inicio`'));
+    }
+
+    /**
+     * Si una lista se amplía en un schema y no en el otro, los tests (SQLite) y producción
+     * (MariaDB) dejan de verificar lo mismo. Solo se comparan las columnas que tienen CHECK
+     * en los dos: que a SQLite le falte uno no esconde nada en producción.
+     */
+    public function testLosDosSchemasDeclaranLasMismasListas(): void
+    {
+        $lite  = EsquemaService::checksDeSchema(EsquemaService::archivoDeSchema('sqlite'));
+        $maria = EsquemaService::checksDeSchema(EsquemaService::archivoDeSchema('mysql'));
+
+        $this->assertNotSame([], $lite);
+        $this->assertNotSame([], $maria);
+
+        foreach (array_intersect_key($lite, $maria) as $clave => $valores) {
+            $a = $valores;
+            $b = $maria[$clave];
+            sort($a);
+            sort($b);
+            $this->assertSame($a, $b, "El CHECK de {$clave} no acepta lo mismo en los dos schemas");
+        }
+    }
+
+    /** Recrea alertas_activas con todas sus columnas y el CHECK de `tipo` que se le pase. */
+    private function recrearAlertasActivas(string $checkTipo): void
+    {
+        Database::execute('DROP TABLE alertas_activas');
+        Database::execute("CREATE TABLE alertas_activas (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo          TEXT NOT NULL {$checkTipo},
+            prioridad     INTEGER NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
+            titulo        TEXT NOT NULL,
+            descripcion   TEXT NOT NULL,
+            contexto_json TEXT,
+            hotel_id      INTEGER,
+            created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        )");
+        EsquemaService::limpiarCache();
     }
 
     /** Lo que SOBRA en la base no es un error: migraciones viejas pueden dejar cosas. */

@@ -630,7 +630,7 @@ final class HomeService
      * acá van los nombres: esta pantalla exige `sistema.ver_salud`. Ver EsquemaService y
      * el incidente del 22/09/2026 en docs/deploy-cpanel.md §11.
      *
-     * @return array{estado: string, ok: bool, total: int, tablas: list<string>, columnas: list<string>, permisos: list<string>}
+     * @return array{estado: string, ok: bool, total: int, tablas: list<string>, columnas: list<string>, permisos: list<string>, checks: list<string>}
      */
     public function sistemaEsquema(): array
     {
@@ -638,7 +638,7 @@ final class HomeService
             $r = (new EsquemaService())->faltantes();
         } catch (\Throwable $e) {
             // No poder verificar no es lo mismo que estar mal: no se pinta rojo por eso.
-            return ['estado' => 'OK', 'ok' => true, 'total' => 0, 'tablas' => [], 'columnas' => [], 'permisos' => []];
+            return ['estado' => 'OK', 'ok' => true, 'total' => 0, 'tablas' => [], 'columnas' => [], 'permisos' => [], 'checks' => []];
         }
 
         return [
@@ -648,6 +648,7 @@ final class HomeService
             'tablas'   => $r['tablas'],
             'columnas' => $r['columnas'],
             'permisos' => $r['permisos'],
+            'checks'   => $r['checks'],
         ];
     }
 

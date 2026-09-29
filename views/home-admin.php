@@ -410,6 +410,9 @@ if ($hora < 12) {
                                                 <template x-for="p in data.sistema.esquema.permisos" :key="'p-' + p">
                                                     <li>Permiso: <span class="font-mono" x-text="p"></span></li>
                                                 </template>
+                                                <template x-for="k in (data.sistema.esquema.checks || [])" :key="'k-' + k">
+                                                    <li>Valor que la base rechaza: <span class="font-mono" x-text="k"></span></li>
+                                                </template>
                                             </ul>
                                         </div>
                                     </template>

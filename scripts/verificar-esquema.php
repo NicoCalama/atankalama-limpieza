@@ -74,8 +74,18 @@ if ($r['permisos'] !== []) {
     echo "\n";
 }
 
+if ($r['checks'] !== []) {
+    echo "Columnas cuyo CHECK rechaza valores que el código usa (" . count($r['checks']) . "):\n";
+    foreach ($r['checks'] as $k) {
+        echo "  - {$k}\n";
+    }
+    echo "  (se arregla con ALTER TABLE … MODIFY COLUMN … CHECK (…): ver el SQL del release en\n";
+    echo "   docs/deploy-cpanel.md §11. En MariaDB, DROP CONSTRAINT no sirve para un CHECK de\n";
+    echo "   columna. Para alertas_activas.tipo también está scripts/migrate-add-inventario-alerta.php)\n\n";
+}
+
 echo "Qué hacer: corré el SQL del release en docs/deploy-cpanel.md §11, o el script\n";
 echo "scripts/migrate-*.php que corresponda. Después volvé a correr esta verificación.\n";
-echo "Ojo: el SQL va ANTES del código, no después.\n";
+echo "Ojo: el SQL va ANTES del código, salvo que la sección del release diga otra cosa.\n";
 
 exit(1);
