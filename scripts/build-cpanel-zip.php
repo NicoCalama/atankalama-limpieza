@@ -8,10 +8,13 @@
  *   limpieza/
  *     index.php            ← stub (deployment/cpanel/docroot/)
  *     .htaccess            ← rewrite + deny (deployment/cpanel/docroot/)
- *     assets/  sw.js  offline.html  uploads/   ← estáticos de public/
+ *     assets/  sw.js  offline.html  uploads/   ← estáticos de public/ (uploads/ queda vacío:
+ *                                                las fotos de tickets viven en app_core/public/uploads/
+ *                                                y las sirve PHP por /uploads/…)
  *     app_core/
  *       .htaccess          ← Require all denied
- *       src/ views/ scripts/ database/seeds/ docs/(2 schemas) storage/ public/
+ *       src/ views/ scripts/ database/seeds/ docs/(2 schemas) storage/
+ *       public/            ← front controller real; su .htaccess es el de bloqueo, no el de dev
  *       vendor/            ← composer install --no-dev FRESCO (sin phpunit ni .git)
  *       composer.json composer.lock .env.production.example
  *
@@ -116,6 +119,12 @@ rcopy($root . '/database/seeds', $coreDir . '/database/seeds');
 rcopy($root . '/docs/database-schema.sql', $coreDir . '/docs/database-schema.sql');
 rcopy($root . '/docs/database-schema.mariadb.sql', $coreDir . '/docs/database-schema.mariadb.sql');
 rcopy($root . '/public', $coreDir . '/public');           // front controller real (el stub lo requiere)
+// app_core/public/ tampoco se sirve por web: el stub lo requiere por filesystem. El
+// .htaccess de desarrollo que viene en public/ prendía el rewrite ahí adentro, y en
+// mod_rewrite las reglas de un .htaccess hijo REEMPLAZAN a las de los padres: anulaba el
+// bloqueo de app_core/ y dejaba ejecutar app_core/public/index.php (hallazgo del deploy de
+// la v6.12). Se pisa con el mismo .htaccess de bloqueo que app_core/.
+rcopy($root . '/deployment/cpanel/app_core/.htaccess', $coreDir . '/public/.htaccess');
 rcopy($root . '/CHANGELOG.md', $coreDir . '/CHANGELOG.md');   // fuente de /ajustes/versiones y del badge de versión
 rcopy($root . '/composer.json', $coreDir . '/composer.json');
 rcopy($root . '/composer.lock', $coreDir . '/composer.lock');
@@ -186,6 +195,9 @@ foreach ([
 if (is_dir($coreDir . '/vendor/phpunit')) {
     fallar('el vendor del stage incluye phpunit (¿install sin --no-dev?)');
 }
+if (file_get_contents($coreDir . '/public/.htaccess') !== file_get_contents($root . '/deployment/cpanel/app_core/.htaccess')) {
+    fallar('app_core/public/.htaccess no es el de bloqueo: app_core/public/ quedaría expuesto por web');
+}
 
 // ── 4. ZIP con .NET (System.IO.Compression) vía PowerShell ────────────────
 // NO usar tar.exe: bsdtar de este Windows NO escribe zip (cae a tar/pax
@@ -251,6 +263,7 @@ $criticos = [
     'limpieza/offline.html',
     'limpieza/assets/js/app.js',
     'limpieza/app_core/.htaccess',
+    'limpieza/app_core/public/.htaccess',
     'limpieza/app_core/vendor/autoload.php',
     'limpieza/app_core/public/index.php',
     'limpieza/app_core/docs/database-schema.mariadb.sql',
