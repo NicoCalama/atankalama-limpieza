@@ -1,0 +1,31 @@
+# Escanea cada push en busca de secretos (API keys, contraseñas, tokens) con gitleaks.
+#
+# Por qué existe: el hook pre-commit que corre gitleaks vive en .git/hooks/ del PC de
+# Nicolás y no viaja con el repo. Los commits hechos en una sesión de Claude en la nube, o
+# por otra persona desde su equipo, llegaban a GitHub sin escanear (p. ej. 5cf6df7 y 4a1ee85
+# en sep-2026; revisados después con un escaneo del historial completo, sin hallazgos).
+#
+# No bloquea el push (GitHub ya lo recibió): si encuentra algo, el run falla y GitHub avisa
+# por correo. En ese caso NO basta con borrar el secreto en un commit nuevo, porque queda en
+# el historial: hay que cambiar esa clave de inmediato.
+name: gitleaks
+
+on:
+  push:
+  # Escaneo de TODO el historial a pedido: Actions → gitleaks → Run workflow.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks revisa commits, no solo el último árbol
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          # Cuenta personal: la acción no pide licencia (solo las organizaciones la necesitan).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
