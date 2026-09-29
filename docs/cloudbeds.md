@@ -60,7 +60,7 @@ Wrapper en `src/Services/CloudbedsClient.php`. Métodos:
 | `obtenerHabitaciones(string $propertyId): array` | `GET /getRooms` | Listar habitaciones (paginado: `count`/`total`) |
 | `obtenerEstadosHabitaciones(string $propertyId, ?string $fecha = null): array` | `GET /getHousekeepingStatus` | Estados de limpieza (data plano: `roomID` + `roomCondition`) |
 | `obtenerAsignacionesReservas(string $propertyId, ?string $fecha = null): array` | `GET /getReservationAssignments` | Nombre del huésped por pieza (`cb_huesped`) |
-| `obtenerReservasDelDia(string $propertyId, string $fecha): array` | `GET /getReservations` | Cantidad de huéspedes por pieza (`cb_huespedes`, `cb_huespedes_llegan`; v6.15). Filtra `checkInTo`/`checkOutFrom` = el día, `datesQueryMode=rooms`, `includeAllRooms=true`; paginado. Ver `docs/ocupacion-y-sabanas.md` §2.5 |
+| `obtenerReservasDelDia(string $propertyId, string $fecha): array` | `GET /getReservations` | Cantidad de huéspedes por pieza (`cb_huespedes`, `cb_huespedes_llegan`; v6.14). Filtra `checkInTo`/`checkOutFrom` = el día, `datesQueryMode=rooms`, `includeAllRooms=true`; paginado. Ver `docs/ocupacion-y-sabanas.md` §2.5 |
 | `actualizarEstadoHabitacion(string $propertyId, string $roomId, string $estadoCloudbeds): HttpResponse` | `POST /postHousekeepingStatus` | Cambiar a Clean/Dirty |
 
 Nota: endpoints validados contra la API v1.1 real el 30/06/2026. **`getRoomsStatus` NO existe (devuelve 404)** — el endpoint correcto para leer estados de limpieza es `getHousekeepingStatus`. `getRooms` está **paginado** (`count`/`total`); trae 20 por página aunque la propiedad tenga más. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
@@ -106,7 +106,7 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
 - **Crontab recomendado (cPanel):** `*/10 * * * * php /ruta/al/proyecto/scripts/sync-cloudbeds.php`
 - **Flags:** `--force` salta el throttle; `--hotel=<codigo>` sincroniza una sola propiedad.
 - Con el intervalo default (30 min) son ~290 requests/día a Cloudbeds: 3 GET por hotel en cada
-  corrida (`getHousekeepingStatus`, `getReservationAssignments` y, desde la v6.15, `getReservations`)
+  corrida (`getHousekeepingStatus`, `getReservationAssignments` y, desde la v6.14, `getReservations`)
   × 2 hoteles — irrelevante para su límite de 5 req/s por propiedad. La frecuencia importa doble desde que el sync también refresca
   la **ocupación** (frontdeskStatus/arrival) — ver `docs/ocupacion-y-sabanas.md`.
 - *(Histórico: hasta el 02/07/2026 el modelo era 2 corridas/día en horas fijas
@@ -134,7 +134,9 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
           → hubo check-out, pasar a 'sucia', crear nueva ejecución disponible.
           → EXCEPCIÓN (ver abajo): si la aprobación es de HOY y la pieza está OCUPADA,
             NO se revierte — ese 'dirty' es la marca del servicio del día siguiente.
-          → Si sí se revierte, queda WARNING en el log + alerta P1 'aprobacion_deshecha'.
+          → Si se revierte una aprobación de HOY, queda WARNING en el log + alerta P1
+            'aprobacion_deshecha' (se resuelve sola al volver a aprobarse). La de otro día
+            (ciclo normal) y la rechazada vuelven a la cola sin alerta (v6.15).
       - Si cleaningStatus=Dirty y estado actual es 'sucia': no-op.
       - Si cleaningStatus=Clean y estado actual es 'completada_pendiente_auditoria': WARN (inconsistencia — auditamos por un lado, Cloudbeds por otro).
 3. Actualizar sync_historial: finalizada_at=now, resultado=exito|parcial|error, contadores.
@@ -151,16 +153,21 @@ nuevo una pieza recién hecha y ocupada. El caso testigo: la pieza **706** se ap
 escritura a Cloudbeds respondió `success: true`, entró un huésped, y a las 11:41 el sync la devolvió
 a sucia. La limpiaron dos veces. Ese día le pasó a ~8 piezas; en la semana previa, a varias por día.
 
-**La regla** (`CloudbedsSyncService::conservarAprobacionDelDia()`):
+**La regla** (`CloudbedsSyncService::aprobadaHoy()` + `conservarAprobacionDelDia()`, al día de
+la v6.15):
 
 ```
 Cloudbeds dice 'dirty' y la pieza está en estado terminal:
-  ¿Cambió de estado HOY (updated_at, día de Chile)?
-    ├─ NO → revertir            (ciclo normal del día siguiente)
-    └─ SÍ → ¿ocupada, o frontdesk 'check-in'/'stayover'?
-              ├─ SÍ → NO revertir, INFO al log
-              └─ NO → revertir + WARNING + alerta P1
+  ¿Está APROBADA y su último cambio de estado (audit_log) fue HOY, día de Chile?
+    ├─ NO → revertir, sin alerta         (ciclo normal del día siguiente, o una rechazada — v6.11/v6.15)
+    └─ SÍ → ¿frontdesk 'turnover'?       (se va un huésped y entra otro: hay que limpiar entremedio — v6.11)
+              ├─ SÍ → revertir + WARNING + alerta P1
+              └─ NO → ¿ocupada, o frontdesk 'check-in'/'stayover'?
+                        ├─ SÍ → NO revertir, INFO al log
+                        └─ NO → revertir + WARNING + alerta P1
 ```
+
+La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a quedar aprobada.
 
 **Qué NO rompe:**
 - La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con
@@ -168,8 +175,11 @@ Cloudbeds dice 'dirty' y la pieza está en estado terminal:
 - Los **nocheros** no dependen de esta rama: los revierte su propio barrido de las 16:00
   (`scripts/sync-cloudbeds.php`), que además avisa `dirty` a Cloudbeds.
 
-`updated_at` sirve como «cuándo se aprobó» porque solo lo mueve `cambiarEstado()`;
-`actualizarOcupacionCloudbeds()` no lo toca.
+«Cuándo se aprobó» sale del último cambio de estado de la pieza en `audit_log` (la fila
+`habitacion.cambiar_estado` que escribe `cambiarEstado()`). Hasta la v6.15 salía de
+`habitaciones.updated_at`, con el supuesto de que solo lo movía `cambiarEstado()`. Era falso: también
+lo mueven la nota de Recepción, marcar o desmarcar nochero, editar la estructura y el vencimiento de
+nocheros de las 16:00. Con eso, una aprobación de ayer con una nota de hoy pasaba por «de hoy».
 
 ---
 

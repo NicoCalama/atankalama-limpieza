@@ -28,6 +28,8 @@ final class CloudbedsSyncServiceTest extends TestCase
 
         Database::execute('INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)', [$this->hotel1SurId, '101', $tipo, 'CB_R101', 'aprobada']);
         Database::execute('INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado) VALUES (?, ?, ?, ?, ?)', [$this->hotel1SurId, '102', $tipo, 'CB_R102', 'sucia']);
+        // La 101 se aprobó hoy: el «cuándo» sale del audit_log, como en producción.
+        $this->registrarCambioDeEstado('101', 'aprobada', 0);
 
         $this->transport = new FakeHttpTransport();
         $client = new CloudbedsClient(
@@ -394,11 +396,8 @@ final class CloudbedsSyncServiceTest extends TestCase
     /** Ciclo normal: la aprobación es de otro día, se revierte aunque esté ocupada. */
     public function testDeshaceLaAprobacionDeOtroDiaAunqueEsteOcupada(): void
     {
-        // updated_at de anteayer en UTC: sea cual sea el desfase con Chile, no es hoy.
-        Database::execute(
-            "UPDATE habitaciones SET updated_at = ? WHERE numero = '101'",
-            [gmdate('Y-m-d\TH:i:s.000\Z', time() - 2 * 86400)]
-        );
+        // Aprobada anteayer en UTC: sea cual sea el desfase con Chile, no es hoy.
+        $this->envejecerCambiosDeEstado('101', 2);
 
         $this->transport->encolarOk(200, [
             'success' => true,
@@ -411,6 +410,132 @@ final class CloudbedsSyncServiceTest extends TestCase
 
         $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
         $this->assertSame('sucia', $r101['estado'], 'El aseo del día siguiente tiene que seguir entrando a la cola');
+
+        // Y es el ciclo normal, no una noticia: así entra cada mañana el aseo del día.
+        $alertas = Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
+        $this->assertSame([], $alertas, 'El ciclo normal no puede levantar una alerta por pieza');
+    }
+
+    // ── Alerta «aprobación deshecha»: solo lo que es noticia ─────────────────────
+    // En producción nunca se llegó a guardar (el CHECK de alertas_activas.tipo no tenía el
+    // tipo), y eso tapó que se levantaba por CUALQUIER pieza que volvía a sucia: ~140 por día
+    // entre el 24 y el 27/09/2026 según logs_eventos. Ver docs/incidente-2026-09-23.md.
+
+    /**
+     * El caso más común en producción: el cierre de día de anoche la aprobó sola y Cloudbeds
+     * la marca sucia hoy. Vuelve a la cola sin alertar.
+     */
+    public function testLaAprobacionAutomaticaDeAyerVuelveALaColaSinAlerta(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada_automatica' WHERE numero = '101'");
+        $this->envejecerCambiosDeEstado('101', 2);
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado']);
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+    }
+
+    /**
+     * «¿Se aprobó hoy?» no puede salir de updated_at: también lo mueven la nota de Recepción,
+     * marcar nochero o editar la estructura, sin cambiar el estado. Hasta la revisión de la
+     * v6.15, una pieza aprobada ayer con una nota de hoy pasaba por «aprobada hoy»: alertaba
+     * con un texto falso, o se conservaba en vez de volver a la cola.
+     */
+    public function testUnaNotaDeHoyNoConvierteUnaAprobacionDeAyerEnDeHoy(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada_automatica' WHERE numero = '101'");
+        $this->envejecerCambiosDeEstado('101', 2);
+        $id = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
+        [$recepcionista] = TestDatabase::crearUsuario('44444444-4', 'Carla', 'Recepción');
+        (new HabitacionService())->agregarNota($id, 'Cama extra para el que llega', $recepcionista);
+        $this->assertFalse((new HabitacionService())->cambioDeEstadoHoy($id), 'Una nota no es un cambio de estado');
+
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-in', 'roomOccupied' => true],
+            ],
+        ]);
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'Aprobación de otro día: vuelve a la cola aunque entre un huésped');
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+    }
+
+    /** Una rechazada que vuelve a sucia no es una aprobación deshecha: a esa no la aprobó nadie. */
+    public function testUnaRechazadaQueVuelveASuciaNoLevantaLaAlerta(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'rechazada' WHERE numero = '101'");
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
+        $this->assertSame('sucia', $r101['estado'], 'La rechazada vuelve a la cola igual (v6.11)');
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+    }
+
+    /**
+     * La alerta dura lo que dura la condición: cuando la pieza vuelve a quedar aprobada, se
+     * resuelve sola y queda cerrada en la bitácora. Si no, cada pieza deshecha dejaba una
+     * alerta P1 colgada para siempre en el Inicio de la supervisora.
+     */
+    public function testLaAlertaSeResuelveSolaCuandoLaPiezaVuelveAQuedarAprobada(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+        $this->sync->sincronizar(null, 'manual');
+        $this->assertNotNull(Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+
+        // Cualquier camino que apruebe pasa por cambiarEstado(): acá, el cierre de día.
+        $id = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
+        (new HabitacionService())->cambiarEstado($id, 'aprobada_automatica', null, 'cron', forzar: true);
+
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+        $bitacora = Database::fetchOne("SELECT * FROM bitacora_alertas WHERE tipo = 'aprobacion_deshecha'");
+        $this->assertNotNull($bitacora['resuelta_at'], 'La bitácora tiene que quedar cerrada');
+        $this->assertSame('auto', $bitacora['resolucion']);
+    }
+
+    /** Resolver la de una pieza no toca la alerta de otra (dedupe por pieza). */
+    public function testAprobarUnaPiezaNoResuelveLaAlertaDeOtra(): void
+    {
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada' WHERE numero = '102'");
+        $this->registrarCambioDeEstado('102', 'aprobada', 0);
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+                ['roomID' => 'CB_R102', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
+            ],
+        ]);
+        $this->sync->sincronizar(null, 'manual');
+        $this->assertCount(2, Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+
+        $id101 = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
+        (new HabitacionService())->cambiarEstado($id101, 'aprobada', null, 'cron', forzar: true);
+
+        $quedan = Database::fetchAll("SELECT titulo FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
+        $this->assertCount(1, $quedan);
+        $this->assertStringContainsString('102', (string) $quedan[0]['titulo']);
     }
 
     /** Deshacer una aprobación ya no es mudo: queda alerta para la supervisora. */
@@ -501,5 +626,29 @@ final class CloudbedsSyncServiceTest extends TestCase
 
         $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
         $this->assertSame('sucia', $r101['estado'], 'Una pieza rechazada hay que rehacerla igual');
+    }
+
+    /**
+     * Deja en audit_log el cambio de estado que en producción escribe cambiarEstado(): de ahí
+     * sale «¿se aprobó hoy?» (HabitacionService::cambioDeEstadoHoy).
+     */
+    private function registrarCambioDeEstado(string $numero, string $hasta, int $haceDias): void
+    {
+        $id = (int) Database::fetchOne('SELECT id FROM habitaciones WHERE numero = ?', [$numero])['id'];
+        Database::execute(
+            "INSERT INTO audit_log (usuario_id, accion, entidad, entidad_id, detalles_json, origen, created_at)
+             VALUES (NULL, 'habitacion.cambiar_estado', 'habitacion', ?, ?, 'ui', ?)",
+            [$id, json_encode(['desde' => 'completada_pendiente_auditoria', 'hasta' => $hasta]), gmdate('Y-m-d\TH:i:s.000\Z', time() - $haceDias * 86400)]
+        );
+    }
+
+    /** Corre hacia atrás todos los cambios de estado de la pieza (UTC: anteayer nunca es hoy en Chile). */
+    private function envejecerCambiosDeEstado(string $numero, int $dias): void
+    {
+        $id = (int) Database::fetchOne('SELECT id FROM habitaciones WHERE numero = ?', [$numero])['id'];
+        Database::execute(
+            "UPDATE audit_log SET created_at = ? WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'",
+            [gmdate('Y-m-d\TH:i:s.000\Z', time() - $dias * 86400), $id]
+        );
     }
 }

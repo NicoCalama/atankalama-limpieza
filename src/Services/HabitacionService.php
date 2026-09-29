@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Helpers\Fechas;
+use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Habitacion;
 
 final class HabitacionService
@@ -22,6 +23,7 @@ final class HabitacionService
         private readonly SabanasService $sabanas = new SabanasService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
         private readonly PushService $push = new PushService(),
+        private readonly AlertasService $alertas = new AlertasService(),
     ) {
     }
 
@@ -390,20 +392,30 @@ final class HabitacionService
     /**
      * ¿La pieza pasó a su estado actual HOY (día de Chile)?
      *
-     * `updated_at` solo lo mueve cambiarEstado(); actualizarOcupacionCloudbeds() NO lo toca.
-     * Así que para una pieza en estado terminal esto equivale a «se aprobó hoy», sin
-     * necesidad de una columna nueva. Lo usa la sincronización para no deshacer el trabajo
-     * del día (ver CloudbedsSyncService::conservarAprobacionDelDia).
+     * Para una pieza en estado terminal equivale a «se aprobó hoy». Lo usa la sincronización
+     * para no deshacer el trabajo del día y para decidir si avisa que se deshizo (ver
+     * CloudbedsSyncService::aprobadaHoy).
+     *
+     * Se lee del audit_log —la fila 'habitacion.cambiar_estado' que escribe cambiarEstado() en
+     * cada transición— y NO de `habitaciones.updated_at`, como se hacía desde la v6.10:
+     * updated_at también lo mueven ediciones que no cambian el estado (nota de Recepción,
+     * marcar/desmarcar nochero, estructura, el vencimiento de nocheros de las 16:00…), y con
+     * eso una aprobación de ayer pasaba por «de hoy». Encontrado en la revisión de la v6.15.
+     * Sin ninguna fila (pieza sin historial, o purgado por la retención) → no es de hoy.
      */
     public function cambioDeEstadoHoy(int $id, ?string $hoyLocal = null): bool
     {
         $hoyLocal ??= date('Y-m-d');
-        $fila = Database::fetchOne('SELECT updated_at FROM #__habitaciones WHERE id = ?', [$id]);
-        $updatedAt = $fila['updated_at'] ?? null;
-        if (!is_string($updatedAt) || $updatedAt === '') {
+        $fila = Database::fetchOne(
+            "SELECT MAX(created_at) AS ultimo FROM #__audit_log
+              WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'",
+            [$id]
+        );
+        $ultimo = $fila['ultimo'] ?? null;
+        if (!is_string($ultimo) || $ultimo === '') {
             return false;
         }
-        return Fechas::fechaLocalDeUtc($updatedAt) === $hoyLocal;
+        return Fechas::fechaLocalDeUtc($ultimo) === $hoyLocal;
     }
 
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
@@ -466,6 +478,10 @@ final class HabitacionService
             'hasta' => $nuevoEstado,
         ], $origen);
 
+        if (in_array($nuevoEstado, Habitacion::ESTADOS_APROBADOS, true)) {
+            $this->resolverAprobacionDeshecha($id);
+        }
+
         return new Habitacion(
             id: $habitacion->id,
             hotelId: $habitacion->hotelId,
@@ -481,6 +497,29 @@ final class HabitacionService
             esNochero: $habitacion->esNochero,
             nocheroHasta: $habitacion->nocheroHasta,
         );
+    }
+
+    /**
+     * La pieza volvió a quedar aprobada: la alerta «aprobación deshecha» ya cumplió su
+     * propósito (avisar que alguien la iba a limpiar de nuevo) y la condición desapareció.
+     *
+     * Vive acá y no en cada servicio porque TODOS los caminos que aprueban pasan por
+     * cambiarEstado(): inspección, «cliente no desea aseo», Cloudbeds y el cierre de día.
+     * («Dar por limpia» no aprueba: deja la pieza en inspección, y la alerta se resuelve
+     * cuando la inspeccionan o con el cierre de día.)
+     * El estado ya cambió cuando se llega acá, así que un fallo al resolver no puede
+     * propagarse: el llamador creería que la aprobación no se guardó.
+     */
+    private function resolverAprobacionDeshecha(int $id): void
+    {
+        try {
+            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_APROBACION_DESHECHA, "habitacion:{$id}");
+        } catch (\Throwable $e) {
+            Logger::warning('habitaciones', 'no se pudo resolver la alerta de aprobación deshecha', [
+                'habitacion_id' => $id,
+                'mensaje' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

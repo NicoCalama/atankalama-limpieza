@@ -26,6 +26,13 @@ final class Habitacion
         self::ESTADO_RECHAZADA,
     ];
 
+    /** Estados en que la pieza quedó limpia y cerrada (por inspección, a mano, por Cloudbeds o por el cierre de día). */
+    public const ESTADOS_APROBADOS = [
+        self::ESTADO_APROBADA,
+        self::ESTADO_APROBADA_CON_OBSERVACION,
+        self::ESTADO_APROBADA_AUTOMATICA,
+    ];
+
     public function __construct(
         public readonly int $id,
         public readonly int $hotelId,
@@ -99,5 +106,11 @@ final class Habitacion
             self::ESTADO_APROBADA_AUTOMATICA,
             self::ESTADO_RECHAZADA,
         ], true);
+    }
+
+    /** A diferencia de estaEnEstadoTerminal(), NO incluye 'rechazada': esa no la aprobó nadie. */
+    public function estaAprobada(): bool
+    {
+        return in_array($this->estado, self::ESTADOS_APROBADOS, true);
     }
 }

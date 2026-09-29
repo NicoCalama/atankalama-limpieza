@@ -94,14 +94,31 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 
 ### 3.7 P1 — `aprobacion_deshecha`
 
-**Disparador:** la sincronización devolvió a `sucia` una pieza que ya estaba aprobada, porque
-Cloudbeds la reporta `dirty`. Es decir: alguien la va a limpiar de nuevo.
+**Disparador:** la sincronización devolvió a `sucia` una pieza que se había aprobado **hoy**
+(`aprobada`, `aprobada_con_observacion` o `aprobada_automatica`), porque Cloudbeds la reporta
+`dirty`. Es decir: alguien la va a limpiar dos veces el mismo día.
+**No dispara:**
+- **una aprobación de otro día** que vuelve a sucia: es el ciclo normal, y así entra cada mañana el
+  aseo del día;
+- **una `rechazada`** que vuelve a la cola: a esa no la aprobó nadie, y ya tiene su propia alerta
+  (`habitacion_rechazada`).
 **Contexto:** `{ habitacion_id, frontdesk }`.
 **Título:** "Habitación {numero} volvió a sucia"
-**Descripción:** "Estaba aprobada, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza."
+**Descripción:** "Se había aprobado hoy, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza."
 **Botones:**
 1. "Ver habitación" → la ficha, con el historial de movimientos y la ocupación.
 **Dedupe:** `habitacion:{id}` — una alerta por pieza, no una por cada tick del sync.
+**Se resuelve sola** cuando la pieza vuelve a quedar aprobada, por cualquier camino (inspección,
+«cliente no desea aseo», Cloudbeds o el cierre de día): `HabitacionService::cambiarEstado()`.
+«Dar por limpia» no la resuelve en el acto: deja la pieza en inspección, y se resuelve al
+inspeccionarla o con el cierre de día.
+**«¿Se aprobó hoy?»** sale del último cambio de estado de la pieza en `audit_log`, no de
+`habitaciones.updated_at`: ese campo también lo mueven la nota de Recepción, marcar nochero o
+editar la estructura, y con eso una aprobación de ayer pasaba por «de hoy».
+
+> **Hasta la v6.15 disparaba en los tres casos, y nunca se resolvía sola.** Nadie lo vio porque
+> en producción el INSERT fallaba: el CHECK de `alertas_activas.tipo` no tenía el tipo. Del 24 al
+> 27/09 hubo ≈140 intentos por día. Ver `docs/incidente-2026-09-23.md` §5.
 
 > **Por qué existe.** Antes esto pasaba **mudo**: la rama de al lado (Cloudbeds la aprueba sola)
 > sí registraba un WARNING, pero deshacer una aprobación no dejaba rastro. El 22/09/2026 costó

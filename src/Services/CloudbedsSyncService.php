@@ -196,7 +196,10 @@ final class CloudbedsSyncService
                     );
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
-                        if ($this->conservarAprobacionDelDia($hab, $frontdesk, $ocupada)) {
+                        // Se pregunta ANTES de tocar el estado: revertir es un cambio de estado
+                        // nuevo, de hoy, y desde ese momento toda pieza parecería «aprobada hoy».
+                        $aprobadaHoy = $this->aprobadaHoy($hab);
+                        if ($this->conservarAprobacionDelDia($aprobadaHoy, $frontdesk, $ocupada)) {
                             Logger::info('cloudbeds', 'aprobación del día conservada: Cloudbeds la marcó sucia con huésped adentro', [
                                 'habitacion_id' => $hab->id,
                                 'numero' => $hab->numero,
@@ -205,7 +208,14 @@ final class CloudbedsSyncService
                             ]);
                         } else {
                             $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
-                            $this->avisarAprobacionDeshecha($hab, $hotel, $frontdesk);
+                            // Solo es noticia si la aprobación era de HOY: alguien la va a limpiar
+                            // dos veces el mismo día. La de otro día es el ciclo normal (así entra
+                            // cada mañana el aseo del día) y una rechazada no la aprobó nadie.
+                            // Antes se avisaba en los tres casos: ~140 alertas P1 por día que no
+                            // se veían solo porque el INSERT fallaba (incidente del 23/09/2026).
+                            if ($aprobadaHoy) {
+                                $this->avisarAprobacionDeshecha($hab, $hotel, $frontdesk);
+                            }
                             $actualizadas++;
                         }
                     } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [
@@ -215,8 +225,8 @@ final class CloudbedsSyncService
                         // limpia y la marca dice que NADIE la inspeccionó. Re-aprobarla acá la
                         // convertía en 'aprobada' (49 piezas el 23/09/2026), con dos efectos:
                         // borraba esa marca —los KPIs de cobertura la contaban como
-                        // inspeccionada— y le movía el updated_at, del que depende
-                        // conservarAprobacionDelDia(). Se deja como está.
+                        // inspeccionada— y le sumaba un cambio de estado de hoy, que es de
+                        // donde aprobadaHoy() saca «¿se aprobó hoy?». Se deja como está.
                         Habitacion::ESTADO_APROBADA_AUTOMATICA,
                     ], true)) {
                         // Decisión de negocio (2026-08-21): Cloudbeds es la fuente madre del
@@ -274,11 +284,18 @@ final class CloudbedsSyncService
     }
 
     /**
-     * Escritura saliente compartida por escribirEstadoClean()/escribirEstadoDirty().
+     * ¿La pieza está aprobada, y esa aprobación es de HOY?
      *
-     * @param string $condicion 'clean' | 'dirty' (minúscula: Cloudbeds la exige así, igual que
-     *                          la devuelve getHousekeepingStatus — 'Clean' es rechazado).
+     * Solo cuenta una APROBACIÓN: estaEnEstadoTerminal() también abarca 'rechazada', y a esa
+     * no la aprobó nadie, hay que rehacerla. El «cuándo» sale del último cambio de estado en
+     * audit_log (HabitacionService::cambioDeEstadoHoy), no de updated_at, que también lo
+     * mueven ediciones como la nota de Recepción o marcar nochero.
      */
+    private function aprobadaHoy(Habitacion $hab): bool
+    {
+        return $hab->estaAprobada() && $this->habitaciones->cambioDeEstadoHoy($hab->id);
+    }
+
     /**
      * ¿Hay que conservar la aprobación de hoy aunque Cloudbeds diga 'dirty'?
      *
@@ -296,21 +313,11 @@ final class CloudbedsSyncService
      * que antes. Y los nocheros no dependen de esta rama: los revierte su propio barrido de
      * las 16:00 (ver scripts/sync-cloudbeds.php).
      */
-    private function conservarAprobacionDelDia(Habitacion $hab, ?string $frontdesk, ?bool $ocupada): bool
+    private function conservarAprobacionDelDia(bool $aprobadaHoy, ?string $frontdesk, ?bool $ocupada): bool
     {
-        // Solo se conserva una APROBACIÓN. estaEnEstadoTerminal() también abarca
-        // 'rechazada', y una pieza rechazada tiene que volver a la cola igual: a esa no la
-        // aprobó nadie, hay que rehacerla.
-        if (!in_array($hab->estado, [
-            Habitacion::ESTADO_APROBADA,
-            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
-            Habitacion::ESTADO_APROBADA_AUTOMATICA,
-        ], true)) {
-            return false;
-        }
-
-        // Aprobación de otro día: manda el ciclo normal, se revierte como siempre.
-        if (!$this->habitaciones->cambioDeEstadoHoy($hab->id)) {
+        // Rechazada, o aprobación de otro día: manda el ciclo normal, se revierte como
+        // siempre. Ver aprobadaHoy().
+        if (!$aprobadaHoy) {
             return false;
         }
 
@@ -326,7 +333,9 @@ final class CloudbedsSyncService
     }
 
     /**
-     * La sincronización deshizo una aprobación: queda en el log y le llega a la supervisora.
+     * La sincronización deshizo una aprobación de HOY: queda en el log y le llega a la
+     * supervisora. La alerta se resuelve sola cuando la pieza vuelve a quedar aprobada
+     * (HabitacionService::cambiarEstado()).
      *
      * Antes esto pasaba MUDO —la rama de al lado (Cloudbeds la aprueba sola) sí registraba un
      * WARNING—, así que alguien volvía a limpiar sin que nadie supiera por qué. La asimetría
@@ -345,7 +354,7 @@ final class CloudbedsSyncService
             $this->alertas->levantar(
                 AlertaActiva::TIPO_APROBACION_DESHECHA,
                 "Habitación {$hab->numero} volvió a sucia",
-                'Estaba aprobada, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza.',
+                'Se había aprobado hoy, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza.',
                 ['habitacion_id' => $hab->id, 'frontdesk' => $frontdesk],
                 $hotel->id,
                 // Una alerta por pieza: si el sync la vuelve a ver sucia en el siguiente tick
@@ -361,6 +370,12 @@ final class CloudbedsSyncService
         }
     }
 
+    /**
+     * Escritura saliente compartida por escribirEstadoClean()/escribirEstadoDirty().
+     *
+     * @param string $condicion 'clean' | 'dirty' (minúscula: Cloudbeds la exige así, igual que
+     *                          la devuelve getHousekeepingStatus — 'Clean' es rechazado).
+     */
     private function escribirEstadoRoomCondition(Habitacion $habitacion, string $condicion): bool
     {
         $hotel = $this->hoteles->buscarPorId($habitacion->hotelId);
