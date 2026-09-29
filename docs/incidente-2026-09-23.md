@@ -94,13 +94,65 @@ Suite 489/489, PHPStan limpio.
 - **La alerta `aprobacion_deshecha` falla al guardarse** (`SQLSTATE[23000]`). Descartados:
   CHECK (no existe en esa tabla), clave foránea, y contador desfasado en las dos tablas
   involucradas. Sin explicación todavía; no rompe el sync, solo el aviso.
+  **→ Explicado el 27/09: el CHECK sí existe. Ver §5.**
 
 ## 4. Lecciones
 
 - **Una columna existente usada como señal nueva hereda a todos sus escritores.** La v6.10
   usó `habitaciones.updated_at` como "cuándo se aprobó". La verificación fue sobre el código
-  de la app, pero el propio cron también escribe esa columna.
+  de la app, pero el propio cron también escribe esa columna. (Y no solo el cron: la revisión
+  de la v6.15 encontró más de diez escrituras más —notas, nocheros, estructura, inventario…—, así que la señal
+  se cambió al `audit_log`. Ver §5.)
 - **Un estado nuevo obliga a revisar todas las listas de estados.** `aprobada_automatica`
   entró en la v6.2 y quedó fuera de una exclusión escrita en agosto.
 - **Los cron no están bajo control de versiones.** El runbook documenta 4; en producción hay
   más, agregados por FTP/cPanel. Nada los compara.
+
+## 5. Seguimiento del 27/09 (v6.15)
+
+**La v6.11 funciona.** En `audit_log`, las conversiones `aprobada_automatica → aprobada` por cron
+eran 57, 97, 60 y 49 del 20 al 23/09, y desde el 24/09 no hay ninguna. Las que siguen saliendo de
+`aprobada_automatica` son todas `→ sucia`, que es el ciclo normal.
+
+**El cron de las 15:50 sigue activo.** Aprobaciones automáticas a la hora 15 de Chile: 45 el 24/09,
+48 el 25/09 y 38 el 26/09. Sigue siendo decisión de jefatura.
+
+**Por qué fallaba la alerta `aprobacion_deshecha`: el CHECK sí existe.** La base de producción se
+creó el 07/07 con `build/limpieza-inicial.sql`, que declara
+`tipo varchar(40) NOT NULL CHECK (tipo in (…7 tipos…))`. Faltan `aprobacion_deshecha` (v6.10) y
+también `inventario_cambios_pendientes` (v2.4): **el aviso de inventario tampoco se pudo guardar
+nunca**. Reproducido en MariaDB 10.6 y 10.11 con ese dump: `ERROR 4025 (23000): CONSTRAINT
+limpieza_alertas_activas.tipo failed`.
+
+Dos cosas taparon la causa:
+
+1. **La verificación de la v2.4 dio un falso negativo.** Consultaba
+   `information_schema.CHECK_CONSTRAINTS … WHERE CONSTRAINT_SCHEMA = DATABASE()`. Sin una base
+   elegida (por ejemplo, desde la pestaña SQL del servidor en phpMyAdmin), `DATABASE()` es NULL y
+   la consulta devuelve 0 filas aunque el CHECK exista. Reproducido. **Lección: en phpMyAdmin,
+   nombrar el schema (`'cat6852_australia'`) en vez de `DATABASE()`.**
+2. **El SQL de respaldo de ese runbook tampoco habría funcionado.** `DROP CONSTRAINT tipo` da
+   `ERROR 1091`: MariaDB no deja borrar por nombre un CHECK declarado en la columna. Lo que sirve
+   es `MODIFY COLUMN tipo … CHECK (…)`, que reemplaza la definición entera (§11.9 del runbook).
+
+**Arreglar solo el CHECK habría sido peor.** El sync levantaba la alerta por *cualquier* pieza
+terminal que Cloudbeds marcara sucia: también la aprobada ayer (así entra cada mañana el aseo del
+día) y la rechazada, que no la aprobó nadie. Y nada la resolvía. En `logs_eventos` hay 29, 149, 133,
+139 y 147 intentos por día del 23 al 27/09: esas alertas P1 habrían quedado colgadas en el Inicio de
+la supervisora, una por pieza.
+
+**Qué cambió en la v6.15:**
+
+| # | Cambio | Archivo |
+|---|---|---|
+| 1 | La alerta solo se levanta si se deshace una aprobación **de hoy**. El «¿es de hoy?» se pregunta antes de revertir, porque revertir es un cambio de estado nuevo | `CloudbedsSyncService.php` |
+| 2 | «¿Se aprobó hoy?» sale del último cambio de estado en `audit_log` y ya no de `habitaciones.updated_at`, que también mueven la nota de Recepción, marcar nochero o editar la estructura. Con eso, una aprobación de ayer pasaba por «de hoy»: la regla de la v6.10 la conservaba y la alerta mentía. Lo encontró la revisión de la v6.15 | `HabitacionService.php` |
+| 3 | Se resuelve sola cuando la pieza vuelve a quedar aprobada. Todos los caminos que aprueban pasan por `cambiarEstado()`: inspección, «cliente no desea aseo», Cloudbeds y el cierre de día. «Dar por limpia» deja la pieza en inspección, así que se resuelve al inspeccionarla | `HabitacionService.php` |
+| 4 | El verificador de esquema compara también las listas de los CHECK `columna IN (…)`: el health habría dado 503 el día del deploy de la v6.10 | `EsquemaService.php` |
+| 5 | SQL que amplía el CHECK a los 9 tipos, probado en las dos versiones de MariaDB | runbook §11.9 |
+
+6 tests de regresión de la alerta (los 6 fallan contra el código anterior) y 6 del verificador.
+
+**Lección nueva:** un valor que se suma a una lista con CHECK (un tipo, un estado) es una migración,
+aunque no se agregue ninguna columna. Antes nada lo verificaba; desde la v6.15 lo verifica el
+health.

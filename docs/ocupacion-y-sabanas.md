@@ -22,7 +22,7 @@ campos ricos. Cada fila trae (ver `docs/cloudbeds.md` §3.1):
 **No hace falta llamar a `getReservations`.** Las "reglas de cada hotel" (cadencia de sábanas) no se
 exponen por la API: Cloudbeds da el estado, la **regla de N días la implementamos nosotros** (configurable).
 *(Excepción posterior: la **cantidad de huéspedes** no viene en `getHousekeepingStatus` y sí sale de
-`getReservations` — ver §2.5, v6.15.)*
+`getReservations` — ver §2.5, v6.14.)*
 
 ---
 
@@ -58,7 +58,7 @@ La ocupación es tan fresca como el sync: hoy cada **30 min** (auto-regulado, ve
 §4.1), más el botón «Actualizar ahora». *(Cuando se escribió esto era 2×/día; subir la cadencia fue el
 **Gap C**.)*
 
-### 2.5 Cantidad de huéspedes (v6.15)
+### 2.5 Cantidad de huéspedes (v6.14)
 Pedido del equipo de aseo (25/09/2026): Flexkeeping mostraba en la ficha de la pieza «Guests: 4», las
 fechas de llegada y salida, y también la llegada del mismo día ([Mobile room overview](https://help.mews.com/s/article/mobile-room-overview?language=en_US)).
 Sirve para saber cuántas camas y cuánta ropa hay que cambiar: una triple con un solo huésped es una
@@ -130,7 +130,7 @@ obligatorio, lo que ripplearía en el KPI de créditos (conteo de obligatorios);
 
 ## 5. Fuera de alcance (MVP)
 
-- Leer `getReservations` (no hacía falta: todo salía de `getHousekeepingStatus`). *Desde la v6.15 sí
+- Leer `getReservations` (no hacía falta: todo salía de `getHousekeepingStatus`). *Desde la v6.14 sí
   se lee, solo para la cantidad de huéspedes — ver §2.5.*
 - Escribir el housekeeper/asignación a Cloudbeds.
 - Subir la cadencia del sync (**Gap C**, feature aparte — pero recomendado junto con esto).
