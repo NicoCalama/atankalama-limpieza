@@ -7,14 +7,14 @@ declare(strict_types=1);
  * AlertaActiva::TIPOS_VALIDOS en una BD existente.
  *
  * Nació en la v2.4 para 'inventario_cambios_pendientes' (docs/cloudbeds-import-inventario.md)
- * y desde la v6.15 cubre cualquier tipo que falte, incluido 'aprobacion_deshecha' (v6.10). En
+ * y desde la v6.16 cubre cualquier tipo que falte, incluido 'aprobacion_deshecha' (v6.10). En
  * installs frescos los tipos los traen los schemas; este script los agrega a BDs ya creadas.
  * Portable (SQLite dev + MariaDB prod) e idempotente: si ya están todos, no hace nada.
  *
  * - SQLite no permite modificar un CHECK con ALTER → se reconstruye la tabla preservando
  *   los datos.
  * - MariaDB: `MODIFY COLUMN … CHECK (…)`, que reemplaza la definición entera de la columna.
- *   Hasta la v6.15 este script hacía `DROP CONSTRAINT tipo, ADD CONSTRAINT …`, y eso da
+ *   Hasta la v6.16 este script hacía `DROP CONSTRAINT tipo, ADD CONSTRAINT …`, y eso da
  *   ERROR 1091: MariaDB no deja borrar por nombre un CHECK declarado en la columna, que es
  *   como lo trae la base de producción desde el dump del 07/07/2026. Probado en 10.6 y 10.11.
  *   Ver docs/incidente-2026-09-23.md §5.

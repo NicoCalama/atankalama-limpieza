@@ -136,7 +136,7 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
             NO se revierte — ese 'dirty' es la marca del servicio del día siguiente.
           → Si se revierte una aprobación de HOY, queda WARNING en el log + alerta P1
             'aprobacion_deshecha' (se resuelve sola al volver a aprobarse). La de otro día
-            (ciclo normal) y la rechazada vuelven a la cola sin alerta (v6.15).
+            (ciclo normal) y la rechazada vuelven a la cola sin alerta (v6.16).
       - Si cleaningStatus=Dirty y estado actual es 'sucia': no-op.
       - Si cleaningStatus=Clean y estado actual es 'completada_pendiente_auditoria': WARN (inconsistencia — auditamos por un lado, Cloudbeds por otro).
 3. Actualizar sync_historial: finalizada_at=now, resultado=exito|parcial|error, contadores.
@@ -154,12 +154,12 @@ escritura a Cloudbeds respondió `success: true`, entró un huésped, y a las 11
 a sucia. La limpiaron dos veces. Ese día le pasó a ~8 piezas; en la semana previa, a varias por día.
 
 **La regla** (`CloudbedsSyncService::aprobadaHoy()` + `conservarAprobacionDelDia()`, al día de
-la v6.15):
+la v6.16):
 
 ```
 Cloudbeds dice 'dirty' y la pieza está en estado terminal:
   ¿Está APROBADA y su último cambio de estado (audit_log) fue HOY, día de Chile?
-    ├─ NO → revertir, sin alerta         (ciclo normal del día siguiente, o una rechazada — v6.11/v6.15)
+    ├─ NO → revertir, sin alerta         (ciclo normal del día siguiente, o una rechazada — v6.11/v6.16)
     └─ SÍ → ¿frontdesk 'turnover'?       (se va un huésped y entra otro: hay que limpiar entremedio — v6.11)
               ├─ SÍ → revertir + WARNING + alerta P1
               └─ NO → ¿ocupada, o frontdesk 'check-in'/'stayover'?
@@ -176,7 +176,7 @@ La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a q
   (`scripts/sync-cloudbeds.php`), que además avisa `dirty` a Cloudbeds.
 
 «Cuándo se aprobó» sale del último cambio de estado de la pieza en `audit_log` (la fila
-`habitacion.cambiar_estado` que escribe `cambiarEstado()`). Hasta la v6.15 salía de
+`habitacion.cambiar_estado` que escribe `cambiarEstado()`). Hasta la v6.16 salía de
 `habitaciones.updated_at`, con el supuesto de que solo lo movía `cambiarEstado()`. Era falso: también
 lo mueven la nota de Recepción, marcar o desmarcar nochero, editar la estructura y el vencimiento de
 nocheros de las 16:00. Con eso, una aprobación de ayer con una nota de hoy pasaba por «de hoy».

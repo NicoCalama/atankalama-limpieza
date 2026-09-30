@@ -116,7 +116,7 @@ inspeccionarla o con el cierre de día.
 `habitaciones.updated_at`: ese campo también lo mueven la nota de Recepción, marcar nochero o
 editar la estructura, y con eso una aprobación de ayer pasaba por «de hoy».
 
-> **Hasta la v6.15 disparaba en los tres casos, y nunca se resolvía sola.** Nadie lo vio porque
+> **Hasta la v6.16 disparaba en los tres casos, y nunca se resolvía sola.** Nadie lo vio porque
 > en producción el INSERT fallaba: el CHECK de `alertas_activas.tipo` no tenía el tipo. Del 24 al
 > 27/09 hubo ≈140 intentos por día. Ver `docs/incidente-2026-09-23.md` §5.
 

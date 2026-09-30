@@ -101,14 +101,14 @@ Suite 489/489, PHPStan limpio.
 - **Una columna existente usada como señal nueva hereda a todos sus escritores.** La v6.10
   usó `habitaciones.updated_at` como "cuándo se aprobó". La verificación fue sobre el código
   de la app, pero el propio cron también escribe esa columna. (Y no solo el cron: la revisión
-  de la v6.15 encontró más de diez escrituras más —notas, nocheros, estructura, inventario…—, así que la señal
+  de la v6.16 encontró más de diez escrituras más —notas, nocheros, estructura, inventario…—, así que la señal
   se cambió al `audit_log`. Ver §5.)
 - **Un estado nuevo obliga a revisar todas las listas de estados.** `aprobada_automatica`
   entró en la v6.2 y quedó fuera de una exclusión escrita en agosto.
 - **Los cron no están bajo control de versiones.** El runbook documenta 4; en producción hay
   más, agregados por FTP/cPanel. Nada los compara.
 
-## 5. Seguimiento del 27/09 (v6.15)
+## 5. Seguimiento del 27/09 (v6.16)
 
 **La v6.11 funciona.** En `audit_log`, las conversiones `aprobada_automatica → aprobada` por cron
 eran 57, 97, 60 y 49 del 20 al 23/09, y desde el 24/09 no hay ninguna. Las que siguen saliendo de
@@ -141,12 +141,12 @@ día) y la rechazada, que no la aprobó nadie. Y nada la resolvía. En `logs_eve
 139 y 147 intentos por día del 23 al 27/09: esas alertas P1 habrían quedado colgadas en el Inicio de
 la supervisora, una por pieza.
 
-**Qué cambió en la v6.15:**
+**Qué cambió en la v6.16:**
 
 | # | Cambio | Archivo |
 |---|---|---|
 | 1 | La alerta solo se levanta si se deshace una aprobación **de hoy**. El «¿es de hoy?» se pregunta antes de revertir, porque revertir es un cambio de estado nuevo | `CloudbedsSyncService.php` |
-| 2 | «¿Se aprobó hoy?» sale del último cambio de estado en `audit_log` y ya no de `habitaciones.updated_at`, que también mueven la nota de Recepción, marcar nochero o editar la estructura. Con eso, una aprobación de ayer pasaba por «de hoy»: la regla de la v6.10 la conservaba y la alerta mentía. Lo encontró la revisión de la v6.15 | `HabitacionService.php` |
+| 2 | «¿Se aprobó hoy?» sale del último cambio de estado en `audit_log` y ya no de `habitaciones.updated_at`, que también mueven la nota de Recepción, marcar nochero o editar la estructura. Con eso, una aprobación de ayer pasaba por «de hoy»: la regla de la v6.10 la conservaba y la alerta mentía. Lo encontró la revisión de la v6.16 | `HabitacionService.php` |
 | 3 | Se resuelve sola cuando la pieza vuelve a quedar aprobada. Todos los caminos que aprueban pasan por `cambiarEstado()`: inspección, «cliente no desea aseo», Cloudbeds y el cierre de día. «Dar por limpia» deja la pieza en inspección, así que se resuelve al inspeccionarla | `HabitacionService.php` |
 | 4 | El verificador de esquema compara también las listas de los CHECK `columna IN (…)`: el health habría dado 503 el día del deploy de la v6.10 | `EsquemaService.php` |
 | 5 | SQL que amplía el CHECK a los 9 tipos, probado en las dos versiones de MariaDB | runbook §11.9 |
@@ -154,5 +154,5 @@ la supervisora, una por pieza.
 6 tests de regresión de la alerta (los 6 fallan contra el código anterior) y 6 del verificador.
 
 **Lección nueva:** un valor que se suma a una lista con CHECK (un tipo, un estado) es una migración,
-aunque no se agregue ninguna columna. Antes nada lo verificaba; desde la v6.15 lo verifica el
+aunque no se agregue ninguna columna. Antes nada lo verificaba; desde la v6.16 lo verifica el
 health.

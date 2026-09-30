@@ -400,7 +400,7 @@ final class HabitacionService
      * cada transición— y NO de `habitaciones.updated_at`, como se hacía desde la v6.10:
      * updated_at también lo mueven ediciones que no cambian el estado (nota de Recepción,
      * marcar/desmarcar nochero, estructura, el vencimiento de nocheros de las 16:00…), y con
-     * eso una aprobación de ayer pasaba por «de hoy». Encontrado en la revisión de la v6.15.
+     * eso una aprobación de ayer pasaba por «de hoy». Encontrado en la revisión de la v6.16.
      * Sin ninguna fila (pieza sin historial, o purgado por la retención) → no es de hoy.
      */
     public function cambioDeEstadoHoy(int $id, ?string $hoyLocal = null): bool

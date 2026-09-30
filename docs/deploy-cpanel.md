@@ -171,7 +171,7 @@ El `php` del cron de cPanel es CGI (se traga los argumentos) y la ruta
 | `https://atankalama.com/limpieza/app_core/.env` | **403** (si da 200, PARAR: revisar `.htaccess` de app_core) |
 | `https://atankalama.com/limpieza/app_core/src/Core/Config.php` | **403** |
 | `https://atankalama.com/limpieza/app_core/CHANGELOG.md` | **403** (un archivo estático: si se ve el texto, app_core está expuesto — ver §11.6) |
-| `https://atankalama.com/limpieza/app_core/public/assets/js/app.js` | **403** desde la v6.15 (antes daba 200: `app_core/public/` tenía el `.htaccess` de desarrollo, que anulaba el bloqueo — ver §11.9) |
+| `https://atankalama.com/limpieza/app_core/public/assets/js/app.js` | **403** desde la v6.16 (antes daba 200: `app_core/public/` tenía el `.htaccess` de desarrollo, que anulaba el bloqueo — ver §11.9) |
 | Login `11111111-1` / contraseña temporal del seed | fuerza cambio de contraseña → home admin |
 | Cookie del navegador | `limpieza_session` con path `/limpieza` |
 | File Manager: `app_core/database/` | SIN `atankalama.db` (si existe → el `.env` no se está leyendo) |
@@ -208,9 +208,9 @@ Sale con código 1 si falta algo, así que también sirve como cron. **Solo lee,
 
 Si reporta faltantes: corré el SQL del release (§11 de este documento) o el
 `scripts/migrate-*.php` que corresponda, y volvé a verificar. **El SQL va ANTES del código**,
-salvo que la sección del release diga otra cosa (la v6.15, §11.9, es la excepción).
+salvo que la sección del release diga otra cosa (la v6.16, §11.9, es la excepción).
 
-**Desde la v6.15 también compara los CHECK `columna IN (...)`.** La base de producción se creó
+**Desde la v6.16 también compara los CHECK `columna IN (...)`.** La base de producción se creó
 el 07/07/2026 desde un dump con esas restricciones, y cuando el código suma un valor nuevo a
 una lista (un tipo de alerta, un estado) la base lo rechaza con `SQLSTATE[23000]` si nadie
 amplió el CHECK. Pasó dos veces sin que nada avisara: el aviso de inventario de la v2.4 y la
@@ -312,7 +312,7 @@ Una columna sin CHECK en la base, o con una lista más ancha que el schema, no s
    - **`public/.htaccess` NUNCA va a `app_core/public/`.** Ese es el `.htaccess` de
      desarrollo: prende el rewrite y, en mod_rewrite, las reglas de un `.htaccess`
      hijo reemplazan a las de los padres, así que anula el bloqueo y deja
-     `app_core/public/` servido por web (así estuvo hasta la v6.15, ver §11.9). En
+     `app_core/public/` servido por web (así estuvo hasta la v6.16, ver §11.9). En
      `app_core/public/.htaccess` va una copia de `deployment/cpanel/app_core/.htaccess`
      (bloqueo), que es lo que deja `build-cpanel-zip.php`.
    - **`vendor/` solo si cambió `composer.lock`** (agregar/actualizar dependencias).
@@ -393,11 +393,11 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-09-22 | **Pieza en curso primero + piezas en progreso solo para Admin** → **v6.7** (`325753d`, CHANGELOG `76f03db`) | Delta por **FTP**, 13 archivos (`build/limpieza-v67-delta.zip`, contra el deploy de la v6.5; incluye el de la v6.6). Antes de armarlo se comprobó que las copias de prod de los 11 archivos que ya existían eran idénticas a la base del repo (sin cambios del jefe). **SQL** del permiso `asignaciones.mover_en_progreso` (§11.7) corrido en phpMyAdmin (confirmado por Nicolás). Sin assets → sin bump de `CACHE_VERSION`; sin `.env` ni `vendor/`. Verificado: badge v6.7 (Nicolás); `/api/health` 200, `/login` 200, `app_core/CHANGELOG.md` y `app_core/views/componentes/candado-en-progreso.php` → 403, `POST /api/asignaciones/reasignar` sin sesión → 401. |
 | 2026-09-22 | **Pantalla «Todas las alertas»** → **v6.8** (`6a8a756`, CHANGELOG `540e6f6`) | El enlace «Ver todas las alertas (N)» de los dos Inicios apuntaba a `/alertas`, una ruta que **nunca se registró**: el router caía en su 404 genérico y el navegador mostraba el JSON `NO_ENCONTRADO` en vez de una pantalla. La pantalla estaba especificada en `docs/home-admin.md` y `docs/home-supervisora.md` desde el principio. Delta por **FTP**, 4 archivos (`build/limpieza-v68-delta.zip`): `src/Core/Kernel.php`, `src/Controllers/PaginasController.php`, `views/alertas.php` (nuevo) y `CHANGELOG.md`. Los dos Inicios **no se tocaron** (el enlace ya apuntaba bien). Sin SQL, sin assets → sin bump de `CACHE_VERSION`; sin `.env` ni `vendor/`. Verificado: badge v6.8 (Nicolás); `/api/health` 200, `/login` 200, `/alertas` sin sesión → **302 a `/login`** (antes 404), y los archivos nuevos cerrados por web: `app_core/views/alertas.php` y `app_core/CHANGELOG.md` → 403. |
 | 2026-09-22 | **Verificador de esquema** → **v6.9** (`789ff41`, CHANGELOG `67cd436`) | Cierra la causa de fondo del incidente del mismo día: el SQL de la v6.4 nunca se había corrido en prod y **nada lo verificaba**. Ahora `EsquemaService` compara la base viva contra `docs/database-schema*.sql` y `database/seeds/permisos.php` (las dos fuentes de verdad que ya existían → cubre cualquier release futuro sin listas que mantener). Se ve en `/api/health` (**503** si falta algo, sin nombrar nada por ser público), en Inicio → Salud del sistema (detalle, tras `sistema.ver_salud`) y en `scripts/verificar-esquema.php`. Ver **§7.1**. Incluye el arreglo del schema de MariaDB, al que le faltaban `edificios` y `habitaciones.edificio_id/edificio/piso` (deuda vieja: estaban solo en el de SQLite, y sin ellas el verificador tendría un punto ciego en prod). Delta por **FTP**, 8 archivos (`build/limpieza-v69-delta.zip`), **sin SQL** (el release no necesita migración), sin assets → sin bump de `CACHE_VERSION`. **OJO: `database-schema.mariadb.sql` va a `app_core/docs/`, que es de donde lo lee el verificador.** **Chequeo previo antes de subir** (`build/precheck-esquema-prod.sql`, generado desde el parser): las 289 columnas y los 69 permisos esperados ya estaban en prod → deploy sin sorpresas. Verificado: badge v6.9 (Nicolás); `/api/health` **200 con `checks.esquema.ok: true`**, `/login` 200, y `app_core/scripts/verificar-esquema.php`, `app_core/src/Services/EsquemaService.php` y `app_core/docs/database-schema.mariadb.sql` → 403. |
-| 2026-09-23 | **La pieza aprobada no vuelve a la cola con el check-in** → **v6.10** (`395f96b`, CHANGELOG `a0740b8`) | Cloudbeds marca `dirty` apenas hace check-in un huésped (marca del servicio del día siguiente, no limpieza pendiente); el sync lo tomaba al pie de la letra y deshacía la aprobación del día. Caso testigo: la **706** aprobada 11:15 del 22/09, escritura a Cloudbeds `success:true`, y a las 11:41 de vuelta a sucia → la limpiaron dos veces; ese día le pasó a ~8 piezas. Regla nueva en `CloudbedsSyncService::conservarAprobacionDelDia()` (conserva solo si la aprobación es del día Y la pieza está ocupada; el check-out sigue revirtiendo, y los nocheros van por su barrido de las 16:00). Además deshacer una aprobación deja WARNING + **alerta P1 `aprobacion_deshecha`** para la supervisora — antes era mudo. Delta por **FTP**, 9 archivos (`build/limpieza-v610-delta.zip`), **sin SQL**: el tipo de alerta nuevo entra al `CHECK` de los schemas, pero en prod esa tabla no tiene CHECKs activos (verificado en el deploy de la v2.4). **→ Falso (27/09/2026):** el CHECK existe, y por eso la alerta nueva nunca se pudo guardar (`SQLSTATE[23000]`). Se corrigió en la v6.15, §11.9. Sin assets → sin bump de `CACHE_VERSION`. Verificado tras el deploy: badge **v6.10** (Nicolás); `/api/health` **200 con `checks.esquema.ok: true`** (el tipo nuevo no rompió el verificador), `/login` 200 y `app_core/` → 403 en los 4 archivos del delta. **Gotcha operativo:** durante la verificación el firewall del hosting (CSF) baneó la IP desde la que se sondeaba —DNS resolvía pero el TCP no conectaba, con un sitio de control respondiendo normal—; es temporal y no afecta a los usuarios. **Espaciar los curl de verificación.** |
+| 2026-09-23 | **La pieza aprobada no vuelve a la cola con el check-in** → **v6.10** (`395f96b`, CHANGELOG `a0740b8`) | Cloudbeds marca `dirty` apenas hace check-in un huésped (marca del servicio del día siguiente, no limpieza pendiente); el sync lo tomaba al pie de la letra y deshacía la aprobación del día. Caso testigo: la **706** aprobada 11:15 del 22/09, escritura a Cloudbeds `success:true`, y a las 11:41 de vuelta a sucia → la limpiaron dos veces; ese día le pasó a ~8 piezas. Regla nueva en `CloudbedsSyncService::conservarAprobacionDelDia()` (conserva solo si la aprobación es del día Y la pieza está ocupada; el check-out sigue revirtiendo, y los nocheros van por su barrido de las 16:00). Además deshacer una aprobación deja WARNING + **alerta P1 `aprobacion_deshecha`** para la supervisora — antes era mudo. Delta por **FTP**, 9 archivos (`build/limpieza-v610-delta.zip`), **sin SQL**: el tipo de alerta nuevo entra al `CHECK` de los schemas, pero en prod esa tabla no tiene CHECKs activos (verificado en el deploy de la v2.4). **→ Falso (27/09/2026):** el CHECK existe, y por eso la alerta nueva nunca se pudo guardar (`SQLSTATE[23000]`). Se corrigió en la v6.16, §11.9. Sin assets → sin bump de `CACHE_VERSION`. Verificado tras el deploy: badge **v6.10** (Nicolás); `/api/health` **200 con `checks.esquema.ok: true`** (el tipo nuevo no rompió el verificador), `/login` 200 y `app_core/` → 403 en los 4 archivos del delta. **Gotcha operativo:** durante la verificación el firewall del hosting (CSF) baneó la IP desde la que se sondeaba —DNS resolvía pero el TCP no conectaba, con un sitio de control respondiendo normal—; es temporal y no afecta a los usuarios. **Espaciar los curl de verificación.** |
 | 2026-09-23 | **El cierre de día conserva su marca + piezas ocupadas que sí vuelven a la cola** → **v6.11** (`8a27cf4`, CHANGELOG `8ffe38a`) | Segundo deploy del día, a las pocas horas de la v6.10. Incidente del 23/09 (`docs/incidente-2026-09-23.md`): la supervisora tuvo que cargar **30 piezas a mano** porque no volvían solas a la lista. Tres arreglos: el sync no excluía `aprobada_automatica` y la re-aprobaba a `aprobada` ~10 min después de cada cierre de día (**49 veces ese día**), lo que borraba la marca de «nadie la inspeccionó» —**los KPIs de cobertura de la v6.4 venían inflados**— y le movía el `updated_at`, del que depende `conservarAprobacionDelDia()` desde la v6.10; esa misma regla conservaba un `turnover` (se va un huésped y entra otro el mismo día, justo cuando hay que limpiar) y alcanzaba a las `rechazada`, porque el guard de afuera pregunta por estado terminal; y un trabajador sin ninguna pieza empezable recibía `NO_ES_TU_HABITACION_ACTUAL` —una habitación que no existe— con la ficha sin recargarse, o sea un loop (caso real: 19 asignadas, 0 limpiadas). Delta por **FTP**, 4 archivos (`build/limpieza-v611-delta.zip`), **sin SQL**, sin assets → sin bump de `CACHE_VERSION`, sin `.env` ni `vendor/`. Suite 489/489 con 4 tests de regresión nuevos, verificados contra el código viejo (fallan los 4). Verificado: badge **v6.11** (Nicolás); `/api/health` 200 con `checks.esquema.ok: true`, `/login` 200, y `app_core/CHANGELOG.md` + `app_core/src/Services/CloudbedsSyncService.php` → 403. **NO incluye el hallazgo más grave, que no es código:** en cPanel hay **dos** entradas de `aprobar-pendientes-cierre-dia.php`, `55 23` (correcta) y **`50 15`**, así que el cierre de día corre también en plena jornada y aprueba solas las piezas que esperan inspección (**83 el 23/09**). Se recomendó a jefatura eliminar la de las 15:50, por resumen ejecutivo; la decisión es de ellos. Ojo: el runbook documenta 4 cron (§8) y ni el cierre de día ni el reporte de las 23:50 están ahí — los agregó jefatura por fuera, y nada compara esa lista. |
 | 2026-09-24 | **Ocupación y código de camas en la bandeja de Inspección** → **v6.12** (`5cf6df7`, CHANGELOG `e4a5660`) | Lo escribió **otra sesión de Claude trabajando directo en GitHub** (rama `claude/session-start-10rgm1`, sin PR); acá revisado, suite **490/490** + PHPStan verde, fast-forward a `main`. La bandeja muestra por fila la ocupación de Cloudbeds (Sigue / Se va hoy / Llega hoy / Cambio) y el código de camas (`2S`), lo mismo que ya veía el trabajador en su ficha; reemplaza el badge propio «Se va hoy», que quedaba duplicado. Los dos helpers pasan a `public/assets/js/app.js` compartidos (`htmlBadgeOcupacion` / `htmlBadgeCodigoRoomName`), así que **Habitaciones y la ficha del trabajador pasaron a depender de ellos**. Delta por **FTP**, **7 archivos** (`build/limpieza-v612-delta.zip`), **sin SQL** (`cb_frontdesk_status` y `cloudbeds_room_name` existen desde la v6.2) y **sin bump de `CACHE_VERSION`** (`layout.php` sirve el script con `?v=filemtime` y el SW hace stale-while-revalidate). Verificado: badge **v6.12** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`**, `/login` 200, `app_core/` → 403 en CHANGELOG, service y vista, y el `app.js` servido **idéntico byte a byte** al del repo (14.073 B, con los dos helpers). **Dos gotchas de este deploy:** (1) el ZIP subido por FTP llegó **corrupto** (`End-of-central-directory signature not found`) porque FileZilla lo mandó en modo **ASCII** — los binarios van en modo **Binario**, o se suben los archivos sueltos, que es el método por defecto; (2) `app.js` fue primero a `app_core/public/assets/` y **ahí no lo sirve nadie**: los estáticos de `public/` van al **DOCROOT** (excepción agregada al §10 en `9735983`). Los badges no aparecían porque la plantilla nueva llamaba a un `htmlBadgeOcupacion()` que el `app.js` servido no tenía. **Hallazgo abierto (seguridad):** `app_core/public/` **no** queda cubierto por el bloqueo de `app_core/` — su propio `.htaccess`, copiado desde `public/` por `build-cpanel-zip.php`, reactiva el rewrite y anula la regla del padre → `app_core/public/index.php` **ejecuta** (devuelve el 404 JSON de la app) y `app_core/public/assets/**` se sirve con 200. |
 | 2026-09-25 | **Hotel de la habitación actual en el Inicio del trabajador** → **v6.13** (`4a1ee85` + `cf48c0d`, CHANGELOG `94b446b`) | Lo escribió **otra sesión de Claude en la nube** (24–25/09), que lo empujó **directo a `main`** (merge `bbc3f56`) sin PR y sin pasar por gitleaks; acá revisado a mano (18 líneas en 2 archivos, sin secretos), suite **490/490**, PHPStan limpio, los dos lints y `node --check` del JS de la vista OK. La tarjeta «Habitación actual» muestra el hotel (Atankalama / Atankalama INN) sobre el número, con la misma etiqueta de color que Habitaciones: las clases `.hotel-chip-*` de `custom.css` existen desde el 13/07 —ya estaban en prod— y la API ya mandaba `hotel_codigo`. Delta por **FTP** con ZIP, **2 archivos** a `app_core/` (`build/limpieza-v613-delta.zip`: `views/home-trabajador.php` + `CHANGELOG.md`), **sin SQL** y **sin estáticos** → nada al docroot, sin bump de `CACHE_VERSION`. Primer deploy con la regla del stage único (§10): en `build/` queda solo el ZIP. Verificado: badge **v6.13** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`**, `/login` 200, y `app_core/CHANGELOG.md` + `app_core/views/home-trabajador.php` → 403. |
-| 2026-09-26 | **Tickets que confirman el envío + huéspedes en la pieza** → **v6.14** (`21f49d7` + `388bebe`, CHANGELOG `338f3cb`) | Pedido de jefatura tras una reunión con el personal de aseo. **Tickets:** desde la pieza y el Inicio el modal quedaba sin hotel (el Trabajador no tiene `habitaciones.ver_todas` → 403 en `/api/habitaciones`) y «Crear ticket» nunca se habilitaba; ahora confirma el envío con el número de ticket, reintenta sin duplicar (`idempotency_key`, que el servidor ya soportaba) y tiene plazo de 60 s. **Huéspedes:** el sync hace un GET más por hotel (`getReservations` de las reservas del día, 40–90 KB) y guarda `cb_huespedes` / `cb_huespedes_llegan`; se ve solo en el Inicio del trabajador (recuadro al estilo Flexkeeping) y en la lista de Inspección («N personas» junto al código de camas). **SQL previo (§11.8)** corrido por Nicolás antes del código. Delta por **FTP** con ZIP, **18 archivos** (`build/limpieza-v614-delta.zip`): 17 a `app_core/` —incluidos los dos `docs/database-schema*.sql`, que lee el verificador de esquema— + `app.js` también al docroot. Sin `sw.js` → sin bump de `CACHE_VERSION`. Verificado: badge **v6.14** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`** (el SQL quedó aplicado), `/login` 200, `app_core/` → 403 en CHANGELOG y `CloudbedsSyncService.php`, y el `app.js` del docroot idéntico byte a byte al repo (16.043 B). La subida se confirmó el 26/09; el CHANGELOG decía 25/09 (la fecha en que se armó el ZIP) y se corrigió en la v6.15. Tras la siguiente sincronización, **Nicolás confirmó en la app el número de huéspedes** en el Inicio del trabajador y en la lista de Inspección (26/09): el sync escribe bien las columnas nuevas (el health no muestra el estado del sync, por eso se miró en pantalla). La propuesta de datos móviles quedó aparte, en la rama `propuesta/datos-moviles`, esperando el OK de jefatura. Se armó como «v6.15», pero ese número lo tomó el release del CHECK de alertas (§11.9): al integrarla pasa a v6.16 o a la que toque. |
+| 2026-09-26 | **Tickets que confirman el envío + huéspedes en la pieza** → **v6.14** (`21f49d7` + `388bebe`, CHANGELOG `338f3cb`) | Pedido de jefatura tras una reunión con el personal de aseo. **Tickets:** desde la pieza y el Inicio el modal quedaba sin hotel (el Trabajador no tiene `habitaciones.ver_todas` → 403 en `/api/habitaciones`) y «Crear ticket» nunca se habilitaba; ahora confirma el envío con el número de ticket, reintenta sin duplicar (`idempotency_key`, que el servidor ya soportaba) y tiene plazo de 60 s. **Huéspedes:** el sync hace un GET más por hotel (`getReservations` de las reservas del día, 40–90 KB) y guarda `cb_huespedes` / `cb_huespedes_llegan`; se ve solo en el Inicio del trabajador (recuadro al estilo Flexkeeping) y en la lista de Inspección («N personas» junto al código de camas). **SQL previo (§11.8)** corrido por Nicolás antes del código. Delta por **FTP** con ZIP, **18 archivos** (`build/limpieza-v614-delta.zip`): 17 a `app_core/` —incluidos los dos `docs/database-schema*.sql`, que lee el verificador de esquema— + `app.js` también al docroot. Sin `sw.js` → sin bump de `CACHE_VERSION`. Verificado: badge **v6.14** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`** (el SQL quedó aplicado), `/login` 200, `app_core/` → 403 en CHANGELOG y `CloudbedsSyncService.php`, y el `app.js` del docroot idéntico byte a byte al repo (16.043 B). La subida se confirmó el 26/09; el CHANGELOG decía 25/09 (la fecha en que se armó el ZIP) y se corrigió en la v6.15. Tras la siguiente sincronización, **Nicolás confirmó en la app el número de huéspedes** en el Inicio del trabajador y en la lista de Inspección (26/09): el sync escribe bien las columnas nuevas (el health no muestra el estado del sync, por eso se miró en pantalla). La propuesta de datos móviles quedó aparte, en la rama `propuesta/datos-moviles`, esperando el OK de jefatura. Se armó como «v6.15», pero ese número lo tomó primero el release del CHECK de alertas y, el 30/09, el de los KPIs (que pasó adelante: el del CHECK quedó como v6.16, §11.9): al integrarla pasa a v6.17 o a la que toque. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -518,7 +518,7 @@ Detección automática de altas/bajas de piezas en Cloudbeds → alerta a la sup
 con Aceptar/Rechazar (ver `docs/cloudbeds-import-inventario.md`). Dos cambios en prod:
 un **tipo de alerta nuevo** (CHECK) y un **permiso nuevo**.
 
-> **⚠️ Corregido el 27/09/2026 (v6.15).** El CHECK nunca se amplió en producción: se dio por
+> **⚠️ Corregido el 27/09/2026 (v6.16).** El CHECK nunca se amplió en producción: se dio por
 > inexistente por un falso negativo (ver la fila v2.4 del historial). Y ninguna de las dos vías de
 > abajo servía en MariaDB: `DROP CONSTRAINT` sobre un CHECK de columna da `ERROR 1091`. El script
 > ahora usa `MODIFY COLUMN` con la lista completa de `AlertaActiva::TIPOS_VALIDOS`. El fallback de
@@ -851,7 +851,10 @@ Sin `sw.js`, así que sin bump de `CACHE_VERSION`. Sin `.env` ni `vendor/`.
 - tras la siguiente sincronización: el Inicio del trabajador muestra el recuadro de huéspedes y la lista
   de Inspección muestra «N personas» al lado del código de camas en las piezas ocupadas.
 
-### 11.9 Release "aprobación deshecha + CHECK de alertas + app_core/public cerrado" → v6.15
+### 11.9 Release "aprobación deshecha + CHECK de alertas + app_core/public cerrado" → v6.16
+
+> **Renumerada el 30/09/2026:** se armó como v6.15, pero el delta de KPIs (§11.10) pasó adelante
+> por urgencia y tomó ese número. Se sube **después** de la v6.15; no comparten archivos.
 
 Cierra dos pendientes del incidente del 23/09 (`docs/incidente-2026-09-23.md`, §5) y uno de la v6.12:
 
@@ -873,7 +876,7 @@ fila, avisar antes de seguir: el health quedaría en 503 hasta ampliar también 
 genera el parser del verificador (está en `build/`, que no se versiona).
 
 **1. Código PRIMERO — al revés que siempre.** El SQL es lo que deja guardar la alerta: con el código
-viejo arriba, la prendería ~140 veces por día. Archivos (`build/limpieza-v615-delta.zip`, estructura
+viejo arriba, la prendería ~140 veces por día. Archivos (`build/limpieza-v616-delta.zip`, estructura
 `limpieza/…`), todos a `app_core/`:
 
 - `src/Models/Habitacion.php`, `src/Services/{CloudbedsSyncService,HabitacionService,EsquemaService,HomeService}.php`;
@@ -883,7 +886,7 @@ viejo arriba, la prendería ~140 veces por día. Archivos (`build/limpieza-v615-
   `app_core/scripts/` no quede distinto del repo);
 - **`public/.htaccess` de bloqueo** → `limpieza/app_core/public/.htaccess` (es una copia de
   `deployment/cpanel/app_core/.htaccess`, **no** el `public/.htaccess` del repo);
-- `CHANGELOG.md` (v6.15 + la fecha de la v6.14 corregida a 26/09).
+- `CHANGELOG.md` (con la v6.16 fechada; la fecha de la v6.14 corregida a 26/09 ya subió con la v6.15).
 
 Sin estáticos (nada al docroot), sin `sw.js`, sin `.env` ni `vendor/`.
 
@@ -912,7 +915,7 @@ tipo rechazado y no hace nada si ya están todos.
 **3. Smoke específico:**
 
 - `/api/health` **200 con `checks.esquema.ok: true`** (si sigue en 503, mirar Salud del sistema);
-- badge **v6.15** (incógnito), `/login` 200;
+- badge **v6.16** (incógnito), `/login` 200;
 - `app_core/public/assets/js/app.js` → **403** (antes 200) y `app_core/public/index.php` → **403**;
 - una foto de ticket se sigue viendo (las sirve PHP por `/uploads/…`, no ese directorio);
 - **al día siguiente**, en phpMyAdmin: pocas alertas por día, y resueltas solas.
@@ -928,3 +931,36 @@ SELECT LEFT(levantada_at, 10) AS dia_utc, COUNT(*) AS levantadas, SUM(resuelta_a
 Efecto colateral bueno: el aviso de altas y bajas de piezas en Cloudbeds (v2.4) también empieza a
 funcionar. Si hoy hay diferencias entre Cloudbeds y la app, en el siguiente chequeo diario le aparece a la
 supervisora con Aceptar/Rechazar.
+
+### 11.10 Release "Reportes coherente" → v6.15 (solo KPIs, sube ANTES que la v6.16)
+
+Pedido urgente de Nicolás (30/09/2026) tras revisar si los KPIs se guardan y se ven bien:
+
+- **Los filtros de Reportes nunca se aplicaron** (desde que existe el módulo, 25/04): el controlador los
+  leía con `Request::input()`, que solo mira el cuerpo, y en un GET van en la URL. La pantalla mostraba el
+  rango elegido pero los números —y los 4 CSV— eran siempre de hoy / del mes en curso / de ambos hoteles.
+- **Una sola definición en toda la pestaña**: las tarjetas, el detalle por trabajadora, el resumen mensual
+  y su CSV (el «CRÉDITOS TOTAL» de sueldos) salen de la ficha. Antes el resumen mensual no aplicaba la
+  escalera 100/50/0 y contaba piezas distintas en vez de limpiezas; el rechazo del equipo metía el cierre
+  automático en el total; la «Eficiencia» de arriba era otra fórmula.
+- La 2ª limpieza del día sobre la misma asignación (nochero, turnover) cuenta como otra pieza asignada; el
+  atajo «Marcar limpia» no cuenta como trabajo de la supervisora; «pendientes al corte» ya no da por
+  inspeccionado lo que aprobó el cierre automático (R5); los errores se ven como errores.
+
+**Sin SQL, sin estáticos, sin `sw.js`, sin `.env` ni `vendor/`.** No toca ningún archivo de la v6.16
+(verificado con `git diff` contra lo que corre en prod), así que se puede subir sola. Archivos
+(`build/limpieza-v615-delta.zip`, estructura `limpieza/…`), todos a `app_core/`:
+
+- `src/Controllers/ReportesController.php`, `src/Services/ReportesService.php`;
+- `src/Services/EmailService.php` (el correo diario de pendientes usa los mismos textos);
+- `src/Support/Tours.php` (textos de ayuda del resumen mensual y de pendientes);
+- `views/reportes.php`;
+- `CHANGELOG.md` (v6.15 fechada; la v6.16 figura «sin publicar» y el badge la ignora).
+
+**Smoke específico:**
+
+- badge **v6.15** (incógnito), `/api/health` 200, `/login` 200, `app_core/src/Services/ReportesService.php` → 403;
+- en Reportes, «Últimos 30 días»: el subtítulo y los números cambian (antes quedaban en los de hoy);
+  «Tasa de rechazo» de arriba = «Rechazo de la sección»; créditos de arriba = suma de la ficha = resumen
+  mensual del mes;
+- «Exportar» del resumen mensual con el mes anterior: el archivo trae ese mes (antes, el mes en curso).
