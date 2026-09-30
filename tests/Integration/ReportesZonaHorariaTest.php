@@ -79,7 +79,8 @@ final class ReportesZonaHorariaTest extends TestCase
             $kpis['tiempo_promedio']['valor'],
             'Una limpieza de las 21:00 del 15/07 debe aparecer en el reporte del 15/07.'
         );
-        $this->assertSame(100.0, $kpis['creditos']['valor']);
+        // Créditos es un número (los mismos de la ficha), no un % desde la v6.15.
+        $this->assertGreaterThan(0, $kpis['creditos']['valor']);
     }
 
     public function testEsaMismaLimpiezaNoApareceEnElDiaSiguiente(): void

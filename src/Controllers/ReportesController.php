@@ -28,14 +28,13 @@ final class ReportesController
 
         [$desde, $hasta, $hotel, $usuarioId] = $this->parsearFiltros($request);
 
-        $kpis           = $this->service->kpis($desde, $hasta, $hotel, $usuarioId);
-        $porTrabajadora = $this->service->kpisPorTrabajadora($desde, $hasta, $hotel);
-        $trabajadoras   = $this->service->trabajadoras($desde, $hasta, $hotel);
+        // Un solo cálculo de la ficha para las tarjetas, el detalle y el selector (ReportesService::reporteKpis).
+        $reporte = $this->service->reporteKpis($desde, $hasta, $hotel, $usuarioId);
 
         return Response::ok([
-            'kpis'           => $kpis,
-            'por_trabajadora' => $porTrabajadora,
-            'trabajadoras'   => $trabajadoras,
+            'kpis'           => $reporte['kpis'],
+            'por_trabajadora' => $reporte['por_trabajadora'],
+            'trabajadoras'   => $reporte['trabajadoras'],
             'filtros'        => [
                 'desde'      => $desde,
                 'hasta'      => $hasta,
@@ -80,15 +79,9 @@ final class ReportesController
             return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
         }
 
-        $anio = $request->inputInt('anio') ?? (int) date('Y');
-        $mes  = $request->inputInt('mes') ?? (int) date('n');
-        $hotel = $request->inputString('hotel', 'ambos');
-
-        if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) {
+        [$anio, $mes, $hotel] = $this->parsearMes($request);
+        if ($anio === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
-        }
-        if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
-            $hotel = 'ambos';
         }
 
         $filas = $this->service->resumenMensual($anio, $mes, $hotel);
@@ -185,11 +178,11 @@ final class ReportesController
     /** @return array{0: string, 1: string} */
     private function parsearFechaHotel(Request $request): array
     {
-        $fecha = $request->input('fecha');
-        if (!is_string($fecha) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+        $fecha = $this->param($request, 'fecha');
+        if (!$this->esFecha($fecha)) {
             $fecha = date('Y-m-d');
         }
-        $hotel = $request->inputString('hotel', 'ambos');
+        $hotel = $this->param($request, 'hotel', 'ambos');
         if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
             $hotel = 'ambos';
         }
@@ -199,9 +192,9 @@ final class ReportesController
     /** @return array{0: int|null, 1: int, 2: string} */
     private function parsearMes(Request $request): array
     {
-        $anio = $request->inputInt('anio') ?? (int) date('Y');
-        $mes  = $request->inputInt('mes') ?? (int) date('n');
-        $hotel = $request->inputString('hotel', 'ambos');
+        $anio = $this->paramInt($request, 'anio') ?? (int) date('Y');
+        $mes  = $this->paramInt($request, 'mes') ?? (int) date('n');
+        $hotel = $this->param($request, 'hotel', 'ambos');
 
         if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) {
             return [null, 0, 'ambos'];
@@ -220,15 +213,9 @@ final class ReportesController
             return Response::error('SIN_PERMISO', 'Sin permiso.', 403);
         }
 
-        $anio = $request->inputInt('anio') ?? (int) date('Y');
-        $mes  = $request->inputInt('mes') ?? (int) date('n');
-        $hotel = $request->inputString('hotel', 'ambos');
-
-        if ($anio < 2020 || $anio > 2100 || $mes < 1 || $mes > 12) {
+        [$anio, $mes, $hotel] = $this->parsearMes($request);
+        if ($anio === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
-        }
-        if (!in_array($hotel, ['ambos', '1_sur', 'inn'], true)) {
-            $hotel = 'ambos';
         }
 
         $csv = $this->service->exportarCsvMensual($anio, $mes, $hotel);
@@ -261,14 +248,14 @@ final class ReportesController
     private function parsearFiltros(Request $request): array
     {
         $hoy   = date('Y-m-d');
-        $desde = $request->input('desde');
-        $hasta = $request->input('hasta');
-        $hotel = $request->input('hotel') ?? 'ambos';
+        $desde = $this->param($request, 'desde');
+        $hasta = $this->param($request, 'hasta');
+        $hotel = $this->param($request, 'hotel', 'ambos');
 
-        if (!is_string($desde) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde)) {
+        if (!$this->esFecha($desde)) {
             $desde = $hoy;
         }
-        if (!is_string($hasta) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $hasta)) {
+        if (!$this->esFecha($hasta)) {
             $hasta = $hoy;
         }
         if ($desde > $hasta) {
@@ -282,9 +269,33 @@ final class ReportesController
             $hotel = 'ambos';
         }
 
-        $rawUid    = $request->input('usuario_id');
-        $usuarioId = is_numeric($rawUid) ? (int) $rawUid : null;
+        $usuarioId = $this->paramInt($request, 'usuario_id');
 
         return [$desde, $hasta, $hotel, $usuarioId];
+    }
+
+    /**
+     * Los filtros de Reportes viajan en la URL de un GET, así que se leen de la query.
+     * Request::input() solo lee el cuerpo (POST/PUT/JSON): con él los filtros se ignoraban
+     * desde que existe el módulo y todo caía en hoy / mes en curso / ambos hoteles, aunque
+     * la pantalla mostrara el rango elegido (corregido el 30/09/2026).
+     */
+    private function param(Request $request, string $clave, string $default = ''): string
+    {
+        $valor = $request->query[$clave] ?? null;
+        return is_string($valor) && $valor !== '' ? $valor : $default;
+    }
+
+    private function paramInt(Request $request, string $clave): ?int
+    {
+        $valor = $this->param($request, $clave);
+        return is_numeric($valor) ? (int) $valor : null;
+    }
+
+    /** YYYY-MM-DD de un día que existe: una fecha imposible (2026-13-45) haría caer Fechas::rangoUtc. */
+    private function esFecha(string $valor): bool
+    {
+        $fecha = \DateTimeImmutable::createFromFormat('!Y-m-d', $valor);
+        return $fecha !== false && $fecha->format('Y-m-d') === $valor;
     }
 }

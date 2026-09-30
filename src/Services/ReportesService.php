@@ -10,114 +10,104 @@ use Atankalama\Limpieza\Models\Habitacion;
 
 final class ReportesService
 {
+    // Una sola definición en toda la pestaña (v6.15, 30/09/2026): los KPIs de arriba, el detalle por
+    // trabajadora, el resumen mensual y sus CSV salen de la FICHA (fichaTrabajadores) y de la sección
+    // de inspección (seccionSupervisora). Antes cada bloque contaba a su manera y la misma pantalla
+    // mostraba cifras distintas para lo mismo (créditos sin la escalera 100/50/0, piezas distintas en
+    // vez de limpiezas, rechazo con el cierre automático en el total). Ver docs/kpis-sueldos.md.
+
+    /** Texto de cada estado de «Inspecciones pendientes al corte» (pantalla, CSV y correo diario). */
+    public const ESTADOS_PENDIENTE = [
+        'sin_auditar'         => 'Sin inspeccionar',
+        'aprobada_automatica' => 'Sin inspeccionar (la aprobó el sistema)',
+        'auditada_tarde'      => 'Inspeccionada fuera de plazo',
+    ];
+
     /** @return array<string, mixed> */
     public function kpis(string $desde, string $hasta, string $hotel, ?int $usuarioId = null): array
     {
-        return [
-            'tiempo_promedio'    => $this->kpiTiempoPromedio($desde, $hasta, $hotel, $usuarioId),
-            'tasa_rechazo'       => $this->kpiTasaRechazo($desde, $hasta, $hotel, $usuarioId),
-            'eficiencia'         => $this->kpiEficiencia($desde, $hasta, $hotel, $usuarioId),
-            'creditos'           => $this->kpiCreditos($desde, $hasta, $hotel, $usuarioId),
-            'aprobacion_primera' => $this->kpiAprobacionPrimera($desde, $hasta, $hotel, $usuarioId),
-            'productividad'      => $this->kpiProductividad($desde, $hasta, $hotel, $usuarioId),
-            'tasa_desmarcados'   => $this->kpiTasaDesmarcados($desde, $hasta, $hotel, $usuarioId),
-        ];
-    }
-
-    /** @return list<array<string, mixed>> */
-    public function trabajadoras(string $desde, string $hasta, string $hotel): array
-    {
-        $params = Fechas::rangoUtc($desde, $hasta);
-        // Incluye a quien solo limpió áreas comunes: sus créditos cuentan (jul-2026),
-        // así que debe aparecer en el listado por trabajadora (sus KPIs de piezas
-        // saldrán 'sin_datos', lo cual es honesto).
-        $hotelCond = $this->hotelCondCreditos($hotel, $params);
-
-        return Database::fetchAll(
-            "SELECT DISTINCT ec.usuario_id AS usuario_id, u.nombre
-               FROM #__ejecuciones_checklist ec
-               JOIN #__usuarios u ON u.id = ec.usuario_id
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$hotelCond}
-              ORDER BY u.nombre",
-            $params
-        );
+        return $this->reporteKpis($desde, $hasta, $hotel, $usuarioId, false)['kpis'];
     }
 
     /**
-     * Resumen mensual: cantidad de habitaciones limpiadas y créditos por trabajador.
+     * Lo que pinta el bloque de arriba de Reportes en UN cálculo de la ficha: los 7 KPIs (del equipo o
+     * de la trabajadora filtrada), el detalle por trabajadora y la lista del selector.
      *
-     * @return list<array{usuario_id:int, nombre:string, habitaciones:int, creditos:int, creditos_maximos:int}>
+     * @return array{kpis: array<string, mixed>, por_trabajadora: list<array<string, mixed>>, trabajadoras: list<array{usuario_id:int, nombre:string}>}
+     */
+    public function reporteKpis(string $desde, string $hasta, string $hotel, ?int $usuarioId = null, bool $conDetalle = true): array
+    {
+        $ficha   = $this->fichaTrabajadores($desde, $hasta, $hotel);
+        $config  = $this->configReportes();
+        $seccion = $usuarioId === null ? $this->seccionSupervisora($desde, $hasta, $hotel) : null;
+
+        $porTrabajadora = [];
+        if ($conDetalle) {
+            foreach ($ficha as $t) {
+                $porTrabajadora[] = [
+                    'usuario_id' => (int) $t['usuario_id'],
+                    'nombre'     => $t['nombre'],
+                    'kpis'       => $this->armarKpis($ficha, null, $desde, $hasta, $hotel, (int) $t['usuario_id'], $config),
+                ];
+            }
+        }
+
+        return [
+            'kpis'            => $this->armarKpis($ficha, $seccion, $desde, $hasta, $hotel, $usuarioId, $config),
+            'por_trabajadora' => $porTrabajadora,
+            'trabajadoras'    => $this->listaTrabajadoras($ficha),
+        ];
+    }
+
+    /**
+     * Quienes tuvieron algo en el período según la ficha: limpiezas, créditos (también de áreas
+     * comunes), rechazos o piezas asignadas. Las limpiezas del atajo «Marcar limpia» (sin ítems
+     * marcados) no cuentan como trabajo: la supervisora que lo usa no aparece como trabajadora.
+     *
+     * @return list<array{usuario_id:int, nombre:string}>
+     */
+    public function trabajadoras(string $desde, string $hasta, string $hotel): array
+    {
+        return $this->listaTrabajadoras($this->fichaTrabajadores($desde, $hasta, $hotel));
+    }
+
+    /**
+     * Resumen mensual por trabajador = la ficha del mes (mismo cálculo, mismos números):
+     *   habitaciones  = piezas de huésped que quedaron bien, una por limpieza (pieza · día · franja · vuelta);
+     *   rechazadas    = piezas que le rechazaron (siguen rechazadas para ella la rehaga quien la rehaga);
+     *   creditos      = créditos aprobados con la escalera 100/50/0 de jefatura, incluidas áreas comunes;
+     *   creditos_asignados / eficiencia_pct = lo asignado del checklist vigente y créditos de piezas ÷ asignados.
+     * Es el «CRÉDITOS TOTAL» que usa sueldos.
+     *
+     * @return list<array{usuario_id:int, nombre:string, habitaciones:int, rechazadas:int, creditos:int, creditos_asignados:int, eficiencia_pct:?float}>
      */
     public function resumenMensual(int $anio, int $mes, string $hotel): array
     {
         $desde = sprintf('%04d-%02d-01', $anio, $mes);
         $hasta = date('Y-m-t', strtotime($desde));
-        $params = Fechas::rangoUtc($desde, $hasta);
-        // Créditos incluyen áreas comunes desde jul-2026 (hotelCondCreditos); el conteo
-        // 'habitaciones' sigue siendo SOLO piezas de huésped (filtro dentro del CASE).
-        $hotelCond = $this->hotelCondCreditos($hotel, $params);
 
-        // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
-        //   habitaciones      = piezas de huésped donde la persona obtuvo al menos un crédito.
-        //   creditos          = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones no rechazadas (piezas + espacios).
-        //   creditos_maximos  = intentos (créditos + créditos de obligatorios que le desmarcó el auditor).
-        return Database::fetchAll(
-            "SELECT u.id AS usuario_id,
-                    u.nombre,
-                    COUNT(DISTINCT CASE
-                        WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
-                         AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
-                         AND h.es_espacio_comun = 0
-                        THEN ec.habitacion_id END) AS habitaciones,
-                    SUM(CASE
-                        WHEN ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
-                         AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
-                        THEN ic.creditos ELSE 0 END) AS creditos,
-                    SUM(CASE
-                        WHEN (ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
-                              AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado'))
-                          OR ei.desmarcado_por_auditor = 1
-                        THEN ic.creditos ELSE 0 END) AS creditos_maximos
-               FROM #__ejecuciones_items ei
-               JOIN #__usuarios u ON u.id = ei.marcado_por
-               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
-               JOIN #__items_checklist ic ON ic.id = ei.item_id AND ic.obligatorio = 1
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
-              WHERE ec.estado IN ('completada', 'auditada')
-                AND ei.marcado_por IS NOT NULL
-                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$hotelCond}
-              GROUP BY u.id, u.nombre
-              ORDER BY u.nombre",
-            $params
-        );
+        return array_map(static fn (array $t): array => [
+            'usuario_id'         => (int) $t['usuario_id'],
+            'nombre'             => (string) $t['nombre'],
+            'habitaciones'       => (int) $t['habitaciones'],
+            'rechazadas'         => (int) $t['rechazadas_hab'],
+            'creditos'           => (int) $t['creditos'],
+            'creditos_asignados' => (int) $t['esperado_creditos'],
+            'eficiencia_pct'     => $t['eficiencia_pct'],
+        ], $this->fichaTrabajadores($desde, $hasta, $hotel));
     }
 
     /** @return list<array<string, mixed>> */
     public function kpisPorTrabajadora(string $desde, string $hasta, string $hotel): array
     {
-        $lista = $this->trabajadoras($desde, $hasta, $hotel);
-        $result = [];
-        foreach ($lista as $t) {
-            $uid = (int) $t['usuario_id'];
-            $result[] = [
-                'usuario_id' => $uid,
-                'nombre'     => $t['nombre'],
-                'kpis'       => $this->kpis($desde, $hasta, $hotel, $uid),
-            ];
-        }
-        return $result;
+        return $this->reporteKpis($desde, $hasta, $hotel)['por_trabajadora'];
     }
 
     public function exportarCsv(string $desde, string $hasta, string $hotel, ?int $usuarioId = null): string
     {
-        $kpis           = $this->kpis($desde, $hasta, $hotel, $usuarioId);
-        $porTrabajadora = $usuarioId === null ? $this->kpisPorTrabajadora($desde, $hasta, $hotel) : [];
+        $reporte        = $this->reporteKpis($desde, $hasta, $hotel, $usuarioId, $usuarioId === null);
+        $kpis           = $reporte['kpis'];
+        $porTrabajadora = $reporte['por_trabajadora'];
 
         $hotelLabel = match ($hotel) {
             '1_sur' => 'Atankalama',
@@ -154,7 +144,7 @@ final class ReportesService
                 'T. Prom. (min)',
                 'Rechazo (%)',
                 'Eficiencia (%)',
-                'Créditos (%)',
+                'Créditos',
                 'Aprob. 1ª (%)',
                 'Productiv. (hab/día)',
                 'Desmarcados (%)',
@@ -273,7 +263,7 @@ final class ReportesService
     }
 
     /**
-     * CSV del resumen mensual (habitaciones + créditos por trabajador).
+     * CSV del resumen mensual por trabajador (mismos números que la pantalla y que la ficha del mes).
      */
     public function exportarCsvMensual(int $anio, int $mes, string $hotel): string
     {
@@ -295,26 +285,29 @@ final class ReportesService
         $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
         $rows[] = [];
-        $rows[] = ['Trabajador', 'Habitaciones limpiadas', 'Créditos obtenidos', 'Créditos máximos', '% Créditos'];
+        $rows[] = ['Trabajador', 'Habitaciones limpiadas', 'Habitaciones rechazadas', 'Créditos obtenidos', 'Créditos asignados', 'Eficiencia (%)'];
 
-        $totalHab = 0;
-        $totalCre = 0;
-        $totalMax = 0;
+        $totalHab = $totalRec = $totalCre = $totalAsig = 0;
         foreach ($filas as $f) {
-            $hab = (int) $f['habitaciones'];
-            $cre = (int) $f['creditos'];
-            $max = (int) $f['creditos_maximos'];
-            $pct = $max > 0 ? round($cre / $max * 100, 1) : '';
-            $rows[] = [$f['nombre'], $hab, $cre, $max, $pct];
-            $totalHab += $hab;
-            $totalCre += $cre;
-            $totalMax += $max;
+            $rows[] = [
+                $f['nombre'],
+                $f['habitaciones'],
+                $f['rechazadas'],
+                $f['creditos'],
+                $f['creditos_asignados'],
+                $f['eficiencia_pct'] ?? '',
+            ];
+            $totalHab  += $f['habitaciones'];
+            $totalRec  += $f['rechazadas'];
+            $totalCre  += $f['creditos'];
+            $totalAsig += $f['creditos_asignados'];
         }
 
         if (!empty($filas)) {
+            // La eficiencia del total no se deriva de estas columnas (los créditos incluyen áreas
+            // comunes, lo asignado no): se deja vacía antes que mostrar un cociente engañoso.
             $rows[] = [];
-            $pctTotal = $totalMax > 0 ? round($totalCre / $totalMax * 100, 1) : '';
-            $rows[] = ['TOTAL', $totalHab, $totalCre, $totalMax, $pctTotal];
+            $rows[] = ['TOTAL', $totalHab, $totalRec, $totalCre, $totalAsig, ''];
         }
 
         $output = "\xEF\xBB\xBF";
@@ -353,6 +346,10 @@ final class ReportesService
      * habitación, no el estado que tenía al corte de ese día — si Cloudbeds resuelve
      * una pieza recién días después, el reporte histórico de ese día ya no la mostrará.
      *
+     * El cierre automático (aprobado_automatico, cron de las 15:50 y de las 23:55) NO es una
+     * inspección: esas piezas salen como 'aprobada_automatica' (nadie la inspeccionó), no como
+     * inspeccionadas a tiempo ni fuera de plazo (corregido el 30/09/2026, R5).
+     *
      * @return array{fecha:string, hotel:string, corte:string, turnos:array<string, array{total:int, pendientes:list<array<string,mixed>>}>}
      */
     public function auditoriasPendientes(string $fecha, string $hotel): array
@@ -367,7 +364,7 @@ final class ReportesService
             "SELECT ec.id AS ejecucion_id, ec.habitacion_id, ec.timestamp_fin,
                     h.numero, h.es_nochero, h.estado AS habitacion_estado_actual,
                     ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
-                    a.id AS auditoria_id, a.created_at AS auditoria_created_at
+                    a.id AS auditoria_id, a.created_at AS auditoria_created_at, a.veredicto AS auditoria_veredicto
                FROM #__ejecuciones_checklist ec
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -392,8 +389,9 @@ final class ReportesService
 
             $estadoAuditoria = null;
             if ($f['auditoria_id'] !== null) {
-                $auditadaATiempo = (string) $f['auditoria_created_at'] < $corte;
-                if (!$auditadaATiempo) {
+                if ($f['auditoria_veredicto'] === 'aprobado_automatico') {
+                    $estadoAuditoria = 'aprobada_automatica';
+                } elseif ((string) $f['auditoria_created_at'] >= $corte) {
                     $estadoAuditoria = 'auditada_tarde';
                 }
             } elseif ($f['habitacion_estado_actual'] === Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
@@ -469,7 +467,7 @@ final class ReportesService
                         $p['numero'],
                         $p['es_nochero'] ? 'Sí' : 'No',
                         $p['hora_termino'],
-                        $p['estado_auditoria'] === 'sin_auditar' ? 'Sin inspeccionar' : 'Inspeccionada fuera de plazo',
+                        self::ESTADOS_PENDIENTE[$p['estado_auditoria']] ?? $p['estado_auditoria'],
                     ];
                 }
             }
@@ -506,244 +504,132 @@ final class ReportesService
         );
     }
 
-    // ─── KPIs individuales ────────────────────────────────────────────────────
+    // ─── KPIs de arriba, armados desde la ficha ───────────────────────────────
 
-    /** @return array<string, mixed> */
-    private function kpiTiempoPromedio(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
+    /**
+     * Las 7 tarjetas (y cada fila del detalle). Tiempo, eficiencia y créditos salen de la ficha.
+     * Rechazo y aprobación a la 1ª del EQUIPO salen de la sección de inspección: solo veredictos
+     * humanos y por fecha de limpieza, porque el cierre automático no es una inspección. Los de UNA
+     * trabajadora salen de su fila de la ficha, donde lo que aprobó el cierre automático cuenta como
+     * aprobado (decisión de Gerencia del 16/09: nadie pierde puntos porque no alcanzaron a inspeccionar).
+     *
+     * @param list<array<string, mixed>> $ficha
+     * @param array<string, mixed>|null  $seccion seccionSupervisora() del mismo período (solo para el equipo)
+     * @param array{sigma_amarillo:int, sigma_rojo:int, min_datos:int, meta_cobertura:int, meta_rechazo:int, meta_aprobacion:int} $config
+     * @return array<string, mixed>
+     */
+    private function armarKpis(array $ficha, ?array $seccion, string $desde, string $hasta, string $hotel, ?int $usuarioId, array $config): array
     {
-        $params = Fechas::rangoUtc($desde, $hasta);
-        $h = $this->hotelCond($hotel, $params);
-        $u = $this->userCond($usuarioId, $params, 'ec');
+        $filas = $usuarioId === null
+            ? $ficha
+            : array_values(array_filter($ficha, static fn (array $t): bool => (int) $t['usuario_id'] === $usuarioId));
+        $suma = static fn (string $campo): int|float => array_sum(array_column($filas, $campo));
+        $metaRec = (float) $config['meta_rechazo'];
+        $metaApr = (float) $config['meta_aprobacion'];
 
-        $fila = Database::fetchOne(
-            "SELECT ROUND(AVG(" . Database::diffMinutosSql('ec.timestamp_inicio', 'ec.timestamp_fin') . "), 1) AS valor,
-                    COUNT(*) AS total
-               FROM #__ejecuciones_checklist ec
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE ec.timestamp_fin IS NOT NULL
-                AND ec.estado IN ('completada', 'auditada')
-                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$h}{$u}",
-            $params
-        );
+        // Tiempo por limpieza: piezas de huésped, sin el atajo «Marcar limpia». La trabajadora ve
+        // exactamente el de su fila de la ficha; el equipo, el promedio de todas las limpiezas.
+        $ejecuciones = (int) $suma('ejecuciones');
+        $tiempo = $usuarioId !== null
+            ? ($filas[0]['tiempo_promedio'] ?? null)
+            : ($ejecuciones > 0 ? round((float) $suma('minutos_total') / $ejecuciones, 1) : null);
+        $metaTiempo = 30.0;
 
-        $total = (int) ($fila['total'] ?? 0);
-        $valor = $total > 0 ? round((float) $fila['valor'], 1) : null;
-        $meta  = 30.0;
+        if ($seccion !== null) {
+            $rechazo      = $seccion['rechazo_pct'];
+            $aprobacion   = $seccion['aprobacion_pct'];
+            $ctxRechazo   = "{$seccion['rechazadas']} de {$seccion['auditadas_humanas']} inspeccionadas";
+            $ctxAprob     = "{$seccion['aprobadas']} de {$seccion['auditadas_humanas']} inspeccionadas";
+        } else {
+            $a = (int) $suma('habitaciones');
+            $r = (int) $suma('rechazadas_hab');
+            $rechazo    = $this->pct($r, $a + $r);
+            $aprobacion = $this->pct($a, $a + $r);
+            $ctxRechazo = "{$r} de " . ($a + $r) . ' piezas';
+            $ctxAprob   = "{$a} de " . ($a + $r) . ' piezas (cuenta las aprobadas por el cierre automático)';
+        }
+
+        $asignados   = (int) $suma('esperado_creditos');
+        $creditosHab = (int) $suma('creditos_hab');
+        $eficiencia  = $this->pct($creditosHab, $asignados);
+        $metaEfic    = 85.0;
 
         return [
-            'valor'    => $valor,
-            'unidad'   => 'min',
-            'meta'     => $meta,
-            'contexto' => "{$total} ejecuciones",
-            'estado'   => $valor === null ? 'sin_datos' : ($valor <= $meta ? 'ok' : ($valor <= $meta * 1.15 ? 'alerta' : 'critico')),
+            'tiempo_promedio' => [
+                'valor'    => $tiempo,
+                'unidad'   => 'min',
+                'meta'     => $metaTiempo,
+                'contexto' => "{$ejecuciones} limpiezas",
+                'estado'   => $tiempo === null ? 'sin_datos' : ($tiempo <= $metaTiempo ? 'ok' : ($tiempo <= $metaTiempo * 1.15 ? 'alerta' : 'critico')),
+            ],
+            'tasa_rechazo' => [
+                'valor'    => $rechazo,
+                'unidad'   => '%',
+                'meta'     => $metaRec,
+                'contexto' => $rechazo === null ? '0 inspecciones' : $ctxRechazo,
+                'estado'   => $this->kpiVsMeta($rechazo, null, $metaRec, 'menos_mejor', $metaRec + 2)['estado'],
+            ],
+            'eficiencia' => [
+                'valor'    => $eficiencia,
+                'unidad'   => '%',
+                'meta'     => $metaEfic,
+                'contexto' => $eficiencia === null ? '0 créditos asignados' : "{$creditosHab} de {$asignados} créditos asignados",
+                'estado'   => $eficiencia === null ? 'sin_datos' : ($eficiencia >= $metaEfic ? 'ok' : ($eficiencia >= 75.0 ? 'alerta' : 'critico')),
+            ],
+            // Créditos = el mismo número que la ficha y el resumen mensual (escalera 100/50/0, áreas comunes incluidas).
+            'creditos' => $filas === []
+                ? ['valor' => null, 'unidad' => 'cr', 'meta' => null, 'contexto' => '0 créditos', 'estado' => 'sin_datos']
+                : [
+                    'valor'    => (int) $suma('creditos'),
+                    'unidad'   => 'cr',
+                    'meta'     => null,
+                    'contexto' => (int) $suma('creditos_auditados') . ' inspeccionados · ' . (int) $suma('creditos_no_auditados') . ' sin inspección',
+                    'estado'   => 'informativo',
+                ],
+            'aprobacion_primera' => [
+                'valor'    => $aprobacion,
+                'unidad'   => '%',
+                'meta'     => $metaApr,
+                'contexto' => $aprobacion === null ? '0 inspecciones' : $ctxAprob,
+                'estado'   => $this->kpiVsMeta($aprobacion, null, $metaApr, 'mas_mejor', $metaApr - 10)['estado'],
+            ],
+            'productividad'    => $this->kpiProductividad($desde, $hasta, $hotel, $usuarioId),
+            'tasa_desmarcados' => $this->kpiTasaDesmarcados($desde, $hasta, $hotel, $usuarioId),
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function kpiTasaRechazo(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
+    /**
+     * @param list<array<string, mixed>> $ficha
+     * @return list<array{usuario_id:int, nombre:string}>
+     */
+    private function listaTrabajadoras(array $ficha): array
     {
-        $params = Fechas::rangoUtc($desde, $hasta);
-        $h = $this->hotelCond($hotel, $params);
-        // Filtro por la trabajadora que limpió (no el auditor)
-        $u = '';
-        if ($usuarioId !== null) {
-            $params[] = $usuarioId;
-            $u = ' AND ec.usuario_id = ?';
-        }
-
-        $fila = Database::fetchOne(
-            "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN a.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas
-               FROM #__auditorias a
-               JOIN #__habitaciones h ON h.id = a.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
-              WHERE a.created_at >= ? AND a.created_at < ?
-                    {$h}{$u}",
-            $params
+        return array_map(
+            static fn (array $t): array => ['usuario_id' => (int) $t['usuario_id'], 'nombre' => (string) $t['nombre']],
+            $ficha
         );
-
-        $total = (int) ($fila['total'] ?? 0);
-        if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 5.0, 'contexto' => '0 inspecciones', 'estado' => 'sin_datos'];
-        }
-
-        $rechazadas = (int) ($fila['rechazadas'] ?? 0);
-        $valor      = round($rechazadas / $total * 100, 1);
-        $meta       = 5.0;
-
-        return [
-            'valor'    => $valor,
-            'unidad'   => '%',
-            'meta'     => $meta,
-            'contexto' => "{$rechazadas} de {$total} inspeccionadas",
-            'estado'   => $valor <= $meta ? 'ok' : ($valor <= $meta * 1.4 ? 'alerta' : 'critico'),
-        ];
     }
 
-    /** @return array<string, mixed> */
-    private function kpiEficiencia(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
+    /**
+     * Umbrales y metas de Reportes (Ajustes → Alertas), saneados.
+     *
+     * @return array{sigma_amarillo:int, sigma_rojo:int, min_datos:int, meta_cobertura:int, meta_rechazo:int, meta_aprobacion:int}
+     */
+    private function configReportes(): array
     {
-        // OJO: acá NO va la conversión a UTC. Este KPI filtra por asignaciones.fecha,
-        // que es un DATE con la fecha LOCAL del turno (no un timestamp UTC): comparar
-        // fecha local contra fecha local ya es correcto.
-        $params = [$desde, $hasta];
-        $h = $this->hotelCond($hotel, $params);
-        $u = '';
-        if ($usuarioId !== null) {
-            $params[] = $usuarioId;
-            $u = ' AND asg.usuario_id = ?';
-        }
-
-        $fila = Database::fetchOne(
-            "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN ec.estado IN ('completada', 'auditada') THEN 1 ELSE 0 END) AS completadas
-               FROM #__asignaciones asg
-               JOIN #__habitaciones h ON h.id = asg.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-          LEFT JOIN #__ejecuciones_checklist ec ON ec.asignacion_id = asg.id
-              WHERE asg.fecha BETWEEN ? AND ?
-                AND asg.activa = 1
-                    {$h}{$u}",
-            $params
-        );
-
-        $total = (int) ($fila['total'] ?? 0);
-        if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 85.0, 'contexto' => '0 asignaciones', 'estado' => 'sin_datos'];
-        }
-
-        $completadas = (int) ($fila['completadas'] ?? 0);
-        $valor       = round($completadas / $total * 100, 1);
-        $meta        = 85.0;
-
-        return [
-            'valor'    => $valor,
-            'unidad'   => '%',
-            'meta'     => $meta,
-            'contexto' => "{$completadas} de {$total} asignadas",
-            'estado'   => $valor >= $meta ? 'ok' : ($valor >= 75.0 ? 'alerta' : 'critico'),
+        $alertas = new AlertasService();
+        $config = [
+            'sigma_amarillo'  => max(1, $alertas->obtenerConfigInt('reportes_sigma_amarillo')),
+            'sigma_rojo'      => max(1, $alertas->obtenerConfigInt('reportes_sigma_rojo')),
+            'min_datos'       => max(1, $alertas->obtenerConfigInt('reportes_min_datos')),
+            'meta_cobertura'  => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_cobertura'))),
+            'meta_rechazo'    => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_rechazo'))),
+            'meta_aprobacion' => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_aprobacion'))),
         ];
-    }
-
-    /** @return array<string, mixed> */
-    private function kpiCreditos(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
-    {
-        // Créditos por persona (marcado_por), solo obligatorios, pesados por ic.creditos. Ver docs/creditos-rework.md.
-        // Numerador = suma de ic.creditos de obligatorios marcados y no desmarcados, de ejecuciones
-        //             NO rechazadas (así los ítems heredados en la re-limpieza no se doble-cuentan).
-        $pC = Fechas::rangoUtc($desde, $hasta);
-        $hC = $this->hotelCondCreditos($hotel, $pC); // incluye áreas comunes (jul-2026)
-        $uC = $this->marcadoPorCond($usuarioId, $pC);
-        $creditos = (int) Database::fetchColumn(
-            "SELECT COALESCE(SUM(ic.creditos), 0)
-               FROM #__ejecuciones_items ei
-               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
-               JOIN #__items_checklist ic ON ic.id = ei.item_id
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
-              WHERE ei.marcado = 1 AND ei.desmarcado_por_auditor = 0
-                AND ic.obligatorio = 1
-                AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
-                AND ec.estado IN ('completada', 'auditada')
-                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$hC}{$uC}",
-            $pC
-        );
-
-        // Intentos fallidos = créditos de obligatorios desmarcados por el auditor (atribuidos a
-        // quien los marcó mal). El denominador = créditos + fallidos → el % castiga el error.
-        $pD = Fechas::rangoUtc($desde, $hasta);
-        $hD = $this->hotelCondCreditos($hotel, $pD); // simetría con el numerador
-        $uD = $this->marcadoPorCond($usuarioId, $pD);
-        $desmarcados = (int) Database::fetchColumn(
-            "SELECT COALESCE(SUM(ic.creditos), 0)
-               FROM #__ejecuciones_items ei
-               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
-               JOIN #__items_checklist ic ON ic.id = ei.item_id
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE ei.desmarcado_por_auditor = 1 AND ic.obligatorio = 1
-                AND ei.marcado_por IS NOT NULL
-                AND ec.estado IN ('completada', 'auditada')
-                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$hD}{$uD}",
-            $pD
-        );
-
-        $total = $creditos + $desmarcados; // créditos de obligatorios intentados
-        if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 90.0, 'contexto' => '0 créditos', 'estado' => 'sin_datos'];
+        if ($config['sigma_rojo'] <= $config['sigma_amarillo']) {
+            $config['sigma_rojo'] = $config['sigma_amarillo'] + 1;
         }
-
-        $valor = round($creditos / $total * 100, 1);
-        $meta  = 90.0;
-
-        return [
-            'valor'    => $valor,
-            'unidad'   => '%',
-            'meta'     => $meta,
-            'contexto' => "{$creditos} / {$total} créditos",
-            'estado'   => $valor >= $meta ? 'ok' : ($valor >= 80.0 ? 'alerta' : 'critico'),
-        ];
-    }
-
-    /** @return array<string, mixed> */
-    private function kpiAprobacionPrimera(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
-    {
-        $params = Fechas::rangoUtc($desde, $hasta);
-        $h = $this->hotelCond($hotel, $params);
-        $u = '';
-        if ($usuarioId !== null) {
-            $params[] = $usuarioId;
-            $u = ' AND ec.usuario_id = ?';
-        }
-
-        // aprobado_automatico (cierre de día 23:55, sin inspección real) — regla del 15/09:
-        // «aprobada para el trabajador, no auditada para la supervisora».
-        //  - De UN trabajador: cuenta como aprobada (decisión de Gerencia 2026-09-16: no pierde
-        //    puntos porque nadie alcanzó a inspeccionar).
-        //  - De la sección (sin trabajador): queda FUERA del numerador y del total — mide
-        //    inspecciones reales, igual que «Aprobación a la 1ª (sección)» de la ficha (S2.3).
-        $porTrabajador = $usuarioId !== null;
-        $veredictosOk = $porTrabajador
-            ? "'aprobado', 'aprobado_con_observacion', 'aprobado_automatico'"
-            : "'aprobado', 'aprobado_con_observacion'";
-        $sinAutomaticas = $porTrabajador ? '' : " AND a.veredicto != 'aprobado_automatico'";
-
-        $fila = Database::fetchOne(
-            "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN a.veredicto IN ({$veredictosOk}) THEN 1 ELSE 0 END) AS aprobadas
-               FROM #__auditorias a
-               JOIN #__habitaciones h ON h.id = a.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-               JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
-              WHERE a.created_at >= ? AND a.created_at < ?{$sinAutomaticas}
-                    {$h}{$u}",
-            $params
-        );
-
-        $total = (int) ($fila['total'] ?? 0);
-        if ($total === 0) {
-            return ['valor' => null, 'unidad' => '%', 'meta' => 95.0, 'contexto' => '0 inspecciones', 'estado' => 'sin_datos'];
-        }
-
-        $aprobadas = (int) ($fila['aprobadas'] ?? 0);
-        $valor     = round($aprobadas / $total * 100, 1);
-        $meta      = 95.0;
-
-        return [
-            'valor'    => $valor,
-            'unidad'   => '%',
-            'meta'     => $meta,
-            'contexto' => $porTrabajador
-                ? "{$aprobadas} de {$total} (cuenta las aprobadas en el cierre automático)"
-                : "{$aprobadas} de {$total} inspeccionadas",
-            'estado'   => $valor >= $meta ? 'ok' : ($valor >= 85.0 ? 'alerta' : 'critico'),
-        ];
+        return $config;
     }
 
     /** @return array<string, mixed> */
@@ -764,6 +650,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::CON_TRABAJO . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}",
             $params
@@ -851,6 +738,16 @@ final class ReportesService
     private const VEREDICTOS_HUMANOS = "('aprobado', 'aprobado_con_observacion', 'rechazado')";
     /** RUT del usuario técnico que firma el cierre de día automático (no es inspectora). */
     private const RUT_SISTEMA = 'SISTEMA-CRON';
+    /**
+     * Ejecución con trabajo real: su DUEÑA marcó al menos un ítem. El atajo «Marcar limpia»
+     * (ChecklistService::marcarLimpiaManual) crea una ejecución SIN ítems a nombre de quien lo usó,
+     * con inicio = fin: no es una limpieza de esa persona y no entra a tiempos, productividad,
+     * rechazos ni Asignadas. Tampoco cuenta una re-limpieza que solo trae ítems HEREDADOS de otra
+     * persona y se cerró con el atajo sin que la dueña marcara nada. marcado_por sobrevive al
+     * desmarcado del auditor, así que un rechazo con todos los ítems desmarcados sigue contando.
+     * Requiere el alias `ec`.
+     */
+    private const CON_TRABAJO = 'EXISTS (SELECT 1 FROM #__ejecuciones_items eit WHERE eit.ejecucion_id = ec.id AND eit.marcado_por = ec.usuario_id)';
     /** Antifraude del tiempo por auditación: fuera de [30 s, 4 h] se considera ruido (pausas, aperturas accidentales). */
     private const AUDITACION_MIN_MINUTOS = 0.5;
     private const AUDITACION_MAX_MINUTOS = 240.0;
@@ -872,18 +769,7 @@ final class ReportesService
      */
     public function fichaKpis(string $desde, string $hasta, string $hotel, bool $incluirSupervisoras = true): array
     {
-        $alertas = new AlertasService();
-        $config = [
-            'sigma_amarillo' => max(1, $alertas->obtenerConfigInt('reportes_sigma_amarillo')),
-            'sigma_rojo'     => max(1, $alertas->obtenerConfigInt('reportes_sigma_rojo')),
-            'min_datos'      => max(1, $alertas->obtenerConfigInt('reportes_min_datos')),
-            'meta_cobertura'  => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_cobertura'))),
-            'meta_rechazo'    => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_rechazo'))),
-            'meta_aprobacion' => min(100, max(1, $alertas->obtenerConfigInt('reportes_meta_aprobacion'))),
-        ];
-        if ($config['sigma_rojo'] <= $config['sigma_amarillo']) {
-            $config['sigma_rojo'] = $config['sigma_amarillo'] + 1;
-        }
+        $config = $this->configReportes();
 
         $trabajadores = $this->fichaTrabajadores($desde, $hasta, $hotel);
         $comparativa  = $this->fichaComparativa($trabajadores, $config);
@@ -920,11 +806,16 @@ final class ReportesService
             }
         };
 
-        // Ciclo = (pieza, fecha del turno, franja): la unidad en que se cuentan E, A y R — "una vez
-        // por habitación por persona" de la ficha, aplicada a cada turno; en un rango largo cada
-        // turno vuelve a contar y E·A·R quedan en la misma unidad que los créditos (por limpieza).
-        // Toda ejecución cuelga de una asignación (asignacion_id NOT NULL): la fecha local sale de ahí.
-        $ciclo = static fn (array $f): string => $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '');
+        // Ciclo = (pieza, fecha del turno, franja, vuelta): la unidad en que se cuentan E, A y R — "una
+        // vez por habitación por persona" de la ficha, aplicada a cada limpieza pedida; en un rango
+        // largo cada turno vuelve a contar y E·A·R quedan en la misma unidad que los créditos. Toda
+        // ejecución cuelga de una asignación (asignacion_id NOT NULL): la fecha local sale de ahí.
+        // La VUELTA separa las limpiezas nuevas del mismo día sobre la misma asignación (nochero de
+        // las 16:00, turnover): sin ella la 2ª limpieza sumaba créditos contra una sola Asignada y la
+        // eficiencia pasaba del 100 % (decisión de Nicolás, 30/09/2026). Ver vueltasPorEjecucion().
+        $vueltas = $this->vueltasPorEjecucion($desde, $hasta);
+        $ciclo = static fn (array $f): string => $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '')
+            . ':' . ($vueltas[(int) $f['ejecucion_id']] ?? 0);
         $creditosPorTemplate = []; // cache template_id → créditos obligatorios vigentes
 
         // ── N2: rechazadas (R) por dueño de la ejecución, una vez por ciclo; pierde TODOS los créditos
@@ -934,7 +825,7 @@ final class ReportesService
         $h = $this->hotelCond($hotel, $p);
         $rechazos = []; // uid → ciclo → lista cronológica de timestamp_inicio de sus intentos rechazados
         foreach (Database::fetchAll(
-            "SELECT ec.usuario_id, u.nombre, ec.habitacion_id, ec.timestamp_inicio, ec.template_id, asg.fecha, asg.franja
+            "SELECT ec.id AS ejecucion_id, ec.usuario_id, u.nombre, ec.habitacion_id, ec.timestamp_inicio, ec.template_id, asg.fecha, asg.franja
                FROM #__ejecuciones_checklist ec
                JOIN #__auditorias a ON a.ejecucion_id = ec.id AND a.veredicto = 'rechazado'
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
@@ -942,6 +833,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                AND " . self::CON_TRABAJO . "
                     {$h}
               ORDER BY ec.timestamp_inicio",
             $p
@@ -1020,7 +912,10 @@ final class ReportesService
             $filas[$uid][$humana ? 'creditos_auditados' : 'creditos_no_auditados'] += $creditos;
             if ((int) $f['es_espacio_comun'] === 0) {
                 $filas[$uid]['creditos_hab'] += $creditos;
-                if ($rechazosPrevios === 0) { // tras un rechazo la pieza sigue siendo rechazada para ella, la rehaga quien la rehaga
+                // La pieza cuenta como hecha solo para la DUEÑA de la limpieza: los ítems heredados de otra
+                // persona (marcado_por ≠ dueña) le dan créditos a quien los marcó, pero no una pieza aprobada —
+                // tras un rechazo la pieza sigue siendo rechazada para ella, la rehaga quien la rehaga y el día que sea.
+                if ($rechazosPrevios === 0 && (int) $f['dueno_id'] === $uid) {
                     $ciclosA[$uid][$c] = ($ciclosA[$uid][$c] ?? false) || $humana;
                 }
             }
@@ -1044,6 +939,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_fin IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
+                AND " . self::CON_TRABAJO . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}
               GROUP BY ec.usuario_id, u.nombre",
@@ -1056,20 +952,39 @@ final class ReportesService
             $filas[$uid]['minutos_total']   = round((float) $f['minutos_total'], 1);
         }
 
-        // ── N2: Esperado (E). Una vez por pieza por persona POR CICLO, PEGAJOSO: cuenta aunque la
-        // rechacen o la pieza pase a otra persona (regla de la ficha). Una asignación cuenta si
-        // siguió activa, si tuvo trabajo (ejecución) o si la pieza pasó después a otra persona; NO
-        // cuenta si se retiró sin trabajo y nadie más la tomó (autocancelada porque la pieza ya
-        // estaba limpia al llegar el día, o sacada del plan): ahí no había nada que hacer.
+        // ── N2: Asignadas (E). Una vez por pieza por persona POR CICLO, PEGAJOSO: cuenta aunque la
+        // rechacen o la pieza pase a otra persona (regla de la ficha). Por asignación:
+        //  · con limpiezas suyas → un ciclo por cada vuelta que trabajó: el nochero de la tarde y el
+        //    turnover suman otra pieza asignada, con los créditos del checklist de esa limpieza;
+        //  · solo con el atajo «Marcar limpia» (otra persona la dio por limpia) → no cuenta, no le
+        //    quedó nada que hacer;
+        //  · sin ejecuciones → cuenta si siguió activa o si la pieza pasó después a otra persona; NO
+        //    cuenta si se retiró sin trabajo y nadie más la tomó (autocancelada porque la pieza ya
+        //    estaba limpia al llegar el día, o sacada del plan): ahí no había nada que hacer.
         // Créditos = checklist obligatorio vigente: el de la ejecución si la hubo (exacto), si no
         // el que la app elegiría hoy (templateParaHabitacion).
         // asignaciones.fecha es DATE local: se compara contra desde/hasta sin pasar por UTC.
+        $pX = [$desde, $hasta];
+        $hX = $this->hotelCond($hotel, $pX);
+        $ejecucionesDe = []; // asignacion_id → sus ejecuciones
+        foreach (Database::fetchAll(
+            "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado,
+                    CASE WHEN " . self::CON_TRABAJO . " THEN 1 ELSE 0 END AS con_trabajo
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = asg.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE asg.fecha BETWEEN ? AND ?
+                    {$hX}
+              ORDER BY ec.id",
+            $pX
+        ) as $x) {
+            $ejecucionesDe[(int) $x['asignacion_id']][] = $x;
+        }
         $pE = [$desde, $hasta];
         $hE = $this->hotelCond($hotel, $pE);
         $esperado = Database::fetchAll(
-            "SELECT asg.usuario_id, u.nombre, asg.habitacion_id, asg.fecha, asg.franja, asg.activa,
-                    (SELECT ec.template_id FROM #__ejecuciones_checklist ec
-                      WHERE ec.asignacion_id = asg.id ORDER BY ec.id DESC LIMIT 1) AS template_id,
+            "SELECT asg.id, asg.usuario_id, u.nombre, asg.habitacion_id, asg.fecha, asg.franja, asg.activa,
                     (SELECT COUNT(*) FROM #__asignaciones o
                       WHERE o.habitacion_id = asg.habitacion_id AND o.fecha = asg.fecha
                         AND COALESCE(o.franja, '') = COALESCE(asg.franja, '')
@@ -1085,16 +1000,37 @@ final class ReportesService
         );
         $ciclosE = []; // uid → ciclo → nombre, habitacion_id, cuenta, template_id
         foreach ($esperado as $f) {
-            $uid = (int) $f['usuario_id'];
-            $c   = $ciclo($f);
-            $ciclosE[$uid][$c] ??= [
-                'nombre' => (string) $f['nombre'], 'habitacion_id' => (int) $f['habitacion_id'],
-                'cuenta' => false, 'template_id' => null,
-            ];
-            $cuenta = (int) $f['activa'] === 1 || $f['template_id'] !== null || (int) $f['pasada_a_otro'] > 0;
-            $ciclosE[$uid][$c]['cuenta'] = $ciclosE[$uid][$c]['cuenta'] || $cuenta;
-            if ($ciclosE[$uid][$c]['template_id'] === null && $f['template_id'] !== null) {
-                $ciclosE[$uid][$c]['template_id'] = (int) $f['template_id'];
+            $uid  = (int) $f['usuario_id'];
+            $base = $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '') . ':';
+            $trabajadas = []; // vuelta → template de su limpieza
+            $soloAtajo  = false;
+            foreach ($ejecucionesDe[(int) $f['id']] ?? [] as $x) {
+                // Una limpieza recién empezada (en curso, aún sin ítems) también es trabajo suyo.
+                if ((int) $x['con_trabajo'] === 1 || $x['estado'] === 'en_progreso') {
+                    $trabajadas[$vueltas[(int) $x['id']] ?? 0] ??= (int) $x['template_id'];
+                } else {
+                    $soloAtajo = true;
+                }
+            }
+            if ($trabajadas === []) {
+                if ($soloAtajo) {
+                    continue;
+                }
+                $trabajadas = [0 => null];
+                $cuenta = (int) $f['activa'] === 1 || (int) $f['pasada_a_otro'] > 0;
+            } else {
+                $cuenta = true;
+            }
+            foreach ($trabajadas as $vuelta => $templateId) {
+                $c = $base . $vuelta;
+                $ciclosE[$uid][$c] ??= [
+                    'nombre' => (string) $f['nombre'], 'habitacion_id' => (int) $f['habitacion_id'],
+                    'cuenta' => false, 'template_id' => null,
+                ];
+                $ciclosE[$uid][$c]['cuenta'] = $ciclosE[$uid][$c]['cuenta'] || $cuenta;
+                if ($ciclosE[$uid][$c]['template_id'] === null && $templateId !== null) {
+                    $ciclosE[$uid][$c]['template_id'] = $templateId;
+                }
             }
         }
         $templatePorHab = []; // cache habitación → template vigente (sin ejecución)
@@ -1154,9 +1090,48 @@ final class ReportesService
     }
 
     /**
+     * Vuelta de cada limpieza terminada dentro de su (pieza, fecha del turno, franja). La primera es
+     * la vuelta 0. Una limpieza que empieza DESPUÉS de otra que no fue rechazada (aprobada, aprobada
+     * por el cierre automático o todavía sin inspeccionar) es trabajo nuevo —el nochero de las 16:00,
+     * un turnover— y abre la vuelta siguiente: cuenta como otra pieza asignada. Una re-limpieza tras
+     * un RECHAZO sigue en la misma vuelta: es el mismo ciclo, con la escalera 100/50/0.
+     * Se calcula con un día de margen a cada lado del rango para que un ciclo reciba la misma vuelta
+     * en todas las consultas de la ficha, las que filtran por fecha del turno (Asignadas) y las que
+     * filtran por hora de inicio en UTC (créditos, piezas, rechazos).
+     *
+     * @return array<int, int> ejecucion_id → vuelta
+     */
+    private function vueltasPorEjecucion(string $desde, string $hasta): array
+    {
+        $filas = Database::fetchAll(
+            "SELECT ec.id, ec.habitacion_id, asg.fecha, asg.franja, a.veredicto
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND asg.fecha BETWEEN ? AND ?
+              ORDER BY ec.timestamp_inicio, ec.id",
+            [date('Y-m-d', strtotime($desde . ' -1 day')), date('Y-m-d', strtotime($hasta . ' +1 day'))]
+        );
+        $vueltas = [];
+        $ciclos  = []; // pieza:fecha:franja → [vuelta en curso, ¿la última limpieza quedó sin rechazo?]
+        foreach ($filas as $f) {
+            $base = $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '');
+            if (!isset($ciclos[$base])) {
+                $ciclos[$base] = [0, false];
+            } elseif ($ciclos[$base][1]) {
+                $ciclos[$base][0]++;
+            }
+            $vueltas[(int) $f['id']] = $ciclos[$base][0];
+            $ciclos[$base][1] = $f['veredicto'] !== 'rechazado';
+        }
+        return $vueltas;
+    }
+
+    /**
      * Trabajador N3: promedio y desviación estándar (σ) del equipo por KPI, y por persona
      * Δ + semáforo. Solo entran al promedio (y reciben semáforo) quienes tienen al menos
-     * `min_datos` habitaciones en el período. Dirección por KPI según la ficha: más=mejor,
+     * `min_datos` piezas trabajadas (aprobadas + rechazadas) en el período. Dirección por KPI según la ficha: más=mejor,
      * menos=mejor, dos lados (tiempo y ritmo: muy lento O sospechosamente rápido alertan),
      * o informativo (créditos por hab: sin rojo). Muta $trabajadores agregando 'cmp' y
      * 'datos_suficientes'.
@@ -1176,8 +1151,10 @@ final class ReportesService
             'creditos_por_hab' => 'informativo',
         ];
 
+        // El mínimo se mide sobre las piezas TRABAJADAS (aprobadas + rechazadas): si contara solo las
+        // aprobadas, quien más rechazos tiene quedaría en «pocos datos», sin semáforo y fuera del promedio.
         foreach ($trabajadores as &$t) {
-            $t['datos_suficientes'] = $t['habitaciones'] >= $config['min_datos'];
+            $t['datos_suficientes'] = ($t['habitaciones'] + $t['rechazadas_hab']) >= $config['min_datos'];
         }
         unset($t);
 
@@ -1357,7 +1334,7 @@ final class ReportesService
      * del turno de la asignación). Sin calendario ese día → «Sin turno», así se ve también si el
      * calendario se mantiene. El total de la sección es la suma de los turnos (mismas filas).
      *
-     * @return array{completadas:int, auditadas_humanas:int, cobertura_pct:?float, rechazo_pct:?float, aprobacion_pct:?float, por_turno:list<array<string, mixed>>}
+     * @return array{completadas:int, auditadas_humanas:int, rechazadas:int, aprobadas:int, cobertura_pct:?float, rechazo_pct:?float, aprobacion_pct:?float, por_turno:list<array<string, mixed>>}
      */
     private function seccionSupervisora(string $desde, string $hasta, string $hotel): array
     {
@@ -1417,6 +1394,8 @@ final class ReportesService
         return [
             'completadas'       => $total['completadas'],
             'auditadas_humanas' => $total['auditadas_humanas'],
+            'rechazadas'        => $total['rechazadas'],
+            'aprobadas'         => $total['aprobadas'],
             'cobertura_pct'     => $this->pct($total['auditadas_humanas'], $total['completadas']),
             'rechazo_pct'       => $this->pct($total['rechazadas'], $total['auditadas_humanas']),
             'aprobacion_pct'    => $this->pct($total['aprobadas'], $total['auditadas_humanas']),
@@ -1506,16 +1485,6 @@ final class ReportesService
         return '';
     }
 
-    /** Filtro por la persona que marcó el ítem (para créditos por marcado_por). */
-    private function marcadoPorCond(?int $usuarioId, array &$params): string
-    {
-        if ($usuarioId !== null) {
-            $params[] = $usuarioId;
-            return ' AND ei.marcado_por = ?';
-        }
-        return '';
-    }
-
     private function estadoLabel(string $estado): string
     {
         return match ($estado) {
@@ -1534,7 +1503,7 @@ final class ReportesService
             'tiempo_promedio'    => 'Tiempo promedio de limpieza',
             'tasa_rechazo'       => 'Tasa de rechazo',
             'eficiencia'         => 'Eficiencia del equipo',
-            'creditos'           => 'Créditos obtenidos / máximos',
+            'creditos'           => 'Créditos obtenidos',
             'aprobacion_primera' => 'Aprobación a la primera',
             'productividad'      => 'Productividad promedio',
             'tasa_desmarcados'   => 'Tasa de ítems desmarcados',

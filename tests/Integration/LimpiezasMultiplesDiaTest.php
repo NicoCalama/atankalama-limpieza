@@ -133,8 +133,11 @@ final class LimpiezasMultiplesDiaTest extends TestCase
         $this->assertArrayHasKey($this->bertaId, $porId);
         $this->assertSame($this->oblCount, (int) $porId[$this->anaId]['creditos']);
         $this->assertSame($this->oblCount, (int) $porId[$this->bertaId]['creditos']);
-        // Sin desmarcados del auditor, el % de cada una es 100% (créditos == créditos_maximos).
-        $this->assertSame((int) $porId[$this->anaId]['creditos'], (int) $porId[$this->anaId]['creditos_maximos']);
+        // Cada una tenía su propia pieza asignada (franjas distintas) y la dejó bien: eficiencia 100 %.
+        $this->assertSame(1, $porId[$this->anaId]['habitaciones']);
+        $this->assertSame(1, $porId[$this->bertaId]['habitaciones']);
+        $this->assertSame(100.0, $porId[$this->anaId]['eficiencia_pct']);
+        $this->assertSame(100.0, $porId[$this->bertaId]['eficiencia_pct']);
     }
 
     public function testFranjaSePersisteYViajaALaCola(): void

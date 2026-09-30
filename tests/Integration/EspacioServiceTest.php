@@ -228,9 +228,9 @@ final class EspacioServiceTest extends TestCase
         $kpis = $rep->kpis($this->hoy, $this->hoy, 'ambos');
         // Los KPIs de piezas (tiempos, tasas) NO cuentan el espacio…
         $this->assertNull($kpis['tiempo_promedio']['valor'], 'tiempo_promedio no debe contar el espacio');
-        // …pero los CRÉDITOS SÍ (pedido de la empresa, jul-2026): 2 ítems × 1 crédito.
-        $this->assertSame('2 / 2 créditos', $kpis['creditos']['contexto']);
-        $this->assertSame(100.0, $kpis['creditos']['valor']);
+        // …pero los CRÉDITOS SÍ (pedido de la empresa, jul-2026): 2 ítems × 1 crédito, sin inspección.
+        $this->assertSame(2, $kpis['creditos']['valor']);
+        $this->assertSame('0 inspeccionados · 2 sin inspección', $kpis['creditos']['contexto']);
     }
 
     public function testCrearConCreditosPorItemYResumenMensual(): void

@@ -71,7 +71,7 @@
 
             <!-- Hotel + Trabajadora -->
             <div class="flex flex-wrap gap-2">
-                <select x-model="hotel" @change="cargar(); cargarMensual(); cargarAudit()"
+                <select x-model="hotel" @change="cargar(); cargarMensual(); cargarAudit(); cargarAuditPendientes()"
                         class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                     <option value="ambos">Ambos hoteles</option>
                     <option value="1_sur">Atankalama</option>
@@ -113,10 +113,26 @@
         <template x-if="error && !data">
             <div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
                 <i data-lucide="alert-circle" class="w-12 h-12 text-red-500"></i>
-                <p class="text-gray-600 dark:text-gray-400">No pudimos cargar los reportes.</p>
+                <p class="text-gray-600 dark:text-gray-400" x-text="error"></p>
                 <button @click="cargar()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
                     Reintentar
                 </button>
+            </div>
+        </template>
+        <!-- Error con datos anteriores en pantalla: no se deja pasar por el período nuevo -->
+        <template x-if="error && data">
+            <div class="flex flex-wrap items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
+                <p class="text-sm text-red-700 dark:text-red-300 flex-1 min-w-[200px]" x-text="error + ' Los números de abajo son de la consulta anterior.'"></p>
+                <button @click="cargar()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+            </div>
+        </template>
+        <!-- Aviso de una descarga que falló: flotante, porque los Exportar de abajo quedan lejos del inicio -->
+        <template x-if="avisoExport">
+            <div role="alert" class="fixed z-50 bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:max-w-md shadow-lg flex flex-wrap items-center gap-3 bg-amber-50 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
+                <i data-lucide="download" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0"></i>
+                <p class="text-sm text-amber-800 dark:text-amber-200 flex-1 min-w-[200px]" x-text="avisoExport"></p>
+                <button @click="avisoExport = ''" class="min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium">Cerrar</button>
             </div>
         </template>
 
@@ -296,7 +312,7 @@
                                         <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap sticky left-0 bg-white dark:bg-gray-800">
                                             <span x-text="primerNombre(t.nombre)"></span>
                                             <template x-if="!t.datos_suficientes">
-                                                <span class="ml-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500" title="Menos piezas que el mínimo configurado: sin semáforo y fuera del promedio.">pocos datos</span>
+                                                <span class="ml-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500" title="Menos piezas trabajadas (aprobadas + rechazadas) que el mínimo configurado: sin semáforo y fuera del promedio.">pocos datos</span>
                                             </template>
                                         </td>
                                         <template x-for="c in fichaCols" :key="c.clave">
@@ -325,7 +341,7 @@
                         <span><span class="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle"></span> atención (≥ <span x-text="ficha.config.sigma_amarillo"></span>σ)</span>
                         <span><span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span> fuera de rango (≥ <span x-text="ficha.config.sigma_rojo"></span>σ)</span>
                         <span><span class="inline-block w-2 h-2 rounded-full bg-blue-500 align-middle"></span> informativo</span>
-                        <span>· mínimo <span x-text="ficha.config.min_datos"></span> piezas para comparar · pasa el mouse por un punto para ver la diferencia vs. el promedio</span>
+                        <span>· mínimo <span x-text="ficha.config.min_datos"></span> piezas trabajadas (aprobadas + rechazadas) para comparar · pasa el mouse por un punto para ver la diferencia vs. el promedio</span>
                     </p>
                 </div>
             </template>
@@ -514,36 +530,53 @@
                 <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
             </template>
 
-            <template x-if="mensualData && mensualData.length === 0">
+            <template x-if="mensualError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="mensualError"></p>
+                    <button @click="cargarMensual()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!mensualError && mensualData && mensualData.length === 0">
                 <div class="p-8 text-center">
                     <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
                     <p class="text-sm text-gray-500 dark:text-gray-400">No hay actividad registrada en este mes.</p>
                 </div>
             </template>
 
-            <template x-if="mensualData && mensualData.length > 0">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-gray-50 dark:bg-gray-700/50">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
-                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitaciones</th>
-                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Créditos</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                            <template x-for="t in mensualData" :key="t.usuario_id">
-                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                    <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="t.nombre"></td>
-                                    <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></td>
-                                    <td class="px-4 py-3 text-right">
-                                        <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.creditos"></span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400" x-text="' / ' + t.creditos_maximos"></span>
-                                    </td>
+            <template x-if="!mensualError && mensualData && mensualData.length > 0">
+                <div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
+                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitaciones</th>
+                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Créditos</th>
+                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Eficiencia</th>
                                 </tr>
-                            </template>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                <template x-for="t in mensualData" :key="t.usuario_id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                        <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="t.nombre"></td>
+                                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                                            <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></span>
+                                            <template x-if="t.rechazadas > 0">
+                                                <span class="text-xs text-red-600 dark:text-red-400" x-text="' + ' + t.rechazadas + ' rech.'"></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100" x-text="t.creditos"></td>
+                                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300" x-text="fmtPct(t.eficiencia_pct)"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
+                        Mismos números que la ficha del mes: habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
+                    </p>
                 </div>
             </template>
         </section>
@@ -578,14 +611,22 @@
                 <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
             </template>
 
-            <template x-if="auditData && auditData.length === 0">
+            <template x-if="auditError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="auditError"></p>
+                    <button @click="cargarAudit()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!auditError && auditData && auditData.length === 0">
                 <div class="p-8 text-center">
                     <i data-lucide="inbox" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
                     <p class="text-sm text-gray-500 dark:text-gray-400">No hay inspecciones registradas en este mes.</p>
                 </div>
             </template>
 
-            <template x-if="auditData && auditData.length > 0">
+            <template x-if="!auditError && auditData && auditData.length > 0">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 dark:bg-gray-700/50">
@@ -648,7 +689,15 @@
                 <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
             </template>
 
-            <template x-if="auditPendData">
+            <template x-if="auditPendError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="auditPendError"></p>
+                    <button @click="cargarAuditPendientes()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!auditPendError && auditPendData">
                 <div class="p-4 space-y-5">
                     <template x-for="turno in ['mañana', 'tarde']" :key="turno">
                         <div>
@@ -684,8 +733,8 @@
                                                     <td class="px-3 py-2 text-center" x-text="p.es_nochero ? 'Sí' : '—'"></td>
                                                     <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
                                                     <td class="px-3 py-2">
-                                                        <span :class="p.estado_auditoria === 'sin_auditar' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'"
-                                                              x-text="p.estado_auditoria === 'sin_auditar' ? 'Sin inspeccionar' : 'Inspeccionada fuera de plazo'"></span>
+                                                        <span :class="p.estado_auditoria === 'auditada_tarde' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                                              x-text="estadoPendiente(p.estado_auditoria)"></span>
                                                     </td>
                                                 </tr>
                                             </template>
@@ -709,16 +758,22 @@ function reportes() {
     return {
         data:         null,
         cargando:     false,
-        error:        false,
+        error:        '',   // mensaje del último error de los KPIs ('' = sin error)
         exportando:   false,
+        kpisSeq:      0,    // igual que fichaSeq: gana la última consulta pedida, no la última en llegar
+        avisoExport:  '',   // aviso visible cuando una descarga falla
 
         preset:    'hoy',
         desde:     hoy,
         hasta:     hoy,
         hotel:     'ambos',
         usuarioId: '',
+        usuarioNombre: '', // nombre de la trabajadora filtrada: se conserva aunque no tenga actividad en el período nuevo
 
         trabajadoras: [],
+
+        // Textos de «Inspecciones pendientes al corte» (los mismos del CSV y del correo diario).
+        estadosPendiente: <?= json_encode(\Atankalama\Limpieza\Services\ReportesService::ESTADOS_PENDIENTE, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>,
 
         // Ficha de KPIs (docs/kpis-sueldos.md): Trabajador N1-N3 + Supervisora N1-N3, mismo rango/hotel.
         ficha:         null,
@@ -728,10 +783,10 @@ function reportes() {
         fichaCols: [
             { clave: 'creditos',         titulo: 'Créditos',     fmt: 'num',      cmp: true,  ayuda: 'Créditos aprobados (auditados + no auditados), incluidas áreas comunes. Solo ítems obligatorios; rechazadas fuera. Si uno mismo rehace su pieza rechazada recupera la mitad al segundo intento y nada desde el tercero.' },
             { clave: 'ab',               titulo: 'Audit. / no',  fmt: 'ab',       cmp: false, ayuda: 'Créditos auditados por una persona / no auditados (cuentan igual como aprobados).' },
-            { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una vez por pieza por turno. Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
+            { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una por limpieza (el nochero de la tarde y el turnover cuentan otra). Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
             { clave: 'cobertura_pct',    titulo: 'Cobert.',      fmt: 'pct',      cmp: false, ayuda: 'Qué parte de sus piezas fue inspeccionada por una persona (señal de la supervisión, no del trabajador).' },
             { clave: 'tiempo_promedio',  titulo: 'T. prom.',     fmt: 'min',      cmp: true,  ayuda: 'Minutos promedio por pieza. Alerta hacia los dos lados: muy lento o sospechosamente rápido.' },
-            { clave: 'esperado',         titulo: 'Asignadas',    fmt: 'esperado', cmp: false, ayuda: 'Lo asignado en el período: piezas · créditos del checklist vigente, una vez por pieza por turno. Pegajoso: no se quita al rechazar ni si la pieza pasa a otra persona. Una asignación retirada sin trabajo que nadie más tomó no cuenta.' },
+            { clave: 'esperado',         titulo: 'Asignadas',    fmt: 'esperado', cmp: false, ayuda: 'Lo asignado en el período: piezas · créditos del checklist vigente, una por limpieza pedida (el nochero de la tarde y el turnover suman otra). Pegajoso: no se quita al rechazar ni si la pieza pasa a otra persona. Una asignación retirada sin trabajo que nadie más tomó no cuenta.' },
             { clave: 'realizacion_pct',  titulo: 'Realiz.',      fmt: 'pct',      cmp: true,  ayuda: '(Aprobadas + Rechazadas) ÷ Asignadas — cuánto de lo asignado ejecutó.' },
             { clave: 'cumplimiento_pct', titulo: 'Cumplim.',     fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ Asignadas — cuánto de lo asignado quedó bien.' },
             { clave: 'calidad_pct',      titulo: 'Calidad',      fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ (Aprobadas + Rechazadas) — de lo que hizo, cuánto pasó.' },
@@ -748,18 +803,24 @@ function reportes() {
         mensualData:       null,
         mensualCargando:   false,
         mensualExportando: false,
+        mensualError:      '',
+        mensualSeq:        0,
 
         // Resumen mensual de auditorías
         auditMes:        window.hoyServidor().slice(0, 7),
         auditData:       null,
         auditCargando:   false,
         auditExportando: false,
+        auditError:      '',
+        auditSeq:        0,
 
         // Auditorías pendientes al corte de las 23:50 (día puntual, no rango)
         auditPendFecha:      window.hoyServidor(),
         auditPendData:       null,
         auditPendCargando:   false,
         auditPendExportando: false,
+        auditPendError:      '',
+        auditPendSeq:        0,
 
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
@@ -791,10 +852,24 @@ function reportes() {
             if (valor !== 'personalizado') this.cargar();
         },
 
+        // Mensaje amable para una respuesta fallida. Un error NUNCA se muestra como «sin actividad»:
+        // quien revisa el mes para sueldos creería que nadie trabajó.
+        mensajeError(resp, json) {
+            if (resp && resp.status === 401) return 'Tu sesión expiró. Vuelve a iniciar sesión para ver los reportes.';
+            if (json && json.error && json.error.mensaje) return json.error.mensaje;
+            return 'No pudimos cargar esta información, intenta de nuevo en un momento.';
+        },
+
         async cargar() {
+            var seq = ++this.kpisSeq;
             this.cargando = true;
-            this.error    = false;
+            this.error    = '';
+            if (this.usuarioId) {
+                var elegida = this.trabajadoras.find(t => String(t.usuario_id) === String(this.usuarioId));
+                if (elegida) this.usuarioNombre = elegida.nombre;
+            }
             this.cargarFicha(); // en paralelo, con los mismos filtros; no bloquea los KPIs clásicos
+            var resp = null;
             try {
                 var params = new URLSearchParams({
                     desde:      this.desde,
@@ -803,21 +878,30 @@ function reportes() {
                 });
                 if (this.usuarioId) params.set('usuario_id', this.usuarioId);
 
-                var resp = await fetch(u('/api/reportes/kpis?' + params.toString()));
+                resp = await fetch(u('/api/reportes/kpis?' + params.toString()));
                 var json = await resp.json();
+                if (seq !== this.kpisSeq) return;
 
                 if (json.ok) {
+                    var lista = json.data.trabajadoras || [];
+                    // Si la trabajadora elegida no tuvo actividad en este período, el selector la sigue
+                    // mostrando: si no, diría «Todas» con el filtro todavía puesto.
+                    if (this.usuarioId && !lista.some(t => String(t.usuario_id) === String(this.usuarioId))) {
+                        lista = lista.concat([{ usuario_id: Number(this.usuarioId), nombre: this.usuarioNombre || 'Trabajadora elegida' }]);
+                    }
                     this.data         = json.data;
-                    this.trabajadoras = json.data.trabajadoras || [];
+                    this.trabajadoras = lista;
                     this.subtitulo    = this.calcSubtitulo();
-                    this.$nextTick(() => lucide.createIcons());
                 } else {
-                    this.error = true;
+                    this.error = this.mensajeError(resp, json);
                 }
             } catch (e) {
-                this.error = true;
+                if (seq === this.kpisSeq) this.error = this.mensajeError(resp, null);
             } finally {
-                this.cargando = false;
+                if (seq === this.kpisSeq) {
+                    this.cargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
             }
         },
 
@@ -828,21 +912,28 @@ function reportes() {
             var anio = parseInt(partes[0], 10);
             var mes  = parseInt(partes[1], 10);
             if (!anio || !mes) return;
+            var seq = ++this.mensualSeq;
             this.mensualCargando = true;
+            this.mensualError = '';
+            var resp = null;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/resumen-mensual?' + params.toString()));
+                resp = await fetch(u('/api/reportes/resumen-mensual?' + params.toString()));
                 var json = await resp.json();
+                if (seq !== this.mensualSeq) return;
                 if (json.ok) {
                     this.mensualData = json.data.trabajadores || [];
-                    this.$nextTick(() => lucide.createIcons());
                 } else {
-                    this.mensualData = [];
+                    this.mensualData = null;
+                    this.mensualError = this.mensajeError(resp, json);
                 }
             } catch (e) {
-                this.mensualData = [];
+                if (seq === this.mensualSeq) { this.mensualData = null; this.mensualError = this.mensajeError(resp, null); }
             } finally {
-                this.mensualCargando = false;
+                if (seq === this.mensualSeq) {
+                    this.mensualCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
             }
         },
 
@@ -861,8 +952,40 @@ function reportes() {
         calcSubtitulo() {
             if (!this.data) return '';
             var hotelLabel = { ambos: 'Ambos hoteles', '1_sur': 'Atankalama', inn: 'Atankalama INN' }[this.hotel] || 'Ambos hoteles';
-            if (this.desde === this.hasta) return hotelLabel + ' · ' + this.fmtFecha(this.desde);
-            return hotelLabel + ' · ' + this.fmtFecha(this.desde) + ' — ' + this.fmtFecha(this.hasta);
+            // Con una trabajadora filtrada, el subtítulo dice de quién son las tarjetas.
+            var quien = this.usuarioId ? ' · ' + (this.usuarioNombre || 'Trabajadora elegida') : '';
+            if (this.desde === this.hasta) return hotelLabel + quien + ' · ' + this.fmtFecha(this.desde);
+            return hotelLabel + quien + ' · ' + this.fmtFecha(this.desde) + ' — ' + this.fmtFecha(this.hasta);
+        },
+
+        estadoPendiente(estado) {
+            return this.estadosPendiente[estado] || estado;
+        },
+
+        // Descarga un CSV; si el servidor no lo entrega, lo avisa en vez de no hacer nada.
+        async descargar(ruta, params, nombre) {
+            this.avisoExport = '';
+            var resp = null;
+            try {
+                resp = await fetch(u(ruta + '?' + params.toString()));
+                if (!resp.ok) {
+                    var json = null;
+                    try { json = await resp.json(); } catch (e2) { /* no era JSON */ }
+                    this.avisoExport = 'No se pudo descargar «' + nombre + '». ' + this.mensajeError(resp, json);
+                    return;
+                }
+                var blob = await resp.blob();
+                var url  = URL.createObjectURL(blob);
+                var a    = document.createElement('a');
+                a.href     = url;
+                a.download = nombre;
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                this.avisoExport = 'No se pudo descargar «' + nombre + '». ' + this.mensajeError(resp, null);
+            } finally {
+                this.$nextTick(() => lucide.createIcons());
+            }
         },
 
         fmtFecha(iso) {
@@ -881,18 +1004,8 @@ function reportes() {
                     hotel:  this.hotel,
                 });
                 if (this.usuarioId) params.set('usuario_id', this.usuarioId);
-
-                var resp = await fetch(u('/api/reportes/exportar?' + params.toString()));
-                if (!resp.ok) { this.exportando = false; return; }
-
-                var blob = await resp.blob();
-                var url  = URL.createObjectURL(blob);
-                var a    = document.createElement('a');
-                a.href     = url;
-                a.download = 'reporte_kpis_' + this.desde + '_' + this.hasta + '.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) { /* silencioso */ } finally {
+                await this.descargar('/api/reportes/exportar', params, 'reporte_kpis_' + this.desde + '_' + this.hasta + '.csv');
+            } finally {
                 this.exportando = false;
             }
         },
@@ -903,21 +1016,28 @@ function reportes() {
             var anio = parseInt(partes[0], 10);
             var mes  = parseInt(partes[1], 10);
             if (!anio || !mes) return;
+            var seq = ++this.auditSeq;
             this.auditCargando = true;
+            this.auditError = '';
+            var resp = null;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/resumen-mensual-auditores?' + params.toString()));
+                resp = await fetch(u('/api/reportes/resumen-mensual-auditores?' + params.toString()));
                 var json = await resp.json();
+                if (seq !== this.auditSeq) return;
                 if (json.ok) {
                     this.auditData = json.data.auditores || [];
-                    this.$nextTick(() => lucide.createIcons());
                 } else {
-                    this.auditData = [];
+                    this.auditData = null;
+                    this.auditError = this.mensajeError(resp, json);
                 }
             } catch (e) {
-                this.auditData = [];
+                if (seq === this.auditSeq) { this.auditData = null; this.auditError = this.mensajeError(resp, null); }
             } finally {
-                this.auditCargando = false;
+                if (seq === this.auditSeq) {
+                    this.auditCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
             }
         },
 
@@ -931,17 +1051,8 @@ function reportes() {
             this.auditExportando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/exportar-mensual-auditores?' + params.toString()));
-                if (!resp.ok) { this.auditExportando = false; return; }
-
-                var blob = await resp.blob();
-                var url  = URL.createObjectURL(blob);
-                var a    = document.createElement('a');
-                a.href     = url;
-                a.download = 'reporte_inspecciones_' + this.auditMes + '.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) { /* silencioso */ } finally {
+                await this.descargar('/api/reportes/exportar-mensual-auditores', params, 'reporte_inspecciones_' + this.auditMes + '.csv');
+            } finally {
                 this.auditExportando = false;
             }
         },
@@ -956,38 +1067,36 @@ function reportes() {
             this.mensualExportando = true;
             try {
                 var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/exportar-mensual?' + params.toString()));
-                if (!resp.ok) { this.mensualExportando = false; return; }
-
-                var blob = await resp.blob();
-                var url  = URL.createObjectURL(blob);
-                var a    = document.createElement('a');
-                a.href     = url;
-                a.download = 'reporte_mensual_' + this.mensualMes + '.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) { /* silencioso */ } finally {
+                await this.descargar('/api/reportes/exportar-mensual', params, 'reporte_mensual_' + this.mensualMes + '.csv');
+            } finally {
                 this.mensualExportando = false;
             }
         },
 
         async cargarAuditPendientes() {
             if (!this.auditPendFecha) return;
+            var seq = ++this.auditPendSeq;
             this.auditPendCargando = true;
+            this.auditPendError = '';
+            var resp = null;
             try {
                 var params = new URLSearchParams({ fecha: this.auditPendFecha, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/auditorias-pendientes?' + params.toString()));
+                resp = await fetch(u('/api/reportes/auditorias-pendientes?' + params.toString()));
                 var json = await resp.json();
+                if (seq !== this.auditPendSeq) return;
                 if (json.ok) {
                     this.auditPendData = json.data;
-                    this.$nextTick(() => lucide.createIcons());
                 } else {
                     this.auditPendData = null;
+                    this.auditPendError = this.mensajeError(resp, json);
                 }
             } catch (e) {
-                this.auditPendData = null;
+                if (seq === this.auditPendSeq) { this.auditPendData = null; this.auditPendError = this.mensajeError(resp, null); }
             } finally {
-                this.auditPendCargando = false;
+                if (seq === this.auditPendSeq) {
+                    this.auditPendCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
             }
         },
 
@@ -996,17 +1105,8 @@ function reportes() {
             this.auditPendExportando = true;
             try {
                 var params = new URLSearchParams({ fecha: this.auditPendFecha, hotel: this.hotel });
-                var resp = await fetch(u('/api/reportes/exportar-auditorias-pendientes?' + params.toString()));
-                if (!resp.ok) { this.auditPendExportando = false; return; }
-
-                var blob = await resp.blob();
-                var url  = URL.createObjectURL(blob);
-                var a    = document.createElement('a');
-                a.href     = url;
-                a.download = 'reporte_inspecciones_pendientes_' + this.auditPendFecha + '.csv';
-                a.click();
-                URL.revokeObjectURL(url);
-            } catch (e) { /* silencioso */ } finally {
+                await this.descargar('/api/reportes/exportar-auditorias-pendientes', params, 'reporte_inspecciones_pendientes_' + this.auditPendFecha + '.csv');
+            } finally {
                 this.auditPendExportando = false;
             }
         },
@@ -1113,7 +1213,7 @@ function reportes() {
 
         filtrarPorTrabajadora(uid) {
             this.usuarioId = uid;
-            this.cargar();
+            this.cargar(); // cargar() toma el nombre de la lista actual antes de pedir el período
         },
 
         alVolverVisible() {

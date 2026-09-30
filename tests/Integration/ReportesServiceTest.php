@@ -16,7 +16,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Verifica el reparto de créditos por persona tras el rework (docs/creditos-rework.md):
  * Ana limpia 9 obligatorios, el auditor rechaza 2, Berta re-limpia esos 2 y se aprueba.
- * Créditos esperados: Ana 7 de 9 intentos (castiga los 2 fallidos), Berta 2 de 2.
+ * Créditos: Ana 7 (los heredados que marcó bien), Berta 2. Desde la v6.15 la tarjeta de créditos,
+ * el resumen mensual y la ficha dan el MISMO número; el error de Ana se ve en su eficiencia
+ * (créditos ÷ lo asignado) y en que la pieza le queda rechazada, ya no en un «% sobre intentos».
  */
 final class ReportesServiceTest extends TestCase
 {
@@ -46,7 +48,9 @@ final class ReportesServiceTest extends TestCase
         [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
         [$sofia]       = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
 
-        $fecha = '2026-04-14';
+        // Hoy: las limpiezas quedan con la hora real, y las Asignadas (asignaciones.fecha) tienen que caer
+        // en el mismo período para que la eficiencia y el resumen mensual las vean.
+        $fecha = date('Y-m-d');
         $asig  = new AsignacionService();
         $chk   = new ChecklistService();
         $aud   = new AuditoriaService();
@@ -81,33 +85,37 @@ final class ReportesServiceTest extends TestCase
         $this->rep = new ReportesService();
     }
 
-    public function testKpiCreditosSeRepartePorPersonaYCastigaElError(): void
+    public function testKpiCreditosSeRepartePorPersonaSinDobleConteo(): void
     {
         // Fecha LOCAL: es lo que la supervisora elige en el filtro y lo que espera la API
         // (antes acá iba gmdate() para compensar que los KPIs filtraban por día UTC).
         $hoy = date('Y-m-d');
         $creditosAna = $this->totalOblig - 2; // 7
 
-        // Ana: 7 créditos de 9 intentos (los 2 desmarcados cuentan en su denominador).
-        $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana)['creditos'];
-        $this->assertSame("{$creditosAna} / {$this->totalOblig} créditos", $kAna['contexto']);
-        $this->assertSame(round($creditosAna / $this->totalOblig * 100, 1), $kAna['valor']);
+        // Ana: los 7 ítems heredados que marcó bien (inspeccionados en la re-limpieza aprobada).
+        $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana);
+        $this->assertSame($creditosAna, $kAna['creditos']['valor']);
+        $this->assertSame("{$creditosAna} inspeccionados · 0 sin inspección", $kAna['creditos']['contexto']);
+        // Su error se ve en la eficiencia (7 de 9 asignados) y en la pieza rechazada.
+        $this->assertSame(round($creditosAna / $this->totalOblig * 100, 1), $kAna['eficiencia']['valor']);
+        $this->assertSame(100.0, $kAna['tasa_rechazo']['valor']);
 
-        // Berta: 2 créditos de 2 intentos = 100%.
-        $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta)['creditos'];
-        $this->assertSame('2 / 2 créditos', $kBerta['contexto']);
-        $this->assertSame(100.0, $kBerta['valor']);
+        // Berta: los 2 que rehízo.
+        $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta);
+        $this->assertSame(2, $kBerta['creditos']['valor']);
 
-        // Global: 9 créditos de 11 intentos (no hay doble conteo de los heredados).
+        // Global: 9 créditos (no hay doble conteo de los heredados), igual que la suma de la ficha.
         $kGlobal = $this->rep->kpis($hoy, $hoy, 'ambos', null)['creditos'];
-        $this->assertSame(($creditosAna + 2) . ' / ' . ($this->totalOblig + 2) . ' créditos', $kGlobal['contexto']);
+        $this->assertSame($creditosAna + 2, $kGlobal['valor']);
+        $ficha = array_sum(array_column($this->rep->fichaKpis($hoy, $hoy, 'ambos')['trabajadores'], 'creditos'));
+        $this->assertSame($ficha, $kGlobal['valor']);
     }
 
     /**
      * Con peso configurable por ítem, los créditos SUMAN ic.creditos en vez de contar ítems.
      * El fixture sube a 5 el peso de los 2 ítems que Berta re-limpió con un UPDATE DIRECTO a la
-     * tabla (no por el editor) solo para ejercitar la suma ponderada: Berta acredita 10 y el
-     * denominador de Ana se infla por lo que arruinó (7 / 17).
+     * tabla (no por el editor) solo para ejercitar la suma ponderada: Berta acredita 10, Ana 7, y
+     * la pieza asignada a cada una vale 17.
      *
      * OJO: por la app esto ya no puede pasar. Desde el versionado copy-on-write, editar un
      * checklist crea ítems nuevos y deja los viejos intactos, así que los reportes de días
@@ -123,31 +131,30 @@ final class ReportesServiceTest extends TestCase
         $kept  = $this->totalOblig - 2;   // 7 ítems que Ana conservó (peso 1)
         $fall  = 2 * 5;                    // 2 ítems fallidos * peso 5 = 10
 
-        // Ana: 7 créditos (peso 1) / (7 + 10) intentos.
-        $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana)['creditos'];
-        $this->assertSame("{$kept} / " . ($kept + $fall) . ' créditos', $kAna['contexto']);
-        $this->assertSame(round($kept / ($kept + $fall) * 100, 1), $kAna['valor']);
+        // Ana: 7 créditos (peso 1); eficiencia 7 de los 17 que vale la pieza.
+        $kAna = $this->rep->kpis($hoy, $hoy, 'ambos', $this->ana);
+        $this->assertSame($kept, $kAna['creditos']['valor']);
+        $this->assertSame("{$kept} de " . ($kept + $fall) . ' créditos asignados', $kAna['eficiencia']['contexto']);
 
-        // Berta: 2 ítems fallidos * peso 5 = 10 créditos / 10 = 100%.
-        $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta)['creditos'];
-        $this->assertSame("{$fall} / {$fall} créditos", $kBerta['contexto']);
-        $this->assertSame(100.0, $kBerta['valor']);
+        // Berta: 2 ítems * peso 5 = 10 créditos.
+        $kBerta = $this->rep->kpis($hoy, $hoy, 'ambos', $this->berta);
+        $this->assertSame($fall, $kBerta['creditos']['valor']);
 
-        // Resumen mensual: Ana 7 (máx 17), Berta 10 (máx 10).
-        $filas = $this->rep->resumenMensual((int) gmdate('Y'), (int) gmdate('n'), 'ambos');
+        // Resumen mensual: los mismos números.
+        $filas = $this->rep->resumenMensual((int) date('Y'), (int) date('n'), 'ambos');
         $porNombre = [];
         foreach ($filas as $f) {
             $porNombre[$f['nombre']] = $f;
         }
-        $this->assertSame($kept, (int) $porNombre['Ana']['creditos']);
-        $this->assertSame($kept + $fall, (int) $porNombre['Ana']['creditos_maximos']);
-        $this->assertSame($fall, (int) $porNombre['Berta']['creditos']);
-        $this->assertSame($fall, (int) $porNombre['Berta']['creditos_maximos']);
+        $this->assertSame($kept, $porNombre['Ana']['creditos']);
+        $this->assertSame($kept + $fall, $porNombre['Ana']['creditos_asignados']);
+        $this->assertSame($fall, $porNombre['Berta']['creditos']);
+        $this->assertSame($kept + $fall, $porNombre['Berta']['creditos_asignados']);
     }
 
     public function testResumenMensualRepartido(): void
     {
-        $filas = $this->rep->resumenMensual((int) gmdate('Y'), (int) gmdate('n'), 'ambos');
+        $filas = $this->rep->resumenMensual((int) date('Y'), (int) date('n'), 'ambos');
         $porNombre = [];
         foreach ($filas as $f) {
             $porNombre[$f['nombre']] = $f;
@@ -158,14 +165,16 @@ final class ReportesServiceTest extends TestCase
         // El auditor no marcó ítems: no aparece en el reparto de créditos.
         $this->assertArrayNotHasKey('Sofia', $porNombre);
 
-        // Ana: 7 créditos, máximo 9 (7 + 2 fallidos), 1 habitación.
-        $this->assertSame($this->totalOblig - 2, (int) $porNombre['Ana']['creditos']);
-        $this->assertSame($this->totalOblig, (int) $porNombre['Ana']['creditos_maximos']);
-        $this->assertSame(1, (int) $porNombre['Ana']['habitaciones']);
+        // Ana: 7 créditos; la pieza le quedó RECHAZADA (la rehízo otra persona): 0 limpias, 1 rechazada.
+        // Antes el resumen le contaba la pieza como limpiada (docs/kpis-sueldos.md: «tras un rechazo la
+        // pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga»).
+        $this->assertSame($this->totalOblig - 2, $porNombre['Ana']['creditos']);
+        $this->assertSame(0, $porNombre['Ana']['habitaciones']);
+        $this->assertSame(1, $porNombre['Ana']['rechazadas']);
 
-        // Berta: 2 créditos, máximo 2, 1 habitación.
-        $this->assertSame(2, (int) $porNombre['Berta']['creditos']);
-        $this->assertSame(2, (int) $porNombre['Berta']['creditos_maximos']);
-        $this->assertSame(1, (int) $porNombre['Berta']['habitaciones']);
+        // Berta: 2 créditos, 1 habitación.
+        $this->assertSame(2, $porNombre['Berta']['creditos']);
+        $this->assertSame(1, $porNombre['Berta']['habitaciones']);
+        $this->assertSame(0, $porNombre['Berta']['rechazadas']);
     }
 }
