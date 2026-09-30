@@ -10,7 +10,8 @@ Documenta el CRUD de usuarios, incluyendo la subsección "trabajadores" (no es e
 
 Un usuario representa a una persona real con acceso a la app. Campos principales (ver [database-schema.sql](database-schema.sql) tabla `usuarios`):
 
-- `id`, `rut` (UNIQUE), `nombre`, `email` (opcional), `password_hash`, `requiere_cambio_pwd`, `activo`, `hotel_default`, `tema_preferido`, `created_at`, `updated_at`, `last_login_at`.
+- `id`, `rut` (UNIQUE), `nombre`, `email` (opcional), `password_hash`, `requiere_cambio_pwd`, `activo`, `hotel_default`, `jornada`, `tema_preferido`, `created_at`, `updated_at`, `last_login_at`.
+- `jornada`: `completa` (tiempo completo) | `parcial` (tiempo parcial) | `NULL` (sin definir). Opcional; los usuarios anteriores al 30/09/2026 quedan sin definir. No cambia permisos ni cálculos: es contexto para leer los KPIs en Reportes (ver [kpis-sueldos.md](kpis-sueldos.md), «Jornada»).
 
 Un usuario puede tener **múltiples roles** (tabla `usuarios_roles`). Permisos efectivos = unión.
 
@@ -64,7 +65,8 @@ Request:
   "nombre": "Carmen Silva",
   "email": "carmen@ejemplo.cl",
   "roles": ["Trabajador"],
-  "hotel_default": "1_sur"
+  "hotel_default": "1_sur",
+  "jornada": "completa"
 }
 ```
 
@@ -72,6 +74,7 @@ Validaciones:
 - RUT único y con DV válido.
 - Nombre obligatorio (min 3 chars).
 - Email opcional pero válido si se envía.
+- Jornada opcional: `completa` o `parcial` (otro valor → 400 `JORNADA_INVALIDA`). Sin enviar = sin definir.
 - Al menos 1 rol.
 
 Comportamiento (ver [auth.md](auth.md) §5):
@@ -96,7 +99,7 @@ Respuesta (201):
 
 `PUT /api/usuarios/{id}` — permiso `usuarios.editar`.
 
-Permite editar: nombre, email, hotel_default. **No** permite editar: rut (inmutable), password (usar endpoint específico), activo (usar endpoint específico), roles (usar endpoint específico).
+Permite editar: nombre, email, hotel_default, jornada (`completa` | `parcial` | `null` = sin definir). **No** permite editar: rut (inmutable), password (usar endpoint específico), activo (usar endpoint específico), roles (usar endpoint específico).
 
 ### 3.5 Reset password
 

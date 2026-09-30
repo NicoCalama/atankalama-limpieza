@@ -210,6 +210,7 @@
                                 <thead class="bg-gray-50 dark:bg-gray-700/40">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Trabajadora</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">T. Prom.</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Rechazo</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Eficiencia</th>
@@ -222,8 +223,14 @@
                                     <template x-for="t in data.por_trabajadora" :key="t.usuario_id">
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
                                             @click="filtrarPorTrabajadora(t.usuario_id)">
-                                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap"
-                                                x-text="primerNombre(t.nombre)"></td>
+                                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                                <span x-text="primerNombre(t.nombre)"></span>
+                                                <template x-if="t.jornada">
+                                                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                                </template>
+                                            </td>
+                                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
+                                                x-text="t.dias_trabajados"></td>
                                             <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
                                                 x-text="fmtKpi(t.kpis.tiempo_promedio)"></td>
                                             <td class="px-4 py-3 text-right font-medium"
@@ -311,6 +318,9 @@
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30" :class="t.datos_suficientes ? '' : 'opacity-70'">
                                         <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap sticky left-0 bg-white dark:bg-gray-800">
                                             <span x-text="primerNombre(t.nombre)"></span>
+                                            <template x-if="t.jornada">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                            </template>
                                             <template x-if="!t.datos_suficientes">
                                                 <span class="ml-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500" title="Menos piezas trabajadas (aprobadas + rechazadas) que el mínimo configurado: sin semáforo y fuera del promedio.">pocos datos</span>
                                             </template>
@@ -552,6 +562,7 @@
                             <thead class="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
+                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitaciones</th>
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Créditos</th>
                                     <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Eficiencia</th>
@@ -560,7 +571,13 @@
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                 <template x-for="t in mensualData" :key="t.usuario_id">
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                        <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="t.nombre"></td>
+                                        <td class="px-4 py-3 text-gray-900 dark:text-gray-100">
+                                            <span x-text="t.nombre"></span>
+                                            <template x-if="t.jornada">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                            </template>
+                                        </td>
+                                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300" x-text="t.dias_trabajados"></td>
                                         <td class="px-4 py-3 text-right whitespace-nowrap">
                                             <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></span>
                                             <template x-if="t.rechazadas > 0">
@@ -575,7 +592,7 @@
                         </table>
                     </div>
                     <p class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
-                        Mismos números que la ficha del mes: habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
+                        Mismos números que la ficha del mes: días trabajados (días con al menos una pieza asignada), habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
                     </p>
                 </div>
             </template>
@@ -754,8 +771,11 @@
 <script>
 function reportes() {
     var hoy = window.hoyServidor();
+    var AYUDA_DIAS_TRABAJADOS = 'Días del período en que tuvo al menos una pieza o área común asignada, aunque sea una sola. '
+        + 'No cuenta el día si todo lo asignado se retiró sin que lo trabajara (se autocanceló, se sacó del plan o se pasó a otra persona).';
 
     return {
+        AYUDA_DIAS: AYUDA_DIAS_TRABAJADOS,
         data:         null,
         cargando:     false,
         error:        '',   // mensaje del último error de los KPIs ('' = sin error)
@@ -781,6 +801,7 @@ function reportes() {
         fichaSeq:      0,     // nº de la última carga pedida: una respuesta vieja que llega tarde no pisa a la nueva
         fichaError:    false, // la ficha se carga aparte de los KPIs clásicos: tiene su propio estado de error
         fichaCols: [
+            { clave: 'dias_trabajados',  titulo: 'Días trab.',   fmt: 'num',      cmp: false, ayuda: AYUDA_DIAS_TRABAJADOS },
             { clave: 'creditos',         titulo: 'Créditos',     fmt: 'num',      cmp: true,  ayuda: 'Créditos aprobados (auditados + no auditados), incluidas áreas comunes. Solo ítems obligatorios; rechazadas fuera. Si uno mismo rehace su pieza rechazada recupera la mitad al segundo intento y nada desde el tercero.' },
             { clave: 'ab',               titulo: 'Audit. / no',  fmt: 'ab',       cmp: false, ayuda: 'Créditos auditados por una persona / no auditados (cuentan igual como aprobados).' },
             { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una por limpieza (el nochero de la tarde y el turnover cuentan otra). Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
@@ -1260,6 +1281,14 @@ function reportes() {
                 critico:     'text-red-600 dark:text-red-400',
                 informativo: 'text-blue-600 dark:text-blue-400',
             }[k.estado] || 'text-gray-600 dark:text-gray-400';
+        },
+
+        jornadaCorta(j) {
+            return j === 'parcial' ? 'Parcial' : (j === 'completa' ? 'Completa' : '');
+        },
+
+        jornadaTitulo(j) {
+            return j === 'parcial' ? 'Jornada: tiempo parcial' : (j === 'completa' ? 'Jornada: tiempo completo' : '');
         },
 
         primerNombre(nombre) {

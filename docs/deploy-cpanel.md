@@ -965,3 +965,46 @@ Pedido urgente de Nicolás (30/09/2026) tras revisar si los KPIs se guardan y se
   «Tasa de rechazo» de arriba = «Rechazo de la sección»; créditos de arriba = suma de la ficha = resumen
   mensual del mes;
 - «Exportar» del resumen mensual con el mes anterior: el archivo trae ese mes (antes, el mes en curso).
+
+### 11.11 Release "jornada + días trabajados" → v6.17
+
+Pedido de Nicolás (30/09/2026): en Usuarios se asigna la **jornada** (tiempo completo / parcial) y las
+tres tablas de trabajadores de Reportes (detalle por trabajadora, ficha de KPIs, resumen mensual) y sus
+CSV suman **Días trabajados** (días con al menos una pieza asignada) y la jornada junto al nombre.
+Definición en `docs/kpis-sueldos.md` (KPI 1.4 y «Jornada»).
+
+**Un cambio de datos, ANTES de subir el código:** columna nullable `jornada` en `usuarios`. Sin backfill
+(NULL = «sin definir»). Si el código sube antes: Usuarios y Reportes caen con 500 (columna inexistente);
+el login no se cae (`UsuarioService::hidratar` tolera la columna ausente).
+
+**Vía recomendada (PHP CLI o cron de una sola vez, ver v2.5), idempotente:**
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-jornada.php
+```
+
+**Fallback phpMyAdmin** (equivalente, con prefijo `limpieza_`):
+
+```sql
+ALTER TABLE limpieza_usuarios ADD COLUMN IF NOT EXISTS jornada VARCHAR(10) NULL;
+```
+
+**Sin `.env`, sin `vendor/`, sin `sw.js`/assets.** No comparte archivos de código con la v6.16 (§11.9), así
+que puede subir antes o después; solo `CHANGELOG.md` es común (subir el del commit más nuevo). Archivos, todos
+a `app_core/`:
+
+- `src/Controllers/UsuariosController.php`, `src/Models/Usuario.php`;
+- `src/Services/UsuarioService.php`, `src/Services/ReportesService.php`;
+- `views/reportes.php`, `views/componentes/modal-usuario-nuevo.php`, `views/componentes/modal-usuario-detalle.php`;
+- `scripts/migrate-add-jornada.php`;
+- `docs/database-schema.sql` y `docs/database-schema.mariadb.sql` (los lee el verificador de esquema: con
+  ellos arriba, si faltara la columna, Salud del sistema lo marca);
+- `CHANGELOG.md`.
+
+**Smoke específico:**
+
+- badge **v6.17** (incógnito), `/api/health` 200, Salud del sistema → «Esquema de base de datos» al día;
+- Usuarios: abrir una trabajadora, elegir «Tiempo parcial», «Guardar cambios», cerrar y volver a abrir → queda marcado;
+- Reportes: aparece «Días trab.» en las tres tablas y la etiqueta «Parcial» junto a su nombre; «Exportar» del
+  resumen mensual trae las columnas «Jornada» y «Días trabajados».
+

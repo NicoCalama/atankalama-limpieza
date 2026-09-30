@@ -66,6 +66,7 @@ CREATE TABLE usuarios (
     requiere_cambio_pwd   INTEGER NOT NULL DEFAULT 1 CHECK (requiere_cambio_pwd IN (0, 1)),
     activo                INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     hotel_default         TEXT CHECK (hotel_default IN ('1_sur', 'inn', 'ambos')),
+    jornada               TEXT CHECK (jornada IN ('completa', 'parcial')),  -- NULL = sin definir (contexto de KPIs)
     tema_preferido        TEXT NOT NULL DEFAULT 'auto' CHECK (tema_preferido IN ('auto', 'claro', 'oscuro')),
     created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),

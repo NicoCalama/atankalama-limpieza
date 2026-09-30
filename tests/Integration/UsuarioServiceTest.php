@@ -438,4 +438,52 @@ final class UsuarioServiceTest extends TestCase
             $this->assertFalse($u['es_ultimo_admin'], "Con 2 admins ninguno es el último ({$u['nombre']})");
         }
     }
+
+    public function testJornadaSeGuardaAlCrearYSinElegirQuedaSinDefinir(): void
+    {
+        $rolId = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Trabajador'")['id'];
+        $parcial = $this->svc->crear(
+            ['rut' => '22222222-2', 'nombre' => 'Juan', 'jornada' => 'parcial', 'roles' => [$rolId]],
+            $this->adminId,
+            $this->pwd
+        )['usuario'];
+        $this->assertSame('parcial', $parcial->jornada);
+        $this->assertSame('parcial', $parcial->toArrayPublico()['jornada']);
+
+        $sinDefinir = $this->svc->crear(
+            ['rut' => '33333333-3', 'nombre' => 'Pedro', 'roles' => [$rolId]],
+            $this->adminId,
+            $this->pwd
+        )['usuario'];
+        $this->assertNull($sinDefinir->jornada);
+    }
+
+    public function testJornadaInvalidaLanza(): void
+    {
+        try {
+            $this->svc->crear(['rut' => '22222222-2', 'nombre' => 'Juan', 'jornada' => 'media'], $this->adminId, $this->pwd);
+            $this->fail('Debía lanzar');
+        } catch (UsuarioException $e) {
+            $this->assertSame('JORNADA_INVALIDA', $e->codigo);
+        }
+        $this->assertNull(Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', ['22222222-2']));
+
+        [$id] = TestDatabase::crearUsuario('33333333-3', 'Pedro', 'Trabajador');
+        $this->expectException(UsuarioException::class);
+        $this->svc->actualizar($id, ['jornada' => 'media'], $this->adminId);
+    }
+
+    public function testActualizarJornadaYListarla(): void
+    {
+        [$id] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        $this->assertSame('completa', $this->svc->actualizar($id, ['jornada' => 'completa'], $this->adminId)->jornada);
+        $this->assertSame('parcial', $this->svc->actualizar($id, ['jornada' => 'parcial'], $this->adminId)->jornada);
+
+        $porId = array_column($this->svc->listar(), null, 'id');
+        $this->assertSame('parcial', $porId[$id]['jornada']);
+        $this->assertNull($porId[$this->adminId]['jornada']);
+
+        // Editar otros datos sin mandar la jornada no la toca.
+        $this->assertSame('parcial', $this->svc->actualizar($id, ['nombre' => 'Juan P.'], $this->adminId)->jornada);
+    }
 }

@@ -24,7 +24,9 @@
 - **Cruce por RUT**, sin tocar el esquema (RUT ya es la llave con la planilla de
   sueldos). No se agrega campo cargo/posición por ahora.
 - **Asistencia fuera de alcance**: días laborados / ausencias vendrán de una futura
-  app de administración de horarios (también cruzará por RUT).
+  app de administración de horarios (también cruzará por RUT). *Desde el 30/09/2026 la app sí
+  muestra **Días trabajados** (KPI 1.4), pero sale de las **asignaciones**, no de un registro de
+  asistencia: no ve ausencias ni reemplazos que no pasaron por la app.*
 - **El dinero ($/crédito, montos de bono) queda en sueldos**, no en la app. La app
   entrega KPIs; sueldos aplica sus tarifas y fórmulas.
 - **Población del reporte:** los trabajadores con ejecuciones de limpieza en el
@@ -131,6 +133,33 @@ rol están definidos.
   créditos en 1.1. Rechazadas fuera. *(Confirmado 13/09/2026.)*
 - **Estado:** ✅ definición **confirmada**. El conteo existe; falta implementar el split
   A/B y generalizar a rango libre.
+
+### KPI 1.4 — Días trabajados  *(pedido de Nicolás, 30/09/2026)*
+
+- **Qué mide:** cuántos días del rango trabajó la persona, entendido como **días en que tuvo
+  al menos una asignación**, aunque sea de una sola pieza (o área común).
+- **Fórmula:** `COUNT(DISTINCT asignaciones.fecha)` (fecha local del turno) de las asignaciones
+  de la persona que **cuentan**:
+  - la trabajó (tiene una limpieza suya, terminada o en curso), **o**
+  - sigue siendo suya (`activa = 1`), aunque no la haya empezado.
+- **No cuenta** la asignación retirada sin trabajo: desasignada, autocancelada o **pasada a
+  otra persona sin que la tocara** (p. ej. faltó y se la dieron a otra; decisión de Nicolás), ni
+  la que solo tuvo el atajo «Marcar limpia» de otra persona. Por eso un día sin nada que cuente
+  no suma, aunque la persona siga figurando en «Asignadas» (pegajoso).
+- **Hotel:** respeta el filtro (con «Atankalama» solo cuentan asignaciones de ese hotel).
+- **No es asistencia:** sale de lo que se asignó en la app (ver «Alcance»). Sin semáforo ni
+  promedio del equipo (es un conteo de contexto, no un KPI de desempeño).
+- **Dónde se ve:** columna «Días trab.» en las tres tablas de trabajadores de Reportes (Detalle
+  por trabajadora, Ficha de KPIs · Trabajador, Resumen mensual por trabajador) y «Días
+  trabajados» en sus CSV. Implementado en `ReportesService::fichaTrabajadores` (`dias_trabajados`).
+
+### Jornada (tiempo completo / tiempo parcial)  *(pedido de Nicolás, 30/09/2026)*
+
+- Campo `usuarios.jornada` (`completa` | `parcial` | `NULL` = sin definir), editable en Usuarios.
+  Los usuarios existentes quedan **sin definir** hasta que alguien la asigne.
+- Se muestra como etiqueta junto al nombre en las tres tablas de trabajadores de Reportes y como
+  columna «Jornada» en sus CSV, para leer los KPIs (y los días trabajados) con ese contexto. No
+  cambia ningún cálculo.
 
 ---
 
@@ -534,3 +563,4 @@ re-clean **<5%**.
 | 17/09/2026 | **Segunda revisión adversarial del incremento → correcciones:** (a) rechazada y rehecha por OTRA persona ya no le cuenta a la rechazada como pieza hecha (seguía sumando A por los ítems heredados a su nombre); (b) `reasignar()` hereda la franja (antes la re-limpieza caía en otro ciclo y esquivaba la gradualidad); (c) `pasada_a_otro` respeta la franja; (d) asignación sin checklist resoluble no entra a Asignadas; (e) la banda «alerta» del semáforo vs meta (−10 / +2 puntos) queda documentada en la ficha y en Ajustes; (f) la ficha en Reportes muestra error + «Reintentar» si el cálculo falla; (g) el tour describía mal la etapa B. **Pendiente de decisión:** créditos heredados de la persona rechazada cuando otra rehace (ver «Cómo quedó construido»). |
 | 17/09/2026 | **Privacidad jerárquica IMPLEMENTADA (permiso `reportes.ver_supervisoras`):** la sección «Supervisora · Inspección» (con el tiempo por auditación) se calcula, se envía (`GET /api/reportes/ficha` → `supervisoras`) y se renderiza solo para quien tiene el permiso; el paso del tour se oculta con la bandera `ve_supervisoras`. Semilla: solo los roles que administran la matriz (`permisos.asignar_a_rol`) lo reciben — migración `scripts/migrate-add-permiso-reportes-supervisoras.php`. Una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. |
 | 30/09/2026 | **Reportes coherente (v6.15), tras auditar si los KPIs se guardan y se ven bien:** (a) **los filtros de Reportes nunca se aplicaban** (el controlador leía la URL con `Request::input()`, que solo mira el cuerpo): todo caía en hoy / mes en curso / ambos hoteles, CSV incluidos — corregido con test que pasa por el controlador. (b) **Una sola definición en toda la pestaña:** tarjetas, detalle por trabajadora, resumen mensual y su CSV salen de la ficha (`fichaTrabajadores`); rechazo y aprobación a la 1ª del EQUIPO, de la sección de inspección (solo veredictos humanos, por fecha de limpieza); los de UNA trabajadora, de su fila (la automática cuenta como aprobada, regla del 16/09). «Créditos obtenidos» pasa a ser un número (el de la ficha), ya no un %. El resumen mensual cuenta **ciclos** (no piezas distintas), aplica la escalera 100/50/0 y muestra rechazadas y eficiencia en vez de «créditos máximos». (c) **Decisión de Nicolás: la 2ª limpieza del día sobre la misma asignación (nochero de las 16:00, turnover) es OTRA pieza asignada** — el ciclo pasa a ser pieza · fecha · franja · **vuelta**; una limpieza que empieza después de otra no rechazada abre vuelta nueva, la re-limpieza tras un rechazo sigue en la misma (escalera). Antes la eficiencia podía pasar del 100 % o tapar una pieza no hecha. (d) El atajo «Marcar limpia» (ejecución sin ítems) no cuenta como trabajo: fuera de tiempos, productividad, rechazos, Asignadas y del listado de trabajadoras; la asignación que se resolvió así no le cuenta a quien la tenía. (e) El mínimo de datos del semáforo σ se mide sobre piezas **trabajadas** (A + R). (f) «Pendientes al corte»: lo que aprobó el cierre automático (15:50 o 23:55) sale como «Sin inspeccionar (la aprobó el sistema)» (cierra R5). (g) **Decisión de Nicolás: «Sistema» se queda en el Resumen mensual de inspecciones** — deja a la vista cuántas no se alcanzaron a inspeccionar. |
+| 30/09/2026 | **Días trabajados + jornada (pedido de Nicolás):** (a) nuevo **KPI 1.4 «Días trabajados»** = días con al menos una asignación, aunque sea de una sola pieza; no cuentan las asignaciones retiradas sin trabajo (desasignadas, autocanceladas o pasadas a otra persona sin que la tocara) ni el atajo «Marcar limpia». Sale de las asignaciones, **no es asistencia** (sigue fuera de la app, decisión del 16/09). (b) **Jornada** (tiempo completo / parcial) en el usuario, sin definir por defecto; se muestra junto al nombre en las tablas de trabajadores y en los CSV. Ambos en las tres tablas de trabajadores de Reportes y sus CSV. Migración `scripts/migrate-add-jornada.php`. |

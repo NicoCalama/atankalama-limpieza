@@ -21,6 +21,8 @@ final class Usuario
         public readonly string $temaPreferido,
         public readonly array $permisos,
         public readonly array $roles,
+        // Jornada laboral: 'completa' | 'parcial' | null (sin definir). Contexto para leer KPIs.
+        public readonly ?string $jornada = null,
     ) {
     }
 
@@ -58,6 +60,7 @@ final class Usuario
             'requiere_cambio_pwd' => $this->requiereCambioPwd,
             'hotel_default' => $this->hotelDefault,
             'tema_preferido' => $this->temaPreferido,
+            'jornada' => $this->jornada,
             'roles' => $this->roles,
         ];
     }

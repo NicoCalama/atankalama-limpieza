@@ -61,6 +61,7 @@ CREATE TABLE #__usuarios (
     requiere_cambio_pwd   TINYINT NOT NULL DEFAULT 1 CHECK (requiere_cambio_pwd IN (0, 1)),
     activo                TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     hotel_default         VARCHAR(10) CHECK (hotel_default IN ('1_sur', 'inn', 'ambos')),
+    jornada               VARCHAR(10) CHECK (jornada IN ('completa', 'parcial')),
     tema_preferido        VARCHAR(10) NOT NULL DEFAULT 'auto' CHECK (tema_preferido IN ('auto', 'claro', 'oscuro')),
     created_at            VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     updated_at            VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
