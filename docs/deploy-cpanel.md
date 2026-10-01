@@ -1045,3 +1045,81 @@ a `app_core/`:
   recargar sigue en 16; el mes siguiente muestra «igual que MM/AAAA». Con un rol sin el permiso, el cuadro
   aparece deshabilitado.
 
+
+### 11.12 Release "rol Apoyo" → v6.15.2
+
+> **Sobre la v6.15.1**, sube **antes** que la v6.16 (§11.9), igual que la v6.15.1. Comparte con la v6.16
+> solo `CHANGELOG.md` (subir el del commit más nuevo) y `src/Services/HomeService.php`: el de este release
+> trae el cambio de la v6.16 en `sistemaEsquema()`, blindado con `?? []` para funcionar con la
+> `EsquemaService` vieja de producción (sin la lista de CHECK). Nada más de la v6.16 viaja.
+
+Pedido de Nicolás (01/10/2026): rol **Apoyo** para el personal de otras áreas que limpia de vez en cuando
+y cuyo sueldo no depende del aseo. Trabaja igual que un Trabajador, pero **no suma créditos ni entra en
+KPIs ni en el bono**, y **no recibe piezas del reparto automático** (solo asignación manual). Va por dos
+**permisos de marca** (`kpis.excluido`, `asignaciones.excluir_auto`), nunca por el nombre del rol. Detalle
+en `docs/roles-permisos.md` §3.5 y §5.2.
+
+**Cambio de datos, ANTES de extraer el ZIP** (lección de la v6.15.1): dos permisos + el rol. Si el código
+sube antes no se cae nada (sin el permiso nadie queda excluido), pero el health da **503** y Salud del
+sistema marca los dos permisos faltantes hasta correr el SQL.
+
+**Vía recomendada (PHP CLI o cron de una sola vez, ver v2.5), idempotente:**
+
+```bash
+/opt/alt/php84/usr/bin/php scripts/migrate-add-rol-apoyo.php
+```
+
+Crea los dos permisos y el rol «Apoyo» (no de sistema) con los permisos que **Trabajador tiene hoy** en
+producción, menos `kpis.ver_propios`, más los dos de marca. Si el rol ya existe, solo asegura los dos nuevos.
+
+**Fallback phpMyAdmin** (equivalente, con prefijo `limpieza_`; correrlo una vez):
+
+```sql
+-- 1) Los dos permisos de marca.
+INSERT IGNORE INTO limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('kpis.excluido', 'No suma créditos ni entra en los KPIs, Reportes ni el bono de aseo (personal de apoyo de otras áreas)', 'KPIs', 'propio'),
+  ('asignaciones.excluir_auto', 'No recibe piezas del reparto automático; solo asignación manual (personal de apoyo)', 'Asignaciones', 'propio');
+
+-- 2) El rol (no de sistema: Admin lo puede editar o borrar desde Ajustes).
+INSERT IGNORE INTO limpieza_roles (nombre, descripcion, es_sistema)
+VALUES ('Apoyo', 'Personal de otras áreas que apoya en limpieza (sin créditos ni KPIs)', 0);
+
+-- 3) Los permisos de HOY del rol Trabajador, menos kpis.ver_propios.
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT ra.id, rp.permiso_codigo
+  FROM limpieza_roles ra
+  JOIN limpieza_roles rt ON rt.nombre = 'Trabajador'
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = rt.id
+ WHERE ra.nombre = 'Apoyo' AND rp.permiso_codigo <> 'kpis.ver_propios';
+
+-- 4) Los dos permisos de marca, SOLO para Apoyo.
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT r.id, p.codigo
+  FROM limpieza_roles r
+  JOIN limpieza_permisos p ON p.codigo IN ('kpis.excluido', 'asignaciones.excluir_auto')
+ WHERE r.nombre = 'Apoyo';
+
+-- Verificación: Apoyo con los permisos de Trabajador (sin kpis.ver_propios) + los 2 de marca;
+-- ningún otro rol con los de marca.
+SELECT r.nombre, rp.permiso_codigo
+  FROM limpieza_rol_permisos rp JOIN limpieza_roles r ON r.id = rp.rol_id
+ WHERE r.nombre = 'Apoyo' OR rp.permiso_codigo IN ('kpis.excluido', 'asignaciones.excluir_auto')
+ ORDER BY r.nombre, rp.permiso_codigo;
+```
+
+**Sin `.env`, sin `vendor/`, sin `sw.js`/assets, sin columnas nuevas.** Archivos, todos a `app_core/`:
+
+- `src/Services/RbacService.php`, `src/Services/ReportesService.php`, `src/Services/HomeService.php`,
+  `src/Services/AsignacionService.php`;
+- `database/seeds/permisos.php` (lo lee el verificador de esquema) y `database/seeds/roles.php`;
+- `scripts/migrate-add-rol-apoyo.php` (nuevo), `scripts/init-db.php`, `scripts/seed.php`;
+- `views/usuarios.php`, `views/ajustes-turnos.php` (filtro «Apoyo»);
+- `CHANGELOG.md`.
+
+**Smoke específico:**
+
+- badge **v6.15.2** (incógnito), `/api/health` 200, Salud del sistema → «Esquema de base de datos» al día;
+- Ajustes → Roles: aparece «Apoyo» con sus permisos; Admin **no** tiene `kpis.excluido` ni `asignaciones.excluir_auto`;
+- Usuarios: la pastilla «Apoyo» filtra; a una persona de prueba darle el rol Apoyo (y quitarle Trabajador);
+- Turnos: darle turno hoy → aparece en el tablero de Asignaciones y se le puede asignar a mano; «Auto-asignar» no le da piezas;
+- Reportes: esa persona no aparece en el selector, el detalle, la ficha ni el resumen mensual.

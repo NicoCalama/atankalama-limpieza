@@ -235,6 +235,22 @@ final class HomeService
            GROUP BY au.veredicto',
             [$hotelId, $diaDesde, $diaHasta]
         );
+        // Para la tasa de rechazo (KPI) sin las limpiezas del personal de apoyo (kpis.excluido, 01/10/2026).
+        // Los contadores de arriba siguen siendo todas las inspecciones del día: son operación, no evaluación.
+        $paramsKpi = [$hotelId, $diaDesde, $diaHasta];
+        $sinApoyo = RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $paramsKpi);
+        $audKpi = Database::fetchOne(
+            "SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN au.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas
+               FROM #__auditorias au
+               JOIN #__habitaciones h ON h.id = au.habitacion_id
+          LEFT JOIN #__ejecuciones_checklist ec ON ec.id = au.ejecucion_id
+              WHERE h.hotel_id = ? AND au.created_at >= ? AND au.created_at < ?
+                AND au.veredicto IN ('aprobado', 'aprobado_automatico', 'aprobado_con_observacion', 'rechazado')
+                AND {$sinApoyo}",
+            $paramsKpi
+        );
+
         $audAprobadas = 0;
         $audObs = 0;
         $audRech = 0;
@@ -274,7 +290,9 @@ final class HomeService
             [$hotelId]
         )['c'] ?? 0);
 
-        // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel
+        // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel, sin el personal de apoyo
+        $paramsTiempo = [$hotelId, $diaDesde, $diaHasta];
+        $sinApoyoTiempo = RbacService::sqlSinPermiso('e.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $paramsTiempo);
         $tiempoProm = Database::fetchOne(
             'SELECT AVG(' . Database::diffMinutosSql('e.timestamp_inicio', 'e.timestamp_fin') . ') AS prom
                FROM #__ejecuciones_checklist e
@@ -282,8 +300,9 @@ final class HomeService
               WHERE h.hotel_id = ?
                 AND h.es_espacio_comun = 0
                 AND e.timestamp_fin IS NOT NULL
-                AND e.timestamp_fin >= ? AND e.timestamp_fin < ?',
-            [$hotelId, $diaDesde, $diaHasta]
+                AND e.timestamp_fin >= ? AND e.timestamp_fin < ?
+                AND ' . $sinApoyoTiempo,
+            $paramsTiempo
         );
         $tiempoPromMin = ($tiempoProm !== null && $tiempoProm['prom'] !== null)
             ? (int) round((float) $tiempoProm['prom'])
@@ -310,6 +329,11 @@ final class HomeService
             ],
             'tickets_abiertos' => $ticketsAbiertos,
             'tiempo_promedio_minutos' => $tiempoPromMin,
+            // Base de la tasa de rechazo del KPI: como `auditorias`, pero sin el personal de apoyo.
+            'auditorias_kpi' => [
+                'rechazadas' => (int) ($audKpi['rechazadas'] ?? 0),
+                'total' => (int) ($audKpi['total'] ?? 0),
+            ],
         ];
     }
 
@@ -340,8 +364,8 @@ final class HomeService
 
         // KPI 2: tasa de rechazo
         $metaRechazo = 5.0;
-        $totalAud = (int) $metricas['auditorias']['total'];
-        $rech = (int) $metricas['auditorias']['rechazadas'];
+        $totalAud = (int) $metricas['auditorias_kpi']['total'];
+        $rech = (int) $metricas['auditorias_kpi']['rechazadas'];
         $tasa = $totalAud > 0 ? round($rech * 100 / $totalAud, 1) : 0.0;
         if ($totalAud === 0) {
             $rechEstado = 'SIN_DATOS';
@@ -414,6 +438,7 @@ final class HomeService
     {
         $habs = ['limpias' => 0, 'en_progreso' => 0, 'pendientes' => 0, 'por_auditar' => 0, 'no_asignadas' => 0, 'total' => 0];
         $auds = ['aprobadas' => 0, 'con_observacion' => 0, 'rechazadas' => 0, 'total' => 0];
+        $audsKpi = ['rechazadas' => 0, 'total' => 0];
         $trab = ['en_turno' => 0, 'disponibles' => 0];
         $tickets = 0;
         $tiempos = [];
@@ -423,6 +448,9 @@ final class HomeService
             }
             foreach ($auds as $k => $_) {
                 $auds[$k] += (int) $m['auditorias'][$k];
+            }
+            foreach ($audsKpi as $k => $_) {
+                $audsKpi[$k] += (int) $m['auditorias_kpi'][$k];
             }
             foreach ($trab as $k => $_) {
                 $trab[$k] += (int) $m['trabajadores'][$k];
@@ -436,6 +464,7 @@ final class HomeService
         return [
             'habitaciones' => $habs,
             'auditorias' => $auds,
+            'auditorias_kpi' => $audsKpi,
             'trabajadores' => $trab,
             'tickets_abiertos' => $tickets,
             'tiempo_promedio_minutos' => $tiempoProm,
@@ -477,8 +506,8 @@ final class HomeService
             $tiempoPct = $tiempoValor > 0 ? min(100, (int) round($metaTiempo * 100 / $tiempoValor)) : 0;
         }
 
-        $totalAud = (int) $metricas['auditorias']['total'];
-        $rech = (int) $metricas['auditorias']['rechazadas'];
+        $totalAud = (int) $metricas['auditorias_kpi']['total'];
+        $rech = (int) $metricas['auditorias_kpi']['rechazadas'];
         $tasa = $totalAud > 0 ? round($rech * 100 / $totalAud, 1) : 0.0;
         if ($totalAud === 0) {
             $rechEstado = 'SIN_DATOS';
@@ -648,7 +677,9 @@ final class HomeService
             'tablas'   => $r['tablas'],
             'columnas' => $r['columnas'],
             'permisos' => $r['permisos'],
-            'checks'   => $r['checks'],
+            // `?? []`: este archivo puede subir antes que la EsquemaService que trae los CHECK (v6.16).
+            // @phpstan-ignore-next-line nullCoalesce.offset
+            'checks'   => $r['checks'] ?? [],
         ];
     }
 

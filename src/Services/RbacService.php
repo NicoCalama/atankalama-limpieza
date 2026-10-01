@@ -17,6 +17,23 @@ final class RbacService
      */
     public const PERMISO_ADMIN = 'permisos.asignar_a_rol';
 
+    /**
+     * Personal de apoyo (rol «Apoyo», 01/10/2026): gente de otras áreas que limpia de vez en cuando y
+     * cuyo sueldo no depende del aseo. Quien tiene este permiso no suma créditos ni entra en los KPIs
+     * de personas (Reportes, ficha, resumen mensual, bono de RRHH, KPIs del Inicio del Admin), y sus
+     * limpiezas tampoco mueven los promedios del equipo. Lo operativo (estados, bandeja, alertas) no cambia.
+     */
+    public const PERMISO_EXCLUIDO_KPIS = 'kpis.excluido';
+
+    /** Quien tiene este permiso no recibe piezas del reparto automático: solo asignación manual. */
+    public const PERMISO_EXCLUIDO_AUTO_ASIGNAR = 'asignaciones.excluir_auto';
+
+    /**
+     * Permisos que RESTAN en vez de habilitar: no son capacidades, así que el '__ALL__' del seed
+     * (rol Admin) no los incluye. Si no, el Admin quedaría fuera de los KPIs y del reparto.
+     */
+    public const PERMISOS_QUE_RESTAN = [self::PERMISO_EXCLUIDO_KPIS, self::PERMISO_EXCLUIDO_AUTO_ASIGNAR];
+
     /** Mensaje único (amable, español chileno) para el 409 de último administrador. */
     public const MSG_ULTIMO_ADMIN = 'Debe existir al menos un administrador. Asigná otro administrador antes de continuar.';
 
@@ -25,6 +42,45 @@ final class RbacService
      * llave (PERMISO_ADMIN) efectivo vía cualquiera de sus roles. Definición dinámica del
      * "admin" (nunca por nombre de rol; funciona con multi-rol y roles personalizados).
      */
+    /**
+     * Condición SQL «el usuario de $columna NO tiene el permiso $permiso por ninguno de sus roles»,
+     * para filtrar dentro de una consulta. $columna es un identificador del código (p. ej.
+     * `ec.usuario_id`), nunca un dato del usuario; $permiso viaja como parámetro.
+     *
+     * @param list<mixed> $params se le agrega el código del permiso, en el orden en que aparece el «?»
+     */
+    public static function sqlSinPermiso(string $columna, string $permiso, array &$params): string
+    {
+        if (preg_match('/^[a-z_]+\.[a-z_]+$/', $columna) !== 1) {
+            throw new \InvalidArgumentException("Columna no válida: {$columna}");
+        }
+        $params[] = $permiso;
+        return "NOT EXISTS (SELECT 1 FROM #__usuarios_roles urx
+                              JOIN #__rol_permisos rpx ON rpx.rol_id = urx.rol_id
+                             WHERE urx.usuario_id = {$columna} AND rpx.permiso_codigo = ?)";
+    }
+
+    /**
+     * Ids de los usuarios que tienen $permiso por alguno de sus roles (activos o no: un reporte de un
+     * mes pasado tiene que excluir igual a quien ya se fue).
+     *
+     * @return array<int, true>
+     */
+    public static function usuariosConPermiso(string $permiso): array
+    {
+        $ids = [];
+        foreach (Database::fetchAll(
+            'SELECT DISTINCT ur.usuario_id
+               FROM #__usuarios_roles ur
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+              WHERE rp.permiso_codigo = ?',
+            [$permiso]
+        ) as $f) {
+            $ids[(int) $f['usuario_id']] = true;
+        }
+        return $ids;
+    }
+
     public function contarAdminsActivos(): int
     {
         return (int) Database::fetchColumn(

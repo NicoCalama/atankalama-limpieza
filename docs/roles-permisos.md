@@ -68,6 +68,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `asignaciones.auto_asignar` | Ejecutar round-robin automático | Asignaciones | global |
 | `asignaciones.reordenar_cola_trabajador` | Reordenar la cola de habitaciones pendientes de un trabajador | Asignaciones | global |
 | `asignaciones.mover_en_progreso` | Reasignar o quitar habitaciones que están en progreso (el trabajador pierde lo avanzado). Solo Admin por defecto (v6.7, decisión de jefatura 22/09/2026); sin él, la pieza en progreso se ve bloqueada y el backend responde 403 — ver `docs/asignacion.md` §4.4 | Asignaciones | global |
+| `asignaciones.excluir_auto` | **Permiso de marca** (ver §5.2): quien lo tiene no recibe piezas del reparto automático (round-robin), aunque tenga turno; solo asignación manual. Rol Apoyo (01/10/2026). Migración `scripts/migrate-add-rol-apoyo.php` | Asignaciones | propio |
 
 ### 2.4 Auditoría
 
@@ -143,6 +144,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `kpis.ver_propios` | Ver KPIs personales (habitaciones hoy, tiempo promedio personal) | KPIs | propio |
 | `kpis.ver_operativas` | Ver KPIs operativos del equipo (activos, disponibles, auditadas, etc.) | KPIs | global |
 | `kpis.ver_globales` | Ver KPIs agregados de alto nivel (ocupación, tendencias, eficiencia general) | KPIs | global |
+| `kpis.excluido` | **Permiso de marca** (ver §5.2): quien lo tiene no suma créditos ni aparece en Reportes, la ficha, el resumen mensual ni el bono de RRHH, y sus limpiezas no mueven los KPIs del equipo (rechazo, aprobación a la 1ª, productividad, ítems desmarcados, cobertura de inspección, tiempo promedio y tasa de rechazo del Inicio del Admin). Lo operativo no cambia: estados, bandeja de inspección, pendientes y alertas. Rol Apoyo (01/10/2026). Se decide con el rol que la persona tiene HOY (no hay historial de roles): si pasa de Apoyo a Trabajador, su trabajo anterior aparece en los reportes de meses pasados. Migración `scripts/migrate-add-rol-apoyo.php` | KPIs | propio |
 | `reportes.ver` | Ver el módulo de reportes y KPIs exportables (página Reportes, ficha de KPIs del trabajador) | Reportes | global |
 | `reportes.ver_supervisoras` | Ver los KPIs y tiempos de las supervisoras en Reportes (sección «Supervisora · Inspección»). **Privacidad jerárquica de tiempos** (jefatura, 16/09/2026): nadie ve sus propios tiempos, solo el nivel de arriba → solo roles administradores; una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. Migración `scripts/migrate-add-permiso-reportes-supervisoras.php` | Reportes | global |
 | `reportes.editar_corte` | Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual por trabajador). Es el único dato manual del bono de RRHH; depende de la ocupación y se guarda por mes. Solo administración (decisión de Nicolás, 01/10/2026). Migración `scripts/migrate-add-permiso-reportes-editar-corte.php` | Reportes | global |
@@ -192,9 +194,9 @@ Formato: `codigo | descripcion | categoria | scope`
 
 ---
 
-## 3. Roles por defecto (4)
+## 3. Roles por defecto (5)
 
-Los 4 roles vienen precargados por seeder. Son **editables** desde Ajustes — solo son defaults razonables.
+Los 5 roles vienen precargados por seeder. Son **editables** desde Ajustes — solo son defaults razonables.
 
 ### 3.1 Trabajador
 
@@ -262,7 +264,15 @@ Permisos por defecto:
 
 **Propósito:** control total. Todos los permisos por defecto.
 
-Permisos por defecto: **todos los del catálogo** (los 50).
+Permisos por defecto: **todos los del catálogo menos los permisos de marca** (`kpis.excluido`, `asignaciones.excluir_auto`; ver §5.2). El `'__ALL__'` del seed los salta (`RbacService::PERMISOS_QUE_RESTAN`); si no, el Admin quedaría fuera de los KPIs y del reparto.
+
+### 3.5 Apoyo
+
+**Propósito:** personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de Nicolás, 01/10/2026). Trabaja igual que un Trabajador —ve sus piezas, marca el checklist, se inspecciona igual y una pieza rechazada vuelve a sucia—, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del reparto automático: la supervisora le asigna a mano (necesita turno para aparecer en el tablero). **No es de sistema** (`es_sistema = 0`): Admin lo puede editar o borrar desde Ajustes.
+
+Permisos por defecto: los de Trabajador **menos** `kpis.ver_propios`, **más** `kpis.excluido` y `asignaciones.excluir_auto`. La migración copia los permisos que Trabajador tiene HOY en la base (pueden haberse editado desde Ajustes).
+
+Rework cruzado: si una trabajadora rehace una pieza que le rechazaron a Apoyo, la pieza y lo que ella marcó le cuentan a ella; lo heredado (a nombre de Apoyo) no le cuenta a nadie. Si Apoyo rehace una rechazada de una trabajadora, el rechazo le sigue contando a ella.
 
 ---
 
@@ -284,6 +294,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `asignaciones.auto_asignar` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.reordenar_cola_trabajador` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.mover_en_progreso` | ⚪ | ⚪ | ⚪ | ✅ |
+| `asignaciones.excluir_auto` (marca) | — | — | — | — |
 | `auditoria.ver_bandeja` | ⚪ | ✅ | ✅ | ✅ |
 | `auditoria.aprobar` | ⚪ | ✅ | ✅ | ✅ |
 | `auditoria.aprobar_con_observacion` | ⚪ | ✅ | ✅ | ✅ |
@@ -317,6 +328,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `kpis.ver_propios` | ✅ | ⚪ | ⚪ | ✅ |
 | `kpis.ver_operativas` | ⚪ | ✅ | ⚪ | ✅ |
 | `kpis.ver_globales` | ⚪ | ⚪ | ⚪ | ✅ |
+| `kpis.excluido` (marca) | — | — | — | — |
 | `alertas.recibir_predictivas` | ⚪ | ✅ | ⚪ | ✅ |
 | `alertas.configurar_umbrales` | ⚪ | ⚪ | ⚪ | ✅ |
 | `sistema.ver_salud` | ⚪ | ⚪ | ⚪ | ✅ |
@@ -339,9 +351,11 @@ usuario.permisos = ⋃ rol.permisos (para cada rol en usuario.roles)
 
 Ejemplo: una persona con roles `Supervisora` + `Recepción` acumula los permisos de ambos. No hay resta ni conflicto.
 
-### 5.2 No hay permisos negativos
+### 5.2 No hay permisos negativos (pero sí permisos de marca)
 
 El sistema no soporta "denegar explícitamente". Si un rol no tiene un permiso, el usuario no lo tiene (salvo que otro rol suyo lo provea).
+
+**Excepción documentada (01/10/2026, rol Apoyo): permisos de marca.** `kpis.excluido` y `asignaciones.excluir_auto` no habilitan ni quitan ninguna capacidad: marcan **cómo se cuenta** a la persona (fuera de KPIs, fuera del reparto automático). Se rigen por la misma unión del §5.1: si cualquiera de sus roles los tiene, la persona queda marcada (alguien con Trabajador + Apoyo queda fuera de los KPIs). Por eso no van en el `'__ALL__'` del Admin y conviene no dárselos a roles de jefatura. Se chequean con `RbacService::sqlSinPermiso()` / `usuariosConPermiso()`, nunca por nombre de rol.
 
 ### 5.3 Admin puede editarse a sí mismo
 

@@ -61,7 +61,10 @@ function seedRoles(string $seedDir): void
             echo "  rol ya existía: {$rol['nombre']} (id={$rolId})\n";
         }
 
-        $permisos = $rol['permisos'] === '__ALL__' ? $codigosTodos : $rol['permisos'];
+        // '__ALL__' = todo menos los permisos que RESTAN (rol Apoyo): el Admin no queda fuera de KPIs ni del reparto.
+        $permisos = $rol['permisos'] === '__ALL__'
+            ? array_values(array_diff($codigosTodos, \Atankalama\Limpieza\Services\RbacService::PERMISOS_QUE_RESTAN))
+            : $rol['permisos'];
         foreach ($permisos as $codigo) {
             Database::execute(
                 'INSERT OR IGNORE INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',

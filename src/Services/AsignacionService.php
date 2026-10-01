@@ -163,13 +163,15 @@ final class AsignacionService
         $sqlHab .= ' ORDER BY ho.codigo, h.numero';
         $habitaciones = array_map(static fn(array $f) => (int) $f['id'], Database::fetchAll($sqlHab, $paramsHab));
 
-        // Trabajadores con turno ese día. Filtrar por hotel_default compatible.
+        // Trabajadores con turno ese día. Filtrar por hotel_default compatible. El personal de apoyo
+        // (asignaciones.excluir_auto, 01/10/2026) no entra al reparto: la supervisora le asigna a mano.
+        $paramsUsr = [$fecha];
         $sqlUsr = 'SELECT u.id
                      FROM #__usuarios u
                      JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                     WHERE ut.fecha = ?
-                      AND u.activo = 1';
-        $paramsUsr = [$fecha];
+                      AND u.activo = 1
+                      AND ' . RbacService::sqlSinPermiso('u.id', RbacService::PERMISO_EXCLUIDO_AUTO_ASIGNAR, $paramsUsr);
         if ($filtroHotel !== null) {
             $sqlUsr .= " AND (u.hotel_default = ? OR u.hotel_default = 'ambos')";
             $paramsUsr[] = $filtroHotel;

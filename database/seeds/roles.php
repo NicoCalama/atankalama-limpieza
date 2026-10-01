@@ -93,4 +93,29 @@ return [
         'es_sistema' => 1,
         'permisos' => '__ALL__',
     ],
+    [
+        // Personal de otras áreas que limpia de vez en cuando (01/10/2026): trabaja igual que un
+        // Trabajador, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del
+        // reparto automático. No es de sistema: Admin puede editarlo o borrarlo desde Ajustes.
+        'nombre' => 'Apoyo',
+        'descripcion' => 'Personal de otras áreas que apoya en limpieza (sin créditos ni KPIs)',
+        'es_sistema' => 0,
+        'permisos' => [
+            'habitaciones.ver_asignadas_propias',
+            'habitaciones.marcar_completada',
+            'habitaciones.saltar',
+            'cloudbeds.forzar_sincronizacion',
+            'tickets.crear',
+            'tickets.ver_propios',
+            'copilot.usar_nivel_1_consultas',
+            'copilot.usar_nivel_2_acciones',
+            'copilot.ver_historial_propio',
+            'usuarios.cambiar_propia_contrasena',
+            'usuarios.exportar_datos_propios',
+            'disponibilidad.notificar_supervisora',
+            'notificaciones.ver',
+            'kpis.excluido',
+            'asignaciones.excluir_auto',
+        ],
+    ],
 ];

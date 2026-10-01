@@ -62,7 +62,10 @@ final class TestDatabase
                 [$rol['nombre'], $rol['descripcion'], $rol['es_sistema']]
             );
             $rolId = Database::lastInsertId();
-            $permisosRol = $rol['permisos'] === '__ALL__' ? $todos : $rol['permisos'];
+            // Igual que scripts/seed.php: '__ALL__' sin los permisos que RESTAN (rol Apoyo).
+            $permisosRol = $rol['permisos'] === '__ALL__'
+                ? array_values(array_diff($todos, \Atankalama\Limpieza\Services\RbacService::PERMISOS_QUE_RESTAN))
+                : $rol['permisos'];
             foreach ($permisosRol as $codigo) {
                 Database::execute(
                     'INSERT INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',

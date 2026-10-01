@@ -183,6 +183,7 @@ function usuariosApp() {
         filtrosRol: [
             { valor: '', label: 'Todos' },
             { valor: 'Trabajador', label: 'Trabajadores' },
+            { valor: 'Apoyo', label: 'Apoyo' },
             { valor: 'Supervisora', label: 'Supervisoras' },
             { valor: 'Recepción', label: 'Recepción' },
             { valor: 'Admin', label: 'Admins' },

@@ -688,6 +688,7 @@ final class ReportesService
         $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = $this->userCond($usuarioId, $params, 'ec');
+        $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $params);
 
         // Los días con actividad se cuentan en PHP, no con COUNT(DISTINCT DATE(...)):
         // DATE() sobre la columna da el día UTC, así que una limpieza a las 18:00 y otra
@@ -702,7 +703,7 @@ final class ReportesService
               WHERE ec.estado IN ('completada', 'auditada')
                 AND " . self::CON_TRABAJO . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$h}{$u}",
+                    {$h}{$u}{$x}",
             $params
         );
 
@@ -738,6 +739,7 @@ final class ReportesService
         $params = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $params);
         $u = $this->userCond($usuarioId, $params, 'ec');
+        $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $params);
 
         $fila = Database::fetchOne(
             "SELECT SUM(CASE WHEN ei.marcado = 1 THEN 1 ELSE 0 END)                AS marcados,
@@ -748,7 +750,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$h}{$u}",
+                    {$h}{$u}{$x}",
             $params
         );
 
@@ -1154,6 +1156,12 @@ final class ReportesService
             $filas[$uid]['dias_trabajados'] = count($fechas);
         }
 
+        // ── Personal de apoyo (permiso kpis.excluido, 01/10/2026): fuera de la ficha y, con ella, de las
+        // tarjetas, el detalle, el selector, la comparación con el grupo, el resumen mensual y el bono.
+        // Se saca al final porque cada número de la ficha es de una sola persona: lo que una trabajadora
+        // hace sobre una pieza de apoyo (o al revés) se le sigue contando a ella con las reglas de siempre.
+        $filas = array_diff_key($filas, RbacService::usuariosConPermiso(RbacService::PERMISO_EXCLUIDO_KPIS));
+
         // ── Jornada (tiempo completo / parcial) y RUT de cada persona: contexto de sus KPIs y llave con RRHH ──
         if ($filas !== []) {
             $ids = array_keys($filas);
@@ -1441,6 +1449,8 @@ final class ReportesService
     {
         $p = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $p);
+        // Las limpiezas del personal de apoyo no mueven el rechazo ni la cobertura del equipo.
+        $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $p);
         $filas = Database::fetchAll(
             "SELECT t.nombre AS turno, t.hora_inicio,
                     COUNT(*) AS completadas,
@@ -1456,7 +1466,7 @@ final class ReportesService
           LEFT JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$h}
+                    {$h}{$x}
               GROUP BY t.nombre, t.hora_inicio",
             $p
         );
