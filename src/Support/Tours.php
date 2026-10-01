@@ -1168,7 +1168,7 @@ final class Tours
                             ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Bajar los KPIs del período',
                              'texto' => 'El botón «Exportar Excel» genera un archivo con los indicadores del período y los filtros elegidos, listo para abrir en Excel.'],
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Bajar el mes por trabajador',
-                             'texto' => 'Dentro de «Resumen mensual por trabajador», «Exportar» descarga la planilla del mes elegido con las habitaciones y créditos de cada persona.'],
+                             'texto' => 'Dentro de «Resumen mensual por trabajador», «Exportar» descarga la planilla del mes elegido con el RUT, las habitaciones, los días trabajados, las columnas del bono de aseo y los créditos de cada persona.'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Bajar el mes de inspecciones',
                              'texto' => 'En «Resumen mensual de inspecciones», «Exportar» descarga la planilla del mes con el total y el desglose por inspector.'],
                         ],
@@ -1180,7 +1180,7 @@ final class Tours
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
-                             'texto' => 'Elige un mes arriba y la tabla muestra, por trabajador, las habitaciones que quedaron bien (y las rechazadas), sus créditos y su eficiencia: los mismos números de la ficha.'],
+                             'texto' => 'Elige un mes y verás por trabajador sus habitaciones, días trabajados, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
                              'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
                         ],

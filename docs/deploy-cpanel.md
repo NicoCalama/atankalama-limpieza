@@ -966,37 +966,64 @@ Pedido urgente de Nicolás (30/09/2026) tras revisar si los KPIs se guardan y se
   mensual del mes;
 - «Exportar» del resumen mensual con el mes anterior: el archivo trae ese mes (antes, el mes en curso).
 
-### 11.11 Release "jornada + días trabajados" → v6.17
+### 11.11 Release "jornada + días trabajados + bono de aseo" → v6.17
 
 Pedido de Nicolás (30/09/2026): en Usuarios se asigna la **jornada** (tiempo completo / parcial) y las
 tres tablas de trabajadores de Reportes (detalle por trabajadora, ficha de KPIs, resumen mensual) y sus
 CSV suman **Días trabajados** (días con al menos una pieza asignada) y la jornada junto al nombre.
 Definición en `docs/kpis-sueldos.md` (KPI 1.4 y «Jornada»).
 
-**Un cambio de datos, ANTES de subir el código:** columna nullable `jornada` en `usuarios`. Sin backfill
-(NULL = «sin definir»). Si el código sube antes: Usuarios y Reportes caen con 500 (columna inexistente);
-el login no se cae (`UsuarioService::hidratar` tolera la columna ausente).
+Además (01/10/2026) el resumen mensual calcula el **bono de aseo de RRHH** (planilla «KPI ASEO»,
+`docs/kpis-sueldos.md`); su único dato manual es el **corte hab./día**, editable junto al título y
+guardado por mes en `alertas_config` (sin tabla nueva).
+
+**Dos cambios de datos, ANTES de subir el código:**
+
+1. Columna nullable `jornada` en `usuarios`. Sin backfill (NULL = «sin definir»). Si el código sube antes:
+   Usuarios y Reportes caen con 500 (columna inexistente); el login no se cae (`UsuarioService::hidratar`
+   tolera la columna ausente).
+2. Permiso `reportes.editar_corte`, concedido a los roles que administran la matriz (`permisos.asignar_a_rol`).
+   Si falta: nadie puede cambiar el corte (se usa 18) y Salud del sistema marca el permiso faltante.
 
 **Vía recomendada (PHP CLI o cron de una sola vez, ver v2.5), idempotente:**
 
 ```bash
 /opt/alt/php84/usr/bin/php scripts/migrate-add-jornada.php
+/opt/alt/php84/usr/bin/php scripts/migrate-add-permiso-reportes-editar-corte.php
 ```
 
 **Fallback phpMyAdmin** (equivalente, con prefijo `limpieza_`):
 
 ```sql
+-- 1) Jornada del usuario.
 ALTER TABLE limpieza_usuarios ADD COLUMN IF NOT EXISTS jornada VARCHAR(10) NULL;
+
+-- 2) Permiso nuevo + concesión a los roles administradores.
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'reportes.editar_corte',
+       'Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual)',
+       'Reportes', 'global'
+  FROM DUAL
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'reportes.editar_corte');
+
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT DISTINCT rp.rol_id, 'reportes.editar_corte'
+  FROM limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'permisos.asignar_a_rol'
+   AND NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos x
+                    WHERE x.rol_id = rp.rol_id AND x.permiso_codigo = 'reportes.editar_corte');
 ```
 
 **Sin `.env`, sin `vendor/`, sin `sw.js`/assets.** No comparte archivos de código con la v6.16 (§11.9), así
 que puede subir antes o después; solo `CHANGELOG.md` es común (subir el del commit más nuevo). Archivos, todos
 a `app_core/`:
 
-- `src/Controllers/UsuariosController.php`, `src/Models/Usuario.php`;
-- `src/Services/UsuarioService.php`, `src/Services/ReportesService.php`;
+- `src/Controllers/UsuariosController.php`, `src/Controllers/ReportesController.php`, `src/Models/Usuario.php`;
+- `src/Services/UsuarioService.php`, `src/Services/ReportesService.php`, `src/Services/BonoAseoService.php` (nuevo);
+- `src/Core/Kernel.php` (ruta `PUT /api/reportes/corte-hab-dia`), `src/Support/Tours.php`;
+- `database/seeds/permisos.php` (el verificador de esquema lo lee);
 - `views/reportes.php`, `views/componentes/modal-usuario-nuevo.php`, `views/componentes/modal-usuario-detalle.php`;
-- `scripts/migrate-add-jornada.php`;
+- `scripts/migrate-add-jornada.php`, `scripts/migrate-add-permiso-reportes-editar-corte.php`;
 - `docs/database-schema.sql` y `docs/database-schema.mariadb.sql` (los lee el verificador de esquema: con
   ellos arriba, si faltara la columna, Salud del sistema lo marca);
 - `CHANGELOG.md`.
@@ -1006,5 +1033,8 @@ a `app_core/`:
 - badge **v6.17** (incógnito), `/api/health` 200, Salud del sistema → «Esquema de base de datos» al día;
 - Usuarios: abrir una trabajadora, elegir «Tiempo parcial», «Guardar cambios», cerrar y volver a abrir → queda marcado;
 - Reportes: aparece «Días trab.» en las tres tablas y la etiqueta «Parcial» junto a su nombre; «Exportar» del
-  resumen mensual trae las columnas «Jornada» y «Días trabajados».
+  resumen mensual trae RUT, «Jornada», «Días trabajados» y las columnas del bono;
+- Resumen mensual: con Admin, cambiar «Corte hab./día» (por ejemplo a 16) recalcula Eficacia/Extras y al
+  recargar sigue en 16; el mes siguiente muestra «igual que MM/AAAA». Con un rol sin el permiso, el cuadro
+  aparece deshabilitado.
 

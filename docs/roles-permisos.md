@@ -145,6 +145,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `kpis.ver_globales` | Ver KPIs agregados de alto nivel (ocupación, tendencias, eficiencia general) | KPIs | global |
 | `reportes.ver` | Ver el módulo de reportes y KPIs exportables (página Reportes, ficha de KPIs del trabajador) | Reportes | global |
 | `reportes.ver_supervisoras` | Ver los KPIs y tiempos de las supervisoras en Reportes (sección «Supervisora · Inspección»). **Privacidad jerárquica de tiempos** (jefatura, 16/09/2026): nadie ve sus propios tiempos, solo el nivel de arriba → solo roles administradores; una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. Migración `scripts/migrate-add-permiso-reportes-supervisoras.php` | Reportes | global |
+| `reportes.editar_corte` | Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual por trabajador). Es el único dato manual del bono de RRHH; depende de la ocupación y se guarda por mes. Solo administración (decisión de Nicolás, 01/10/2026). Migración `scripts/migrate-add-permiso-reportes-editar-corte.php` | Reportes | global |
 
 ### 2.12 Alertas
 

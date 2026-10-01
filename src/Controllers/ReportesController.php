@@ -6,12 +6,14 @@ namespace Atankalama\Limpieza\Controllers;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Services\BonoAseoService;
 use Atankalama\Limpieza\Services\ReportesService;
 
 final class ReportesController
 {
     public function __construct(
         private readonly ReportesService $service = new ReportesService(),
+        private readonly BonoAseoService $bono = new BonoAseoService(),
     ) {
     }
 
@@ -84,14 +86,44 @@ final class ReportesController
             return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
         }
 
-        $filas = $this->service->resumenMensual($anio, $mes, $hotel);
+        $corte = $this->bono->corte($anio, $mes);
+        $filas = $this->service->resumenMensual($anio, $mes, $hotel, $corte['valor']);
 
         return Response::ok([
             'anio'  => $anio,
             'mes'   => $mes,
             'hotel' => $hotel,
+            'corte' => $corte,
             'trabajadores' => $filas,
         ]);
+    }
+
+    /**
+     * PUT /api/reportes/corte-hab-dia  { anio, mes, valor }
+     * Fija el corte de habitaciones diarias (jornada completa) del bono de aseo para ese mes.
+     * Permiso reportes.editar_corte (lo exige también la ruta).
+     */
+    public function guardarCorte(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.editar_corte')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para editar el corte de habitaciones.', 403);
+        }
+        $anio  = $request->input('anio');
+        $mes   = $request->input('mes');
+        $valor = $request->input('valor');
+        if (!is_numeric($anio) || !is_numeric($mes) || !is_numeric($valor)) {
+            return Response::error('PARAMETROS_INVALIDOS', 'Indica el mes y un número de habitaciones por día.', 400);
+        }
+        try {
+            $corte = $this->bono->guardarCorte((int) $anio, (int) $mes, (float) $valor, $usuario->id);
+        } catch (\InvalidArgumentException $e) {
+            return Response::error('CORTE_INVALIDO', $e->getMessage(), 400);
+        }
+        return Response::ok(['corte' => $corte]);
     }
 
     /** GET /api/reportes/resumen-mensual-auditores?anio=2026&mes=4&hotel=ambos */
