@@ -508,6 +508,72 @@ atrás**:
 
 ---
 
+## Planilla «KPI ASEO» de RRHH (bonos) — análisis del 01/10/2026
+
+> Planilla `KPI-JUL_26.xlsx`, pestaña **KPI ASEO**, que RRHH usa para calcular parte de los bonos.
+> Las columnas A–I las arma **otra macro de RRHH** y se pegan en esta hoja (la pestaña PERSONAL
+> está desactualizada; la nómina vigente vive en la hoja de la macro). Objetivo: que la app entregue
+> esos datos y, a futuro, los calcule. **Estado: análisis cerrado, nada construido todavía.**
+
+### Cálculo por trabajador (con las correcciones confirmadas por RRHH)
+
+| Col. | Qué es | Regla | En la app |
+|---|---|---|---|
+| C | Hab. hechas | dato (macro) | ≈ `habitaciones` del resumen mensual — **falta definir** qué cuenta (¿rechazadas? ¿áreas comunes?) |
+| D | Días trabajados | dato (macro) | `dias_trabajados` (KPI 1.4) ✅ |
+| E | Tipo de jornada | Parcial / Ordinaria | `usuarios.jornada` (`parcial` / `completa`) ✅ |
+| F | Actividades por día | C ÷ D | derivable |
+| K | Observaciones de aseo | dato | **falta definir** (¿rechazadas + aprobadas con observación de la app?) |
+| — | **Base** (hab/día) | **variable según ocupación**; jornada parcial = la mitad | hoy **manual** (ver abajo) |
+| L | Eficacia | `min(F ÷ base, 1)` con la base **de su jornada** | derivable |
+| M | % act. observadas | K ÷ C | derivable |
+| N | % logro | (1 − M) × L | derivable |
+| O | Factor de peso | N ≤ 0,7 → 0,427·N; si no → 2,333·N − 1,333 | derivable |
+| J | Resultado («% calidad») | N × O | derivable |
+| I | Actividades extras | `max(F − base, 0) × D` | derivable |
+
+**Correcciones confirmadas por RRHH (01/10/2026)** sobre la planilla de julio:
+1. **Extras (I):** se multiplicaba el exceso diario por F (hab/día); lo correcto es **× D (días
+   trabajados)**. En julio, el total de extras pasa de 173 a 273.
+2. **Eficacia (L):** dividía por 18 para todos; desde que existe la jornada parcial debe usar **la misma
+   base que I** (la mitad para parcial).
+
+**Confirmado sin cambios (intencional):** el texto «59 %» de la etiqueta quedó pegado (la fórmula, 90 %,
+es la correcta); cada supervisora tiene un denominador distinto según su cargo y dedicación; las
+observaciones pesan distinto según su origen (recepción, particulares, empresas) por su impacto en la
+imagen del hotel.
+
+### Base variable (el «18»)
+
+La base **no es fija: depende de la ocupación**. Decisión de Nicolás (01/10/2026): **por ahora la fija
+RRHH a mano** en su planilla; **en una próxima sesión se busca la fórmula para automatizarla**. Opciones
+ya conversadas para esa sesión:
+
+- **A — Base por mes en Ajustes:** RRHH la carga y la app la aplica (parcial = la mitad). Simple; el mismo
+  número para todo el mes.
+- **B — Tabla ocupación → base:** tramos que define RRHH y que la app aplica día a día. Requiere empezar a
+  **guardar la ocupación diaria** de Cloudbeds (hoy la app solo guarda la foto actual por pieza, sin
+  historial); solo sirve desde que se active.
+- **C — Base = carga real del día:** piezas por limpiar ese día ÷ personas trabajando (parcial cuenta como
+  media). Sale de datos que la app ya tiene, también hacia atrás, pero cambia el concepto de base.
+
+Si la base cambia según la ocupación, lo natural es calcular las extras **día por día** contra la base
+de ese día, no con el promedio del mes. La planilla no puede hacerlo; la app sí.
+
+### Pendientes con RRHH
+
+1. La respuesta sobre la **supervisora** llegó cortada.
+2. Calidad de la sección: **J37 y J43** son dos fórmulas para lo mismo con pesos distintos para
+   «empresas» (×2 y ×3). ¿Cuál vale?
+3. Días laborales (B2): `NETWORKDAYS.INTL(…,"0000010")` da libre el **sábado**, no el domingo (en julio
+   coincide; en otros meses no).
+4. **Hoja de la macro:** sus columnas de entrada y de dónde saca hoy «hab. hechas» y «observaciones»,
+   para que el exportable de la app calce exacto.
+5. Definir «hab. hechas» y «observaciones» (ver la tabla).
+6. Para conversar: las personas de jornada completa («especialista aseo») hacen 4–7 hab/día contra una base
+   de 18, así que su resultado queda cerca de 0. Si hacen otras tareas (áreas comunes, apoyo), contar solo
+   habitaciones las castiga. La app ya tiene créditos de áreas comunes que podrían sumar como actividades.
+
 ## Banco de KPIs de la industria (referencia, NO comprometidos)
 
 De la búsqueda del 13/09/2026 (detalle en la memoria del proyecto). Guardados por si
@@ -564,3 +630,4 @@ re-clean **<5%**.
 | 17/09/2026 | **Privacidad jerárquica IMPLEMENTADA (permiso `reportes.ver_supervisoras`):** la sección «Supervisora · Inspección» (con el tiempo por auditación) se calcula, se envía (`GET /api/reportes/ficha` → `supervisoras`) y se renderiza solo para quien tiene el permiso; el paso del tour se oculta con la bandera `ve_supervisoras`. Semilla: solo los roles que administran la matriz (`permisos.asignar_a_rol`) lo reciben — migración `scripts/migrate-add-permiso-reportes-supervisoras.php`. Una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. |
 | 30/09/2026 | **Reportes coherente (v6.15), tras auditar si los KPIs se guardan y se ven bien:** (a) **los filtros de Reportes nunca se aplicaban** (el controlador leía la URL con `Request::input()`, que solo mira el cuerpo): todo caía en hoy / mes en curso / ambos hoteles, CSV incluidos — corregido con test que pasa por el controlador. (b) **Una sola definición en toda la pestaña:** tarjetas, detalle por trabajadora, resumen mensual y su CSV salen de la ficha (`fichaTrabajadores`); rechazo y aprobación a la 1ª del EQUIPO, de la sección de inspección (solo veredictos humanos, por fecha de limpieza); los de UNA trabajadora, de su fila (la automática cuenta como aprobada, regla del 16/09). «Créditos obtenidos» pasa a ser un número (el de la ficha), ya no un %. El resumen mensual cuenta **ciclos** (no piezas distintas), aplica la escalera 100/50/0 y muestra rechazadas y eficiencia en vez de «créditos máximos». (c) **Decisión de Nicolás: la 2ª limpieza del día sobre la misma asignación (nochero de las 16:00, turnover) es OTRA pieza asignada** — el ciclo pasa a ser pieza · fecha · franja · **vuelta**; una limpieza que empieza después de otra no rechazada abre vuelta nueva, la re-limpieza tras un rechazo sigue en la misma (escalera). Antes la eficiencia podía pasar del 100 % o tapar una pieza no hecha. (d) El atajo «Marcar limpia» (ejecución sin ítems) no cuenta como trabajo: fuera de tiempos, productividad, rechazos, Asignadas y del listado de trabajadoras; la asignación que se resolvió así no le cuenta a quien la tenía. (e) El mínimo de datos del semáforo σ se mide sobre piezas **trabajadas** (A + R). (f) «Pendientes al corte»: lo que aprobó el cierre automático (15:50 o 23:55) sale como «Sin inspeccionar (la aprobó el sistema)» (cierra R5). (g) **Decisión de Nicolás: «Sistema» se queda en el Resumen mensual de inspecciones** — deja a la vista cuántas no se alcanzaron a inspeccionar. |
 | 30/09/2026 | **Días trabajados + jornada (pedido de Nicolás):** (a) nuevo **KPI 1.4 «Días trabajados»** = días con al menos una asignación, aunque sea de una sola pieza; no cuentan las asignaciones retiradas sin trabajo (desasignadas, autocanceladas o pasadas a otra persona sin que la tocara) ni el atajo «Marcar limpia». Sale de las asignaciones, **no es asistencia** (sigue fuera de la app, decisión del 16/09). (b) **Jornada** (tiempo completo / parcial) en el usuario, sin definir por defecto; se muestra junto al nombre en las tablas de trabajadores y en los CSV. Ambos en las tres tablas de trabajadores de Reportes y sus CSV. Migración `scripts/migrate-add-jornada.php`. |
+| 01/10/2026 | **Planilla «KPI ASEO» de RRHH (bonos) analizada** (ver sección propia). RRHH confirma dos errores: las **extras** se multiplican por **días trabajados** (no por hab/día) y la **eficacia** usa la base **de la jornada** (la mitad para parcial). La **base (18 hab/día) es variable según la ocupación**: por ahora la fija RRHH a mano; la fórmula para automatizarla queda para una próxima sesión (opciones A/B/C). Nada construido todavía. |
