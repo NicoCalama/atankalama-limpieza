@@ -90,6 +90,9 @@ return [
     // supervisoras) queda tras este permiso, pensado para Admin/jefatura; una supervisora con
     // `reportes.ver` ve a sus trabajadoras y nada de sí misma.
     ['reportes.ver_supervisoras', 'Ver los KPIs y tiempos de las supervisoras en Reportes (sección Supervisora · Inspección)', 'Reportes', 'global'],
+    // Único dato manual del bono de aseo de RRHH (01/10/2026): el corte de habitaciones diarias, que
+    // depende de la ocupación. Pensado solo para administración.
+    ['reportes.editar_corte', 'Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual)', 'Reportes', 'global'],
 
     ['disponibilidad.notificar_supervisora', 'Marcarse disponible para más habitaciones', 'Disponibilidad', 'propio'],
 

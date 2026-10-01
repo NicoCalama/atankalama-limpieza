@@ -75,6 +75,19 @@
                             </div>
                         </div>
 
+                        <!-- Jornada (opcional: sin elegir queda «sin definir») -->
+                        <div>
+                            <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Jornada</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <template x-for="opt in jornadas" :key="opt.valor">
+                                    <button type="button" @click="form.jornada = (form.jornada === opt.valor ? null : opt.valor)"
+                                            :class="form.jornada === opt.valor ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                            class="min-h-[44px] px-2 py-1 text-xs font-medium rounded-lg border transition"
+                                            x-text="opt.label"></button>
+                                </template>
+                            </div>
+                        </div>
+
                         <!-- Roles -->
                         <div>
                             <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Roles *</label>
@@ -180,8 +193,13 @@ function modalUsuarioNuevo() {
             nombre: '',
             email: '',
             hotel_default: 'ambos',
+            jornada: null,
             roles: [],
         },
+        jornadas: [
+            { valor: 'completa', label: 'Tiempo completo' },
+            { valor: 'parcial', label: 'Tiempo parcial' },
+        ],
         hoteles: [
             { valor: 'ambos', label: 'Ambos' },
             { valor: '1_sur', label: 'Atankalama' },
@@ -200,7 +218,7 @@ function modalUsuarioNuevo() {
         },
 
         reset() {
-            this.form = { rut: '', nombre: '', email: '', hotel_default: 'ambos', roles: [] };
+            this.form = { rut: '', nombre: '', email: '', hotel_default: 'ambos', jornada: null, roles: [] };
             this.error = null;
             this.errores = {};
             this.enviando = false;
@@ -285,6 +303,7 @@ function modalUsuarioNuevo() {
                     nombre: (this.form.nombre || '').trim(),
                     email: (this.form.email || '').trim() || null,
                     hotel_default: this.form.hotel_default || null,
+                    jornada: this.form.jornada || null,
                     // El backend (UsuarioService::crear) espera IDs de rol, no nombres.
                     // form.roles guarda nombres (para el toggle/estilo); acá los mapeamos a sus IDs.
                     roles: this.form.roles

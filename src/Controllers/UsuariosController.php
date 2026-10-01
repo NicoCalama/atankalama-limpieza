@@ -58,6 +58,7 @@ final class UsuariosController
             'nombre' => $request->inputString('nombre'),
             'email' => $request->inputString('email', ''),
             'hotel_default' => $request->inputString('hotel_default', ''),
+            'jornada' => $request->inputString('jornada', ''),
             'roles' => $request->input('roles', []),
         ];
         if ($datos['email'] === '') {
@@ -65,6 +66,9 @@ final class UsuariosController
         }
         if ($datos['hotel_default'] === '') {
             $datos['hotel_default'] = null;
+        }
+        if ($datos['jornada'] === '') {
+            $datos['jornada'] = null;
         }
 
         try {
@@ -88,7 +92,7 @@ final class UsuariosController
             return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
         }
         $datos = [];
-        foreach (['nombre', 'email', 'hotel_default', 'tema_preferido'] as $k) {
+        foreach (['nombre', 'email', 'hotel_default', 'jornada', 'tema_preferido'] as $k) {
             if (array_key_exists($k, $request->cuerpo)) {
                 $datos[$k] = $request->cuerpo[$k];
             }

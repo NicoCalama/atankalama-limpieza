@@ -24,7 +24,9 @@
 - **Cruce por RUT**, sin tocar el esquema (RUT ya es la llave con la planilla de
   sueldos). No se agrega campo cargo/posición por ahora.
 - **Asistencia fuera de alcance**: días laborados / ausencias vendrán de una futura
-  app de administración de horarios (también cruzará por RUT).
+  app de administración de horarios (también cruzará por RUT). *Desde el 30/09/2026 la app sí
+  muestra **Días trabajados** (KPI 1.4), pero sale de las **asignaciones**, no de un registro de
+  asistencia: no ve ausencias ni reemplazos que no pasaron por la app.*
 - **El dinero ($/crédito, montos de bono) queda en sueldos**, no en la app. La app
   entrega KPIs; sueldos aplica sus tarifas y fórmulas.
 - **Población del reporte:** los trabajadores con ejecuciones de limpieza en el
@@ -131,6 +133,33 @@ rol están definidos.
   créditos en 1.1. Rechazadas fuera. *(Confirmado 13/09/2026.)*
 - **Estado:** ✅ definición **confirmada**. El conteo existe; falta implementar el split
   A/B y generalizar a rango libre.
+
+### KPI 1.4 — Días trabajados  *(pedido de Nicolás, 30/09/2026)*
+
+- **Qué mide:** cuántos días del rango trabajó la persona, entendido como **días en que tuvo
+  al menos una asignación**, aunque sea de una sola pieza (o área común).
+- **Fórmula:** `COUNT(DISTINCT asignaciones.fecha)` (fecha local del turno) de las asignaciones
+  de la persona que **cuentan**:
+  - la trabajó (tiene una limpieza suya, terminada o en curso), **o**
+  - sigue siendo suya (`activa = 1`), aunque no la haya empezado.
+- **No cuenta** la asignación retirada sin trabajo: desasignada, autocancelada o **pasada a
+  otra persona sin que la tocara** (p. ej. faltó y se la dieron a otra; decisión de Nicolás), ni
+  la que solo tuvo el atajo «Marcar limpia» de otra persona. Por eso un día sin nada que cuente
+  no suma, aunque la persona siga figurando en «Asignadas» (pegajoso).
+- **Hotel:** respeta el filtro (con «Atankalama» solo cuentan asignaciones de ese hotel).
+- **No es asistencia:** sale de lo que se asignó en la app (ver «Alcance»). Sin semáforo ni
+  promedio del equipo (es un conteo de contexto, no un KPI de desempeño).
+- **Dónde se ve:** columna «Días trab.» en las tres tablas de trabajadores de Reportes (Detalle
+  por trabajadora, Ficha de KPIs · Trabajador, Resumen mensual por trabajador) y «Días
+  trabajados» en sus CSV. Implementado en `ReportesService::fichaTrabajadores` (`dias_trabajados`).
+
+### Jornada (tiempo completo / tiempo parcial)  *(pedido de Nicolás, 30/09/2026)*
+
+- Campo `usuarios.jornada` (`completa` | `parcial` | `NULL` = sin definir), editable en Usuarios.
+  Los usuarios existentes quedan **sin definir** hasta que alguien la asigne.
+- Se muestra como etiqueta junto al nombre en las tres tablas de trabajadores de Reportes y como
+  columna «Jornada» en sus CSV, para leer los KPIs (y los días trabajados) con ese contexto. No
+  cambia ningún cálculo.
 
 ---
 
@@ -479,6 +508,96 @@ atrás**:
 
 ---
 
+## Planilla «KPI ASEO» de RRHH (bonos) — análisis del 01/10/2026
+
+> Planilla `KPI-JUL_26.xlsx`, pestaña **KPI ASEO**, que RRHH usa para calcular parte de los bonos.
+> Las columnas A–I las arma **otra macro de RRHH** y se pegan en esta hoja (la pestaña PERSONAL
+> está desactualizada; la nómina vigente vive en la hoja de la macro). Objetivo: que la app entregue
+> esos datos y, a futuro, los calcule. **Estado: IMPLEMENTADO en v6.15.1 (01/10/2026)** — columnas en
+> Reportes → «Resumen mensual por trabajador» y su CSV (`BonoAseoService`); ver «Cómo quedó construido».
+
+### Cálculo por trabajador (con las correcciones confirmadas por RRHH)
+
+| Col. | Qué es | Regla | En la app |
+|---|---|---|---|
+| C | Hab. hechas | dato (macro) | `habitaciones` del resumen mensual: **las que quedaron bien** (aprobadas + sin inspeccionar), una por limpieza, sin áreas comunes ✅ |
+| D | Días trabajados | dato (macro) | `dias_trabajados` (KPI 1.4) ✅ |
+| E | Tipo de jornada | Parcial / Ordinaria | `usuarios.jornada` (`parcial` / `completa`) ✅ |
+| F | Actividades por día | C ÷ D | derivable |
+| K | Observaciones de aseo | dato | **casillas del checklist que el auditor le desmarcó** («tareas que no completó satisfactoriamente»), en aprobadas con observación y en rechazadas; solo piezas de huésped ✅ |
+| — | **Base** (hab/día) | **variable según ocupación**; jornada parcial = la mitad | **corte manual por mes** en Reportes (ver abajo) |
+| L | Eficacia | `min(F ÷ base, 1)` con la base **de su jornada** | derivable |
+| M | % act. observadas | K ÷ C, **tope 100 %** | derivable |
+| N | % logro | (1 − M) × L | derivable |
+| O | Factor de peso | N ≤ 0,7 → 0,427·N; si no → 2,333·N − 1,333 | derivable |
+| J | Resultado («% calidad») | N × O | derivable |
+| I | Actividades extras | `max(F − base, 0) × D` | derivable |
+
+**Correcciones confirmadas por RRHH (01/10/2026)** sobre la planilla de julio:
+1. **Extras (I):** se multiplicaba el exceso diario por F (hab/día); lo correcto es **× D (días
+   trabajados)**. En julio, el total de extras pasa de 173 a 273.
+2. **Eficacia (L):** dividía por 18 para todos; desde que existe la jornada parcial debe usar **la misma
+   base que I** (la mitad para parcial).
+
+**Confirmado sin cambios (intencional):** el texto «59 %» de la etiqueta quedó pegado (la fórmula, 90 %,
+es la correcta); cada supervisora tiene un denominador distinto según su cargo y dedicación; las
+observaciones pesan distinto según su origen (recepción, particulares, empresas) por su impacto en la
+imagen del hotel.
+
+### Base variable (el «18»)
+
+La base **no es fija: depende de la ocupación**. Decisión de Nicolás (01/10/2026): **por ahora es
+manual** — el «Corte hab./día» que se edita en Reportes junto al título del resumen mensual (ver «Cómo
+quedó construido») —; **en una próxima sesión se busca la fórmula para automatizarla**. Opciones ya
+conversadas para esa sesión:
+
+- **A — Base por mes en Ajustes:** RRHH la carga y la app la aplica (parcial = la mitad). Simple; el mismo
+  número para todo el mes.
+- **B — Tabla ocupación → base:** tramos que define RRHH y que la app aplica día a día. Requiere empezar a
+  **guardar la ocupación diaria** de Cloudbeds (hoy la app solo guarda la foto actual por pieza, sin
+  historial); solo sirve desde que se active.
+- **C — Base = carga real del día:** piezas por limpiar ese día ÷ personas trabajando (parcial cuenta como
+  media). Sale de datos que la app ya tiene, también hacia atrás, pero cambia el concepto de base.
+
+Si la base cambia según la ocupación, lo natural es calcular las extras **día por día** contra la base
+de ese día, no con el promedio del mes. La planilla no puede hacerlo; la app sí.
+
+### Cómo quedó construido (v6.15.1, 01/10/2026)
+
+- **Dónde:** Reportes → «Resumen mensual por trabajador». Entre «Hab. hechas» y «Créditos» van Act./día,
+  Observ., % observ., Eficacia, % logro, Factor, Resultado y Extras; cada título explica su fórmula.
+  El CSV del mes trae lo mismo con el **RUT** como llave, en el orden de la planilla de RRHH, y una fila
+  con el corte usado.
+- **Corte hab./día:** cuadro junto al título. Se guarda **por mes** (`alertas_config`, clave
+  `bono_corte_hab_dia_YYYY-MM`); un mes sin valor propio hereda el del último mes que lo tenga y, si no
+  hay ninguno, **18**. Entre 1 y 100, un decimal. Editarlo exige `reportes.editar_corte` (solo
+  administración); verlo, `reportes.ver`. Queda en el log de auditoría.
+- **Fórmulas** en `BonoAseoService::calcular` (puras, con tests sobre casos de la planilla de julio: la
+  jornada completa calza exacto con la planilla; la parcial cambia por las dos correcciones de RRHH).
+- **Sin jornada definida** no hay base: eficacia, logro, factor, resultado y extras quedan «—» y la fila
+  muestra «Sin jornada» (se asigna en Usuarios). Sin habitaciones hechas, % observ. y lo que depende de
+  él quedan vacíos, igual que en la planilla.
+- **Observaciones = casillas desmarcadas** por el auditor (`ejecuciones_items.desmarcado_por_auditor`),
+  atribuidas a quien marcó la casilla (si nadie la había marcado, a la dueña de la limpieza), por fecha
+  de limpieza y solo en piezas de huésped (el universo de «hab. hechas»). Cada casilla cuenta una vez.
+- **% observadas con tope 100 %:** se dividen casillas por habitaciones, como en la planilla, y las
+  rechazadas no están en «hab. hechas»; sin tope el logro podría salir negativo.
+- **Promedio del mes, no día por día:** igual que la planilla de RRHH (extras = hab. hechas − base × días).
+
+### Pendientes con RRHH
+
+1. La respuesta sobre la **supervisora** llegó cortada.
+2. Calidad de la sección: **J37 y J43** son dos fórmulas para lo mismo con pesos distintos para
+   «empresas» (×2 y ×3). ¿Cuál vale?
+3. Días laborales (B2): `NETWORKDAYS.INTL(…,"0000010")` da libre el **sábado**, no el domingo (en julio
+   coincide; en otros meses no).
+4. **Hoja de la macro:** sus columnas de entrada y de dónde saca hoy «hab. hechas» y «observaciones»,
+   para que el exportable de la app calce exacto.
+5. ~~Definir «hab. hechas» y «observaciones»~~ → definidos por Nicolás el 01/10/2026 (ver la tabla).
+6. Para conversar: las personas de jornada completa («especialista aseo») hacen 4–7 hab/día contra una base
+   de 18, así que su resultado queda cerca de 0. Si hacen otras tareas (áreas comunes, apoyo), contar solo
+   habitaciones las castiga. La app ya tiene créditos de áreas comunes que podrían sumar como actividades.
+
 ## Banco de KPIs de la industria (referencia, NO comprometidos)
 
 De la búsqueda del 13/09/2026 (detalle en la memoria del proyecto). Guardados por si
@@ -534,3 +653,7 @@ re-clean **<5%**.
 | 17/09/2026 | **Segunda revisión adversarial del incremento → correcciones:** (a) rechazada y rehecha por OTRA persona ya no le cuenta a la rechazada como pieza hecha (seguía sumando A por los ítems heredados a su nombre); (b) `reasignar()` hereda la franja (antes la re-limpieza caía en otro ciclo y esquivaba la gradualidad); (c) `pasada_a_otro` respeta la franja; (d) asignación sin checklist resoluble no entra a Asignadas; (e) la banda «alerta» del semáforo vs meta (−10 / +2 puntos) queda documentada en la ficha y en Ajustes; (f) la ficha en Reportes muestra error + «Reintentar» si el cálculo falla; (g) el tour describía mal la etapa B. **Pendiente de decisión:** créditos heredados de la persona rechazada cuando otra rehace (ver «Cómo quedó construido»). |
 | 17/09/2026 | **Privacidad jerárquica IMPLEMENTADA (permiso `reportes.ver_supervisoras`):** la sección «Supervisora · Inspección» (con el tiempo por auditación) se calcula, se envía (`GET /api/reportes/ficha` → `supervisoras`) y se renderiza solo para quien tiene el permiso; el paso del tour se oculta con la bandera `ve_supervisoras`. Semilla: solo los roles que administran la matriz (`permisos.asignar_a_rol`) lo reciben — migración `scripts/migrate-add-permiso-reportes-supervisoras.php`. Una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. |
 | 30/09/2026 | **Reportes coherente (v6.15), tras auditar si los KPIs se guardan y se ven bien:** (a) **los filtros de Reportes nunca se aplicaban** (el controlador leía la URL con `Request::input()`, que solo mira el cuerpo): todo caía en hoy / mes en curso / ambos hoteles, CSV incluidos — corregido con test que pasa por el controlador. (b) **Una sola definición en toda la pestaña:** tarjetas, detalle por trabajadora, resumen mensual y su CSV salen de la ficha (`fichaTrabajadores`); rechazo y aprobación a la 1ª del EQUIPO, de la sección de inspección (solo veredictos humanos, por fecha de limpieza); los de UNA trabajadora, de su fila (la automática cuenta como aprobada, regla del 16/09). «Créditos obtenidos» pasa a ser un número (el de la ficha), ya no un %. El resumen mensual cuenta **ciclos** (no piezas distintas), aplica la escalera 100/50/0 y muestra rechazadas y eficiencia en vez de «créditos máximos». (c) **Decisión de Nicolás: la 2ª limpieza del día sobre la misma asignación (nochero de las 16:00, turnover) es OTRA pieza asignada** — el ciclo pasa a ser pieza · fecha · franja · **vuelta**; una limpieza que empieza después de otra no rechazada abre vuelta nueva, la re-limpieza tras un rechazo sigue en la misma (escalera). Antes la eficiencia podía pasar del 100 % o tapar una pieza no hecha. (d) El atajo «Marcar limpia» (ejecución sin ítems) no cuenta como trabajo: fuera de tiempos, productividad, rechazos, Asignadas y del listado de trabajadoras; la asignación que se resolvió así no le cuenta a quien la tenía. (e) El mínimo de datos del semáforo σ se mide sobre piezas **trabajadas** (A + R). (f) «Pendientes al corte»: lo que aprobó el cierre automático (15:50 o 23:55) sale como «Sin inspeccionar (la aprobó el sistema)» (cierra R5). (g) **Decisión de Nicolás: «Sistema» se queda en el Resumen mensual de inspecciones** — deja a la vista cuántas no se alcanzaron a inspeccionar. |
+| 30/09/2026 | **Días trabajados + jornada (pedido de Nicolás):** (a) nuevo **KPI 1.4 «Días trabajados»** = días con al menos una asignación, aunque sea de una sola pieza; no cuentan las asignaciones retiradas sin trabajo (desasignadas, autocanceladas o pasadas a otra persona sin que la tocara) ni el atajo «Marcar limpia». Sale de las asignaciones, **no es asistencia** (sigue fuera de la app, decisión del 16/09). (b) **Jornada** (tiempo completo / parcial) en el usuario, sin definir por defecto; se muestra junto al nombre en las tablas de trabajadores y en los CSV. Ambos en las tres tablas de trabajadores de Reportes y sus CSV. Migración `scripts/migrate-add-jornada.php`. |
+| 01/10/2026 | **Planilla «KPI ASEO» de RRHH (bonos) analizada** (ver sección propia). RRHH confirma dos errores: las **extras** se multiplican por **días trabajados** (no por hab/día) y la **eficacia** usa la base **de la jornada** (la mitad para parcial). La **base (18 hab/día) es variable según la ocupación**: por ahora la fija RRHH a mano; la fórmula para automatizarla queda para una próxima sesión (opciones A/B/C). Nada construido todavía. |
+| 01/10/2026 | **Bono de aseo de RRHH en Reportes (v6.15.1):** el resumen mensual por trabajador calcula las columnas de la planilla «KPI ASEO» (act./día, observaciones, % observadas, eficacia, % logro, factor de peso, resultado y extras) con las correcciones de RRHH. Definiciones de Nicolás: **hab. hechas = las que quedaron bien**; **observaciones = cada casilla del checklist que el auditor le desmarcó** (corregido el mismo día; primero se había definido como piezas rechazadas + aprobadas con observación); el **corte hab./día** es el único dato manual, se edita en Reportes junto al título, se guarda por mes y solo lo cambia administración (permiso `reportes.editar_corte`). % observadas con tope 100 %. |
+

@@ -583,6 +583,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);
+        $router->put('/api/reportes/corte-hab-dia', [$reportes, 'guardarCorte'], [
+            $authCheck,
+            new PermissionCheck('reportes.editar_corte'),
+        ]);
         $router->get('/api/reportes/exportar-mensual', [$reportes, 'exportarMensual'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),

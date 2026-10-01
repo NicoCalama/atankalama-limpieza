@@ -12,6 +12,8 @@ use Atankalama\Limpieza\Models\Usuario;
 final class UsuarioService
 {
     private const HOTELES_VALIDOS = ['1_sur', 'inn', 'ambos'];
+    /** Jornada laboral del usuario; null = sin definir (los usuarios previos a v6.15.1 quedan así). */
+    public const JORNADAS_VALIDAS = ['completa', 'parcial'];
 
     public function buscarPorId(int $id): ?Usuario
     {
@@ -62,11 +64,13 @@ final class UsuarioService
             temaPreferido: (string) $fila['tema_preferido'],
             permisos: array_column($permisos, 'codigo'),
             roles: array_column($roles, 'nombre'),
+            // isset y no acceso directo: si la migración de la columna aún no corrió, el login no se cae.
+            jornada: isset($fila['jornada']) ? (string) $fila['jornada'] : null,
         );
     }
 
     /**
-     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
+     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,jornada?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
      * @return array{usuario:Usuario, password_temporal:string}
      */
     public function crear(array $datos, int $creadoPor, PasswordService $passwords): array
@@ -91,6 +95,10 @@ final class UsuarioService
         $hotelDefault = $datos['hotel_default'] ?? null;
         if ($hotelDefault !== null && !in_array($hotelDefault, self::HOTELES_VALIDOS, true)) {
             throw new UsuarioException('HOTEL_INVALIDO', 'hotel_default inválido.', 400);
+        }
+        $jornada = $datos['jornada'] ?? null;
+        if ($jornada !== null && !in_array($jornada, self::JORNADAS_VALIDAS, true)) {
+            throw new UsuarioException('JORNADA_INVALIDA', 'La jornada debe ser tiempo completo o tiempo parcial.', 400);
         }
 
         $existente = Database::fetchOne('SELECT id FROM #__usuarios WHERE rut = ?', [$rutNorm]);
@@ -119,10 +127,10 @@ final class UsuarioService
         $hash = $passwords->hash($temporal);
 
         $usuarioId = 0;
-        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $rolesIds, $creadoPor): void {
+        Database::transaction(function () use (&$usuarioId, $rutNorm, $nombre, $email, $hash, $hotelDefault, $jornada, $rolesIds, $creadoPor): void {
             Database::execute(
-                'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default) VALUES (?, ?, ?, ?, 1, 1, ?)',
-                [$rutNorm, $nombre, $email, $hash, $hotelDefault]
+                'INSERT INTO #__usuarios (rut, nombre, email, password_hash, requiere_cambio_pwd, activo, hotel_default, jornada) VALUES (?, ?, ?, ?, 1, 1, ?, ?)',
+                [$rutNorm, $nombre, $email, $hash, $hotelDefault, $jornada]
             );
             $usuarioId = Database::lastInsertId();
             Database::execute(
@@ -151,7 +159,7 @@ final class UsuarioService
     }
 
     /**
-     * @param array{nombre?:string,email?:?string,hotel_default?:?string,tema_preferido?:string} $datos
+     * @param array{nombre?:string,email?:?string,hotel_default?:?string,jornada?:?string,tema_preferido?:string} $datos
      */
     public function actualizar(int $usuarioId, array $datos, int $editadoPor): Usuario
     {
@@ -184,6 +192,14 @@ final class UsuarioService
             }
             $sets[] = 'hotel_default = ?';
             $params[] = $h;
+        }
+        if (array_key_exists('jornada', $datos)) {
+            $j = $datos['jornada'] === '' ? null : $datos['jornada'];
+            if ($j !== null && !in_array($j, self::JORNADAS_VALIDAS, true)) {
+                throw new UsuarioException('JORNADA_INVALIDA', 'La jornada debe ser tiempo completo o tiempo parcial.', 400);
+            }
+            $sets[] = 'jornada = ?';
+            $params[] = $j;
         }
         if (isset($datos['tema_preferido'])) {
             if (!in_array($datos['tema_preferido'], ['auto', 'claro', 'oscuro'], true)) {
@@ -357,7 +373,7 @@ final class UsuarioService
     public function exportarDatosPersonales(int $usuarioId, bool $ocultaTimestampsKpi): array
     {
         $usuarioFila = Database::fetchOne(
-            'SELECT id, rut, nombre, email, activo, requiere_cambio_pwd, hotel_default,
+            'SELECT id, rut, nombre, email, activo, requiere_cambio_pwd, hotel_default, jornada,
                     tema_preferido, created_at, updated_at, last_login_at
                FROM #__usuarios WHERE id = ?',
             [$usuarioId]
@@ -374,6 +390,7 @@ final class UsuarioService
             'activo' => ((int) $usuarioFila['activo']) === 1,
             'requiere_cambio_pwd' => ((int) $usuarioFila['requiere_cambio_pwd']) === 1,
             'hotel_default' => $usuarioFila['hotel_default'] !== null ? (string) $usuarioFila['hotel_default'] : null,
+            'jornada' => $usuarioFila['jornada'] !== null ? (string) $usuarioFila['jornada'] : null,
             'tema_preferido' => (string) $usuarioFila['tema_preferido'],
             'created_at' => (string) $usuarioFila['created_at'],
             'updated_at' => (string) $usuarioFila['updated_at'],
@@ -509,7 +526,7 @@ final class UsuarioService
      */
     public function listar(array $filtros = []): array
     {
-        $sql = "SELECT u.id, u.rut, u.nombre, u.email, u.activo, u.hotel_default, u.last_login_at,
+        $sql = "SELECT u.id, u.rut, u.nombre, u.email, u.activo, u.hotel_default, u.jornada, u.last_login_at,
                        GROUP_CONCAT(r.nombre, ',') AS roles,
                        EXISTS (
                            SELECT 1 FROM #__usuarios_roles ur2

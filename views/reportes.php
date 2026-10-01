@@ -210,6 +210,7 @@
                                 <thead class="bg-gray-50 dark:bg-gray-700/40">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Trabajadora</th>
+                                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">T. Prom.</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Rechazo</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Eficiencia</th>
@@ -222,8 +223,14 @@
                                     <template x-for="t in data.por_trabajadora" :key="t.usuario_id">
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
                                             @click="filtrarPorTrabajadora(t.usuario_id)">
-                                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap"
-                                                x-text="primerNombre(t.nombre)"></td>
+                                            <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                                <span x-text="primerNombre(t.nombre)"></span>
+                                                <template x-if="t.jornada">
+                                                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                                </template>
+                                            </td>
+                                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
+                                                x-text="t.dias_trabajados"></td>
                                             <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
                                                 x-text="fmtKpi(t.kpis.tiempo_promedio)"></td>
                                             <td class="px-4 py-3 text-right font-medium"
@@ -311,6 +318,9 @@
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30" :class="t.datos_suficientes ? '' : 'opacity-70'">
                                         <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap sticky left-0 bg-white dark:bg-gray-800">
                                             <span x-text="primerNombre(t.nombre)"></span>
+                                            <template x-if="t.jornada">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                            </template>
                                             <template x-if="!t.datos_suficientes">
                                                 <span class="ml-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500" title="Menos piezas trabajadas (aprobadas + rechazadas) que el mínimo configurado: sin semáforo y fuera del promedio.">pocos datos</span>
                                             </template>
@@ -503,9 +513,23 @@
         <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
-                <div class="flex items-center gap-2 min-w-0">
-                    <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual por trabajador</h2>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual por trabajador</h2>
+                    </div>
+                    <!-- Corte de habitaciones diarias del bono de aseo (único dato manual; se guarda por mes) -->
+                    <div class="flex items-center gap-2" title="Corte de habitaciones por día con jornada completa para el bono de aseo de RRHH. Jornada parcial = la mitad. Depende de la ocupación: se guarda para el mes elegido.">
+                        <label for="corte-hab-dia" class="text-xs font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap">Corte hab./día</label>
+                        <input id="corte-hab-dia" type="number" inputmode="decimal" step="0.5" min="1" max="100"
+                               x-model="corteInput" @change="guardarCorte()"
+                               :disabled="!puedeEditarCorte || guardandoCorte || mensualCargando"
+                               class="w-20 min-h-[40px] px-2 py-1 text-sm text-right bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap" x-text="corteNota()"></span>
+                    </div>
+                    <template x-if="corteError">
+                        <span class="text-xs text-red-600 dark:text-red-400" x-text="corteError"></span>
+                    </template>
                 </div>
                 <div class="flex items-center gap-2">
                     <input type="month" x-model="mensualMes" @change="cargarMensual()"
@@ -552,30 +576,57 @@
                             <thead class="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
-                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitaciones</th>
-                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Créditos</th>
-                                    <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Eficiencia</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza. En rojo, las rechazadas.">Hab. hechas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hab. hechas ÷ días trabajados.">Act./día</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Casillas del checklist que la supervisora le desmarcó al inspeccionar (en aprobadas con observación y en rechazadas).">Observ.</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Observaciones ÷ hab. hechas (tope 100 %).">% observ.</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Act./día ÷ base de su jornada (corte; parcial = la mitad), con tope 100 %.">Eficacia</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="(1 − % observadas) × eficacia.">% logro</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hasta 70 % de logro: 0,427 × logro. Sobre 70 %: 2,333 × logro − 1,333.">Factor</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="% logro × factor de peso (el «% calidad» de la planilla de RRHH).">Resultado</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones sobre la base de su jornada en el mes: (act./día − base) × días trabajados.">Extras</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Créditos</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Créditos de piezas ÷ créditos asignados.">Eficiencia</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                 <template x-for="t in mensualData" :key="t.usuario_id">
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                        <td class="px-4 py-3 text-gray-900 dark:text-gray-100" x-text="t.nombre"></td>
-                                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                                        <td class="px-4 py-3 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                            <span x-text="t.nombre"></span>
+                                            <template x-if="t.jornada">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
+                                            </template>
+                                            <template x-if="!t.jornada">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" title="Sin jornada definida: asígnala en Usuarios para calcular eficacia, logro, resultado y extras.">Sin jornada</span>
+                                            </template>
+                                        </td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.dias_trabajados"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums">
                                             <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></span>
                                             <template x-if="t.rechazadas > 0">
                                                 <span class="text-xs text-red-600 dark:text-red-400" x-text="' + ' + t.rechazadas + ' rech.'"></span>
                                             </template>
                                         </td>
-                                        <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-gray-100" x-text="t.creditos"></td>
-                                        <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300" x-text="fmtPct(t.eficiencia_pct)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtNull(t.bono.act_dia)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.observaciones"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.bono.observadas_pct)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.bono.eficacia_pct)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.bono.logro_pct)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtNull(t.bono.factor_peso)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums font-semibold text-gray-900 dark:text-gray-100" x-text="fmtPct(t.bono.resultado_pct)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtNull(t.bono.extras)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums font-semibold text-gray-900 dark:text-gray-100" x-text="t.creditos"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.eficiencia_pct)"></td>
                                     </tr>
                                 </template>
                             </tbody>
                         </table>
                     </div>
                     <p class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
-                        Mismos números que la ficha del mes: habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
+                        Mismos números que la ficha del mes: días trabajados (días con al menos una pieza asignada), habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
+                        De «Act./día» a «Extras», las fórmulas de la planilla de bonos de aseo de RRHH con el corte del mes (jornada parcial = la mitad). Pasa el mouse por cada título para ver su fórmula.
                     </p>
                 </div>
             </template>
@@ -754,8 +805,11 @@
 <script>
 function reportes() {
     var hoy = window.hoyServidor();
+    var AYUDA_DIAS_TRABAJADOS = 'Días del período en que tuvo al menos una pieza o área común asignada, aunque sea una sola. '
+        + 'No cuenta el día si todo lo asignado se retiró sin que lo trabajara (se autocanceló, se sacó del plan o se pasó a otra persona).';
 
     return {
+        AYUDA_DIAS: AYUDA_DIAS_TRABAJADOS,
         data:         null,
         cargando:     false,
         error:        '',   // mensaje del último error de los KPIs ('' = sin error)
@@ -781,6 +835,7 @@ function reportes() {
         fichaSeq:      0,     // nº de la última carga pedida: una respuesta vieja que llega tarde no pisa a la nueva
         fichaError:    false, // la ficha se carga aparte de los KPIs clásicos: tiene su propio estado de error
         fichaCols: [
+            { clave: 'dias_trabajados',  titulo: 'Días trab.',   fmt: 'num',      cmp: false, ayuda: AYUDA_DIAS_TRABAJADOS },
             { clave: 'creditos',         titulo: 'Créditos',     fmt: 'num',      cmp: true,  ayuda: 'Créditos aprobados (auditados + no auditados), incluidas áreas comunes. Solo ítems obligatorios; rechazadas fuera. Si uno mismo rehace su pieza rechazada recupera la mitad al segundo intento y nada desde el tercero.' },
             { clave: 'ab',               titulo: 'Audit. / no',  fmt: 'ab',       cmp: false, ayuda: 'Créditos auditados por una persona / no auditados (cuentan igual como aprobados).' },
             { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una por limpieza (el nochero de la tarde y el turnover cuentan otra). Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
@@ -805,6 +860,12 @@ function reportes() {
         mensualExportando: false,
         mensualError:      '',
         mensualSeq:        0,
+        // Corte de habitaciones diarias del bono de aseo (RRHH): único dato manual, guardado por mes.
+        corte:             null,   // { valor, mes_origen, propio } del mes mostrado
+        corteInput:        '',
+        guardandoCorte:    false,
+        corteError:        '',
+        puedeEditarCorte:  <?= $usuario->tienePermiso('reportes.editar_corte') ? 'true' : 'false' ?>,
 
         // Resumen mensual de auditorías
         auditMes:        window.hoyServidor().slice(0, 7),
@@ -923,6 +984,9 @@ function reportes() {
                 if (seq !== this.mensualSeq) return;
                 if (json.ok) {
                     this.mensualData = json.data.trabajadores || [];
+                    this.corte = json.data.corte || null;
+                    this.corteInput = this.corte ? String(this.corte.valor) : '';
+                    this.corteError = '';
                 } else {
                     this.mensualData = null;
                     this.mensualError = this.mensajeError(resp, json);
@@ -935,6 +999,44 @@ function reportes() {
                     this.$nextTick(() => lucide.createIcons());
                 }
             }
+        },
+
+        async guardarCorte() {
+            var partes = (this.mensualMes || '').split('-');
+            var valor = parseFloat(String(this.corteInput).replace(',', '.'));
+            if (partes.length !== 2 || isNaN(valor)) {
+                this.corteError = 'Escribe un número de habitaciones por día.';
+                return;
+            }
+            this.guardandoCorte = true;
+            this.corteError = '';
+            try {
+                var r = await apiPut('/api/reportes/corte-hab-dia', {
+                    anio: parseInt(partes[0], 10), mes: parseInt(partes[1], 10), valor: valor,
+                });
+                if (r && r.ok) {
+                    await this.cargarMensual();
+                } else {
+                    this.corteError = (r && r.error && r.error.mensaje) || 'No pudimos guardar el corte, intenta de nuevo.';
+                    this.corteInput = this.corte ? String(this.corte.valor) : '';
+                }
+            } catch (e) {
+                this.corteError = 'No pudimos guardar el corte, intenta de nuevo.';
+                this.corteInput = this.corte ? String(this.corte.valor) : '';
+            } finally {
+                this.guardandoCorte = false;
+            }
+        },
+
+        corteNota() {
+            if (!this.corte) return '';
+            var parcial = 'parcial ' + (this.corte.valor / 2);
+            if (this.corte.propio) return parcial;
+            if (this.corte.mes_origen) {
+                var p = this.corte.mes_origen.split('-');
+                return parcial + ' · igual que ' + p[1] + '/' + p[0];
+            }
+            return parcial + ' · valor por defecto';
         },
 
         hotelLabelCodigo(codigo) {
@@ -1260,6 +1362,14 @@ function reportes() {
                 critico:     'text-red-600 dark:text-red-400',
                 informativo: 'text-blue-600 dark:text-blue-400',
             }[k.estado] || 'text-gray-600 dark:text-gray-400';
+        },
+
+        jornadaCorta(j) {
+            return j === 'parcial' ? 'Parcial' : (j === 'completa' ? 'Completa' : '');
+        },
+
+        jornadaTitulo(j) {
+            return j === 'parcial' ? 'Jornada: tiempo parcial' : (j === 'completa' ? 'Jornada: tiempo completo' : '');
         },
 
         primerNombre(nombre) {
