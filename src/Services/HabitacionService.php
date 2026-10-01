@@ -378,6 +378,30 @@ final class HabitacionService
     }
 
     /**
+     * Barrido de nocheros (cron, desde las 16:00): apaga los vencidos y revierte a 'sucia' los
+     * vigentes que ya quedaron en un estado terminal, UNA vez por día, avisando 'dirty' a
+     * Cloudbeds para que su propio sync no los cierre de vuelta (best-effort: si la escritura
+     * falla ya queda una alerta P0). Lo llama scripts/sync-cloudbeds.php; vive acá para que los
+     * tests ejerciten el mismo código que corre en producción. Ver docs/nocheros.md.
+     *
+     * @return array{vencidos: int, revertidas: int}
+     */
+    public function barrerNocheros(string $hoy, ?CloudbedsSyncService $sync = null): array
+    {
+        $vencidos = $this->desactivarNocherosVencidos($hoy);
+        $revertidas = 0;
+        foreach ($this->listarNocherosVigentesEnEstadoTerminal($hoy) as $hab) {
+            $this->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
+            $this->marcarBarridoNocheroHoy($hab->id, $hoy); // una reversión por día, no una por cada aprobación
+            if ($sync !== null && $hab->cloudbedsRoomId !== null) {
+                $sync->escribirEstadoDirty($hab);
+            }
+            $revertidas++;
+        }
+        return ['vencidos' => $vencidos, 'revertidas' => $revertidas];
+    }
+
+    /**
      * Registra que HOY ya se disparó el barrido de nochero para esta habitación (revertida a
      * 'sucia' por el cron de las 16:00). Ver listarNocherosVigentesEnEstadoTerminal().
      */

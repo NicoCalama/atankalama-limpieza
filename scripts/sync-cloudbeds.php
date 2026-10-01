@@ -27,7 +27,6 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
-use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionService;
@@ -64,18 +63,8 @@ $sync = new CloudbedsSyncService(CloudbedsClient::desdeConfig());
 // falla, el próximo tick reintenta. Ver docs/nocheros.md
 try {
     if ($horaActual >= '16:00') {
-        $habSvc = new HabitacionService();
-        $vencidos = $habSvc->desactivarNocherosVencidos($hoy);
-        $revertidas = 0;
-        foreach ($habSvc->listarNocherosVigentesEnEstadoTerminal($hoy) as $hab) {
-            $habSvc->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
-            $habSvc->marcarBarridoNocheroHoy($hab->id, $hoy); // una reversión por día, no una por cada aprobación
-            if ($hab->cloudbedsRoomId !== null) {
-                $sync->escribirEstadoDirty($hab); // best-effort, ya crea alerta P0 si falla
-            }
-            $revertidas++;
-        }
-        echo "Nocheros: {$vencidos} vencidos desactivados, {$revertidas} revertidas a sucia.\n";
+        $barrido = (new HabitacionService())->barrerNocheros($hoy, $sync);
+        echo "Nocheros: {$barrido['vencidos']} vencidos desactivados, {$barrido['revertidas']} revertidas a sucia.\n";
     }
 } catch (\Throwable $e) {
     fwrite(STDERR, "Barrido de nocheros falló (no crítico): {$e->getMessage()}\n");
