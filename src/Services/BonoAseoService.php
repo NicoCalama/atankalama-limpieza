@@ -90,9 +90,9 @@ final class BonoAseoService
      * inventa la jornada). Sin días o sin habitaciones hechas, lo que depende de ellos queda null (la
      * planilla deja la celda vacía).
      *
-     * M con tope 100 %: las observaciones incluyen las rechazadas, que no están en «hab. hechas» (solo
-     * las que quedaron bien, decisión de Nicolás 01/10/2026); sin tope, con muchos rechazos M pasaría
-     * de 100 % y el logro saldría negativo.
+     * M con tope 100 %: las observaciones son casillas desmarcadas por el auditor (varias por pieza y
+     * también en piezas rechazadas, que no están en «hab. hechas»), y se dividen por habitaciones como
+     * en la planilla; sin tope, M podría pasar de 100 % y el logro saldría negativo.
      *
      * Porcentajes en 0–100 con un decimal; factor con tres decimales; extras con un decimal.
      *

@@ -21,9 +21,11 @@ use PHPUnit\Framework\TestCase;
  * Bono de aseo de RRHH en el resumen mensual (docs/kpis-sueldos.md):
  *
  *   101  Ana (parcial)  limpia, Sofía aprueba                  → hab. hecha
- *   102  Ana            limpia, Sofía aprueba CON OBSERVACIÓN  → hab. hecha + 1 observación
- *   103  Ana            limpia, Sofía RECHAZA                   → no es hab. hecha, + 1 observación
+ *   102  Ana            limpia, Sofía aprueba CON OBSERVACIÓN  → hab. hecha + 1 casilla desmarcada
+ *   103  Ana            limpia, Sofía RECHAZA                   → no es hab. hecha, + 2 casillas desmarcadas
  *   104  Ana            limpia, el cierre automático la aprueba → hab. hecha, sin observación
+ *
+ * Observaciones = casillas del checklist desmarcadas por el auditor (no piezas): 1 + 2 = 3.
  *
  * Y el corte de habitaciones diarias, guardado por mes y editable solo con reportes.editar_corte.
  */
@@ -59,7 +61,7 @@ final class ReportesBonoAseoTest extends TestCase
         }
         $aud->emitirVeredicto($this->hab['101'], $this->sofia, Auditoria::VEREDICTO_APROBADO);
         $aud->emitirVeredicto($this->hab['102'], $this->sofia, Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION, 'Faltó limpiar el espejo.', [$this->primerItem('102')]);
-        $aud->emitirVeredicto($this->hab['103'], $this->sofia, Auditoria::VEREDICTO_RECHAZADO, 'Rehacer el baño completo.', [$this->primerItem('103')]);
+        $aud->emitirVeredicto($this->hab['103'], $this->sofia, Auditoria::VEREDICTO_RECHAZADO, 'Rehacer el baño completo.', $this->itemsObligatorios('103', 2));
         $aud->emitirVeredicto($this->hab['104'], $sistema, Auditoria::VEREDICTO_APROBADO_AUTOMATICO);
     }
 
@@ -69,18 +71,17 @@ final class ReportesBonoAseoTest extends TestCase
         $this->assertSame('11111111-1', $ana['rut']);
         $this->assertSame(3, $ana['habitaciones'], '101, 102 y 104 quedaron bien; la 103 fue rechazada');
         $this->assertSame(1, $ana['rechazadas']);
-        $this->assertSame(1, $ana['con_observacion'], 'la del cierre automático no es observación');
-        $this->assertSame(2, $ana['observaciones']);
+        $this->assertSame(3, $ana['observaciones'], 'casillas desmarcadas: 1 en la 102 + 2 en la 103; el cierre automático no desmarca');
         $this->assertSame(1, $ana['dias_trabajados']);
 
         // Con el corte por defecto (18): parcial → base 9; 3 hab. en 1 día.
         $this->assertSame(
-            BonoAseoService::calcular(3, 1, 'parcial', 2, BonoAseoService::CORTE_DEFAULT),
+            BonoAseoService::calcular(3, 1, 'parcial', 3, BonoAseoService::CORTE_DEFAULT),
             $ana['bono']
         );
         $this->assertSame(9.0, $ana['bono']['base']);
         $this->assertSame(33.3, $ana['bono']['eficacia_pct'], '3 ÷ 9');
-        $this->assertSame(66.7, $ana['bono']['observadas_pct'], '2 ÷ 3');
+        $this->assertSame(100.0, $ana['bono']['observadas_pct'], '3 casillas ÷ 3 hab. hechas');
     }
 
     public function testCorteSeGuardaPorMesYLosMesesSiguientesLoHeredan(): void
@@ -111,7 +112,7 @@ final class ReportesBonoAseoTest extends TestCase
         $csv = (new ReportesService())->exportarCsvMensual((int) date('Y'), (int) date('n'), 'ambos');
         $this->assertStringContainsString('"Corte hab./día";"4";"Jornada parcial";"2"', $csv);
         $this->assertStringContainsString('"RUT";"Trabajador";"Jornada";"Días trabajados";"Hab. hechas";"Act. por día";"Observaciones"', $csv);
-        $this->assertStringContainsString('"11111111-1";"Ana";"Tiempo parcial";"1";"3";"3";"2";', $csv);
+        $this->assertStringContainsString('"11111111-1";"Ana";"Tiempo parcial";"1";"3";"3";"3";', $csv);
     }
 
     public function testCorteFueraDeRangoSeRechaza(): void
@@ -176,16 +177,24 @@ final class ReportesBonoAseoTest extends TestCase
 
     private function primerItem(string $numero): int
     {
+        return $this->itemsObligatorios($numero, 1)[0];
+    }
+
+    /** @return list<int> los primeros $cuantos ítems obligatorios del checklist de la pieza */
+    private function itemsObligatorios(string $numero, int $cuantos): array
+    {
         $templateId = (int) Database::fetchColumn(
             'SELECT template_id FROM ejecuciones_checklist WHERE habitacion_id = ? ORDER BY id DESC LIMIT 1',
             [$this->hab[$numero]]
         );
+        $ids = [];
         foreach ((new ChecklistService())->itemsDelTemplate($templateId) as $it) {
-            if ((int) $it['obligatorio'] === 1) {
-                return (int) $it['id'];
+            if ((int) $it['obligatorio'] === 1 && count($ids) < $cuantos) {
+                $ids[] = (int) $it['id'];
             }
         }
-        $this->fail('Sin ítems obligatorios');
+        $this->assertCount($cuantos, $ids, 'el checklist no tiene suficientes ítems obligatorios');
+        return $ids;
     }
 
     /**

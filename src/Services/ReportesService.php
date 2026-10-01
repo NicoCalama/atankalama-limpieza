@@ -82,8 +82,8 @@ final class ReportesService
      *   dias_trabajados = días con al menos una asignación (ver fichaTrabajadores); jornada = completa/parcial/null.
      * Es el «CRÉDITOS TOTAL» que usa sueldos.
      * Más las columnas de la planilla «KPI ASEO» de RRHH (BonoAseoService::calcular) con el corte del mes:
-     *   hab. hechas = habitaciones (las que quedaron bien); observaciones = rechazadas + aprobadas con
-     *   observación (decisión de Nicolás, 01/10/2026). Ver docs/kpis-sueldos.md.
+     *   hab. hechas = habitaciones (las que quedaron bien); observaciones = casillas del checklist que el
+     *   auditor le desmarcó (decisión de Nicolás, 01/10/2026). Ver docs/kpis-sueldos.md.
      *
      * @return list<array<string, mixed>>
      */
@@ -94,7 +94,7 @@ final class ReportesService
         $corte ??= (new BonoAseoService())->corte($anio, $mes)['valor'];
 
         return array_map(static function (array $t) use ($corte): array {
-            $observaciones = (int) $t['rechazadas_hab'] + (int) $t['observadas_hab'];
+            $observaciones = (int) $t['items_observados'];
             return [
                 'usuario_id'         => (int) $t['usuario_id'],
                 'rut'                => $t['rut'],
@@ -103,7 +103,6 @@ final class ReportesService
                 'dias_trabajados'    => (int) $t['dias_trabajados'],
                 'habitaciones'       => (int) $t['habitaciones'],
                 'rechazadas'         => (int) $t['rechazadas_hab'],
-                'con_observacion'    => (int) $t['observadas_hab'],
                 'observaciones'      => $observaciones,
                 'creditos'           => (int) $t['creditos'],
                 'creditos_asignados' => (int) $t['esperado_creditos'],
@@ -317,10 +316,10 @@ final class ReportesService
         $rows[] = [
             'RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. hechas', 'Act. por día', 'Observaciones',
             '% act. observadas', 'Eficacia (%)', '% logro', 'Factor de peso', 'Resultado (%)', 'Actividades extras',
-            'Habitaciones rechazadas', 'Aprobadas con observación', 'Créditos obtenidos', 'Créditos asignados', 'Eficiencia (%)',
+            'Habitaciones rechazadas', 'Créditos obtenidos', 'Créditos asignados', 'Eficiencia (%)',
         ];
 
-        $totalDias = $totalHab = $totalObs = $totalRec = $totalConObs = $totalCre = $totalAsig = 0;
+        $totalDias = $totalHab = $totalObs = $totalRec = $totalCre = $totalAsig = 0;
         $totalExtras = 0.0;
         foreach ($filas as $f) {
             $b = $f['bono'];
@@ -339,7 +338,6 @@ final class ReportesService
                 $b['resultado_pct'] ?? '',
                 $b['extras'] ?? '',
                 $f['rechazadas'],
-                $f['con_observacion'],
                 $f['creditos'],
                 $f['creditos_asignados'],
                 $f['eficiencia_pct'] ?? '',
@@ -349,7 +347,6 @@ final class ReportesService
             $totalObs    += $f['observaciones'];
             $totalExtras += (float) ($b['extras'] ?? 0);
             $totalRec    += $f['rechazadas'];
-            $totalConObs += $f['con_observacion'];
             $totalCre    += $f['creditos'];
             $totalAsig   += $f['creditos_asignados'];
         }
@@ -360,7 +357,7 @@ final class ReportesService
             // vacíos antes que mostrar un cociente engañoso.
             $rows[] = [];
             $rows[] = ['', 'TOTAL', '', $totalDias, $totalHab, '', $totalObs, '', '', '', '', '', round($totalExtras, 1),
-                $totalRec, $totalConObs, $totalCre, $totalAsig, ''];
+                $totalRec, $totalCre, $totalAsig, ''];
         }
 
         $output = "\xEF\xBB\xBF";
@@ -855,7 +852,7 @@ final class ReportesService
                     'esperado_hab' => 0, 'esperado_creditos' => 0,
                     'rechazadas_hab' => 0, 'rechazadas_creditos' => 0,
                     'ejecuciones' => 0, 'minutos_total' => 0.0, 'tiempo_promedio' => null,
-                    'dias_trabajados' => 0, 'jornada' => null, 'rut' => null, 'observadas_hab' => 0,
+                    'dias_trabajados' => 0, 'jornada' => null, 'rut' => null, 'items_observados' => 0,
                 ];
             }
         };
@@ -918,7 +915,6 @@ final class ReportesService
         $hc = $this->hotelCondCreditos($hotel, $p);
         $valido = "ei.marcado = 1 AND ei.desmarcado_por_auditor = 0";
         $ciclosA = []; // uid → ciclo → true si alguna ejecución tuvo veredicto humano (A), false si solo B
-        $ciclosObs = []; // uid → ciclo → true si su limpieza quedó «aprobada con observación» (bono RRHH)
         foreach (Database::fetchAll(
             "SELECT ei.marcado_por AS usuario_id, u.nombre, ec.id AS ejecucion_id, ec.usuario_id AS dueno_id,
                     ec.habitacion_id, ec.timestamp_inicio, asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto,
@@ -972,9 +968,6 @@ final class ReportesService
                 // tras un rechazo la pieza sigue siendo rechazada para ella, la rehaga quien la rehaga y el día que sea.
                 if ($rechazosPrevios === 0 && (int) $f['dueno_id'] === $uid) {
                     $ciclosA[$uid][$c] = ($ciclosA[$uid][$c] ?? false) || $humana;
-                    if ($f['veredicto'] === 'aprobado_con_observacion') {
-                        $ciclosObs[$uid][$c] = true;
-                    }
                 }
             }
         }
@@ -983,8 +976,32 @@ final class ReportesService
                 $filas[$uid][$humana ? 'hab_auditadas' : 'hab_no_auditadas']++;
             }
         }
-        foreach ($ciclosObs as $uid => $ciclos) {
-            $filas[$uid]['observadas_hab'] = count($ciclos);
+
+        // ── Bono RRHH: observaciones = casillas del checklist que el auditor le DESMARCÓ (decisión de
+        // Nicolás, 01/10/2026: «las tareas que no completó satisfactoriamente»). Cada casilla cuenta una
+        // vez, venga de una aprobada con observación o de una rechazada; el cierre automático no desmarca
+        // nada. Se atribuyen a quien marcó la casilla (desmarcarPorAuditor conserva marcado_por, misma
+        // atribución que los créditos); si nadie la había marcado, a la dueña de la limpieza. Solo piezas
+        // de huésped: el mismo universo que «hab. hechas», contra el que se divide (% act. observadas).
+        $p = Fechas::rangoUtc($desde, $hasta);
+        $h = $this->hotelCond($hotel, $p);
+        foreach (Database::fetchAll(
+            "SELECT COALESCE(ei.marcado_por, ec.usuario_id) AS usuario_id, u.nombre, COUNT(*) AS n
+               FROM #__ejecuciones_items ei
+               JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__usuarios u ON u.id = COALESCE(ei.marcado_por, ec.usuario_id)
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE ei.desmarcado_por_auditor = 1
+                AND h.es_espacio_comun = 0
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                    {$h}
+              GROUP BY COALESCE(ei.marcado_por, ec.usuario_id), u.nombre",
+            $p
+        ) as $f) {
+            $uid = (int) $f['usuario_id'];
+            $asegurar($filas, $uid, (string) $f['nombre']);
+            $filas[$uid]['items_observados'] = (int) $f['n'];
         }
 
         // ── N1/N2: tiempo promedio y minutos trabajados (dueño de la ejecución) ──
