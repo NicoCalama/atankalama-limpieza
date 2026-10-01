@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Migración: permiso `reportes.editar_corte` (v6.17, bono de aseo de RRHH).
+ * Migración: permiso `reportes.editar_corte` (v6.15.1, bono de aseo de RRHH).
  *
  * El resumen mensual de Reportes calcula las columnas de la planilla «KPI ASEO» de RRHH; el único
  * dato manual es el corte de habitaciones diarias (depende de la ocupación), que se edita en la misma

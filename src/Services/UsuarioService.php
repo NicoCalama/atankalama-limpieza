@@ -12,7 +12,7 @@ use Atankalama\Limpieza\Models\Usuario;
 final class UsuarioService
 {
     private const HOTELES_VALIDOS = ['1_sur', 'inn', 'ambos'];
-    /** Jornada laboral del usuario; null = sin definir (los usuarios previos a v6.17 quedan así). */
+    /** Jornada laboral del usuario; null = sin definir (los usuarios previos a v6.15.1 quedan así). */
     public const JORNADAS_VALIDAS = ['completa', 'parcial'];
 
     public function buscarPorId(int $id): ?Usuario
