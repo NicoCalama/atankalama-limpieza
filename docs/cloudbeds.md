@@ -173,7 +173,18 @@ La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a q
 - La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con
   frontdesk `check-out`/`turnover` → sigue revirtiendo igual que siempre.
 - Los **nocheros** no dependen de esta rama: los revierte su propio barrido de las 16:00
-  (`scripts/sync-cloudbeds.php`), que además avisa `dirty` a Cloudbeds.
+  (`HabitacionService::barrerNocheros()`, lo llama `scripts/sync-cloudbeds.php`), que además avisa
+  `dirty` a Cloudbeds. Desde la v6.17 el barrido solo toma piezas **aprobadas**: una rechazada espera a
+  que se rehaga y apruebe, y recién ahí se pide la limpieza de la tarde (R4).
+
+**Pieza que cambió después de leer Cloudbeds (v6.17, R1/R6).** Lo que responde
+`getHousekeepingStatus` es una foto del momento de la lectura. Si mientras el sync recorre la lista
+una pieza cambia de estado en la app (la reasignan, la aprueban), esa pieza **no se toca**: la decide el
+sync siguiente, con una foto nueva (INFO al log). Antes, una reasignación hecha justo entonces se
+deshacía (la foto vieja decía `clean`) y una aprobación hecha justo entonces se revertía con una
+alerta falsa. El instante de la lectura sale del reloj de la base, el mismo que fecha el `audit_log`.
+Para eso todo cambio de estado tiene que pasar por `cambiarEstado()`: desde la v6.17 también los
+reseteos a sucia al reasignar y al desasignar (antes eran un `UPDATE` directo, sin historial).
 
 «Cuándo se aprobó» sale del último cambio de estado de la pieza en `audit_log` (la fila
 `habitacion.cambiar_estado` que escribe `cambiarEstado()`). Hasta la v6.16 salía de

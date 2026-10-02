@@ -28,6 +28,12 @@ final class CloudbedsSimulado implements HttpTransport
     /** Si es true, toda escritura responde success=false (Cloudbeds la rechazó). */
     public bool $fallarEscrituras = false;
 
+    /**
+     * Se ejecuta UNA vez, justo después de servir la lectura (getHousekeepingStatus): simula algo
+     * que pasa en la app mientras el sync recorre una foto que ya quedó vieja.
+     */
+    public ?\Closure $alLeer = null;
+
     public function pieza(string $roomId, string $condicion, string $frontdesk, bool $ocupada): void
     {
         $this->piezas[$roomId] = ['condicion' => $condicion, 'frontdesk' => $frontdesk, 'ocupada' => $ocupada];
@@ -91,6 +97,11 @@ final class CloudbedsSimulado implements HttpTransport
                     'frontdeskStatus' => $p['frontdesk'],
                     'roomOccupied' => $p['ocupada'],
                 ];
+            }
+            if ($this->alLeer !== null) {
+                $hook = $this->alLeer;
+                $this->alLeer = null;
+                $hook();
             }
             return $this->ok(['success' => true, 'data' => $data]);
         }

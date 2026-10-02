@@ -734,7 +734,7 @@ final class ChecklistService
         // Re-limpieza: hereda los ítems que quedaron bien del intento anterior si esta pieza
         // venía de un rechazo. Así el nuevo trabajador solo completa lo desmarcado y cada ítem
         // conserva a nombre de quién lo hizo (reparto de créditos). Ver docs/creditos-rework.md.
-        $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId);
+        $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId, $asignacion->fecha, $asignacion->franja);
 
         Logger::audit($usuarioId, 'checklist.iniciar', 'ejecucion_checklist', $id, [
             'habitacion_id' => $habitacionId, 'template_id' => $templateId, 'items_heredados' => $heredados,
@@ -1392,18 +1392,27 @@ final class ChecklistService
      *
      * Se detecta por el último veredicto (no por el estado): al reasignar, la pieza ya pasó de
      * 'rechazada' a 'sucia'. Tras una aprobación (ciclo nuevo) no hereda.
+     *
+     * Solo dentro del MISMO ciclo: misma fecha de turno y misma franja que la asignación nueva
+     * (R4, v6.17). Un rechazo de ayer que nadie rehízo no le regala sus ítems a la limpieza de
+     * hoy: la pieza se volvió a ensuciar, es otro aseo, y los créditos iban a parar a quien la
+     * limpió ayer (y a contar en el día de hoy).
      */
-    private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId): int
+    private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId, string $fecha, ?string $franja): int
     {
         $anterior = Database::fetchOne(
-            "SELECT ec.id, ec.template_id, a.veredicto
+            "SELECT ec.id, ec.template_id, a.veredicto, asg.fecha, asg.franja
                FROM #__ejecuciones_checklist ec
                JOIN #__auditorias a ON a.ejecucion_id = ec.id
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
               WHERE ec.habitacion_id = ? AND ec.estado = 'auditada'
               ORDER BY ec.id DESC LIMIT 1",
             [$habitacionId]
         );
         if ($anterior === null || $anterior['veredicto'] !== 'rechazado') {
+            return 0;
+        }
+        if ((string) $anterior['fecha'] !== $fecha || ($anterior['franja'] ?? null) !== $franja) {
             return 0;
         }
 

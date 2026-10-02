@@ -100,7 +100,8 @@ flujo rechazo → re-limpieza.
 - **`AsignacionService::asignarManual`**: agregar parámetro opcional `?string $franja = null` (no
   rompe los call-sites existentes: round-robin, reasignar, espacios). Se persiste en la asignación.
 - **Surfacear piezas re-limpiables:** en `AsignacionService::vistaConsolidada`, agregar una lista de
-  piezas en estado terminal-limpio (`aprobada` / `aprobada_con_observacion`) **limpiadas hoy** y sin
+  piezas en estado terminal-limpio (`aprobada` / `aprobada_con_observacion` / `aprobada_automatica`,
+  esta última desde la v6.17 — R5: con el cierre de las 15:50 casi todo lo de la mañana queda así) **limpiadas hoy** y sin
   asignación activa, para la sección "Volver a limpiar". (Excluye espacios: `es_espacio_comun = 0`.)
 - **Sin tocar** `heredarItemsSiEsRelimpieza` — ya hace lo correcto (solo hereda tras `rechazado`).
   Se agrega test que lo fija como invariante (§2).

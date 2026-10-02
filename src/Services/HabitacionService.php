@@ -345,9 +345,12 @@ final class HabitacionService
     }
 
     /**
-     * Habitaciones "nochero" vigentes hoy que ya quedaron en un estado terminal (aprobada,
-     * aprobada_con_observacion, aprobada_automatica, rechazada) — candidatas a revertir a
-     * 'sucia' desde las 16:00. No
+     * Habitaciones "nochero" vigentes hoy que ya quedaron APROBADAS (aprobada,
+     * aprobada_con_observacion, aprobada_automatica) — candidatas a revertir a 'sucia' desde las
+     * 16:00. Una RECHAZADA no entra (R4, v6.17): la limpieza de la mañana todavía no está hecha;
+     * el barrido espera a que se rehaga y apruebe, y recién ahí pide la de la tarde (sigue sin
+     * barrer hoy, así que el tick siguiente a la aprobación la toma). Antes la mandaba a 'sucia',
+     * se perdía la marca de rechazo y la re-limpieza de la mañana pasaba por la de la tarde. No
      * incluye 'en_progreso' ni 'completada_pendiente_auditoria': no se interrumpe un aseo en
      * curso ni se salta una auditoría pendiente por el cron. Ver Habitacion::estaEnEstadoTerminal().
      *
@@ -364,14 +367,13 @@ final class HabitacionService
             'SELECT * FROM #__habitaciones
               WHERE activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
                 AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
-                AND estado IN (?, ?, ?, ?)',
+                AND estado IN (?, ?, ?)',
             [
                 $hoy,
                 $hoy,
                 Habitacion::ESTADO_APROBADA,
                 Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
                 Habitacion::ESTADO_APROBADA_AUTOMATICA,
-                Habitacion::ESTADO_RECHAZADA,
             ]
         );
         return array_map(fn(array $f) => Habitacion::desdeFila($f), $filas);
@@ -442,6 +444,22 @@ final class HabitacionService
         return Fechas::fechaLocalDeUtc($ultimo) === $hoyLocal;
     }
 
+    /**
+     * ¿La pieza cambió de estado DESPUÉS de $instanteUtc (ISO UTC, mismo formato que audit_log)?
+     * Lo usa la sincronización: lo que Cloudbeds respondió antes de ese cambio ya no sirve para
+     * decidir sobre la pieza (ver CloudbedsSyncService::sincronizar).
+     */
+    public function cambioDeEstadoDespuesDe(int $id, string $instanteUtc): bool
+    {
+        return Database::fetchOne(
+            "SELECT 1 FROM #__audit_log
+              WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'
+                AND created_at > ?
+              LIMIT 1",
+            [$id, $instanteUtc]
+        ) !== null;
+    }
+
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
     {
         $fila = Database::fetchOne(
@@ -503,7 +521,7 @@ final class HabitacionService
         ], $origen);
 
         if (in_array($nuevoEstado, Habitacion::ESTADOS_APROBADOS, true)) {
-            $this->resolverAprobacionDeshecha($id);
+            $this->resolverAlertasAlAprobar($id);
         }
 
         return new Habitacion(
@@ -524,8 +542,11 @@ final class HabitacionService
     }
 
     /**
-     * La pieza volvió a quedar aprobada: la alerta «aprobación deshecha» ya cumplió su
-     * propósito (avisar que alguien la iba a limpiar de nuevo) y la condición desapareció.
+     * La pieza volvió a quedar aprobada: las alertas «aprobación deshecha» y «habitación
+     * rechazada» ya cumplieron su propósito (avisar que alguien la iba a limpiar de nuevo, o que
+     * había que rehacerla) y la condición desapareció. La de rechazo se resolvía solo al
+     * reasignar la pieza; si la rehacía la misma trabajadora sin reasignar, quedaba colgada para
+     * siempre (R4 del documento «Ciclo de limpieza y Cloudbeds», v6.17).
      *
      * Vive acá y no en cada servicio porque TODOS los caminos que aprueban pasan por
      * cambiarEstado(): inspección, «cliente no desea aseo», Cloudbeds y el cierre de día.
@@ -534,15 +555,18 @@ final class HabitacionService
      * El estado ya cambió cuando se llega acá, así que un fallo al resolver no puede
      * propagarse: el llamador creería que la aprobación no se guardó.
      */
-    private function resolverAprobacionDeshecha(int $id): void
+    private function resolverAlertasAlAprobar(int $id): void
     {
-        try {
-            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_APROBACION_DESHECHA, "habitacion:{$id}");
-        } catch (\Throwable $e) {
-            Logger::warning('habitaciones', 'no se pudo resolver la alerta de aprobación deshecha', [
-                'habitacion_id' => $id,
-                'mensaje' => $e->getMessage(),
-            ]);
+        foreach ([AlertaActiva::TIPO_APROBACION_DESHECHA, AlertaActiva::TIPO_HABITACION_RECHAZADA] as $tipo) {
+            try {
+                $this->alertas->resolverPorDedupe($tipo, "habitacion:{$id}");
+            } catch (\Throwable $e) {
+                Logger::warning('habitaciones', 'no se pudo resolver una alerta al aprobar la habitación', [
+                    'habitacion_id' => $id,
+                    'tipo' => $tipo,
+                    'mensaje' => $e->getMessage(),
+                ]);
+            }
         }
     }
 
