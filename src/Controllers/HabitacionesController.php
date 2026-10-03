@@ -413,7 +413,14 @@ final class HabitacionesController
         }
 
         try {
-            $habitacion = $this->habitaciones->marcarNochero($id, $hasta, $request->usuario?->id);
+            // Con el Cloudbeds real: si se marca después de las 16:00 y ya está aprobada, pasa a
+            // sucia al tiro y hay que avisarle 'dirty' (ver HabitacionService::marcarNochero).
+            $habitacion = $this->habitaciones->marcarNochero(
+                $id,
+                $hasta,
+                $request->usuario?->id,
+                new CloudbedsSyncService(CloudbedsClient::desdeConfig()),
+            );
         } catch (HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

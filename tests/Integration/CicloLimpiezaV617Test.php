@@ -186,6 +186,87 @@ final class CicloLimpiezaV617Test extends TestCase
         $this->assertEstado('101', 'aprobada');
     }
 
+    // ── Nocheros: marcar después de las 16:00 y aviso de vencimiento (02/10/2026) ──
+
+    public function testMarcarNocheroDespuesDeLas1600PasaASuciaAlTiroYAvisaACloudbeds(): void
+    {
+        $this->cb->estadia('CB_101');
+        $this->limpiar('101', $this->ana);
+        $this->aprobar('101');
+
+        $hab = $this->habs->marcarNochero($this->hab['101'], $this->hoy, $this->sofia, $this->sync, '16:30');
+
+        $this->assertSame('sucia', $hab->estado, 'la respuesta ya trae el estado nuevo para la pantalla');
+        $this->assertEstado('101', 'sucia', 'sin esperar la próxima pasada del cron');
+        $this->assertSame('dirty', $this->cb->condicion('CB_101'));
+        $ultimo = $this->habs->obtenerMovimientos($this->hab['101'])[0];
+        $this->assertSame('Sofia', $ultimo['usuario_nombre'], 'en el historial queda quién la marcó');
+
+        // El barrido del cron no la vuelve a tocar hoy: una reversión por día.
+        $this->limpiar('101', $this->ana);
+        $this->aprobar('101');
+        $this->barridoNocheros();
+        $this->assertEstado('101', 'aprobada');
+    }
+
+    public function testMarcarNocheroAntesDeLas1600NoCambiaElEstado(): void
+    {
+        $this->limpiar('101', $this->ana);
+        $this->aprobar('101');
+
+        $this->habs->marcarNochero($this->hab['101'], $this->hoy, $this->sofia, $this->sync, '15:59');
+
+        $this->assertEstado('101', 'aprobada', 'la toma el barrido de las 16:00');
+    }
+
+    public function testMarcarNocheroNoInterrumpeUnaLimpiezaNiRepiteElBarridoDelDia(): void
+    {
+        $this->asig->asignarManual($this->hab['101'], $this->ana, $this->hoy);
+        $this->chk->iniciarEjecucion($this->hab['101'], $this->ana, $this->hoy);
+        $this->habs->marcarNochero($this->hab['101'], $this->hoy, $this->sofia, $this->sync, '17:00');
+        $this->assertEstado('101', 'en_progreso', 'no se corta una limpieza en curso');
+
+        // La 102 ya se barrió hoy y la limpiaron de nuevo: extender la marca no la ensucia otra vez.
+        $this->habs->marcarNochero($this->hab['102'], $this->hoy, $this->sofia, $this->sync, '10:00');
+        $this->limpiar('102', $this->berta);
+        $this->aprobar('102');
+        $this->barridoNocheros();
+        $this->limpiar('102', $this->berta);
+        $this->aprobar('102');
+        $manana = date('Y-m-d', (int) strtotime($this->hoy . ' +1 day'));
+        $this->habs->marcarNochero($this->hab['102'], $manana, $this->sofia, $this->sync, '18:00');
+        $this->assertEstado('102', 'aprobada');
+    }
+
+    public function testAvisaUnaVezAlDiaLasMarcasDeNocheroQueVencenHoy(): void
+    {
+        $manana = date('Y-m-d', (int) strtotime($this->hoy . ' +1 day'));
+        $this->habs->marcarNochero($this->hab['101'], $this->hoy, $this->sofia, null, '09:00');
+        $this->habs->marcarNochero($this->hab['103'], $this->hoy, $this->sofia, null, '09:00');
+        $this->habs->marcarNochero($this->hab['102'], $manana, $this->sofia, null, '09:00');
+
+        $avisadas = $this->habs->avisarNocherosPorVencer($this->hoy);
+
+        $this->assertSame(1, $avisadas, 'solo quien puede marcar nocheros (la supervisora); ni trabajadoras ni el usuario Sistema');
+        $notif = Database::fetchOne('SELECT titulo, cuerpo, url FROM notificaciones WHERE usuario_id = ? AND tipo = ?', [$this->sofia, 'nochero_por_vencer']);
+        $this->assertNotNull($notif);
+        $this->assertSame('2 marcas de nochero vencen hoy', $notif['titulo']);
+        $this->assertStringContainsString('1 Sur: 101, 103', $notif['cuerpo']);
+        $this->assertStringNotContainsString('102', $notif['cuerpo'], 'la que vence mañana no entra');
+        $this->assertSame(0, (int) Database::fetchColumn('SELECT COUNT(*) FROM notificaciones WHERE usuario_id = ?', [$this->ana]));
+
+        $this->assertSame(0, $this->habs->avisarNocherosPorVencer($this->hoy), 'las pasadas siguientes del cron no repiten');
+    }
+
+    public function testSinMarcasQueVenzanHoyNoAvisaANadie(): void
+    {
+        $manana = date('Y-m-d', (int) strtotime($this->hoy . ' +1 day'));
+        $this->habs->marcarNochero($this->hab['101'], $manana, $this->sofia, null, '09:00');
+
+        $this->assertSame(0, $this->habs->avisarNocherosPorVencer($this->hoy));
+        $this->assertSame(0, (int) Database::fetchColumn("SELECT COUNT(*) FROM notificaciones WHERE tipo = 'nochero_por_vencer'"));
+    }
+
     // ── Ayudas ───────────────────────────────────────────────────────────────
 
     private function rechazar(string $numero): void
