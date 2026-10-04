@@ -28,12 +28,6 @@ final class RbacService
     /** Quien tiene este permiso no recibe piezas del reparto automático: solo asignación manual. */
     public const PERMISO_EXCLUIDO_AUTO_ASIGNAR = 'asignaciones.excluir_auto';
 
-    /**
-     * Permisos que RESTAN en vez de habilitar: no son capacidades, así que el '__ALL__' del seed
-     * (rol Admin) no los incluye. Si no, el Admin quedaría fuera de los KPIs y del reparto.
-     */
-    public const PERMISOS_QUE_RESTAN = [self::PERMISO_EXCLUIDO_KPIS, self::PERMISO_EXCLUIDO_AUTO_ASIGNAR];
-
     /** Mensaje único (amable, español chileno) para el 409 de último administrador. */
     public const MSG_ULTIMO_ADMIN = 'Debe existir al menos un administrador. Asigná otro administrador antes de continuar.';
 

@@ -13,7 +13,8 @@ declare(strict_types=1);
  * 2. Crea el rol «Apoyo» (no de sistema) si no existe, con los permisos que Trabajador tiene HOY en
  *    esta base (pueden haberse editado desde Ajustes) menos `kpis.ver_propios`, más los dos nuevos.
  *    Si el rol ya existe no se tocan sus permisos, salvo asegurar los dos nuevos.
- * Ningún otro rol recibe estos permisos: RESTAN en vez de habilitar (RbacService::PERMISOS_QUE_RESTAN).
+ * Este script solo se los da a Apoyo. Desde el 04/10/2026 los lleva también todo rol que no es de aseo
+ * (Admin, Supervisora, Recepción): en producción se marcaron a mano desde Ajustes → Roles y Permisos.
  *
  * Portable (SQLite dev + MariaDB prod) e idempotente: seguro de correr varias veces.
  */

@@ -20,7 +20,7 @@ return [
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
     ['asignaciones.reordenar_cola_trabajador', 'Reordenar la cola de un trabajador', 'Asignaciones', 'global'],
     ['asignaciones.mover_en_progreso', 'Reasignar o quitar habitaciones que están en progreso (el trabajador pierde lo avanzado)', 'Asignaciones', 'global'],
-    // Permiso que RESTA (rol Apoyo, 01/10/2026): no entra en el '__ALL__' del Admin. Ver RbacService::PERMISOS_QUE_RESTAN.
+    // Permiso de marca (rol Apoyo, 01/10/2026): lo lleva todo rol que no es de aseo (decisión de Nicolás, 04/10/2026). Ver RbacService.
     ['asignaciones.excluir_auto', 'No recibe piezas del reparto automático; solo asignación manual (personal de apoyo)', 'Asignaciones', 'propio'],
 
     ['espacios.ver', 'Ver el listado de áreas comunes', 'Espacios', 'global'],
@@ -75,7 +75,7 @@ return [
     ['kpis.ver_operativas', 'Ver KPIs operativos del equipo', 'KPIs', 'global'],
     ['kpis.ver_globales', 'Ver KPIs agregados de alto nivel', 'KPIs', 'global'],
     // Permiso que RESTA (rol Apoyo, 01/10/2026): gente de otras áreas que limpia de vez en cuando y cuyo
-    // sueldo no depende del aseo. No entra en el '__ALL__' del Admin. Ver RbacService::PERMISO_EXCLUIDO_KPIS.
+    // sueldo no depende del aseo. Desde el 04/10/2026 lo lleva todo rol que no es de aseo. Ver RbacService::PERMISO_EXCLUIDO_KPIS.
     ['kpis.excluido', 'No suma créditos ni entra en los KPIs, Reportes ni el bono de aseo (personal de apoyo de otras áreas)', 'KPIs', 'propio'],
 
     ['alertas.recibir_predictivas', 'Recibir alertas P0-P1 predictivas', 'Alertas', 'global'],

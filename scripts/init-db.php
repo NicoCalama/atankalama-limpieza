@@ -130,10 +130,9 @@ foreach ($catalogoRoles as $rol) {
     if ($rolId === 0) {
         continue; // El rol aún no existe (el seed inicial no se corrió). seed.php se encargará.
     }
-    // '__ALL__' = todo menos los permisos que RESTAN (rol Apoyo): el Admin no queda fuera de KPIs ni del reparto.
-    $permisosRol = $rol['permisos'] === '__ALL__'
-        ? array_values(array_diff($codigosTodos, \Atankalama\Limpieza\Services\RbacService::PERMISOS_QUE_RESTAN))
-        : $rol['permisos'];
+    // '__ALL__' = todo el catálogo, incluidos los permisos de marca: el Admin no es personal de aseo
+    // (fuera de los KPIs y del reparto automático, 04/10/2026).
+    $permisosRol = $rol['permisos'] === '__ALL__' ? $codigosTodos : $rol['permisos'];
     foreach ($permisosRol as $cod) {
         Database::query(
             'INSERT OR IGNORE INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',
