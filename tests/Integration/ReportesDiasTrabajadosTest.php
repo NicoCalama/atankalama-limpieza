@@ -144,9 +144,9 @@ final class ReportesDiasTrabajadosTest extends TestCase
 
     public function testCsvLlevanLasColumnasNuevas(): void
     {
-        $csvMensual = $this->rep->exportarCsvMensual((int) date('Y'), (int) date('n'), 'ambos');
-        $this->assertStringContainsString('"RUT";"Trabajador";"Jornada";"Días trabajados";"Hab. hechas"', $csvMensual);
-        $this->assertStringContainsString('"11111111-1";"Ana";"Tiempo parcial";', $csvMensual);
+        $mensual = $this->rep->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Trabajadores'];
+        $this->assertSame(['RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas'], array_slice($mensual[5], 0, 6));
+        $this->assertSame(['11111111-1', 'Ana', 'Tiempo parcial'], array_slice($mensual[6], 0, 3));
 
         $csv = $this->rep->exportarCsv($this->hoy, $this->hoy, 'ambos');
         $this->assertStringContainsString('"Trabajadora";"Jornada";"Días trabajados";"T. Prom. (min)"', $csv);
