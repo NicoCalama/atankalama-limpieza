@@ -1202,7 +1202,13 @@ todo a `app_core/`:
 
 - `src/Services/ReportesService.php`;
 - `views/reportes.php`;
-- `CHANGELOG.md` (v6.16.1 fechada).
+- `CHANGELOG.md` (v6.16.1 fechada);
+- y lo que quedó pendiente de la alineación de permisos de marca (`727a99e`, ver §11.13): `src/Services/RbacService.php`
+  (solo se quitó una constante sin uso), `database/seeds/{permisos,roles}.php` y
+  `scripts/{init-db,seed,migrate-add-rol-apoyo}.php`. En producción solo se usan para instalar de cero; viajan para que
+  `app_core/` no quede distinto del repo.
+
+Lista = `git diff --name-only 158a7aa HEAD` (el commit del ZIP de la v6.16) menos `docs/` y `tests/`: 9 archivos.
 
 **Smoke:** badge **v6.16.1** (incógnito); Reportes → con septiembre en «Personalizado», la tarjeta «Habitaciones
 limpiadas» da lo mismo que «… inspeccionadas de N limpiadas» de la sección Supervisora; el resumen mensual muestra
