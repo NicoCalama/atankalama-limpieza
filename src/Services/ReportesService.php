@@ -663,6 +663,46 @@ final class ReportesService
             ],
             'productividad'    => $this->kpiProductividad($desde, $hasta, $hotel, $usuarioId),
             'tasa_desmarcados' => $this->kpiTasaDesmarcados($desde, $hasta, $hotel, $usuarioId),
+            'limpiadas'        => $this->kpiLimpiadas($desde, $hasta, $hotel, $usuarioId),
+        ];
+    }
+
+    /**
+     * Habitaciones limpiadas del período (pedido de Nicolás, 04/10/2026): el mismo número que «limpiadas»
+     * de la sección Supervisora (seccionSupervisora: mismas condiciones), para verlo arriba sin bajar.
+     * Toda limpieza terminada de una pieza de huésped, haya quedado aprobada, con observación, rechazada,
+     * sin inspeccionar o cerrada por el cierre automático. Con una trabajadora filtrada, las suyas.
+     *
+     * @return array<string, mixed>
+     */
+    private function kpiLimpiadas(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
+    {
+        $p = Fechas::rangoUtc($desde, $hasta);
+        $h = $this->hotelCond($hotel, $p);
+        $u = $this->userCond($usuarioId, $p, 'ec');
+        $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $p);
+        $f = Database::fetchOne(
+            "SELECT COUNT(*) AS limpiadas,
+                    SUM(CASE WHEN a.veredicto IN " . self::VEREDICTOS_HUMANOS . " THEN 1 ELSE 0 END) AS inspeccionadas
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                    {$h}{$u}{$x}",
+            $p
+        );
+        $limpiadas      = (int) ($f['limpiadas'] ?? 0);
+        $inspeccionadas = (int) ($f['inspeccionadas'] ?? 0);
+
+        return [
+            'valor'    => $limpiadas === 0 ? null : $limpiadas,
+            'unidad'   => 'hab',
+            'meta'     => null,
+            'contexto' => $limpiadas === 0 ? '0 limpiezas' : "{$inspeccionadas} inspeccionadas por una persona",
+            'estado'   => $limpiadas === 0 ? 'sin_datos' : 'informativo',
         ];
     }
 
@@ -1646,6 +1686,7 @@ final class ReportesService
             'aprobacion_primera' => 'Aprobación a la primera',
             'productividad'      => 'Productividad promedio',
             'tasa_desmarcados'   => 'Tasa de ítems desmarcados',
+            'limpiadas'          => 'Habitaciones limpiadas',
         ];
     }
 }

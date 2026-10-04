@@ -1190,3 +1190,20 @@ viejo arriba, este SQL prendería la alerta ~140 veces por día.
 - Exportar → Resumen mensual (septiembre): baja `reporte_mensual_2026-09.xlsx` con las pestañas
   «Trabajadores» y «Supervisores»; Supervisores tiene los bloques Atankalama, Atankalama INN y Total;
 - **al día siguiente**, en phpMyAdmin: pocas alertas `aprobacion_deshecha` por día, y resueltas solas (consulta de §11.9).
+
+### 11.14 Release "tarjeta de habitaciones limpiadas" → v6.16.1
+
+Pedido de Nicolás (04/10/2026, tras subir la v6.16): en Reportes, una tarjeta **«Habitaciones limpiadas»** junto a
+los KPIs de arriba (el mismo número que «limpiadas» de la sección Supervisora, con el período, hotel y trabajadora
+elegidos) y, en el resumen mensual, «Hab. hechas» pasa a llamarse **«Desglose hab.»** (en el Excel sigue «Hab. hechas»).
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos.** ZIP `build/limpieza-v6161-delta.zip` (estructura `limpieza/…`),
+todo a `app_core/`:
+
+- `src/Services/ReportesService.php`;
+- `views/reportes.php`;
+- `CHANGELOG.md` (v6.16.1 fechada).
+
+**Smoke:** badge **v6.16.1** (incógnito); Reportes → con septiembre en «Personalizado», la tarjeta «Habitaciones
+limpiadas» da lo mismo que «… inspeccionadas de N limpiadas» de la sección Supervisora; el resumen mensual muestra
+«Desglose hab.».

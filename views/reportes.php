@@ -631,8 +631,8 @@
                                 <tr>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Todas las habitaciones que limpió, hayan quedado bien o no: hab. hechas + rechazadas. Informativo: el bono se calcula con hab. hechas.">Hab. limpiadas</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza. En rojo, las rechazadas.">Hab. hechas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Todas las habitaciones que limpió, hayan quedado bien o no: las que quedaron bien + las rechazadas. Informativo: el bono se calcula solo con las que quedaron bien.">Hab. limpiadas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza, y en rojo las rechazadas. Las que quedaron bien son las «hab. hechas» del bono de aseo.">Desglose hab.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hab. hechas ÷ días trabajados.">Act./día</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Casillas del checklist que la supervisora le desmarcó al inspeccionar (en aprobadas con observación y en rechazadas).">Observ.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Observaciones ÷ hab. hechas (tope 100 %).">% observ.</th>
@@ -1373,6 +1373,7 @@ function reportes() {
                 { clave: 'aprobacion_primera', titulo: 'Aprobación a la 1ª' },
                 { clave: 'productividad',      titulo: 'Productividad prom.' },
                 { clave: 'tasa_desmarcados',   titulo: 'Ítems desmarcados' },
+                { clave: 'limpiadas',          titulo: 'Habitaciones limpiadas' },
             ];
             return defs.map(d => Object.assign({ clave: d.clave, titulo: d.titulo }, this.data.kpis[d.clave] || {}));
         },
