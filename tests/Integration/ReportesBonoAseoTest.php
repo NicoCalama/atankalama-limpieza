@@ -71,6 +71,7 @@ final class ReportesBonoAseoTest extends TestCase
         $this->assertSame('11111111-1', $ana['rut']);
         $this->assertSame(3, $ana['habitaciones'], '101, 102 y 104 quedaron bien; la 103 fue rechazada');
         $this->assertSame(1, $ana['rechazadas']);
+        $this->assertSame(4, $ana['limpiadas'], 'hab. limpiadas = 3 hechas + 1 rechazada');
         $this->assertSame(3, $ana['observaciones'], 'casillas desmarcadas: 1 en la 102 + 2 en la 103; el cierre automático no desmarca');
         $this->assertSame(1, $ana['dias_trabajados']);
 
@@ -109,10 +110,26 @@ final class ReportesBonoAseoTest extends TestCase
         $this->assertSame(100.0, $ana['bono']['eficacia_pct']);
         $this->assertSame(1.0, $ana['bono']['extras'], '3 − 2 × 1');
 
-        $csv = (new ReportesService())->exportarCsvMensual((int) date('Y'), (int) date('n'), 'ambos');
-        $this->assertStringContainsString('"Corte hab./día";"4";"Jornada parcial";"2"', $csv);
-        $this->assertStringContainsString('"RUT";"Trabajador";"Jornada";"Días trabajados";"Hab. hechas";"Act. por día";"Observaciones"', $csv);
-        $this->assertStringContainsString('"11111111-1";"Ana";"Tiempo parcial";"1";"3";"3";"3";', $csv);
+        $filas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Trabajadores'];
+        $this->assertEquals(['Corte hab./día', 4, 'Jornada parcial', 2], $filas[2]);
+        $this->assertSame(
+            ['RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas', 'Act. por día', 'Observaciones'],
+            array_slice($filas[5], 0, 8)
+        );
+        $this->assertSame('KPIs Calidad (%)', $filas[5][12], '«Resultado» pasó a llamarse «KPIs Calidad»');
+        $this->assertEquals(['11111111-1', 'Ana', 'Tiempo parcial', 1, 4, 3, 3, 3], array_slice($filas[6], 0, 8));
+    }
+
+    public function testInspectoresTraenLasCasillasQueDesmarcaron(): void
+    {
+        $porNombre = array_column(
+            (new ReportesService())->resumenMensualAuditores((int) date('Y'), (int) date('n'), 'ambos'),
+            null,
+            'nombre'
+        );
+        $this->assertSame(3, $porNombre['Sofia']['total']);
+        $this->assertSame(3, $porNombre['Sofia']['observaciones'], '1 casilla en la 102 + 2 en la 103');
+        $this->assertSame(0, $porNombre['Sistema']['observaciones'], 'el cierre automático no desmarca');
     }
 
     public function testCorteFueraDeRangoSeRechaza(): void

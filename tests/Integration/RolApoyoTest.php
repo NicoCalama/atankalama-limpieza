@@ -62,7 +62,7 @@ final class RolApoyoTest extends TestCase
         $this->aud  = new AuditoriaService();
     }
 
-    public function testElRolApoyoTrabajaComoTrabajadorPeroRestaKpisYRepartoYElAdminNoLosTiene(): void
+    public function testElRolApoyoTrabajaComoTrabajadorPeroRestaKpisYRepartoYSoloTrabajadorNoLosTiene(): void
     {
         $pedro = (new UsuarioService())->buscarPorId($this->pedro);
         $this->assertNotNull($pedro);
@@ -71,14 +71,16 @@ final class RolApoyoTest extends TestCase
         $this->assertTrue($pedro->tienePermiso(RbacService::PERMISO_EXCLUIDO_AUTO_ASIGNAR));
         $this->assertFalse($pedro->tienePermiso('kpis.ver_propios'));
 
-        // El '__ALL__' del Admin no incluye los permisos que restan.
-        $admin = Database::fetchAll(
-            "SELECT rp.permiso_codigo FROM rol_permisos rp JOIN roles r ON r.id = rp.rol_id WHERE r.nombre = 'Admin'"
-        );
-        $codigos = array_column($admin, 'permiso_codigo');
-        $this->assertContains('permisos.asignar_a_rol', $codigos);
-        $this->assertNotContains(RbacService::PERMISO_EXCLUIDO_KPIS, $codigos);
-        $this->assertNotContains(RbacService::PERMISO_EXCLUIDO_AUTO_ASIGNAR, $codigos);
+        // Los permisos de marca los lleva todo rol que no es de aseo (04/10/2026); Trabajador no.
+        foreach (['Admin' => true, 'Supervisora' => true, 'Recepción' => true, 'Trabajador' => false] as $rol => $marcado) {
+            $codigos = array_column(Database::fetchAll(
+                'SELECT rp.permiso_codigo FROM rol_permisos rp JOIN roles r ON r.id = rp.rol_id WHERE r.nombre = ?',
+                [$rol]
+            ), 'permiso_codigo');
+            foreach ([RbacService::PERMISO_EXCLUIDO_KPIS, RbacService::PERMISO_EXCLUIDO_AUTO_ASIGNAR] as $marca) {
+                $this->assertSame($marcado, in_array($marca, $codigos, true), "{$rol} / {$marca}");
+            }
+        }
     }
 
     public function testApoyoNoApareceEnReportesNiEnElResumenMensualYNoMueveLasTarjetasDelEquipo(): void

@@ -530,7 +530,7 @@ atrás**:
 | M | % act. observadas | K ÷ C, **tope 100 %** | derivable |
 | N | % logro | (1 − M) × L | derivable |
 | O | Factor de peso | N ≤ 0,7 → 0,427·N; si no → 2,333·N − 1,333 | derivable |
-| J | Resultado («% calidad») | N × O | derivable |
+| J | Resultado («% calidad»; en la app **«KPIs Calidad»** desde el 04/10/2026) | N × O | derivable |
 | I | Actividades extras | `max(F − base, 0) × D` | derivable |
 
 **Correcciones confirmadas por RRHH (01/10/2026)** sobre la planilla de julio:
@@ -568,6 +568,17 @@ de ese día, no con el promedio del mes. La planilla no puede hacerlo; la app s�
   Observ., % observ., Eficacia, % logro, Factor, Resultado y Extras; cada título explica su fórmula.
   El CSV del mes trae lo mismo con el **RUT** como llave, en el orden de la planilla de RRHH, y una fila
   con el corte usado.
+- **Cambios del 04/10/2026 (pedido de Nicolás):**
+  - «Resultado» se llama **«KPIs Calidad»** en la pantalla y en el Excel (misma fórmula, N × O).
+  - Columna nueva **«Hab. limpiadas»** antes de «Hab. hechas» = hab. hechas + rechazadas: todo lo que
+    limpió, haya quedado bien o no. Informativa: el bono sigue usando hab. hechas (C).
+  - El resumen de inspecciones suma **«Observaciones»** por inspector = casillas que ese inspector
+    desmarcó en el mes (la misma K de los trabajadores, contada desde quien inspecciona; la suma de las
+    dos columnas coincide salvo limpiezas que crucen el cambio de mes).
+  - Un solo botón **«Exportar Excel»** arriba abre una ventana para elegir: resumen mensual, KPIs del
+    período o inspecciones pendientes de un día. El resumen mensual baja **un .xlsx con dos pestañas**:
+    «Trabajadores» (hotel elegido, lo que antes era el CSV del mes) y «Supervisores» (un bloque por hotel
+    y uno con el total, siempre los dos hoteles). Se quitó el CSV mensual de inspecciones.
 - **Corte hab./día:** cuadro junto al título. Se guarda **por mes** (`alertas_config`, clave
   `bono_corte_hab_dia_YYYY-MM`); un mes sin valor propio hereda el del último mes que lo tenga y, si no
   hay ninguno, **18**. Entre 1 y 100, un decimal. Editarlo exige `reportes.editar_corte` (solo

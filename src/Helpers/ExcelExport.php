@@ -20,16 +20,28 @@ final class ExcelExport
      */
     public static function responder(array $filas, string $nombreArchivo): Response
     {
-        // Anti CSV/Excel formula injection: SimpleXLSXGen escapa XML pero no neutraliza las
-        // celdas de texto que empiezan con = + - @ (o tab/CR), que Excel/Sheets ejecutarían
-        // como fórmula. Varias columnas llevan texto libre editable por el usuario (número de
-        // pieza, nombre, comentario de auditoría, nota de recepción), así que se sanean todas.
-        $filas = array_map(
-            static fn (array $fila): array => array_map([self::class, 'neutralizarFormula'], $fila),
-            $filas
-        );
+        return self::responderHojas(['' => $filas], $nombreArchivo);
+    }
 
-        $xlsx = SimpleXLSXGen::fromArray($filas);
+    /**
+     * Igual que responder(), pero con varias pestañas en el mismo archivo.
+     *
+     * @param array<string, list<list<string|int|float|null>>> $hojas nombre de la pestaña ('' = automático) → filas
+     */
+    public static function responderHojas(array $hojas, string $nombreArchivo): Response
+    {
+        $xlsx = new SimpleXLSXGen();
+        foreach ($hojas as $nombre => $filas) {
+            // Anti CSV/Excel formula injection: SimpleXLSXGen escapa XML pero no neutraliza las
+            // celdas de texto que empiezan con = + - @ (o tab/CR), que Excel/Sheets ejecutarían
+            // como fórmula. Varias columnas llevan texto libre editable por el usuario (número de
+            // pieza, nombre, comentario de auditoría, nota de recepción), así que se sanean todas.
+            $filas = array_map(
+                static fn (array $fila): array => array_map([self::class, 'neutralizarFormula'], $fila),
+                $filas
+            );
+            $xlsx->addSheet($filas, $nombre === '' ? null : (string) $nombre);
+        }
 
         // Nombre saneado: valores como numero de habitacion llegan aqui como texto libre
         // editable por admin y no deben poder romper el parametro filename del header
