@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Migración: rol «Apoyo» + permisos `kpis.excluido` y `asignaciones.excluir_auto` (v6.15.2).
+ * Migración: rol «Apoyo» + permisos `kpis.excluido` y `asignaciones.excluir_auto` (v6.16; se armó como v6.15.2).
  *
  * Personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de
  * Nicolás, 01/10/2026): trabaja igual que un Trabajador, pero no suma créditos, no entra en KPIs ni en

@@ -855,6 +855,9 @@ Sin `sw.js`, así que sin bump de `CACHE_VERSION`. Sin `.env` ni `vendor/`.
 
 ### 11.9 Release "aprobación deshecha + CHECK de alertas + app_core/public cerrado" → v6.16
 
+> **04/10/2026: no se sube sola.** Va dentro del deploy combinado **v6.16** (§11.13), que manda en el
+> orden y en la lista de archivos. Esta sección queda como detalle de su parte.
+>
 > **Renumerada el 30/09/2026:** se armó como v6.15, pero el delta de KPIs (§11.10) pasó adelante
 > por urgencia y tomó ese número. Se sube **después** de la v6.15; no comparten archivos.
 
@@ -1046,8 +1049,11 @@ a `app_core/`:
   aparece deshabilitado.
 
 
-### 11.12 Release "rol Apoyo" → v6.15.2
+### 11.12 Release "rol Apoyo" → v6.15.2 (absorbida por la v6.16)
 
+> **04/10/2026: no se sube sola.** Va dentro del deploy combinado **v6.16** (§11.13), que manda en el
+> orden y en la lista de archivos. Esta sección queda como detalle de su parte.
+>
 > **Sobre la v6.15.1**, sube **antes** que la v6.16 (§11.9), igual que la v6.15.1. Comparte con la v6.16
 > solo `CHANGELOG.md` (subir el del commit más nuevo) y `src/Services/HomeService.php`: el de este release
 > trae el cambio de la v6.16 en `sistemaEsquema()`, blindado con `?? []` para funcionar con la
@@ -1123,3 +1129,60 @@ SELECT r.nombre, rp.permiso_codigo
 - Usuarios: la pastilla «Apoyo» filtra; a una persona de prueba darle el rol Apoyo (y quitarle Trabajador);
 - Turnos: darle turno hoy → aparece en el tablero de Asignaciones y se le puede asignar a mano; «Auto-asignar» no le da piezas;
 - Reportes: esa persona no aparece en el selector, el detalle, la ficha ni el resumen mensual.
+
+### 11.13 Deploy combinado → v6.16 (rol Apoyo + CHECK de alertas + Reportes con pestañas)
+
+> **Decisión de Nicolás (04/10/2026):** un solo ZIP con todo lo terminado que no estaba en producción, y
+> se llama **v6.16**. Junta tres cosas que se habían armado por separado: la v6.16 del CHECK de alertas
+> (§11.9), la v6.15.2 del rol Apoyo (§11.12) y los cambios de Reportes del 04/10 (que se rotularon v6.18).
+> En el CHANGELOG quedan en una sola fila v6.16. **La v6.17 (ciclo con Cloudbeds, rama
+> `v6.17-ciclo-cloudbeds`) queda fuera:** le falta R1.
+
+Por qué juntas: el `ReportesService.php` de Reportes ya trae el código del rol Apoyo, así que Reportes no
+podía subir sin la v6.15.2; y la v6.16 se commiteó antes que la v6.15.1 pero nunca subió, así que sus
+archivos tampoco están arriba.
+
+**Lista de archivos** = todo lo que tocaron los commits no desplegados (`3041b45`, `eba650d`, `b2f8593`
+de la v6.16; `5c70315` del rol Apoyo; `38b76db` de Reportes), menos `docs/` y `tests/`. Contra el último
+deploy (v6.15.1, merge `9db3bb4`) no alcanza: no ve los de la v6.16.
+
+**0. Pre-chequeo, antes de subir nada (solo lee).** `build/precheck-checks-prod.sql` en phpMyAdmin con la
+base `cat6852_australia` seleccionada. **Esperado: 2 filas**, las dos de `limpieza_alertas_activas.tipo`
+(`aprobacion_deshecha` e `inventario_cambios_pendientes`). Si sale otra fila, avisar antes de seguir.
+
+**1. SQL del rol Apoyo — ANTES del ZIP.** `scripts/migrate-add-rol-apoyo.php` por consola/cron, o el
+fallback phpMyAdmin de §11.12 (correrlo entero, una vez; es idempotente). Verificación: la última consulta
+de ese bloque muestra a Apoyo con los permisos de Trabajador (sin `kpis.ver_propios`) más los 2 de marca.
+
+**2. Subir el ZIP** `build/limpieza-v616-delta.zip` (estructura `limpieza/…`). Todo va a
+`public_html/limpieza/app_core/`, con la misma ruta relativa:
+
+- `src/Models/Habitacion.php`;
+- `src/Services/{AsignacionService,CloudbedsSyncService,EsquemaService,HabitacionService,HomeService,RbacService,ReportesService}.php`;
+- `src/Controllers/ReportesController.php`, `src/Core/Kernel.php`, `src/Helpers/ExcelExport.php`, `src/Support/Tours.php`;
+- `views/{ajustes-turnos,home-admin,reportes,usuarios}.php`;
+- `database/seeds/{permisos,roles}.php`;
+- `scripts/{build-cpanel-zip,init-db,migrate-add-inventario-alerta,migrate-add-rol-apoyo,seed,verificar-esquema}.php`;
+- **`public/.htaccess` de bloqueo** → `limpieza/app_core/public/.htaccess`. Es una copia de
+  `deployment/cpanel/app_core/.htaccess`, **no** el `public/.htaccess` del repo (ver §11.9);
+- `CHANGELOG.md` (v6.16 fechada).
+
+Sin estáticos al docroot, sin `sw.js`, sin `.env` ni `vendor/`. Apenas sube, `/api/health` pasa a **503**
+con «Faltan migraciones: 1 elemento(s)» (el CHECK de alertas). **Es lo esperado:** seguir al paso 3.
+
+**3. SQL del CHECK de alertas — inmediatamente después del ZIP.** El `ALTER TABLE … MODIFY COLUMN` del
+paso 2 de §11.9 (o `scripts/migrate-add-inventario-alerta.php`). Al revés que el rol Apoyo: con el código
+viejo arriba, este SQL prendería la alerta ~140 veces por día.
+
+**4. Smoke:**
+
+- `/api/health` **200** con `checks.esquema.ok: true`; Inicio → Salud del sistema al día;
+- badge **v6.16** (incógnito), `/login` 200;
+- `app_core/public/assets/js/app.js` → **403** y `app_core/public/index.php` → **403**; una foto de ticket se sigue viendo;
+- Ajustes → Roles: aparece «Apoyo»; Admin **no** tiene `kpis.excluido` ni `asignaciones.excluir_auto`;
+- Reportes: arriba un solo «Exportar Excel» que abre la ventana; ninguna sección tiene su propio
+  «Exportar». El resumen por trabajador muestra «Hab. limpiadas» y «KPIs Calidad»; el de inspecciones,
+  «Observaciones»;
+- Exportar → Resumen mensual (septiembre): baja `reporte_mensual_2026-09.xlsx` con las pestañas
+  «Trabajadores» y «Supervisores»; Supervisores tiene los bloques Atankalama, Atankalama INN y Total;
+- **al día siguiente**, en phpMyAdmin: pocas alertas `aprobacion_deshecha` por día, y resueltas solas (consulta de §11.9).
