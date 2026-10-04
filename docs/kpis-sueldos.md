@@ -579,6 +579,11 @@ de ese día, no con el promedio del mes. La planilla no puede hacerlo; la app s�
     período o inspecciones pendientes de un día. El resumen mensual baja **un .xlsx con dos pestañas**:
     «Trabajadores» (hotel elegido, lo que antes era el CSV del mes) y «Supervisores» (un bloque por hotel
     y uno con el total, siempre los dos hoteles). Se quitó el CSV mensual de inspecciones.
+  - Más tarde el mismo día (v6.16.1): en pantalla «Hab. hechas» pasa a llamarse **«Desglose hab.»** (muestra
+    las que quedaron bien + las rechazadas en rojo); en el Excel sigue «Hab. hechas», el nombre de la planilla
+    de RRHH. Y arriba, entre los KPIs, la tarjeta **«Habitaciones limpiadas»** del período elegido = el
+    «limpiadas» de la sección Supervisora (`ReportesService::kpiLimpiadas`, mismas condiciones que
+    `seccionSupervisora`).
 - **Corte hab./día:** cuadro junto al título. Se guarda **por mes** (`alertas_config`, clave
   `bono_corte_hab_dia_YYYY-MM`); un mes sin valor propio hereda el del último mes que lo tenga y, si no
   hay ninguno, **18**. Entre 1 y 100, un decimal. Editarlo exige `reportes.editar_corte` (solo

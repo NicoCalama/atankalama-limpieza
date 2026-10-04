@@ -120,6 +120,31 @@ final class ReportesBonoAseoTest extends TestCase
         $this->assertEquals(['11111111-1', 'Ana', 'Tiempo parcial', 1, 4, 3, 3, 3], array_slice($filas[6], 0, 8));
     }
 
+    public function testTarjetaDeLimpiadasEsElMismoNumeroQueLaSeccionSupervisora(): void
+    {
+        $rep = new ReportesService();
+        $hoy = date('Y-m-d');
+
+        $kpi = $rep->reporteKpis($hoy, $hoy, 'ambos')['kpis']['limpiadas'];
+        $this->assertSame(4, $kpi['valor'], 'aprobada, con observación, rechazada y la del cierre automático');
+        $this->assertSame('3 inspeccionadas por una persona', $kpi['contexto'], 'el cierre automático no es una inspección');
+        $this->assertSame(
+            $rep->fichaKpis($hoy, $hoy, 'ambos', true)['supervisoras']['seccion']['completadas'],
+            $kpi['valor']
+        );
+
+        // Con la trabajadora filtrada, las suyas (aquí todas son de Ana).
+        $this->assertSame(4, $rep->reporteKpis($hoy, $hoy, 'ambos', $this->ana)['kpis']['limpiadas']['valor']);
+        $this->assertNull($rep->reporteKpis($hoy, $hoy, 'ambos', $this->sofia)['kpis']['limpiadas']['valor']);
+
+        // Respeta el período: un rango que no incluye hoy no tiene limpiezas.
+        $semanaPasada = date('Y-m-d', strtotime('-8 days'));
+        $antier       = date('Y-m-d', strtotime('-2 days'));
+        $vacio = $rep->reporteKpis($semanaPasada, $antier, 'ambos')['kpis']['limpiadas'];
+        $this->assertNull($vacio['valor']);
+        $this->assertSame('sin_datos', $vacio['estado']);
+    }
+
     public function testInspectoresTraenLasCasillasQueDesmarcaron(): void
     {
         $porNombre = array_column(
