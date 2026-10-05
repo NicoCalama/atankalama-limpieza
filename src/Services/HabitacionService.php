@@ -109,13 +109,18 @@ final class HabitacionService
      */
     public function obtenerDetalle(int $id): ?array
     {
+        // asignado_a_nombre: a quién está asignada HOY (como en listar()); el detalle lo muestra a quien no la
+        // tiene en su cola, en vez de decir «pendiente de asignación».
         $fila = Database::fetchOne(
-            'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+            'SELECT h.*, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre,
+                    ua.nombre AS asignado_a_nombre
                FROM #__habitaciones h
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+          LEFT JOIN #__asignaciones asig ON asig.habitacion_id = h.id AND asig.fecha = ? AND asig.activa = 1
+          LEFT JOIN #__usuarios ua ON ua.id = asig.usuario_id
               WHERE h.id = ?',
-            [$id]
+            [date('Y-m-d'), $id]
         );
         if ($fila === null) {
             return null;

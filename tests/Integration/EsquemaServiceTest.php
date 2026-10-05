@@ -149,6 +149,7 @@ final class EsquemaServiceTest extends TestCase
         $this->assertContains('aprobacion_deshecha', $checks['alertas_activas.tipo'] ?? []);
         $this->assertContains('aprobada_automatica', $checks['habitaciones.estado'] ?? []);
         $this->assertSame(['0', '1', '2', '3'], $checks['alertas_activas.prioridad'] ?? null);
+        $this->assertSame(['si', 'no'], $checks['revisiones_entrega.resultado'] ?? null);
     }
 
     /** El caso exacto de producción: el CHECK de tipos se quedó con la lista del 07/07. */

@@ -23,6 +23,7 @@ use Atankalama\Limpieza\Controllers\ModoEspiaController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\PushController;
+use Atankalama\Limpieza\Controllers\RevisionEntregaController;
 use Atankalama\Limpieza\Controllers\SistemaController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
@@ -79,6 +80,7 @@ final class Kernel
         $router->get('/ajustes/colores', [$paginas, 'ajustesColores'], [$optionalAuth]);
         $router->get('/ajustes/versiones', [$paginas, 'ajustesVersiones'], [$optionalAuth]);
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
+        $router->get('/ajustes/revision-entrega', [$paginas, 'ajustesRevisionEntrega'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
@@ -138,7 +140,8 @@ final class Kernel
         $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [$authCheck]);
         $router->put('/api/habitaciones/{id}/estructura', [$habitaciones, 'actualizarEstructura'], [
             $authCheck,
-            new PermissionCheck('habitaciones.ver_todas'), // Supervisora/Admin pueden editar
+            // v6.18: antes alcanzaba con habitaciones.ver_todas (Recepción también podía).
+            new PermissionCheck('habitaciones.gestionar_edificios'),
         ]);
         $router->get('/api/habitaciones/{id}/historial', [$habitaciones, 'historial'], [
             $authCheck,
@@ -191,10 +194,12 @@ final class Kernel
 
         // Edificios
         $edificiosCtrl = new EdificiosController();
+        // Leer edificios lo necesita la lista de Habitaciones (filtros edificio/piso): ver_todas.
+        // Crear/editar/borrar es de Ajustes → Edificios y Mapeo (v6.18: permiso propio; antes alcanzaba ver_todas).
         $router->get('/api/edificios', [$edificiosCtrl, 'listar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
-        $router->post('/api/edificios', [$edificiosCtrl, 'crear'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
-        $router->put('/api/edificios/{id}', [$edificiosCtrl, 'actualizar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
-        $router->delete('/api/edificios/{id}', [$edificiosCtrl, 'eliminar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
+        $router->post('/api/edificios', [$edificiosCtrl, 'crear'], [$authCheck, new PermissionCheck('habitaciones.gestionar_edificios')]);
+        $router->put('/api/edificios/{id}', [$edificiosCtrl, 'actualizar'], [$authCheck, new PermissionCheck('habitaciones.gestionar_edificios')]);
+        $router->delete('/api/edificios/{id}', [$edificiosCtrl, 'eliminar'], [$authCheck, new PermissionCheck('habitaciones.gestionar_edificios')]);
 
         // Cloudbeds
         $cloudbeds = new CloudbedsController();
@@ -505,6 +510,44 @@ final class Kernel
             new PermissionCheck('turnos.asignar_a_usuario'),
         ]);
 
+        // Inspección pre-entrega (v6.18, docs/revision-entrega.md; en código «revision_entrega»). Se
+        // registra desde la tarjeta de la pieza en Habitaciones (GET /api/habitaciones trae la revisión
+        // vigente). La ventana del NO pide /formulario; /motivos y /config quedan solo para Ajustes.
+        // «Re-limpiar» es una asignación: la usa quien asigna (Supervisora), no Recepción.
+        $revisionEntrega = new RevisionEntregaController();
+        $router->post('/api/revision-entrega/{id}/relimpiar', [$revisionEntrega, 'relimpiar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
+        $router->get('/api/revision-entrega/formulario', [$revisionEntrega, 'formulario'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.registrar'),
+        ]);
+        $router->post('/api/revision-entrega', [$revisionEntrega, 'registrar'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.registrar'),
+        ]);
+        $router->get('/api/revision-entrega/motivos', [$revisionEntrega, 'listarMotivos'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.configurar'),
+        ]);
+        $router->post('/api/revision-entrega/motivos', [$revisionEntrega, 'crearMotivo'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.configurar'),
+        ]);
+        $router->put('/api/revision-entrega/motivos/{id}', [$revisionEntrega, 'actualizarMotivo'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.configurar'),
+        ]);
+        $router->get('/api/revision-entrega/config', [$revisionEntrega, 'config'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.configurar'),
+        ]);
+        $router->put('/api/revision-entrega/config', [$revisionEntrega, 'guardarConfig'], [
+            $authCheck,
+            new PermissionCheck('revision_entrega.configurar'),
+        ]);
+
         // Alertas
         $alertas = new AlertasController();
         $router->get('/api/alertas/activas', [$alertas, 'activas'], [
@@ -604,6 +647,10 @@ final class Kernel
             new PermissionCheck('reportes.ver'),
         ]);
         $router->get('/api/reportes/exportar-auditorias-pendientes', [$reportes, 'exportarAuditoriasPendientes'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/revision-entrega', [$reportes, 'revisionEntrega'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);

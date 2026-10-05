@@ -27,6 +27,8 @@ final class AsignacionService
     /**
      * @param bool $puedeMoverEnProgreso Si quien actúa tiene asignaciones.mover_en_progreso (ver
      *                                   exigirPuedeMoverEnProgreso). Default false: seguro por omisión.
+     * @param string|null $notaAviso Frase que se suma al aviso «Nueva habitación asignada» (p. ej. que es
+     *                               una re-limpieza de la inspección pre-entrega y su motivo).
      */
     public function asignarManual(
         int $habitacionId,
@@ -35,6 +37,7 @@ final class AsignacionService
         ?int $asignadoPor = null,
         ?string $franja = null,
         bool $puedeMoverEnProgreso = false,
+        ?string $notaAviso = null,
     ): Asignacion {
         $this->validarFecha($fecha);
         $franja = $this->validarFranja($franja);
@@ -99,7 +102,7 @@ final class AsignacionService
                 $usuarioId,
                 'asignacion',
                 'Nueva habitación asignada',
-                "Se te asignó la habitación #{$hab['numero']} {$cuandoTexto}.",
+                "Se te asignó la habitación #{$hab['numero']} {$cuandoTexto}." . ($notaAviso !== null ? ' ' . $notaAviso : ''),
                 // La URL viaja al navegador tal cual (el popup no re-prefija):
                 // se antepone BASE_PATH acá, igual que hace PushService::notificar.
                 Url::a("/habitaciones/{$habitacionId}")
@@ -211,11 +214,12 @@ final class AsignacionService
         string $motivo,
         ?int $asignadoPor = null,
         bool $puedeMoverEnProgreso = false,
+        ?string $notaAviso = null,
     ): Asignacion {
         // Hereda la franja de la asignación que reemplaza: rehacer una pieza es el MISMO ciclo
         // (pieza · fecha · franja) para los KPIs de la ficha (docs/kpis-sueldos.md), no una limpieza nueva.
         $franja = $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
-        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso);
+        $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso, $notaAviso);
         Logger::audit($asignadoPor, 'asignacion.reasignar', 'asignacion', $asignacion->id, [
             'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo,
         ]);
@@ -314,6 +318,28 @@ final class AsignacionService
         }
         Logger::audit($actorId, 'asignacion.reordenar_cola', 'usuario', $usuarioId, [
             'fecha' => $fecha, 'orden' => $ordenHabitaciones,
+        ]);
+    }
+
+    /**
+     * Pone la habitación PRIMERA en la cola del trabajador (el resto corre un lugar). Si está a mitad de
+     * otra pieza, termina esa primero: la pieza en curso manda (elegirHabitacionActual). Lo usa la
+     * re-limpieza con prioridad de la inspección pre-entrega (RevisionEntregaService::pedirRelimpieza).
+     */
+    public function subirAlInicioDeCola(int $habitacionId, int $usuarioId, string $fecha, ?int $actorId = null): void
+    {
+        Database::transaction(function () use ($habitacionId, $usuarioId, $fecha): void {
+            Database::execute(
+                'UPDATE #__asignaciones SET orden_cola = orden_cola + 1 WHERE usuario_id = ? AND fecha = ? AND activa = 1 AND habitacion_id <> ?',
+                [$usuarioId, $fecha, $habitacionId]
+            );
+            Database::execute(
+                'UPDATE #__asignaciones SET orden_cola = 1 WHERE habitacion_id = ? AND usuario_id = ? AND fecha = ? AND activa = 1',
+                [$habitacionId, $usuarioId, $fecha]
+            );
+        });
+        Logger::audit($actorId, 'asignacion.subir_al_inicio', 'asignacion', $habitacionId, [
+            'usuario_id' => $usuarioId, 'fecha' => $fecha,
         ]);
     }
 

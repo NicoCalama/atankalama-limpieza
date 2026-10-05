@@ -11,6 +11,7 @@ use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Core\View;
 use Atankalama\Limpieza\Helpers\Changelog;
 use Atankalama\Limpieza\Services\AuthService;
+use Atankalama\Limpieza\Support\PantallaInicio;
 
 final class PaginasController
 {
@@ -56,6 +57,10 @@ final class PaginasController
         if ($request->usuario->requiereCambioPwd) {
             return self::redirect('/cambiar-contrasena');
         }
+        // Sin Inicio propio (Recepción): su Inicio es Habitaciones. Redirige acá, sin pintar el layout.
+        if (!PantallaInicio::tienePantallaPropia($request->usuario)) {
+            return self::redirect('/habitaciones');
+        }
         return View::conLayout('home', [
             'usuario' => $request->usuario,
             'titulo' => 'Inicio',
@@ -67,8 +72,11 @@ final class PaginasController
         if ($request->usuario === null) {
             return self::redirect('/login');
         }
-        if (!$request->usuario->tienePermiso('habitaciones.ver_todas')) {
-            return View::conLayout('error', ['mensaje' => 'No tienes permiso.', 'titulo' => 'Acceso Denegado']);
+        // v6.18: permiso propio (antes alcanzaba con habitaciones.ver_todas, así que Recepción también entraba).
+        // Sin permiso, de vuelta a Ajustes como el resto de sus páginas: la vista 'error' que se usaba acá no
+        // existe y respondía un 500 (bug previo, visible al sacarle el permiso a Recepción).
+        if (!$request->usuario->tienePermiso('habitaciones.gestionar_edificios')) {
+            return self::redirect('/ajustes');
         }
         return View::conLayout('edificios', [
             'usuario' => $request->usuario,
@@ -250,6 +258,24 @@ final class PaginasController
         return View::conLayout('ajustes-turnos', [
             'usuario' => $request->usuario,
             'titulo' => 'Turnos',
+        ]);
+    }
+
+    /** Ajustes → Inspección pre-entrega: qué hace un NO (interruptor) y el catálogo de motivos. */
+    public function ajustesRevisionEntrega(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('revision_entrega.configurar')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-revision-entrega', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Inspección pre-entrega',
         ]);
     }
 

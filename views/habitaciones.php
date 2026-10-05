@@ -18,10 +18,20 @@ $puedeGestionarEstado = $usuario->tienePermiso('habitaciones.marcar_limpia_manua
 // Mensaje de alerta a la mucama (nota_recepcion): mismo permiso que ya gatea la nota
 // en el detalle de la habitación. Recepción lo tiene aunque no tenga marcar_limpia_manual.
 $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
+// Inspección pre-entrega (v6.18): botón grande al pie de cada tarjeta (Recepción). Quien ve todas las
+// piezas sin poder inspeccionar ve el resultado de hoy como franja, sin botón.
+$puedeInspeccionar = $usuario->tienePermiso('revision_entrega.registrar');
+// Editar edificio/piso de la pieza (el lápiz de la tarjeta): v6.18, permiso propio.
+$puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edificios');
+// «Re-limpiar» una pieza que Recepción no aprobó (v6.18): es una asignación.
+$puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
 ?>
 
-<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>)"
-     x-init="cargar()">
+<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>, <?= $puedeInspeccionar ? 'true' : 'false' ?>, <?= $puedeGestionarEdificios ? 'true' : 'false' ?>, <?= $puedeRelimpiar ? 'true' : 'false' ?>)"
+     x-init="cargar()"
+     @inspeccion-pre-entrega-registrada.window="onInspeccionRegistrada($event.detail)"
+     @relimpieza-pedida.window="onRelimpiezaPedida($event.detail)">
+    <div data-vg-context='{"inspecciona_entrega": <?= $puedeInspeccionar ? 'true' : 'false' ?>}' hidden></div>
 
     <!-- Header sticky -->
     <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
@@ -162,8 +172,7 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                  class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800">
                 <p class="text-sm text-yellow-900 dark:text-yellow-200">
                     <span x-text="nocherosActivosFiltrados.length"></span>
-                    habitación<span x-text="nocherosActivosFiltrados.length === 1 ? '' : 'es'"></span>
-                    marcada<span x-text="nocherosActivosFiltrados.length === 1 ? '' : 's'"></span> como nochero (con los filtros actuales).
+                    <span x-text="nocherosActivosFiltrados.length === 1 ? 'habitación marcada' : 'habitaciones marcadas'"></span> como nochero (con los filtros actuales).
                 </p>
                 <button type="button" @click="quitarTodosNocheros()" :disabled="quitandoTodosNocheros"
                         class="shrink-0 min-h-[36px] px-3 py-1.5 rounded-lg border border-yellow-500 text-yellow-800 dark:text-yellow-200 text-sm font-medium hover:bg-yellow-100 dark:hover:bg-yellow-900/40 disabled:opacity-50 transition">
@@ -173,7 +182,7 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
 
             <!-- Contador de resultados (incluye cuántas de las que se ven son nochero) -->
             <p class="text-sm text-gray-500 dark:text-gray-400"
-               x-text="habitacionesFiltradas.length + ' habitación' + (habitacionesFiltradas.length === 1 ? '' : 'es') + resumenNocheros()"></p>
+               x-text="habitacionesFiltradas.length + (habitacionesFiltradas.length === 1 ? ' habitación' : ' habitaciones') + resumenNocheros()"></p>
         </div>
         <?php endif; ?>
 
@@ -235,7 +244,7 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                 <template x-for="hab in habitacionesFiltradas" :key="hab.id">
                     <div @click="if (!$event.target.closest('button')) window.location.href = u('/habitaciones/' + hab.id)"
                        class="relative rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden hover:shadow-md transition shadow-sm flex flex-col cursor-pointer group bg-white dark:bg-gray-800"
-                       :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) ? 'opacity-60' : '']">
+                       :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) && !puedeInspeccionar && !tieneNoVigente(hab) ? 'opacity-60' : '']">
                         <div class="p-4 flex flex-col gap-2">
                             <div class="flex items-start justify-between">
                                 <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
@@ -244,7 +253,7 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                                           :class="etiquetaHotel(hab.hotel_codigo)"
                                           x-text="hotelCorto(hab.hotel_codigo)"></span>
                                     <div class="flex items-center gap-0.5">
-                                        <template x-if="puedeVerTodas">
+                                        <template x-if="puedeGestionarEdificios">
                                             <button @click.stop="abrirModalEstructura(hab)"
                                                     class="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-600 transition"
                                                     title="Editar estructura">
@@ -318,6 +327,49 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
                                         :title="hab.es_nochero ? ('Nochero hasta ' + hab.nochero_hasta + ' — clic para quitar') : 'Marcar como nochero'">N</button>
                             </template>
                         </div>
+
+                        <!-- Inspección pre-entrega (v6.18): botón del mismo tamaño que la franja de estado. Abre la
+                             ventana SÍ / NO (componentes/modal-inspeccion-pre-entrega.php) y muestra el resultado
+                             vigente (hasta que la pieza cambia de estado). Es un <button>: el clic no abre el
+                             detalle de la pieza. Solo se escribe en el
+                             HTML para quien inspecciona (su ancla de la vista guiada no aparece a los demás). -->
+                        <?php if ($puedeInspeccionar): ?>
+                        <template x-if="puedeInspeccionar">
+                            <button type="button" @click.stop="abrirInspeccion(hab)" data-tour="hb.inspeccion"
+                                    class="w-full min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-center border-t transition"
+                                    :class="claseInspeccion(hab)"
+                                    :title="tituloInspeccion(hab)">
+                                <!-- Cada ícono va dentro de un <span>: Lucide reemplaza el <i> por un <svg> y,
+                                     sin el envoltorio, Alpine no lo saca al cambiar de x-if (quedaban dos íconos). -->
+                                <template x-if="!hab.revision_vigente">
+                                    <span class="inline-flex shrink-0"><i data-lucide="clipboard-check" class="w-4 h-4"></i></span>
+                                </template>
+                                <template x-if="hab.revision_vigente && hab.revision_vigente.resultado === 'si'">
+                                    <span class="inline-flex shrink-0"><i data-lucide="check-circle-2" class="w-4 h-4"></i></span>
+                                </template>
+                                <template x-if="hab.revision_vigente && hab.revision_vigente.resultado === 'no'">
+                                    <span class="inline-flex shrink-0"><i data-lucide="x-circle" class="w-4 h-4"></i></span>
+                                </template>
+                                <span class="font-oswald text-xs sm:text-sm font-semibold uppercase tracking-wide leading-tight line-clamp-2 break-words" x-text="textoInspeccion(hab)"></span>
+                            </button>
+                        </template>
+                        <?php endif; ?>
+                        <!-- Quien ve todas las piezas sin inspeccionar (Supervisora) ve el resultado como franja. Un NO
+                             sobre una pieza aprobada se vuelve el botón «Re-limpiar» para quien puede asignar. -->
+                        <template x-if="!puedeInspeccionar && puedeVerTodas && hab.revision_vigente && !puedeRelimpiarPieza(hab)">
+                            <div class="w-full min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-center border-t"
+                                 :class="claseInspeccion(hab)" :title="tituloInspeccion(hab)">
+                                <span class="font-oswald text-xs sm:text-sm font-semibold uppercase tracking-wide leading-tight line-clamp-2 break-words" x-text="textoInspeccion(hab)"></span>
+                            </div>
+                        </template>
+                        <template x-if="!puedeInspeccionar && puedeRelimpiarPieza(hab)">
+                            <button type="button" @click.stop="abrirRelimpiar(hab)"
+                                    class="w-full min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-center border-t transition"
+                                    :class="claseInspeccion(hab)" :title="tituloInspeccion(hab)">
+                                <span class="inline-flex shrink-0"><i data-lucide="rotate-cw" class="w-4 h-4"></i></span>
+                                <span class="font-oswald text-xs sm:text-sm font-semibold uppercase tracking-wide leading-tight line-clamp-2 break-words" x-text="textoRelimpiar(hab)"></span>
+                            </button>
+                        </template>
                     </div>
                 </template>
             </div>
@@ -489,12 +541,15 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
 </div>
 
 <script>
-function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota) {
+function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota, puedeInspeccionar, puedeGestionarEdificios, puedeRelimpiar) {
     return {
         puedeVerTodas: puedeVerTodas,
         usuarioId: usuarioId,
         puedeGestionarEstado: puedeGestionarEstado,
         puedeAgregarNota: puedeAgregarNota,
+        puedeInspeccionar: !!puedeInspeccionar,
+        puedeGestionarEdificios: !!puedeGestionarEdificios,
+        puedeRelimpiar: !!puedeRelimpiar,
         modalAccionesEstado: { abierta: false, hab: null },
         accionEstadoEnCurso: false,
         // Formulario de mensaje a la mucama (dentro del mismo modal de acciones): se pega
@@ -686,6 +741,88 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             } finally {
                 this.modalEstructura.guardando = false;
             }
+        },
+
+        // ── Inspección pre-entrega (v6.18) ──
+        // hab.revision_vigente = la última inspección de la pieza mientras no haya cambiado de estado
+        // (la calcula el servidor); si la pieza cambia de estado, el botón vuelve a «Inspección pre-entrega».
+        abrirInspeccion(hab) {
+            window.dispatchEvent(new CustomEvent('abrir-inspeccion-pre-entrega', {
+                detail: { habitacion: { id: hab.id, numero: hab.numero, hotel_codigo: hab.hotel_codigo, revision_vigente: hab.revision_vigente || null } }
+            }));
+        },
+
+        // La ventana guardó un SÍ o un NO: se pinta en la tarjeta sin recargar la lista.
+        onInspeccionRegistrada(d) {
+            if (!d || !d.revision) return;
+            var hab = this.habitaciones.find(function (h) { return h.id === d.habitacion_id; });
+            if (!hab) return;
+            hab.revision_vigente = d.revision;
+            if (d.revision.paso_a_sucia) hab.estado = 'sucia';
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // «14:32» si fue hoy; «04/10 18:10» si es de otro día (sigue vigente porque la pieza no cambió de estado).
+        cuandoInspeccion(r) {
+            if (r.fecha_local === window.hoyServidor()) return r.hora_local;
+            var p = String(r.fecha_local || '').split('-');
+            return (p.length === 3 ? p[2] + '/' + p[1] : r.fecha_local) + ' ' + r.hora_local;
+        },
+
+        claseInspeccion(hab) {
+            var r = hab.revision_vigente;
+            if (!r) return 'border-blue-100 dark:border-blue-900 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-200';
+            if (r.resultado === 'si') return 'border-emerald-100 dark:border-emerald-900 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200';
+            return 'border-red-100 dark:border-red-900 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-800 dark:text-red-200';
+        },
+
+        textoInspeccion(hab) {
+            var r = hab.revision_vigente;
+            if (!r) return 'Inspección pre-entrega';
+            if (r.resultado === 'si') return 'Aprobada · ' + this.cuandoInspeccion(r);
+            var fecha = r.fecha_local === window.hoyServidor() ? '' : this.cuandoInspeccion(r).split(' ')[0] + ' · ';
+            return 'No aprobada · ' + fecha + (r.motivo_nombre || '');
+        },
+
+        tituloInspeccion(hab) {
+            var r = hab.revision_vigente;
+            if (!r) return 'Revisar si la pieza está en condiciones para entregarse a un cliente';
+            var quien = String(r.usuario_nombre || '').trim().split(/\s+/)[0] || '';
+            var base = (r.resultado === 'si' ? 'Inspección pre-entrega aprobada' : 'Inspección pre-entrega no aprobada: ' + (r.motivo_nombre || ''))
+                + ' · ' + this.cuandoInspeccion(r) + (quien ? ' · ' + quien : '');
+            return r.comentario ? base + ' — ' + r.comentario : base;
+        },
+
+        // ── Re-limpiar (v6.18): la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó ──
+        tieneNoVigente(hab) {
+            return !!hab.revision_vigente && hab.revision_vigente.resultado === 'no';
+        },
+
+        puedeRelimpiarPieza(hab) {
+            return this.puedeRelimpiar && !!hab.revision_vigente && !!hab.revision_vigente.relimpiable;
+        },
+
+        abrirRelimpiar(hab) {
+            window.dispatchEvent(new CustomEvent('abrir-relimpiar-entrega', {
+                detail: { revision: hab.revision_vigente, habitacion: { id: hab.id, numero: hab.numero, hotel_codigo: hab.hotel_codigo } }
+            }));
+        },
+
+        // «No aprobada · Baño sucio · Re-limpiar»; ya asignada con el botón: «Re-limpieza: Ana»; con el
+        // interruptor, de vuelta en la cola de quien la limpió: «… · En cola de Ana».
+        textoRelimpiar(hab) {
+            var r = hab.revision_vigente;
+            var primer = function (n) { return String(n || '').trim().split(/\s+/)[0] || ''; };
+            if (r.relimpieza_trabajador) return 'Re-limpieza: ' + primer(r.relimpieza_trabajador);
+            var base = 'No aprobada · ' + (r.motivo_nombre || '');
+            if (hab.estado === 'sucia' && hab.asignado_a_nombre) return base + ' · En cola de ' + primer(hab.asignado_a_nombre);
+            return base + ' · Re-limpiar';
+        },
+
+        // La ventana asignó la re-limpieza: se recarga la lista (estado, asignada y franja salen del servidor).
+        onRelimpiezaPedida(d) {
+            if (!d || !d.habitacion_id) return;
+            this.cargar();
         },
 
         // Botón "N": si ya es nochero, quitarlo es un solo paso (confirm nativo, sin

@@ -47,6 +47,7 @@ final class TourResolver
         '/ajustes/colores'         => 'ajustes.colores',
         '/ajustes/versiones'       => 'ajustes.versiones',
         '/ajustes/importar-turnos' => 'ajustes.importar_turnos',
+        '/ajustes/revision-entrega' => 'ajustes.revision_entrega',
         // /habitaciones y /tickets NO van acá: se resuelven por rol en forCurrentRequest.
     ];
 
@@ -111,17 +112,13 @@ final class TourResolver
      */
     private static function resolveHome(Usuario $usuario): string
     {
-        if ($usuario->tienePermiso('ajustes.acceder')) {
-            return 'home.admin';
-        }
-        if ($usuario->tienePermiso('alertas.recibir_predictivas')
-            && $usuario->tienePermiso('asignaciones.asignar_manual')) {
-            return 'home.supervisora';
-        }
-        if ($usuario->tienePermiso('auditoria.ver_bandeja')) {
-            return 'home.recepcion';
-        }
-        return 'home.trabajador';
+        // Misma cascada que views/home.php: vive en PantallaInicio (única fuente, solo permisos).
+        return match (PantallaInicio::de($usuario)) {
+            PantallaInicio::ADMIN => 'home.admin',
+            PantallaInicio::SUPERVISORA => 'home.supervisora',
+            PantallaInicio::HABITACIONES => 'home.recepcion',
+            default => 'home.trabajador',
+        };
     }
 
     /** Chequeo de permiso vía RBAC dinámico. Nunca chequees roles: solo permisos. */
