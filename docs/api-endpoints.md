@@ -101,9 +101,10 @@ Ver [habitaciones.md](habitaciones.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/habitaciones` | `habitaciones.ver_todas` | Lista (filtros hotel/estado/fecha) |
+| GET | `/api/habitaciones` | `habitaciones.ver_todas` | Lista (filtros hotel/estado/fecha). Desde v6.18 cada fila trae `revision_vigente` (última inspección pre-entrega de la pieza mientras no haya cambiado de estado, o `null`) para el botón de la tarjeta — ver §19 |
+| PUT | `/api/habitaciones/{id}/estructura` | `habitaciones.gestionar_edificios` | Edificio y piso de la pieza (Edificios y Mapeo). Hasta v6.18 alcanzaba con `habitaciones.ver_todas` |
 | GET | `/api/habitaciones/asignadas` | `habitaciones.ver_asignadas_propias` | Mis asignaciones hoy |
-| GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle |
+| GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle. Desde v6.18 incluye `revision_entrega` (última inspección pre-entrega de Recepción, o `null`) solo si el usuario tiene `habitaciones.ver_todas` — ver §19 |
 | GET | `/api/habitaciones/{id}/historial` | `habitaciones.ver_historial` | Historial completo |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso`. 409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso. 409 `NO_ES_TU_HABITACION_ACTUAL` si el trabajador (sin `habitaciones.ver_todas`) intenta iniciar una que no es su habitación actual (orden de cola) |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` + asignada | → `completada_pendiente_auditoria` |
@@ -292,10 +293,31 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 | GET | `/api/reportes/resumen-mensual-auditores` | `reportes.ver` | Resumen del mes de inspecciones por inspector: `total`, `aprobadas`, `aprobadas_observacion`, `rechazadas` y `observaciones` (casillas que desmarcó) |
 | GET | `/api/reportes/auditorias-pendientes` | `reportes.ver` | Piezas limpiadas hoy sin veredicto, por turno |
 | GET | `/api/reportes/exportar-auditorias-pendientes` | `reportes.ver` | Excel de las inspecciones pendientes de hoy |
+| GET | `/api/reportes/revision-entrega` | `reportes.ver` | Sección «Inspección pre-entrega (Recepción)» (v6.18): `resumen {total, si, no, pct_no, a_sucia}`, `por_motivo` (solo NO), `historial` (máx. 500, `truncado`) y `filtros`. Lee solo `revisiones_entrega`: ningún KPI cambia. Ignora `usuario_id` |
 
 ---
 
-## 19. Rate limiting
+## 19. Inspección pre-entrega (v6.18; en código «revision_entrega»)
+
+Ver [revision-entrega.md](revision-entrega.md). Recepción revisa una pieza antes de entregarla al huésped. Nunca escribe `auditorias` ni entra en los KPIs de inspección.
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/revision-entrega/formulario` | `revision_entrega.registrar` | Lo que necesita la ventana del NO: `motivos` activos y `no_ensucia` (interruptor). La inspección vigente de cada pieza viaja en `GET /api/habitaciones` (`revision_vigente`) |
+| POST | `/api/revision-entrega` | `revision_entrega.registrar` | Multipart (o JSON sin foto): `habitacion_id`, `resultado` (`si`/`no`), `motivo_id` (obligatorio si `no`), `comentario` (≤300), `foto` (opcional, solo con `no`), `idempotency_key` (≤64). 201 `{revision, repetida: false, foto_fallida}`; misma clave → 200 `{repetida: true}` sin re-avisar. La foto nunca hace fallar el NO: si no se guardó, `foto_fallida` dice por qué. Con el interruptor prendido, un NO sobre una pieza aprobada la pasa a `sucia` y avisa `dirty` a Cloudbeds (`revision.paso_a_sucia`). Errores: 400 `PARAMETROS_INVALIDOS`/`RESULTADO_INVALIDO`/`MOTIVO_REQUERIDO`/`COMENTARIO_LARGO`, 404 `HABITACION_NO_ENCONTRADA`/`MOTIVO_NO_ENCONTRADO`, 413 `CUERPO_MUY_GRANDE` (superó `post_max_size`) |
+| GET | `/api/revision-entrega/motivos?todos=1` | `revision_entrega.configurar` | Catálogo de motivos (`todos=1` incluye inactivos) |
+| POST | `/api/revision-entrega/motivos` | `revision_entrega.configurar` | `{nombre}` (2–60). 201 `{id}`. 409 `MOTIVO_DUPLICADO` (sin distinguir mayúsculas ni «Ñ») |
+| PUT | `/api/revision-entrega/motivos/{id}` | `revision_entrega.configurar` | `{nombre?, activo?}`. No hay borrado: un motivo inactivo deja de aparecer en el NO y el historial lo conserva |
+| GET | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}` (default `false`) |
+| PUT | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}`: si un NO devuelve la pieza aprobada a sucia (guardado en `alertas_config` `revision_entrega_no_ensucia`) |
+
+No hay pantalla aparte: se inspecciona desde la tarjeta de cada pieza en `GET /habitaciones`. Página de configuración: `GET /ajustes/revision-entrega` (`revision_entrega.configurar`, si no → `/ajustes`). Las fotos se sirven por `GET /uploads/revision-entrega/AAAA/MM/{hex16}.webp`. Una clave de idempotencia vale como reintento solo si es la misma pieza, la misma respuesta y sigue siendo la última revisión de esa pieza; si no, la revisión se guarda como nueva.
+
+Edificios (v6.18): `GET /api/edificios` sigue con `habitaciones.ver_todas` (filtros de Habitaciones); `POST`/`PUT`/`DELETE /api/edificios*` y la página `GET /edificios` exigen `habitaciones.gestionar_edificios` (sin permiso, la página redirige a `/ajustes`). `PUT /api/alertas/config` acepta solo las claves de Ajustes → Alertas (400 `CLAVE_INVALIDA`).
+
+---
+
+## 20. Rate limiting
 
 **Fuera del MVP.** Post-MVP: rate limit por IP:
 - 5 intentos de login / 15 min.
@@ -303,6 +325,6 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 
 ---
 
-## 20. Referencias cruzadas
+## 21. Referencias cruzadas
 
 Cada sección enlaza al doc de detalle correspondiente. Este índice es la fuente maestra — si un endpoint no aparece aquí, no existe en el backend.

@@ -156,6 +156,7 @@ Detalle completo en [api-endpoints.md](api-endpoints.md).
 
 - [checklist.md](checklist.md) — ejecución del checklist dentro de `en_progreso`
 - [auditoria.md](auditoria.md) — flujo post-`completada_pendiente_auditoria`
+- [revision-entrega.md](revision-entrega.md) — inspección pre-entrega (v6.18): botón al pie de cada tarjeta de Habitaciones para quien tiene `revision_entrega.registrar` (Recepción, cuya pantalla principal es esta); la lista trae la revisión vigente (hasta que la pieza cambia de estado) y el detalle la última revisión, a quien tiene `habitaciones.ver_todas`. El lápiz de la tarjeta (edificio/piso) exige `habitaciones.gestionar_edificios`
 - [cloudbeds.md](cloudbeds.md) — sincronización bidireccional
 - [database-schema.sql](database-schema.sql) — tablas `habitaciones`, `asignaciones`, `hoteles`, `tipos_habitacion`
 - [roles-permisos.md](roles-permisos.md) §2.1, §2.3 — permisos relacionados

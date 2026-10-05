@@ -253,6 +253,23 @@ Si detectas un problema en una habitación (ej. lámpara rota, fuga de agua):
 - Inspecciona y aprueba/rechaza habitaciones completadas
 - (Ver sección de Supervisora → "Auditar Habitaciones" para más detalles)
 
+### Inspección pre-entrega (antes de entregar la pieza al huésped)
+
+Desde la v6.18, la pantalla principal de Recepción es **Habitaciones** (ya no hay «Inicio»). Lo ideal es revisar cada pieza antes de entregarla, pero no es obligatorio.
+
+1. En **Habitaciones**, busca la pieza (buscador por número o filtros de hotel y estado).
+2. Toca el botón **«Inspección pre-entrega»** al pie de su tarjeta.
+3. Responde: ¿la habitación está en condiciones para entregarse a un cliente?
+   - **SÍ**: el botón queda verde, «Aprobada» con la hora.
+   - **NO**: se abre el checklist. Elige el motivo, agrega observaciones si quieres y toca **Tomar foto** si sirve como prueba. Toca **Avisar NO**. El botón queda rojo, «No aprobada» con el motivo.
+4. Las supervisoras reciben el aviso al toque. Según cómo lo configuró supervisión, la pieza queda igual (solo aviso) o vuelve a limpieza si estaba aprobada.
+
+El botón muestra el resultado hasta que **la pieza cambia de estado** (se ensucia, empiezan a limpiarla o la vuelven a aprobar): ahí vuelve a decir «Inspección pre-entrega» para revisarla de nuevo. Si el resultado es de otro día, el botón muestra la fecha.
+
+Si la señal está mala y no sabes si llegó, vuelve a tocar el mismo botón: nunca se duplica. El botón «N» de la tarjeta sigue sirviendo para marcar nocheros.
+
+**Supervisora / Admin:** en **Ajustes → Inspección pre-entrega** se elige qué hace un NO (solo avisar, o además devolver la pieza a limpieza) y se editan los motivos (crear, renombrar, activar o desactivar). En Habitaciones ven el resultado en cada tarjeta (hasta que la pieza cambia de estado); la última revisión de cada pieza aparece en su detalle, y **Reportes → Inspección pre-entrega (Recepción)** muestra los SÍ y NO del período, los NO por motivo y el historial con fotos. Estos datos quedan guardados para el KPI de calidad de las supervisoras.
+
 ---
 
 ## Home del Admin
