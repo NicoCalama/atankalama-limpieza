@@ -137,6 +137,11 @@ final class CloudbedsSyncService
             }
 
             try {
+                // Instante de la lectura, con el reloj de la BASE (el mismo que fecha el audit_log).
+                // Lo que Cloudbeds responde es una foto de ese momento: si una pieza cambia de estado
+                // en la app mientras el sync recorre la lista (la reasignan, la aprueban), la foto ya
+                // no sirve para decidir sobre ella. Ver piezaCambioTrasLeer().
+                $leidoEn = (string) Database::fetchColumn("SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
                 $estados = $this->client->obtenerEstadosHabitaciones($hotel->cloudbedsPropertyId);
                 // Sin success=true la lectura no sirvió (endpoint 404, credencial, error de
                 // Cloudbeds). Contarlo como error en vez de reportar "éxito / 0 registros"
@@ -194,6 +199,12 @@ final class CloudbedsSyncService
                         $mapaCantidades[$cloudbedsRoomId]['actuales'] ?? null,
                         $mapaCantidades[$cloudbedsRoomId]['llegan'] ?? null,
                     );
+
+                    $cambiaria = ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal())
+                        || ($cleaningStatus === 'clean' && !in_array($hab->estado, Habitacion::ESTADOS_APROBADOS, true));
+                    if ($cambiaria && $this->piezaCambioTrasLeer($hab, $leidoEn, $cleaningStatus)) {
+                        continue;
+                    }
 
                     if ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal()) {
                         // Se pregunta ANTES de tocar el estado: revertir es un cambio de estado
@@ -281,6 +292,29 @@ final class CloudbedsSyncService
     public function escribirEstadoDirty(Habitacion $habitacion): bool
     {
         return $this->escribirEstadoRoomCondition($habitacion, 'dirty');
+    }
+
+    /**
+     * ¿La pieza cambió de estado en la app DESPUÉS de que el sync leyó Cloudbeds? Entonces esa
+     * pieza la decide el sync siguiente, con una lectura fresca (R1/R6, v6.17).
+     *
+     * Sin esto: una supervisora reasigna una pieza aprobada (pasa a sucia y la app le avisa
+     * 'dirty' a Cloudbeds), pero el sync que ya venía corriendo traía la foto vieja 'clean' y
+     * la re-aprobaba, deshaciendo la reasignación. O al revés: se aprueba una pieza justo
+     * mientras el sync trae la foto vieja 'dirty', y el sync la deshace con una alerta falsa.
+     */
+    private function piezaCambioTrasLeer(Habitacion $hab, string $leidoEn, string $cleaningStatus): bool
+    {
+        if (!$this->habitaciones->cambioDeEstadoDespuesDe($hab->id, $leidoEn)) {
+            return false;
+        }
+        Logger::info('cloudbeds', 'pieza omitida: cambió de estado después de leer Cloudbeds, la decide el sync siguiente', [
+            'habitacion_id' => $hab->id,
+            'numero' => $hab->numero,
+            'estado' => $hab->estado,
+            'cloudbeds' => $cleaningStatus,
+        ]);
+        return true;
     }
 
     /**

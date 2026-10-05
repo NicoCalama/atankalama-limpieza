@@ -89,16 +89,20 @@ final class RevisionEntregaService
      * Un NO sin resolver no se pierde a medianoche. El cambio a sucia que provoca el mismo NO (interruptor
      * prendido) no cuenta: se hace ANTES de guardar la revisión (ver registrar()).
      *
-     * Dos condiciones, porque no todo cambio de estado deja rastro igual:
+     * Dos condiciones:
      *   1. La pieza sigue en el estado en que quedó al revisarla: estado_pieza, o 'sucia' si ese NO la
-     *      devolvió a sucia (interruptor) o la supervisora la mandó a re-limpiar (pedirRelimpieza). Cubre
-     *      los cambios que no pasan por cambiarEstado() (la (re)asignación y la desasignación de
-     *      AsignacionService la ponen 'sucia' con un UPDATE directo, sin audit_log).
-     *   2. Su último 'habitacion.cambiar_estado' del audit_log no es posterior a la revisión. Cubre las
-     *      idas y vueltas (aprobada → sucia → … → aprobada de nuevo). Se busca solo el último cambio de
-     *      cada pieza (índice entidad/entidad_id, de atrás hacia adelante), así no recorre todo el historial.
-     *      Las dos fechas salen del reloj de la base (created_at por defecto); el empate de milisegundo con
-     *      el cambio que provocó la propia revisión cuenta como anterior.
+     *      devolvió a sucia (interruptor) o la supervisora la mandó a re-limpiar (pedirRelimpieza). Desde la
+     *      v6.17 todo cambio de estado de la app pasa por cambiarEstado() y deja su fila (R6: antes la
+     *      (re)asignación y la desasignación la ponían 'sucia' con un UPDATE directo); esta condición queda
+     *      para lo que no deja rastro, como un cambio hecho a mano en la base.
+     *   2. Su último 'habitacion.cambiar_estado' del audit_log no es posterior a la revisión, o al pedido de
+     *      re-limpieza si lo hubo. Cubre las idas y vueltas (aprobada → sucia → … → aprobada de nuevo). El
+     *      paso a sucia que provoca el mismo «Re-limpiar» (la reasignación, R6) queda antes del pedido,
+     *      porque pedirRelimpieza() lo anota después de reasignar. Se busca solo el último cambio de cada
+     *      pieza (índice entidad/entidad_id, de atrás hacia adelante), así no recorre todo el historial.
+     *      Todas las fechas salen del reloj de la base (created_at por defecto; relimpieza_pedida_at con
+     *      strftime); el empate de milisegundo con el cambio que provocó la revisión o el pedido cuenta
+     *      como anterior.
      * Así, un NO mandado a re-limpiar se sigue viendo hasta que empiezan a limpiar la pieza.
      *
      * @param int|null $habitacionId solo esa pieza (el detalle); null = todas (la lista)
@@ -119,7 +123,7 @@ final class RevisionEntregaService
                                WHERE al.entidad = 'habitacion' AND al.entidad_id = r.habitacion_id
                                  AND al.accion = 'habitacion.cambiar_estado'
                                ORDER BY al.id DESC
-                               LIMIT 1), '') <= r.created_at{$soloPieza}",
+                               LIMIT 1), '') <= COALESCE(r.relimpieza_pedida_at, r.created_at){$soloPieza}",
             $habitacionId !== null ? [$habitacionId] : []
         );
         $porPieza = [];
@@ -624,11 +628,14 @@ final class RevisionEntregaService
             throw new RevisionEntregaException($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
+        // Después de reasignar y con el reloj de la base: revisionesVigentes() compara esta hora con el
+        // audit_log, donde el paso a sucia de la reasignación (R6, v6.17) tiene que quedar antes.
         Database::execute(
-            'UPDATE #__revisiones_entrega
-                SET relimpieza_asignacion_id = ?, relimpieza_pedida_por = ?, relimpieza_pedida_at = ?
-              WHERE id = ?',
-            [$asignacion->id, $actorId, Database::now(), $revisionId]
+            "UPDATE #__revisiones_entrega
+                SET relimpieza_asignacion_id = ?, relimpieza_pedida_por = ?,
+                    relimpieza_pedida_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+              WHERE id = ?",
+            [$asignacion->id, $actorId, $revisionId]
         );
         Logger::audit($actorId, 'revision_entrega.pedir_relimpieza', 'habitacion', $habitacionId, [
             'revision_id' => $revisionId,

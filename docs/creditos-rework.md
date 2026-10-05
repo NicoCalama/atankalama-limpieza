@@ -124,6 +124,7 @@ Si la supervisora reasigna la pieza rechazada **al mismo** trabajador (para que 
 - Al iniciar la ejecución de re-limpieza, **heredar del intento anterior** los ítems que quedaron **marcados** (con su `marcado_por` original), y dejar **desmarcados** los que el auditor marcó como fallidos.
 - El nuevo trabajador ve los heredados como **hechos (solo lectura)** y solo puede completar los pendientes → al marcarlos, `marcado_por = él`.
 - El gate de "Habitación terminada" se desbloquea cuando **todos los obligatorios** (heredados + nuevos) están marcados.
+- **Solo dentro del mismo ciclo (v6.17, R4 del documento «Ciclo de limpieza y Cloudbeds»):** se hereda únicamente si la asignación de la re-limpieza tiene la **misma fecha de turno y franja** que la del intento rechazado. Un rechazo de ayer que nadie rehízo no le regala sus ítems a la limpieza de hoy: es otro aseo, y los créditos se movían de día y de persona. Consecuencia en los créditos: quien fue rechazada y nadie rehízo su pieza ese día queda con 0 créditos por esa limpieza (como toda rechazada, que pierde sus obligatorios).
 
 ### 4.4 Cálculo de créditos (`ReportesService`)
 - Contar créditos **por `marcado_por`**, no por el dueño de la ejecución.

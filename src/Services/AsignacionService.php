@@ -61,10 +61,10 @@ final class AsignacionService
             Habitacion::ESTADO_APROBADA_AUTOMATICA,
         ], true);
         if ($estadoTerminal) {
-            Database::execute(
-                "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                [$habitacionId]
-            );
+            // Por cambiarEstado() como todo cambio de estado (R6, v6.17): queda en el historial de la
+            // pieza con quién la reasignó, y la sincronización sabe que cambió después de leer
+            // Cloudbeds (antes era un UPDATE directo, invisible para los dos).
+            $this->resetearASucia($habitacionId, $asignadoPor);
             Logger::info('habitaciones', 'terminal→sucia por (re)asignación', [
                 'habitacion_id' => $habitacionId, 'desde' => $estadoActual['estado'], 'asignado_por' => $asignadoPor,
             ]);
@@ -270,16 +270,13 @@ final class AsignacionService
         }
         $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
 
-        Database::transaction(function () use ($habitacionId, $fecha, $hab): void {
+        Database::transaction(function () use ($habitacionId, $fecha, $hab, $actorId): void {
             Database::execute(
                 'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
                 [$habitacionId, $fecha]
             );
             if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
-                Database::execute(
-                    "UPDATE #__habitaciones SET estado = 'sucia', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                    [$habitacionId]
-                );
+                $this->resetearASucia($habitacionId, $actorId); // R6: con historial, ver asignarManual()
             }
         });
 
@@ -465,13 +462,15 @@ final class AsignacionService
             // fecha (su fecha es local, a diferencia de created_at que va en UTC). Una pieza recién
             // limpiada conserva su asignación (completada) activa; al pedir otra limpieza, asignarManual
             // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
+            // Incluye las que aprobó el cierre automático (R5, v6.17): con el cierre de las 15:50,
+            // casi todo lo de la mañana queda así, y sin esto no se les podía pedir otra limpieza.
             $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
                         WHERE h.activa = 1
                           AND h.es_espacio_comun = 0
-                          AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\')
+                          AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\', \'aprobada_automatica\')
                           AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
             $paramsRe = [$fecha];
             if ($filtroHotel !== null) {
@@ -680,6 +679,16 @@ final class AsignacionService
     // a 'aprobada' y deshace el cambio — ver el mismo problema documentado en
     // CloudbedsSyncService::sincronizar(). Best-effort: nunca debe tumbar el flujo de asignación
     // por un fallo de Cloudbeds (igual que el resto de los avisos salientes de esta integración).
+    /**
+     * Devuelve la pieza a 'sucia' por el camino de todo cambio de estado (historial con autor,
+     * transición validada). HabitacionService se crea acá y no en el constructor porque él ya
+     * construye un AsignacionService por defecto: inyectarlo armaría un ciclo infinito.
+     */
+    private function resetearASucia(int $habitacionId, ?int $actorId): void
+    {
+        (new HabitacionService())->cambiarEstado($habitacionId, Habitacion::ESTADO_SUCIA, $actorId, 'ui');
+    }
+
     private function avisarCloudbedsSucia(int $habitacionId): void
     {
         try {

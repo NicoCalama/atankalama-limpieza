@@ -173,7 +173,28 @@ La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a q
 - La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con
   frontdesk `check-out`/`turnover` → sigue revirtiendo igual que siempre.
 - Los **nocheros** no dependen de esta rama: los revierte su propio barrido de las 16:00
-  (`scripts/sync-cloudbeds.php`), que además avisa `dirty` a Cloudbeds.
+  (`HabitacionService::barrerNocheros()`, lo llama `scripts/sync-cloudbeds.php`), que además avisa
+  `dirty` a Cloudbeds. Desde la v6.17 el barrido solo toma piezas **aprobadas**: una rechazada espera a
+  que se rehaga y apruebe, y recién ahí se pide la limpieza de la tarde (R4).
+- **Marcar un nochero después de las 16:00 (v6.17):** si la pieza ya está aprobada y no se barrió
+  hoy, pasa a sucia en el mismo momento (con aviso `dirty` a Cloudbeds y el historial a nombre de
+  quien la marcó), sin esperar la próxima pasada del cron (cada 10 min). Antes de las 16:00 la toma
+  el barrido normal; una pieza en limpieza o esperando inspección espera a que la aprueben.
+- **Aviso de vencimiento (v6.17):** el último día de una marca (`nochero_hasta` = hoy), desde las
+  08:00, el cron manda una notificación (bandeja + push, tipo `nochero_por_vencer`) a quienes tienen
+  `habitaciones.marcar_nochero`, con las piezas por hotel. Una por persona y por día. Motivo: al día
+  siguiente el cron apaga la marca en silencio y el barrido ya no la toma — así quedaron 11 piezas
+  del INN sin limpieza de tarde el 02/10/2026. Es notificación y no alerta porque los tipos de
+  alerta son una lista cerrada en la base de producción (agregar uno exige SQL).
+
+**Pieza que cambió después de leer Cloudbeds (v6.17, R1/R6).** Lo que responde
+`getHousekeepingStatus` es una foto del momento de la lectura. Si mientras el sync recorre la lista
+una pieza cambia de estado en la app (la reasignan, la aprueban), esa pieza **no se toca**: la decide el
+sync siguiente, con una foto nueva (INFO al log). Antes, una reasignación hecha justo entonces se
+deshacía (la foto vieja decía `clean`) y una aprobación hecha justo entonces se revertía con una
+alerta falsa. El instante de la lectura sale del reloj de la base, el mismo que fecha el `audit_log`.
+Para eso todo cambio de estado tiene que pasar por `cambiarEstado()`: desde la v6.17 también los
+reseteos a sucia al reasignar y al desasignar (antes eran un `UPDATE` directo, sin historial).
 
 «Cuándo se aprobó» sale del último cambio de estado de la pieza en `audit_log` (la fila
 `habitacion.cambiar_estado` que escribe `cambiarEstado()`). Hasta la v6.16 salía de

@@ -39,10 +39,8 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
-use Atankalama\Limpieza\Core\Logger;
-use Atankalama\Limpieza\Models\Auditoria;
-use Atankalama\Limpieza\Services\AuditoriaException;
 use Atankalama\Limpieza\Services\AuditoriaService;
+use Atankalama\Limpieza\Services\CierreDiaService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 
@@ -61,7 +59,7 @@ $sistemaId = (int) $sistemaId['id'];
 // bandejaPendientes() (no HabitacionService::listar()) porque esta última excluye
 // es_espacio_comun=1 a propósito para la pantalla "Habitaciones" — acá sí queremos
 // áreas comunes, ahora que también pasan por auditoría (ver docs/areas-comunes.md).
-$pendientes = (new AuditoriaService())->bandejaPendientes();
+$pendientes = (new CierreDiaService())->pendientes();
 
 echo 'Cierre de día automático' . ($dryRun ? '  [DRY-RUN — no muta nada]' : '') . "\n";
 echo str_repeat('=', 64) . "\n";
@@ -81,36 +79,13 @@ if ($dryRun) {
     exit(0);
 }
 
-$auditorias = new AuditoriaService(
+$cierre = new CierreDiaService(new AuditoriaService(
     cloudbeds: new CloudbedsSyncService(CloudbedsClient::desdeConfig()),
-);
-
-$comentario = 'Auto-aprobada por cierre de día (23:55) — sin auditoría real. Ver docs de la habitación.';
-
-$aprobadas = 0;
-$fallidas  = 0;
-foreach ($pendientes as $fila) {
-    try {
-        $auditorias->emitirVeredicto(
-            (int) $fila['id'],
-            $sistemaId,
-            Auditoria::VEREDICTO_APROBADO_AUTOMATICO,
-            $comentario,
-        );
-        $aprobadas++;
-    } catch (AuditoriaException $e) {
-        $fallidas++;
-        Logger::error('auditoria', 'cierre de día automático: fallo al auto-aprobar', [
-            'habitacion_id' => $fila['id'],
-            'numero' => $fila['numero'],
-            'codigo' => $e->codigo,
-            'mensaje' => $e->getMessage(),
-        ]);
-    }
-}
+));
+$r = $cierre->aprobarPendientes($sistemaId, $pendientes);
 
 echo "\n" . str_repeat('=', 64) . "\n";
-echo "Aprobadas automáticamente: {$aprobadas}\n";
-echo "Fallidas: {$fallidas}\n";
+echo "Aprobadas automáticamente: {$r['aprobadas']}\n";
+echo "Fallidas: {$r['fallidas']}\n";
 
-exit($fallidas > 0 ? 1 : 0);
+exit($r['fallidas'] > 0 ? 1 : 0);

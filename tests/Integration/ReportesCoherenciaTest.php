@@ -199,7 +199,9 @@ final class ReportesCoherenciaTest extends TestCase
 
     public function testLaRechazadaQueRehaceOtraPersonaOtroDiaSigueRechazadaParaLaPrimera(): void
     {
-        // Ayer: Ana limpia la 101 y se la rechazan. Hoy: Berta la rehace (hereda los ítems buenos de Ana) y se aprueba.
+        // Ayer: Ana limpia la 101 y se la rechazan. Hoy: Berta la rehace y se aprueba. Desde la v6.17
+        // (R4) la herencia de ítems no cruza de día: hoy es otro aseo, Berta parte de cero y lo que
+        // Ana marcó ayer no se traslada a hoy (antes le daba créditos a Ana en el día de Berta).
         $ayer = date('Y-m-d', strtotime($this->hoy . ' -1 day'));
         $this->asig->asignarManual($this->hab['101'], $this->ana, $ayer);
         $e = $this->chk->iniciarEjecucion($this->hab['101'], $this->ana, $ayer);
@@ -233,7 +235,13 @@ final class ReportesCoherenciaTest extends TestCase
         $ana = array_values(array_filter($mes, static fn (array $t): bool => $t['nombre'] === 'Ana'))[0];
         $this->assertSame(0, $ana['habitaciones'], 'antes le quedaba una pieza aprobada por los ítems heredados');
         $this->assertSame(1, $ana['rechazadas_hab']);
-        $this->assertGreaterThan(0, $ana['creditos'], 'los ítems que marcó bien le siguen valiendo (regla de rework)');
+        $this->assertSame(0, $ana['creditos'], 'la rechazada pierde sus créditos: nadie la rehízo ese día, no hay herencia');
+        $berta = array_values(array_filter($mes, static fn (array $t): bool => $t['nombre'] === 'Berta'))[0];
+        $this->assertSame(1, $berta['habitaciones']);
+        $this->assertSame(0, (int) Database::fetchColumn(
+            'SELECT COUNT(*) FROM ejecuciones_items WHERE ejecucion_id = ? AND marcado_por = ?',
+            [$e2->id, $this->ana]
+        ), 'la limpieza de hoy no trae ítems de ayer');
     }
 
     public function testElMinimoDeDatosCuentaLasPiezasRechazadas(): void

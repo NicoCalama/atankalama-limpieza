@@ -852,6 +852,10 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
                 if (r.ok) {
                     this.modalNochero.hab.es_nochero = true;
                     this.modalNochero.hab.nochero_hasta = hasta;
+                    // Después de las 16:00 una pieza aprobada pasa a sucia al marcarla (v6.17).
+                    if (r.data && r.data.habitacion && r.data.habitacion.estado) {
+                        this.modalNochero.hab.estado = r.data.habitacion.estado;
+                    }
                     this.cerrarModalNochero();
                 } else {
                     alert((r.error && r.error.mensaje) || 'No pudimos marcar la habitación como nochero.');

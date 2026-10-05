@@ -27,7 +27,6 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
-use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionService;
@@ -63,22 +62,25 @@ $sync = new CloudbedsSyncService(CloudbedsClient::desdeConfig());
 // porque debe evaluarse en CADA tick del cron, no solo cuando toca sincronizar. No crítico: si
 // falla, el próximo tick reintenta. Ver docs/nocheros.md
 try {
-    if ($horaActual >= '16:00') {
-        $habSvc = new HabitacionService();
-        $vencidos = $habSvc->desactivarNocherosVencidos($hoy);
-        $revertidas = 0;
-        foreach ($habSvc->listarNocherosVigentesEnEstadoTerminal($hoy) as $hab) {
-            $habSvc->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
-            $habSvc->marcarBarridoNocheroHoy($hab->id, $hoy); // una reversión por día, no una por cada aprobación
-            if ($hab->cloudbedsRoomId !== null) {
-                $sync->escribirEstadoDirty($hab); // best-effort, ya crea alerta P0 si falla
-            }
-            $revertidas++;
-        }
-        echo "Nocheros: {$vencidos} vencidos desactivados, {$revertidas} revertidas a sucia.\n";
+    if ($horaActual >= HabitacionService::HORA_BARRIDO_NOCHEROS) {
+        $barrido = (new HabitacionService())->barrerNocheros($hoy, $sync);
+        echo "Nocheros: {$barrido['vencidos']} vencidos desactivados, {$barrido['revertidas']} revertidas a sucia.\n";
     }
 } catch (\Throwable $e) {
     fwrite(STDERR, "Barrido de nocheros falló (no crítico): {$e->getMessage()}\n");
+}
+
+// Aviso de las marcas de nochero que vencen hoy (último día en que el barrido las toma): desde
+// las 08:00, una notificación por persona y por día; las pasadas siguientes no repiten (v6.17).
+try {
+    if ($horaActual >= HabitacionService::HORA_AVISO_NOCHEROS) {
+        $avisadas = (new HabitacionService())->avisarNocherosPorVencer($hoy);
+        if ($avisadas > 0) {
+            echo "Nocheros que vencen hoy: aviso a {$avisadas} persona(s).\n";
+        }
+    }
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Aviso de nocheros por vencer falló (no crítico): {$e->getMessage()}\n");
 }
 
 // Throttle: el cron tickea seguido; solo se sincroniza si pasó el intervalo configurado.

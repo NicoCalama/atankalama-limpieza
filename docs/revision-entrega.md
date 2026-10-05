@@ -76,16 +76,20 @@ re-limpieza, quien la pidió). DDL en
   **mientras la pieza no cambie de estado** (decisión de Nicolás, 05/10/2026: se reinicia como el estado de la pieza,
   no a medianoche). Dos condiciones:
   1. La pieza sigue en el estado en que quedó al revisarla: `estado_pieza`, o `sucia` si ese NO la devolvió a sucia o
-     la supervisora la mandó a re-limpiar. Cubre los cambios que no pasan por `HabitacionService::cambiarEstado` (la
-     (re)asignación y la desasignación de `AsignacionService` la ponen `sucia` con un UPDATE directo, sin `audit_log`).
-     Así un NO mandado a re-limpiar se sigue viendo hasta que empiezan a limpiar la pieza.
-  2. Su último `habitacion.cambiar_estado` del `audit_log` no es posterior a la revisión. Cubre las idas y vueltas
-     (aprobada → sucia → … → aprobada). Busca solo el último cambio de cada pieza (índice `entidad, entidad_id`, de atrás
-     hacia adelante): no recorre todo el historial, que nunca se borra.
+     la supervisora la mandó a re-limpiar. Desde la v6.17 todo cambio de estado de la app pasa por
+     `HabitacionService::cambiarEstado` y deja su fila en el `audit_log` (R6: antes la (re)asignación y la desasignación
+     de `AsignacionService` la ponían `sucia` con un UPDATE directo); esta condición queda para lo que no deja rastro,
+     como un cambio hecho a mano en la base.
+  2. Su último `habitacion.cambiar_estado` del `audit_log` no es posterior a la revisión, **o al pedido de re-limpieza**
+     si lo hubo (`relimpieza_pedida_at`). Cubre las idas y vueltas (aprobada → sucia → … → aprobada). El paso a sucia
+     que provoca el mismo «Re-limpiar» (la reasignación) queda antes del pedido, porque se anota después de reasignar:
+     así un NO mandado a re-limpiar se sigue viendo hasta que empiezan a limpiar la pieza. Busca solo el último cambio
+     de cada pieza (índice `entidad, entidad_id`, de atrás hacia adelante): no recorre todo el historial, que nunca se
+     borra.
 
   El cambio a sucia que provoca el mismo NO (interruptor prendido) se hace **antes** de guardar la revisión y en la
   misma transacción, así que no la reinicia; si la revisión no se puede guardar, la pieza tampoco cambia. `created_at`
-  de la revisión sale del reloj de la base, el mismo que fecha el `audit_log`.
+  de la revisión y `relimpieza_pedida_at` salen del reloj de la base, el mismo que fecha el `audit_log`.
 - **Interruptor** = fila `revision_entrega_no_ensucia` de `alertas_config` (`'1'` prendido; sin fila = apagado). Solo
   lo escribe `PUT /api/revision-entrega/config`: `PUT /api/alertas/config` acepta únicamente sus claves (lista blanca).
 - **Foto** = `public/uploads/revision-entrega/AAAA/MM/{hex16}.webp` (mismo `ImagenAdjuntoService` que los tickets),

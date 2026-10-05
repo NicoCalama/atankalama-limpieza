@@ -12,6 +12,15 @@ use Atankalama\Limpieza\Models\Habitacion;
 
 final class HabitacionService
 {
+    /** Desde esta hora (Chile) el barrido devuelve los nocheros aprobados a sucia para la tarde. */
+    public const HORA_BARRIDO_NOCHEROS = '16:00';
+
+    /** Desde esta hora (Chile) se avisa qué marcas de nochero vencen hoy (una vez por día). */
+    public const HORA_AVISO_NOCHEROS = '08:00';
+
+    /** Tipo de la notificación «nocheros que vencen hoy» (bandeja + push). */
+    public const NOTIF_NOCHEROS_POR_VENCER = 'nochero_por_vencer';
+
     /** nota_recepcion es TEXT, pero un texto sin límite en la UI es poco práctico para leer rápido. */
     private const NOTA_MAX = 500;
 
@@ -202,8 +211,13 @@ final class HabitacionService
      * @param string $hasta último día vigente ('YYYY-MM-DD'), desde hoy en adelante (sin
      *                       vigencia mínima: puede ser 1 día, 4, 7, 15... según lo pida el huésped).
      */
-    public function marcarNochero(int $id, string $hasta, ?int $usuarioId = null): Habitacion
-    {
+    public function marcarNochero(
+        int $id,
+        string $hasta,
+        ?int $usuarioId = null,
+        ?CloudbedsSyncService $sync = null,
+        ?string $horaActual = null,
+    ): Habitacion {
         $habitacion = $this->obtener($id);
         if ($habitacion === null) {
             throw new HabitacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
@@ -229,6 +243,24 @@ final class HabitacionService
 
         Logger::info('habitaciones', 'nochero_marcado', ['habitacion_id' => $id, 'hasta' => $hasta], $usuarioId);
         Logger::audit($usuarioId, 'habitacion.marcar_nochero', 'habitacion', $id, ['hasta' => $hasta], 'ui');
+
+        // Marcada después de las 16:00 y ya aprobada: el barrido la tomaría recién en la próxima
+        // pasada del cron (hasta 10 min). Se barre al tiro, con el mismo efecto (v6.17, pedido de
+        // Nicolás tras los nocheros del INN del 02/10/2026).
+        $horaActual ??= date('H:i');
+        if ($horaActual >= self::HORA_BARRIDO_NOCHEROS) {
+            $hoy = date('Y-m-d');
+            $candidata = Database::fetchOne(
+                'SELECT * FROM #__habitaciones
+                  WHERE id = ? AND activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
+                    AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
+                    AND estado IN (?, ?, ?)',
+                [$id, $hoy, $hoy, ...Habitacion::ESTADOS_APROBADOS]
+            );
+            if ($candidata !== null) {
+                $this->barrerNochero(Habitacion::desdeFila($candidata), $hoy, $sync, $usuarioId, 'ui');
+            }
+        }
 
         return $this->obtener($id);
     }
@@ -350,9 +382,12 @@ final class HabitacionService
     }
 
     /**
-     * Habitaciones "nochero" vigentes hoy que ya quedaron en un estado terminal (aprobada,
-     * aprobada_con_observacion, aprobada_automatica, rechazada) — candidatas a revertir a
-     * 'sucia' desde las 16:00. No
+     * Habitaciones "nochero" vigentes hoy que ya quedaron APROBADAS (aprobada,
+     * aprobada_con_observacion, aprobada_automatica) — candidatas a revertir a 'sucia' desde las
+     * 16:00. Una RECHAZADA no entra (R4, v6.17): la limpieza de la mañana todavía no está hecha;
+     * el barrido espera a que se rehaga y apruebe, y recién ahí pide la de la tarde (sigue sin
+     * barrer hoy, así que el tick siguiente a la aprobación la toma). Antes la mandaba a 'sucia',
+     * se perdía la marca de rechazo y la re-limpieza de la mañana pasaba por la de la tarde. No
      * incluye 'en_progreso' ni 'completada_pendiente_auditoria': no se interrumpe un aseo en
      * curso ni se salta una auditoría pendiente por el cron. Ver Habitacion::estaEnEstadoTerminal().
      *
@@ -369,17 +404,114 @@ final class HabitacionService
             'SELECT * FROM #__habitaciones
               WHERE activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
                 AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
-                AND estado IN (?, ?, ?, ?)',
+                AND estado IN (?, ?, ?)',
             [
                 $hoy,
                 $hoy,
                 Habitacion::ESTADO_APROBADA,
                 Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
                 Habitacion::ESTADO_APROBADA_AUTOMATICA,
-                Habitacion::ESTADO_RECHAZADA,
             ]
         );
         return array_map(fn(array $f) => Habitacion::desdeFila($f), $filas);
+    }
+
+    /**
+     * Barrido de nocheros (cron, desde las 16:00): apaga los vencidos y revierte a 'sucia' los
+     * vigentes que ya quedaron en un estado terminal, UNA vez por día, avisando 'dirty' a
+     * Cloudbeds para que su propio sync no los cierre de vuelta (best-effort: si la escritura
+     * falla ya queda una alerta P0). Lo llama scripts/sync-cloudbeds.php; vive acá para que los
+     * tests ejerciten el mismo código que corre en producción. Ver docs/nocheros.md.
+     *
+     * @return array{vencidos: int, revertidas: int}
+     */
+    public function barrerNocheros(string $hoy, ?CloudbedsSyncService $sync = null): array
+    {
+        $vencidos = $this->desactivarNocherosVencidos($hoy);
+        $revertidas = 0;
+        foreach ($this->listarNocherosVigentesEnEstadoTerminal($hoy) as $hab) {
+            $this->barrerNochero($hab, $hoy, $sync, null, 'cron');
+            $revertidas++;
+        }
+        return ['vencidos' => $vencidos, 'revertidas' => $revertidas];
+    }
+
+    /**
+     * Una pieza del barrido: a 'sucia' para la limpieza de la tarde, anotada como barrida hoy
+     * (una reversión por día, no una por cada aprobación) y avisada 'dirty' a Cloudbeds para que
+     * su sync no la cierre de vuelta. La usan el cron y marcarNochero() después de las 16:00.
+     */
+    private function barrerNochero(Habitacion $hab, string $hoy, ?CloudbedsSyncService $sync, ?int $usuarioId, string $origen): void
+    {
+        $this->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, $usuarioId, $origen);
+        $this->marcarBarridoNocheroHoy($hab->id, $hoy);
+        if ($sync !== null && $hab->cloudbedsRoomId !== null) {
+            $sync->escribirEstadoDirty($hab);
+        }
+    }
+
+    /**
+     * Avisa a quienes pueden marcar nocheros (permiso habitaciones.marcar_nochero) qué marcas
+     * vencen HOY: es el último día en que el barrido de las 16:00 las devuelve a sucia; mañana
+     * el cron las apaga sin decir nada. Así pasó el 02/10/2026 con 11 piezas del INN: nadie
+     * renovó las marcas del turno 10x10 y no se limpiaron en la tarde (v6.17).
+     *
+     * Una notificación por persona y por día (bandeja + push): el cron la llama en cada pasada
+     * desde las 08:00 y las siguientes no repiten. Una marca que se deje venciendo hoy DESPUÉS
+     * del aviso de la mañana no genera otro. Notificación y no alerta: los tipos de alerta tienen
+     * una lista cerrada en la base de producción (agregar uno exige SQL; ver la v6.16).
+     *
+     * @return int a cuántas personas se avisó
+     */
+    public function avisarNocherosPorVencer(string $hoy): int
+    {
+        $piezas = Database::fetchAll(
+            'SELECT h.numero, ho.nombre AS hotel
+               FROM #__habitaciones h
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE h.activa = 1 AND h.es_nochero = 1 AND h.nochero_hasta = ?',
+            [$hoy]
+        );
+        if ($piezas === []) {
+            return 0;
+        }
+
+        [$desde, $hasta] = Fechas::rangoUtcDelDia($hoy);
+        $destinatarios = array_map('intval', array_column(Database::fetchAll(
+            "SELECT DISTINCT u.id
+               FROM #__usuarios u
+               JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+              WHERE rp.permiso_codigo = 'habitaciones.marcar_nochero'
+                AND u.activo = 1 AND u.rut <> 'SISTEMA-CRON'
+                AND NOT EXISTS (SELECT 1 FROM #__notificaciones n
+                                 WHERE n.usuario_id = u.id AND n.tipo = ?
+                                   AND n.created_at >= ? AND n.created_at < ?)",
+            [self::NOTIF_NOCHEROS_POR_VENCER, $desde, $hasta]
+        ), 'id'));
+        if ($destinatarios === []) {
+            return 0;
+        }
+
+        $porHotel = [];
+        foreach ($piezas as $p) {
+            $porHotel[(string) $p['hotel']][] = (string) $p['numero'];
+        }
+        ksort($porHotel);
+        $partes = [];
+        foreach ($porHotel as $hotel => $numeros) {
+            usort($numeros, 'strnatcmp');
+            $partes[] = $hotel . ': ' . implode(', ', $numeros);
+        }
+        $n = count($piezas);
+        $titulo = $n === 1 ? '1 marca de nochero vence hoy' : "{$n} marcas de nochero vencen hoy";
+        $cuerpo = implode(' · ', $partes) . '. Desde mañana ya no pasan a sucia a las 16:00. '
+            . 'Si el huésped sigue en el turno, renueva la marca en Habitaciones.';
+
+        $this->push->notificar($destinatarios, $titulo, $cuerpo, '/habitaciones', [], false, self::NOTIF_NOCHEROS_POR_VENCER);
+        Logger::info('habitaciones', 'aviso de nocheros que vencen hoy', ['piezas' => $n, 'personas' => count($destinatarios)]);
+
+        return count($destinatarios);
     }
 
     /**
@@ -421,6 +553,26 @@ final class HabitacionService
             return false;
         }
         return Fechas::fechaLocalDeUtc($ultimo) === $hoyLocal;
+    }
+
+    /**
+     * ¿La pieza cambió de estado DESPUÉS de $instanteUtc (ISO UTC, mismo formato que audit_log)?
+     * Lo usa la sincronización: lo que Cloudbeds respondió antes de ese cambio ya no sirve para
+     * decidir sobre la pieza (ver CloudbedsSyncService::sincronizar).
+     *
+     * `>=` y no `>`: un cambio en el MISMO milisegundo que la lectura cuenta como posterior. Con
+     * `>` ese empate se colaba y el sync deshacía el cambio (pasó en la suite). Contar de más
+     * solo atrasa la pieza un sync; contar de menos deshace el trabajo de la supervisora.
+     */
+    public function cambioDeEstadoDespuesDe(int $id, string $instanteUtc): bool
+    {
+        return Database::fetchOne(
+            "SELECT 1 FROM #__audit_log
+              WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'
+                AND created_at >= ?
+              LIMIT 1",
+            [$id, $instanteUtc]
+        ) !== null;
     }
 
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
@@ -484,7 +636,7 @@ final class HabitacionService
         ], $origen);
 
         if (in_array($nuevoEstado, Habitacion::ESTADOS_APROBADOS, true)) {
-            $this->resolverAprobacionDeshecha($id);
+            $this->resolverAlertasAlAprobar($id);
         }
 
         return new Habitacion(
@@ -505,8 +657,11 @@ final class HabitacionService
     }
 
     /**
-     * La pieza volvió a quedar aprobada: la alerta «aprobación deshecha» ya cumplió su
-     * propósito (avisar que alguien la iba a limpiar de nuevo) y la condición desapareció.
+     * La pieza volvió a quedar aprobada: las alertas «aprobación deshecha» y «habitación
+     * rechazada» ya cumplieron su propósito (avisar que alguien la iba a limpiar de nuevo, o que
+     * había que rehacerla) y la condición desapareció. La de rechazo se resolvía solo al
+     * reasignar la pieza; si la rehacía la misma trabajadora sin reasignar, quedaba colgada para
+     * siempre (R4 del documento «Ciclo de limpieza y Cloudbeds», v6.17).
      *
      * Vive acá y no en cada servicio porque TODOS los caminos que aprueban pasan por
      * cambiarEstado(): inspección, «cliente no desea aseo», Cloudbeds y el cierre de día.
@@ -515,15 +670,18 @@ final class HabitacionService
      * El estado ya cambió cuando se llega acá, así que un fallo al resolver no puede
      * propagarse: el llamador creería que la aprobación no se guardó.
      */
-    private function resolverAprobacionDeshecha(int $id): void
+    private function resolverAlertasAlAprobar(int $id): void
     {
-        try {
-            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_APROBACION_DESHECHA, "habitacion:{$id}");
-        } catch (\Throwable $e) {
-            Logger::warning('habitaciones', 'no se pudo resolver la alerta de aprobación deshecha', [
-                'habitacion_id' => $id,
-                'mensaje' => $e->getMessage(),
-            ]);
+        foreach ([AlertaActiva::TIPO_APROBACION_DESHECHA, AlertaActiva::TIPO_HABITACION_RECHAZADA] as $tipo) {
+            try {
+                $this->alertas->resolverPorDedupe($tipo, "habitacion:{$id}");
+            } catch (\Throwable $e) {
+                Logger::warning('habitaciones', 'no se pudo resolver una alerta al aprobar la habitación', [
+                    'habitacion_id' => $id,
+                    'tipo' => $tipo,
+                    'mensaje' => $e->getMessage(),
+                ]);
+            }
         }
     }
 

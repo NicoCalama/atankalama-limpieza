@@ -159,7 +159,13 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $this->assertStringContainsString('Faltan toallas', $aviso);
         $this->assertSame(1, (int) Database::fetchColumn("SELECT COUNT(*) FROM audit_log WHERE accion = 'revision_entrega.pedir_relimpieza'"));
 
-        // Pedida la re-limpieza, la franja sigue mostrando el NO hasta que empiecen a limpiar.
+        // Pedida la re-limpieza, la franja sigue mostrando el NO hasta que empiecen a limpiar. Aunque el paso a
+        // sucia de la reasignación deja su fila en el historial (R6, v6.17): queda antes del pedido.
+        $this->assertSame(1, (int) Database::fetchColumn(
+            "SELECT COUNT(*) FROM audit_log
+              WHERE accion = 'habitacion.cambiar_estado' AND entidad_id = ? AND detalles_json LIKE '%\"hasta\":\"sucia\"%'",
+            [$this->hab['101']]
+        ), 'la reasignación pasa por cambiarEstado()');
         $this->assertSame($rev, $this->svc->revisionesVigentes()[$this->hab['101']]['id'] ?? null);
         (new ChecklistService())->iniciarEjecucion($this->hab['101'], $this->berta, $this->hoy);
         $this->assertArrayNotHasKey($this->hab['101'], $this->svc->revisionesVigentes());
