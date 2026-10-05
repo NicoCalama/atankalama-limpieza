@@ -90,6 +90,13 @@ final class AlertasController
         if (!is_array($payload) || $payload === []) {
             return Response::error('PAYLOAD_INVALIDO', 'config debe ser objeto no vacío.', 400);
         }
+        // Lista blanca: solo las claves de Ajustes → Alertas. alertas_config también guarda datos de
+        // otros módulos (p. ej. el interruptor de la inspección pre-entrega, que exige su propio permiso).
+        foreach (array_keys($payload) as $clave) {
+            if (!array_key_exists((string) $clave, AlertasService::CONFIG_DEFAULTS)) {
+                return Response::error('CLAVE_INVALIDA', "No se puede cambiar «{$clave}» desde Ajustes → Alertas.", 400);
+            }
+        }
         Database::transaction(function () use ($payload, $request): void {
             foreach ($payload as $clave => $valor) {
                 $this->svc->actualizarConfig((string) $clave, (string) $valor, $request->usuario->id);

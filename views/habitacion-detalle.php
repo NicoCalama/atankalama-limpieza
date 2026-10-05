@@ -172,6 +172,39 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                 </template>
 
+                <!-- Última inspección pre-entrega de Recepción (v6.18, docs/revision-entrega.md).
+                     La clave solo viene con habitaciones.ver_todas: la trabajadora nunca la ve. -->
+                <template x-if="habitacion.revision_entrega">
+                    <div class="mt-3 rounded-lg p-3 border"
+                         :class="habitacion.revision_entrega.resultado === 'si'
+                             ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700'
+                             : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'">
+                        <div class="flex items-start gap-2">
+                            <i :data-lucide="habitacion.revision_entrega.resultado === 'si' ? 'check-circle-2' : 'x-circle'"
+                               :class="habitacion.revision_entrega.resultado === 'si' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'"
+                               class="w-4 h-4 flex-shrink-0 mt-0.5"></i>
+                            <div class="flex-1 min-w-0"
+                                 :class="habitacion.revision_entrega.resultado === 'si' ? 'text-emerald-900 dark:text-emerald-100' : 'text-red-900 dark:text-red-100'">
+                                <p class="text-xs font-semibold uppercase tracking-wide"
+                                   x-text="habitacion.revision_entrega.resultado === 'si' ? 'Inspección pre-entrega: aprobada' : 'Inspección pre-entrega: no aprobada'"></p>
+                                <template x-if="habitacion.revision_entrega.resultado === 'no'">
+                                    <div class="mt-0.5">
+                                        <p class="text-sm font-semibold" x-text="habitacion.revision_entrega.motivo_nombre"></p>
+                                        <p x-show="habitacion.revision_entrega.comentario" class="text-sm whitespace-pre-wrap" x-text="habitacion.revision_entrega.comentario"></p>
+                                        <p x-show="habitacion.revision_entrega.paso_a_sucia" class="text-xs font-medium mt-0.5">La pieza volvió a sucia.</p>
+                                    </div>
+                                </template>
+                                <p class="text-xs opacity-80 mt-0.5" x-text="textoRevisionEntrega(habitacion.revision_entrega)"></p>
+                            </div>
+                            <template x-if="habitacion.revision_entrega.foto_url">
+                                <a :href="habitacion.revision_entrega.foto_url" target="_blank" rel="noopener" class="flex-shrink-0" aria-label="Ver foto">
+                                    <img :src="habitacion.revision_entrega.foto_url" alt="" class="w-24 h-24 object-cover rounded-lg">
+                                </a>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
                 <!-- Ocupación Cloudbeds: aviso visual (no bloquea) + actualizar antes de entrar -->
                 <template x-if="habitacion.cb_ocupada === true || puedeSincronizar">
                     <div class="mt-3 rounded-lg p-3 border"
@@ -669,6 +702,19 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             var p = String(iso).split('-');
             if (p.length !== 3) return iso;
             return p[2] + '/' + p[1] + '/' + p[0];
+        },
+
+        // Pie de la tarjeta de la inspección pre-entrega: «Hoy 14:32 · Carla P.» si fue hoy, o
+        // «Última revisión: 02/10 18:10 · Carla P.» si es de otro día (fecha chilena DD/MM).
+        // «Hoy» = la fecha de Santiago (hoyServidor), no la del dispositivo.
+        textoRevisionEntrega(rev) {
+            if (!rev) return '';
+            var hoy = window.hoyServidor();
+            var p = String(rev.fecha_local || '').split('-');
+            var cuando = rev.fecha_local === hoy
+                ? 'Hoy ' + rev.hora_local
+                : 'Última revisión: ' + (p.length === 3 ? p[2] + '/' + p[1] : rev.fecha_local) + ' ' + rev.hora_local;
+            return cuando + ' · ' + (rev.usuario_nombre || '');
         },
 
         // Antigüedad del dato de ocupación de Cloudbeds (cb_ocupacion_sync_at), para que

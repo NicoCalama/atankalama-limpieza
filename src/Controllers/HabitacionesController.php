@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
+use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Helpers\ExcelExport;
@@ -17,6 +18,7 @@ use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Services\HotelService;
+use Atankalama\Limpieza\Services\RevisionEntregaService;
 
 final class HabitacionesController
 {
@@ -26,6 +28,7 @@ final class HabitacionesController
         private readonly AuditoriaService $auditorias = new AuditoriaService(),
         private readonly ChecklistService $checklist = new ChecklistService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
+        private readonly RevisionEntregaService $revisionesEntrega = new RevisionEntregaService(),
     ) {
     }
 
@@ -39,6 +42,20 @@ final class HabitacionesController
         } catch (HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
+
+        // Inspección pre-entrega vigente de cada pieza (v6.18): la tarjeta la muestra en su botón hasta que
+        // la pieza cambia de estado. Protegido: si la revisión falla (p. ej. falta su tabla en prod), la
+        // lista igual carga.
+        $revisiones = [];
+        try {
+            $revisiones = $this->revisionesEntrega->revisionesVigentes();
+        } catch (\Throwable $e) {
+            Logger::warning('revision_entrega', 'no se pudieron leer las inspecciones pre-entrega vigentes', ['error' => $e->getMessage()]);
+        }
+        foreach ($filas as &$fila) {
+            $fila['revision_vigente'] = $revisiones[(int) $fila['id']] ?? null;
+        }
+        unset($fila);
 
         return Response::ok(['habitaciones' => $filas, 'total' => count($filas)]);
     }
@@ -69,6 +86,20 @@ final class HabitacionesController
             $hoy = date('Y-m-d');
             if (!$this->asignaciones->esHabitacionAsignadaA($id, $usuario->id, $hoy)) {
                 return Response::error('SIN_PERMISO', 'No tienes esta habitación asignada.', 403);
+            }
+        }
+
+        // Última inspección pre-entrega de Recepción (v6.18): solo para quien ve todas las piezas; la
+        // trabajadora no la recibe. Protegido: una falla de la revisión no tumba el detalle de la pieza.
+        if ($puedeVerTodas) {
+            try {
+                $detalle['revision_entrega'] = $this->revisionesEntrega->ultimaDePieza($id);
+            } catch (\Throwable $e) {
+                Logger::warning('revision_entrega', 'no se pudo leer la inspección pre-entrega de la pieza', [
+                    'habitacion_id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+                $detalle['revision_entrega'] = null;
             }
         }
 
