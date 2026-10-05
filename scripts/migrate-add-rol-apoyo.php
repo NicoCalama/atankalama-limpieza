@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Migración: rol «Apoyo» + permisos `kpis.excluido` y `asignaciones.excluir_auto` (v6.15.2).
+ * Migración: rol «Apoyo» + permisos `kpis.excluido` y `asignaciones.excluir_auto` (v6.16; se armó como v6.15.2).
  *
  * Personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de
  * Nicolás, 01/10/2026): trabaja igual que un Trabajador, pero no suma créditos, no entra en KPIs ni en
@@ -13,7 +13,8 @@ declare(strict_types=1);
  * 2. Crea el rol «Apoyo» (no de sistema) si no existe, con los permisos que Trabajador tiene HOY en
  *    esta base (pueden haberse editado desde Ajustes) menos `kpis.ver_propios`, más los dos nuevos.
  *    Si el rol ya existe no se tocan sus permisos, salvo asegurar los dos nuevos.
- * Ningún otro rol recibe estos permisos: RESTAN en vez de habilitar (RbacService::PERMISOS_QUE_RESTAN).
+ * Este script solo se los da a Apoyo. Desde el 04/10/2026 los lleva también todo rol que no es de aseo
+ * (Admin, Supervisora, Recepción): en producción se marcaron a mano desde Ajustes → Roles y Permisos.
  *
  * Portable (SQLite dev + MariaDB prod) e idempotente: seguro de correr varias veces.
  */

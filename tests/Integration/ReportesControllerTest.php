@@ -150,7 +150,7 @@ final class ReportesControllerTest extends TestCase
         $this->assertStringContainsString('reporte_kpis_2026-09-01_2026-09-30.csv', $kpis->headers()['Content-Disposition'] ?? '');
 
         $mensual = $ctrl->exportarMensual($this->get('/api/reportes/exportar-mensual', ['anio' => '2026', 'mes' => '8']));
-        $this->assertStringContainsString('reporte_mensual_2026-08.csv', $mensual->headers()['Content-Disposition'] ?? '');
+        $this->assertStringContainsString('reporte_mensual_2026-08.xlsx', $mensual->headers()['Content-Disposition'] ?? '');
 
         $pend = $ctrl->exportarAuditoriasPendientes($this->get('/api/reportes/exportar-auditorias-pendientes', ['fecha' => self::FECHA_PASADA]));
         $this->assertStringContainsString('reporte_auditorias_pendientes_' . self::FECHA_PASADA . '.csv', $pend->headers()['Content-Disposition'] ?? '');

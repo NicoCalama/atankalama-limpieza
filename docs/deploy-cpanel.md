@@ -400,6 +400,8 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-09-26 | **Tickets que confirman el envío + huéspedes en la pieza** → **v6.14** (`21f49d7` + `388bebe`, CHANGELOG `338f3cb`) | Pedido de jefatura tras una reunión con el personal de aseo. **Tickets:** desde la pieza y el Inicio el modal quedaba sin hotel (el Trabajador no tiene `habitaciones.ver_todas` → 403 en `/api/habitaciones`) y «Crear ticket» nunca se habilitaba; ahora confirma el envío con el número de ticket, reintenta sin duplicar (`idempotency_key`, que el servidor ya soportaba) y tiene plazo de 60 s. **Huéspedes:** el sync hace un GET más por hotel (`getReservations` de las reservas del día, 40–90 KB) y guarda `cb_huespedes` / `cb_huespedes_llegan`; se ve solo en el Inicio del trabajador (recuadro al estilo Flexkeeping) y en la lista de Inspección («N personas» junto al código de camas). **SQL previo (§11.8)** corrido por Nicolás antes del código. Delta por **FTP** con ZIP, **18 archivos** (`build/limpieza-v614-delta.zip`): 17 a `app_core/` —incluidos los dos `docs/database-schema*.sql`, que lee el verificador de esquema— + `app.js` también al docroot. Sin `sw.js` → sin bump de `CACHE_VERSION`. Verificado: badge **v6.14** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`** (el SQL quedó aplicado), `/login` 200, `app_core/` → 403 en CHANGELOG y `CloudbedsSyncService.php`, y el `app.js` del docroot idéntico byte a byte al repo (16.043 B). La subida se confirmó el 26/09; el CHANGELOG decía 25/09 (la fecha en que se armó el ZIP) y se corrigió en la v6.15. Tras la siguiente sincronización, **Nicolás confirmó en la app el número de huéspedes** en el Inicio del trabajador y en la lista de Inspección (26/09): el sync escribe bien las columnas nuevas (el health no muestra el estado del sync, por eso se miró en pantalla). La propuesta de datos móviles quedó aparte, en la rama `propuesta/datos-moviles`, esperando el OK de jefatura. Se armó como «v6.15», pero ese número lo tomó primero el release del CHECK de alertas y, el 30/09, el de los KPIs (que pasó adelante: el del CHECK quedó como v6.16, §11.9): al integrarla pasa a v6.15.1 o a la que toque. |
 | 2026-09-30 | **Reportes coherente** → **v6.15** (`1220c07`, docs `b3dcf32`) | Pedido urgente de Nicolás tras auditar si los KPIs se guardan y se ven bien. **Los filtros de Reportes nunca se habían aplicado** (desde el 25/04: `ReportesController` leía la URL con `Request::input()`, que solo mira el cuerpo) → la pantalla y los 4 CSV daban siempre hoy / mes en curso / ambos hoteles. Además, **una sola definición en toda la pestaña**: tarjetas, detalle, resumen mensual y su CSV (el «CRÉDITOS TOTAL» de sueldos) salen de la ficha (escalera 100/50/0, una pieza por limpieza, rechazo del equipo sin el cierre automático, nochero/turnover = otra pieza asignada, «Marcar limpia» no es trabajo, pendientes al corte sin la automática). Pasó adelante de la versión del CHECK de alertas, que se renumeró a **v6.16** (§11.9, sigue sin subir). Delta por **FTP** con ZIP, **6 archivos** a `app_core/` (`build/limpieza-v615-delta.zip`, §11.10), **sin SQL**, sin estáticos ni `sw.js`. Suite 518/518, PHPStan limpio, dos revisiones adversariales. Verificado: badge **v6.15** (Nicolás), `/api/health` **200 con `checks.esquema.ok: true`**, `/login` 200, `app_core/src/Services/ReportesService.php` → 403. **Avisar a sueldos:** el CSV del resumen mensual cambió de columnas (limpiadas, rechazadas, créditos obtenidos, créditos asignados, eficiencia; ya no «créditos máximos»). |
 | 2026-10-01 | **Jornada + días trabajados + bono de aseo de RRHH** → **v6.15.1** (hotfix sobre la v6.15; merge `9db3bb4` = `2a67724` + `60ae7d4` + `42d5838`, CHANGELOG `99b00a2`) | Pedido de Nicolás: jornada (completa/parcial) en Usuarios, «Días trab.» en las tablas de trabajadores de Reportes y el bono de aseo de RRHH (planilla «KPI ASEO») en el resumen mensual, con el «Corte hab./día» editable por mes (permiso nuevo `reportes.editar_corte`). Delta `build/limpieza-v6151-delta.zip` (17 archivos, todos a `app_core/`; sin estáticos, `vendor/` ni `.env`); no toca nada de la v6.16, que sigue sin publicar. **Incidente:** el código subió **sin** la migración de `usuarios.jornada` → Usuarios (y Reportes) cayeron con 500 «Unknown column jornada»; el login siguió funcionando (`UsuarioService::hidratar` tolera la columna ausente). Se resolvió corriendo el SQL de §11.11 en phpMyAdmin (columna + permiso), sin rollback. **Lección:** el SQL va **antes** de extraer el ZIP; que el ZIP traiga los scripts de migración no significa que se corran solos. Smokes verdes tras el SQL: Usuarios carga, Reportes y el corte editable con Admin. |
+| 2026-10-04 | **Deploy combinado** → **v6.16** (rol Apoyo `5c70315` + CHECK de alertas `3041b45`/`eba650d`/`b2f8593` + Reportes con pestañas `38b76db`; ZIP y CHANGELOG `158a7aa`) | Decisión de Nicolás: un solo ZIP con todo lo terminado (la v6.15.2 y la ex-v6.18 quedan dentro de la v6.16; la v6.17 fuera). Runbook §11.13. **SQL de Apoyo antes del ZIP:** los 2 permisos nuevos se crearon, pero el rol «Apoyo» **ya existía** en producción (lo creó Nicolás a mano, id 6, con 10 permisos de Trabajador): quedó con 15 = los 13 de Trabajador + los 2 de marca (en prod Trabajador no tiene `kpis.ver_propios`). ZIP de 26 archivos a `app_core/` (incluido `public/.htaccess` de bloqueo) y **CHECK de alertas inmediatamente después**. Smoke externo: `/api/health` 200 con `esquema.ok`, `/login` 200, `app_core/public/…` 403. **Después, a mano en Ajustes → Roles y Permisos:** `kpis.excluido` y `asignaciones.excluir_auto` a **todos los roles menos Trabajador**; el repo se alineó en el commit siguiente (seeds y `docs/roles-permisos.md`). |
+| 2026-10-04 | **Tarjeta «Habitaciones limpiadas» + «Desglose hab.»** → **v6.16.1** (`dd7ad72` + `b3fe009`, merge `f43fd51`) | Pedido de Nicolás tras la v6.16: tarjeta entre los KPIs de arriba de Reportes con las limpiezas del período (mismo número que «limpiadas» de la sección Supervisora; respeta fechas, hotel y trabajadora) y, en el resumen mensual, «Hab. hechas» → «Desglose hab.» (el Excel conserva «Hab. hechas»). Runbook §11.14: **sin SQL**, ZIP de 9 archivos a `app_core/` (los 3 de la versión + los seeds, scripts y `RbacService.php` de la alineación de permisos de marca `727a99e`). Smoke de Nicolás: todo verde (badge, tarjeta = sección Supervisora, «Desglose hab.»); `/api/health` 200. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -855,6 +857,9 @@ Sin `sw.js`, así que sin bump de `CACHE_VERSION`. Sin `.env` ni `vendor/`.
 
 ### 11.9 Release "aprobación deshecha + CHECK de alertas + app_core/public cerrado" → v6.16
 
+> **04/10/2026: no se sube sola.** Va dentro del deploy combinado **v6.16** (§11.13), que manda en el
+> orden y en la lista de archivos. Esta sección queda como detalle de su parte.
+>
 > **Renumerada el 30/09/2026:** se armó como v6.15, pero el delta de KPIs (§11.10) pasó adelante
 > por urgencia y tomó ese número. Se sube **después** de la v6.15; no comparten archivos.
 
@@ -1046,8 +1051,11 @@ a `app_core/`:
   aparece deshabilitado.
 
 
-### 11.12 Release "rol Apoyo" → v6.15.2
+### 11.12 Release "rol Apoyo" → v6.15.2 (absorbida por la v6.16)
 
+> **04/10/2026: no se sube sola.** Va dentro del deploy combinado **v6.16** (§11.13), que manda en el
+> orden y en la lista de archivos. Esta sección queda como detalle de su parte.
+>
 > **Sobre la v6.15.1**, sube **antes** que la v6.16 (§11.9), igual que la v6.15.1. Comparte con la v6.16
 > solo `CHANGELOG.md` (subir el del commit más nuevo) y `src/Services/HomeService.php`: el de este release
 > trae el cambio de la v6.16 en `sistemaEsquema()`, blindado con `?? []` para funcionar con la
@@ -1123,3 +1131,86 @@ SELECT r.nombre, rp.permiso_codigo
 - Usuarios: la pastilla «Apoyo» filtra; a una persona de prueba darle el rol Apoyo (y quitarle Trabajador);
 - Turnos: darle turno hoy → aparece en el tablero de Asignaciones y se le puede asignar a mano; «Auto-asignar» no le da piezas;
 - Reportes: esa persona no aparece en el selector, el detalle, la ficha ni el resumen mensual.
+
+### 11.13 Deploy combinado → v6.16 (rol Apoyo + CHECK de alertas + Reportes con pestañas)
+
+> **Decisión de Nicolás (04/10/2026):** un solo ZIP con todo lo terminado que no estaba en producción, y
+> se llama **v6.16**. Junta tres cosas que se habían armado por separado: la v6.16 del CHECK de alertas
+> (§11.9), la v6.15.2 del rol Apoyo (§11.12) y los cambios de Reportes del 04/10 (que se rotularon v6.18).
+> En el CHANGELOG quedan en una sola fila v6.16. **La v6.17 (ciclo con Cloudbeds, rama
+> `v6.17-ciclo-cloudbeds`) queda fuera:** le falta R1.
+
+Por qué juntas: el `ReportesService.php` de Reportes ya trae el código del rol Apoyo, así que Reportes no
+podía subir sin la v6.15.2; y la v6.16 se commiteó antes que la v6.15.1 pero nunca subió, así que sus
+archivos tampoco están arriba.
+
+**Lista de archivos** = todo lo que tocaron los commits no desplegados (`3041b45`, `eba650d`, `b2f8593`
+de la v6.16; `5c70315` del rol Apoyo; `38b76db` de Reportes), menos `docs/` y `tests/`. Contra el último
+deploy (v6.15.1, merge `9db3bb4`) no alcanza: no ve los de la v6.16.
+
+**0. Pre-chequeo, antes de subir nada (solo lee).** `build/precheck-checks-prod.sql` en phpMyAdmin con la
+base `cat6852_australia` seleccionada. **Esperado: 2 filas**, las dos de `limpieza_alertas_activas.tipo`
+(`aprobacion_deshecha` e `inventario_cambios_pendientes`). Si sale otra fila, avisar antes de seguir.
+
+**1. SQL del rol Apoyo — ANTES del ZIP.** `scripts/migrate-add-rol-apoyo.php` por consola/cron, o el
+fallback phpMyAdmin de §11.12 (correrlo entero, una vez; es idempotente). Verificación: la última consulta
+de ese bloque muestra a Apoyo con los permisos de Trabajador (sin `kpis.ver_propios`) más los 2 de marca.
+
+**2. Subir el ZIP** `build/limpieza-v616-delta.zip` (estructura `limpieza/…`). Todo va a
+`public_html/limpieza/app_core/`, con la misma ruta relativa:
+
+- `src/Models/Habitacion.php`;
+- `src/Services/{AsignacionService,CloudbedsSyncService,EsquemaService,HabitacionService,HomeService,RbacService,ReportesService}.php`;
+- `src/Controllers/ReportesController.php`, `src/Core/Kernel.php`, `src/Helpers/ExcelExport.php`, `src/Support/Tours.php`;
+- `views/{ajustes-turnos,home-admin,reportes,usuarios}.php`;
+- `database/seeds/{permisos,roles}.php`;
+- `scripts/{build-cpanel-zip,init-db,migrate-add-inventario-alerta,migrate-add-rol-apoyo,seed,verificar-esquema}.php`;
+- **`public/.htaccess` de bloqueo** → `limpieza/app_core/public/.htaccess`. Es una copia de
+  `deployment/cpanel/app_core/.htaccess`, **no** el `public/.htaccess` del repo (ver §11.9);
+- `CHANGELOG.md` (v6.16 fechada).
+
+Sin estáticos al docroot, sin `sw.js`, sin `.env` ni `vendor/`. Apenas sube, `/api/health` pasa a **503**
+con «Faltan migraciones: 1 elemento(s)» (el CHECK de alertas). **Es lo esperado:** seguir al paso 3.
+
+**3. SQL del CHECK de alertas — inmediatamente después del ZIP.** El `ALTER TABLE … MODIFY COLUMN` del
+paso 2 de §11.9 (o `scripts/migrate-add-inventario-alerta.php`). Al revés que el rol Apoyo: con el código
+viejo arriba, este SQL prendería la alerta ~140 veces por día.
+
+**4. Smoke:**
+
+- `/api/health` **200** con `checks.esquema.ok: true`; Inicio → Salud del sistema al día;
+- badge **v6.16** (incógnito), `/login` 200;
+- `app_core/public/assets/js/app.js` → **403** y `app_core/public/index.php` → **403**; una foto de ticket se sigue viendo;
+- Ajustes → Roles: aparece «Apoyo»; Admin **no** tiene `kpis.excluido` ni `asignaciones.excluir_auto` (eso era al subir:
+  justo después, Nicolás se los dio a mano a todos los roles menos Trabajador — ver el historial del 04/10. Los seeds y
+  scripts del repo que lo reflejan (`database/seeds/*`, `scripts/{init-db,seed,migrate-add-rol-apoyo}.php`) viajan en el
+  próximo deploy: en producción solo se usan para instalar de cero);
+- Reportes: arriba un solo «Exportar Excel» que abre la ventana; ninguna sección tiene su propio
+  «Exportar». El resumen por trabajador muestra «Hab. limpiadas» y «KPIs Calidad»; el de inspecciones,
+  «Observaciones»;
+- Exportar → Resumen mensual (septiembre): baja `reporte_mensual_2026-09.xlsx` con las pestañas
+  «Trabajadores» y «Supervisores»; Supervisores tiene los bloques Atankalama, Atankalama INN y Total;
+- **al día siguiente**, en phpMyAdmin: pocas alertas `aprobacion_deshecha` por día, y resueltas solas (consulta de §11.9).
+
+### 11.14 Release "tarjeta de habitaciones limpiadas" → v6.16.1
+
+Pedido de Nicolás (04/10/2026, tras subir la v6.16): en Reportes, una tarjeta **«Habitaciones limpiadas»** junto a
+los KPIs de arriba (el mismo número que «limpiadas» de la sección Supervisora, con el período, hotel y trabajadora
+elegidos) y, en el resumen mensual, «Hab. hechas» pasa a llamarse **«Desglose hab.»** (en el Excel sigue «Hab. hechas»).
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos.** ZIP `build/limpieza-v6161-delta.zip` (estructura `limpieza/…`),
+todo a `app_core/`:
+
+- `src/Services/ReportesService.php`;
+- `views/reportes.php`;
+- `CHANGELOG.md` (v6.16.1 fechada);
+- y lo que quedó pendiente de la alineación de permisos de marca (`727a99e`, ver §11.13): `src/Services/RbacService.php`
+  (solo se quitó una constante sin uso), `database/seeds/{permisos,roles}.php` y
+  `scripts/{init-db,seed,migrate-add-rol-apoyo}.php`. En producción solo se usan para instalar de cero; viajan para que
+  `app_core/` no quede distinto del repo.
+
+Lista = `git diff --name-only 158a7aa HEAD` (el commit del ZIP de la v6.16) menos `docs/` y `tests/`: 9 archivos.
+
+**Smoke:** badge **v6.16.1** (incógnito); Reportes → con septiembre en «Personalizado», la tarjeta «Habitaciones
+limpiadas» da lo mismo que «… inspeccionadas de N limpiadas» de la sección Supervisora; el resumen mensual muestra
+«Desglose hab.».

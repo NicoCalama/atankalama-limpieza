@@ -25,8 +25,8 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-                <button @click="exportar()" data-tour="rep.exportar"
-                        :disabled="cargando || exportando"
+                <button @click="abrirExportar()" data-tour="rep.exportar"
+                        :disabled="exportando"
                         class="min-h-[44px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
                                text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
                     <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
@@ -127,7 +127,7 @@
                 <button @click="cargar()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
             </div>
         </template>
-        <!-- Aviso de una descarga que falló: flotante, porque los Exportar de abajo quedan lejos del inicio -->
+        <!-- Aviso de una descarga que falló: flotante, para que se vea esté donde esté la pantalla -->
         <template x-if="avisoExport">
             <div role="alert" class="fixed z-50 bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:max-w-md shadow-lg flex flex-wrap items-center gap-3 bg-amber-50 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
                 <i data-lucide="download" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0"></i>
@@ -135,6 +135,66 @@
                 <button @click="avisoExport = ''" class="min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium">Cerrar</button>
             </div>
         </template>
+
+        <!-- Ventana «Exportar»: un solo botón para todas las descargas (pedido de Nicolás, 04/10/2026) -->
+        <div x-show="exportarAbierto" x-cloak
+             @keydown.escape.window="exportarAbierto && cerrarExportar()"
+             @click.self="cerrarExportar()"
+             role="dialog" aria-modal="true" aria-labelledby="exportar-titulo"
+             class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50">
+            <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+                <h3 id="exportar-titulo" class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">¿Qué quieres exportar?</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4" x-text="'Hotel: ' + hotelLabel()"></p>
+
+                <div class="space-y-2 mb-5">
+                    <!-- Resumen mensual: Excel con dos pestañas -->
+                    <label class="flex gap-3 p-3 rounded-lg border cursor-pointer transition"
+                           :class="exportarTipo === 'mensual' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'">
+                        <input type="radio" name="exportar-tipo" value="mensual" x-model="exportarTipo" class="mt-1 w-4 h-4 flex-shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Resumen mensual</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Excel con dos pestañas: «Trabajadores» (del hotel elegido) y «Supervisores» (cada hotel por separado y el total).</p>
+                            <input type="month" x-show="exportarTipo === 'mensual'" x-model="exportarMes" aria-label="Mes del resumen"
+                                   class="mt-2 min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                        </div>
+                    </label>
+
+                    <!-- KPIs del período de arriba -->
+                    <label class="flex gap-3 p-3 rounded-lg border cursor-pointer transition"
+                           :class="exportarTipo === 'kpis' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'">
+                        <input type="radio" name="exportar-tipo" value="kpis" x-model="exportarTipo" class="mt-1 w-4 h-4 flex-shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">KPIs del período</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'Los indicadores con los filtros de arriba: ' + periodoExportar() + '.'"></p>
+                        </div>
+                    </label>
+
+                    <!-- Inspecciones pendientes al corte de un día -->
+                    <label class="flex gap-3 p-3 rounded-lg border cursor-pointer transition"
+                           :class="exportarTipo === 'pendientes' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'">
+                        <input type="radio" name="exportar-tipo" value="pendientes" x-model="exportarTipo" class="mt-1 w-4 h-4 flex-shrink-0">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Inspecciones pendientes del día</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Las piezas que quedaron sin inspeccionar antes de las 23:50, por turno.</p>
+                            <input type="date" x-show="exportarTipo === 'pendientes'" x-model="exportarFecha" aria-label="Día de las inspecciones pendientes"
+                                   class="mt-2 min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                        </div>
+                    </label>
+                </div>
+
+                <div class="flex gap-2 justify-end">
+                    <button @click="cerrarExportar()" :disabled="exportando"
+                            class="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 disabled:opacity-50">
+                        Cancelar
+                    </button>
+                    <button @click="confirmarExportar()" :disabled="exportando || !exportarListo()"
+                            class="min-h-[44px] flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+                        <span x-text="exportando ? 'Descargando...' : 'Descargar'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- Contenido principal -->
         <template x-if="data">
@@ -534,12 +594,6 @@
                 <div class="flex items-center gap-2">
                     <input type="month" x-model="mensualMes" @change="cargarMensual()"
                            class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="exportarMensual()" :disabled="mensualCargando || mensualExportando"
-                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Exportar mes">
-                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
-                        <span class="hidden sm:inline" x-text="mensualExportando ? 'Exportando...' : 'Exportar'"></span>
-                    </button>
                     <button @click="cargarMensual()" :disabled="mensualCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
@@ -577,14 +631,15 @@
                                 <tr>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza. En rojo, las rechazadas.">Hab. hechas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Todas las habitaciones que limpió, hayan quedado bien o no: las que quedaron bien + las rechazadas. Informativo: el bono se calcula solo con las que quedaron bien.">Hab. limpiadas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza, y en rojo las rechazadas. Las que quedaron bien son las «hab. hechas» del bono de aseo.">Desglose hab.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hab. hechas ÷ días trabajados.">Act./día</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Casillas del checklist que la supervisora le desmarcó al inspeccionar (en aprobadas con observación y en rechazadas).">Observ.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Observaciones ÷ hab. hechas (tope 100 %).">% observ.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Act./día ÷ base de su jornada (corte; parcial = la mitad), con tope 100 %.">Eficacia</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="(1 − % observadas) × eficacia.">% logro</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hasta 70 % de logro: 0,427 × logro. Sobre 70 %: 2,333 × logro − 1,333.">Factor</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="% logro × factor de peso (el «% calidad» de la planilla de RRHH).">Resultado</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="% logro × factor de peso (el «% calidad» de la planilla de RRHH).">KPIs Calidad</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones sobre la base de su jornada en el mes: (act./día − base) × días trabajados.">Extras</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Créditos</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Créditos de piezas ÷ créditos asignados.">Eficiencia</th>
@@ -599,10 +654,11 @@
                                                 <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
                                             </template>
                                             <template x-if="!t.jornada">
-                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" title="Sin jornada definida: asígnala en Usuarios para calcular eficacia, logro, resultado y extras.">Sin jornada</span>
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" title="Sin jornada definida: asígnala en Usuarios para calcular eficacia, logro, KPIs calidad y extras.">Sin jornada</span>
                                             </template>
                                         </td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.dias_trabajados"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.limpiadas"></td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums">
                                             <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="t.habitaciones"></span>
                                             <template x-if="t.rechazadas > 0">
@@ -642,12 +698,6 @@
                 <div class="flex items-center gap-2">
                     <input type="month" x-model="auditMes" @change="cargarAudit()"
                            class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="exportarAudit()" :disabled="auditCargando || auditExportando"
-                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Exportar mes">
-                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
-                        <span class="hidden sm:inline" x-text="auditExportando ? 'Exportando...' : 'Exportar'"></span>
-                    </button>
                     <button @click="cargarAudit()" :disabled="auditCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
@@ -687,6 +737,7 @@
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprobadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Casillas del checklist que desmarcó al inspeccionar (en aprobadas con observación y en rechazadas). Es lo mismo que «Observ.» de los trabajadores, contado desde quien inspecciona.">Observaciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -697,6 +748,7 @@
                                     <td class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-semibold" x-text="a.aprobadas"></td>
                                     <td class="px-4 py-3 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="a.aprobadas_observacion"></td>
                                     <td class="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold" x-text="a.rechazadas"></td>
+                                    <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-semibold" x-text="a.observaciones"></td>
                                 </tr>
                             </template>
                         </tbody>
@@ -720,12 +772,6 @@
                 <div class="flex items-center gap-2">
                     <input type="date" x-model="auditPendFecha" @change="cargarAuditPendientes()"
                            class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="exportarAuditPendientes()" :disabled="auditPendCargando || auditPendExportando"
-                            class="min-h-[40px] flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Exportar">
-                        <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
-                        <span class="hidden sm:inline" x-text="auditPendExportando ? 'Exportando...' : 'Exportar'"></span>
-                    </button>
                     <button @click="cargarAuditPendientes()" :disabled="auditPendCargando"
                             class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                             aria-label="Refrescar">
@@ -814,6 +860,11 @@ function reportes() {
         cargando:     false,
         error:        '',   // mensaje del último error de los KPIs ('' = sin error)
         exportando:   false,
+        // Ventana «Exportar» (único botón de descarga de la pantalla)
+        exportarAbierto: false,
+        exportarTipo:    'mensual', // 'mensual' | 'kpis' | 'pendientes'
+        exportarMes:     '',        // YYYY-MM; al abrir, el mes que se está viendo en el resumen mensual
+        exportarFecha:   '',        // YYYY-MM-DD; al abrir, el día de «Inspecciones pendientes al corte»
         kpisSeq:      0,    // igual que fichaSeq: gana la última consulta pedida, no la última en llegar
         avisoExport:  '',   // aviso visible cuando una descarga falla
 
@@ -857,7 +908,6 @@ function reportes() {
         mensualMes:        window.hoyServidor().slice(0, 7), // YYYY-MM
         mensualData:       null,
         mensualCargando:   false,
-        mensualExportando: false,
         mensualError:      '',
         mensualSeq:        0,
         // Corte de habitaciones diarias del bono de aseo (RRHH): único dato manual, guardado por mes.
@@ -871,7 +921,6 @@ function reportes() {
         auditMes:        window.hoyServidor().slice(0, 7),
         auditData:       null,
         auditCargando:   false,
-        auditExportando: false,
         auditError:      '',
         auditSeq:        0,
 
@@ -879,7 +928,6 @@ function reportes() {
         auditPendFecha:      window.hoyServidor(),
         auditPendData:       null,
         auditPendCargando:   false,
-        auditPendExportando: false,
         auditPendError:      '',
         auditPendSeq:        0,
 
@@ -1064,7 +1112,7 @@ function reportes() {
             return this.estadosPendiente[estado] || estado;
         },
 
-        // Descarga un CSV; si el servidor no lo entrega, lo avisa en vez de no hacer nada.
+        // Descarga un archivo (CSV o Excel); si el servidor no lo entrega, lo avisa en vez de no hacer nada.
         async descargar(ruta, params, nombre) {
             this.avisoExport = '';
             var resp = null;
@@ -1096,19 +1144,55 @@ function reportes() {
             return p[2] + '/' + p[1] + '/' + p[0];
         },
 
-        async exportar() {
-            if (this.exportando) return;
+        abrirExportar() {
+            this.exportarMes   = this.mensualMes;
+            this.exportarFecha = this.auditPendFecha;
+            this.avisoExport   = '';
+            this.exportarAbierto = true;
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        cerrarExportar() {
+            if (!this.exportando) this.exportarAbierto = false;
+        },
+
+        hotelLabel() {
+            return { ambos: 'Ambos hoteles', '1_sur': 'Atankalama', inn: 'Atankalama INN' }[this.hotel] || 'Ambos hoteles';
+        },
+
+        periodoExportar() {
+            var rango = this.desde === this.hasta
+                ? this.fmtFecha(this.desde)
+                : this.fmtFecha(this.desde) + ' — ' + this.fmtFecha(this.hasta);
+            return rango + (this.usuarioId ? ' · ' + (this.usuarioNombre || 'Trabajadora elegida') : '');
+        },
+
+        exportarListo() {
+            if (this.exportarTipo === 'mensual')    return /^\d{4}-\d{2}$/.test(this.exportarMes || '');
+            if (this.exportarTipo === 'pendientes') return /^\d{4}-\d{2}-\d{2}$/.test(this.exportarFecha || '');
+            return true;
+        },
+
+        // Una sola descarga por vez. Si falla, la ventana se cierra igual y el aviso flotante dice por qué.
+        async confirmarExportar() {
+            if (this.exportando || !this.exportarListo()) return;
             this.exportando = true;
             try {
-                var params = new URLSearchParams({
-                    desde:  this.desde,
-                    hasta:  this.hasta,
-                    hotel:  this.hotel,
-                });
-                if (this.usuarioId) params.set('usuario_id', this.usuarioId);
-                await this.descargar('/api/reportes/exportar', params, 'reporte_kpis_' + this.desde + '_' + this.hasta + '.csv');
+                if (this.exportarTipo === 'mensual') {
+                    var partes = this.exportarMes.split('-');
+                    var pm = new URLSearchParams({ anio: parseInt(partes[0], 10), mes: parseInt(partes[1], 10), hotel: this.hotel });
+                    await this.descargar('/api/reportes/exportar-mensual', pm, 'reporte_mensual_' + this.exportarMes + '.xlsx');
+                } else if (this.exportarTipo === 'pendientes') {
+                    var pp = new URLSearchParams({ fecha: this.exportarFecha, hotel: this.hotel });
+                    await this.descargar('/api/reportes/exportar-auditorias-pendientes', pp, 'reporte_inspecciones_pendientes_' + this.exportarFecha + '.csv');
+                } else {
+                    var pk = new URLSearchParams({ desde: this.desde, hasta: this.hasta, hotel: this.hotel });
+                    if (this.usuarioId) pk.set('usuario_id', this.usuarioId);
+                    await this.descargar('/api/reportes/exportar', pk, 'reporte_kpis_' + this.desde + '_' + this.hasta + '.csv');
+                }
             } finally {
                 this.exportando = false;
+                this.exportarAbierto = false;
             }
         },
 
@@ -1143,38 +1227,6 @@ function reportes() {
             }
         },
 
-        async exportarAudit() {
-            if (this.auditExportando) return;
-            var partes = (this.auditMes || '').split('-');
-            if (partes.length !== 2) return;
-            var anio = parseInt(partes[0], 10);
-            var mes  = parseInt(partes[1], 10);
-            if (!anio || !mes) return;
-            this.auditExportando = true;
-            try {
-                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                await this.descargar('/api/reportes/exportar-mensual-auditores', params, 'reporte_inspecciones_' + this.auditMes + '.csv');
-            } finally {
-                this.auditExportando = false;
-            }
-        },
-
-        async exportarMensual() {
-            if (this.mensualExportando) return;
-            var partes = (this.mensualMes || '').split('-');
-            if (partes.length !== 2) return;
-            var anio = parseInt(partes[0], 10);
-            var mes  = parseInt(partes[1], 10);
-            if (!anio || !mes) return;
-            this.mensualExportando = true;
-            try {
-                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
-                await this.descargar('/api/reportes/exportar-mensual', params, 'reporte_mensual_' + this.mensualMes + '.csv');
-            } finally {
-                this.mensualExportando = false;
-            }
-        },
-
         async cargarAuditPendientes() {
             if (!this.auditPendFecha) return;
             var seq = ++this.auditPendSeq;
@@ -1199,17 +1251,6 @@ function reportes() {
                     this.auditPendCargando = false;
                     this.$nextTick(() => lucide.createIcons());
                 }
-            }
-        },
-
-        async exportarAuditPendientes() {
-            if (this.auditPendExportando || !this.auditPendFecha) return;
-            this.auditPendExportando = true;
-            try {
-                var params = new URLSearchParams({ fecha: this.auditPendFecha, hotel: this.hotel });
-                await this.descargar('/api/reportes/exportar-auditorias-pendientes', params, 'reporte_inspecciones_pendientes_' + this.auditPendFecha + '.csv');
-            } finally {
-                this.auditPendExportando = false;
             }
         },
 
@@ -1332,6 +1373,7 @@ function reportes() {
                 { clave: 'aprobacion_primera', titulo: 'Aprobación a la 1ª' },
                 { clave: 'productividad',      titulo: 'Productividad prom.' },
                 { clave: 'tasa_desmarcados',   titulo: 'Ítems desmarcados' },
+                { clave: 'limpiadas',          titulo: 'Habitaciones limpiadas' },
             ];
             return defs.map(d => Object.assign({ clave: d.clave, titulo: d.titulo }, this.data.kpis[d.clave] || {}));
         },

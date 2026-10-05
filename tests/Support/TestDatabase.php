@@ -62,10 +62,9 @@ final class TestDatabase
                 [$rol['nombre'], $rol['descripcion'], $rol['es_sistema']]
             );
             $rolId = Database::lastInsertId();
-            // Igual que scripts/seed.php: '__ALL__' sin los permisos que RESTAN (rol Apoyo).
-            $permisosRol = $rol['permisos'] === '__ALL__'
-                ? array_values(array_diff($todos, \Atankalama\Limpieza\Services\RbacService::PERMISOS_QUE_RESTAN))
-                : $rol['permisos'];
+            // Igual que scripts/seed.php: '__ALL__' = todo el catálogo, incluidos los permisos de marca
+            // (el Admin no es personal de aseo: fuera de los KPIs y del reparto, 04/10/2026).
+            $permisosRol = $rol['permisos'] === '__ALL__' ? $todos : $rol['permisos'];
             foreach ($permisosRol as $codigo) {
                 Database::execute(
                     'INSERT INTO #__rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)',

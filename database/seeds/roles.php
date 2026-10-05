@@ -61,6 +61,9 @@ return [
             'usuarios.cambiar_propia_contrasena',
             'usuarios.exportar_datos_propios',
             'notificaciones.ver',
+            // Permisos de marca: no es personal de aseo (fuera de KPIs y del reparto automático, 04/10/2026).
+            'kpis.excluido',
+            'asignaciones.excluir_auto',
         ],
     ],
     [
@@ -85,6 +88,9 @@ return [
             'usuarios.cambiar_propia_contrasena',
             'usuarios.exportar_datos_propios',
             'notificaciones.ver',
+            // Permisos de marca: no es personal de aseo (fuera de KPIs y del reparto automático, 04/10/2026).
+            'kpis.excluido',
+            'asignaciones.excluir_auto',
         ],
     ],
     [

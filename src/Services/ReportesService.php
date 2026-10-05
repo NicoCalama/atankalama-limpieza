@@ -81,6 +81,8 @@ final class ReportesService
      *   creditos_asignados / eficiencia_pct = lo asignado del checklist vigente y créditos de piezas ÷ asignados;
      *   dias_trabajados = días con al menos una asignación (ver fichaTrabajadores); jornada = completa/parcial/null.
      * Es el «CRÉDITOS TOTAL» que usa sueldos.
+     *   limpiadas     = habitaciones + rechazadas: todo lo que limpió, haya quedado bien o no (pedido de
+     *                   Nicolás, 04/10/2026). Informativo: el bono sigue calculándose con hab. hechas.
      * Más las columnas de la planilla «KPI ASEO» de RRHH (BonoAseoService::calcular) con el corte del mes:
      *   hab. hechas = habitaciones (las que quedaron bien); observaciones = casillas del checklist que el
      *   auditor le desmarcó (decisión de Nicolás, 01/10/2026). Ver docs/kpis-sueldos.md.
@@ -103,6 +105,7 @@ final class ReportesService
                 'dias_trabajados'    => (int) $t['dias_trabajados'],
                 'habitaciones'       => (int) $t['habitaciones'],
                 'rechazadas'         => (int) $t['rechazadas_hab'],
+                'limpiadas'          => (int) $t['habitaciones'] + (int) $t['rechazadas_hab'],
                 'observaciones'      => $observaciones,
                 'creditos'           => (int) $t['creditos'],
                 'creditos_asignados' => (int) $t['esperado_creditos'],
@@ -204,7 +207,12 @@ final class ReportesService
     /**
      * Resumen mensual de auditorías por auditor (supervisora / recepción).
      *
-     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int}>
+     * observaciones = casillas del checklist que ese auditor desmarcó en sus inspecciones del mes
+     * (en aprobadas con observación y en rechazadas): lo mismo que «Observ.» de los trabajadores,
+     * contado desde quien inspecciona (pedido de Nicolás, 04/10/2026). Una ejecución tiene una sola
+     * auditoría (inmutable), así que cada casilla desmarcada se le cuenta a un solo auditor.
+     *
+     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int}>
      */
     public function resumenMensualAuditores(int $anio, int $mes, string $hotel): array
     {
@@ -213,84 +221,94 @@ final class ReportesService
         $params = Fechas::rangoUtc($desde, $hasta);
         $hotelCond = $this->hotelCond($hotel, $params);
 
-        return Database::fetchAll(
+        $filas = Database::fetchAll(
             "SELECT u.id AS usuario_id,
                     u.nombre,
                     COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_automatico') THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
-                    SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas
+                    SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas,
+                    SUM(COALESCE(d.n, 0)) AS observaciones
                FROM #__auditorias a
                JOIN #__usuarios u ON u.id = a.auditor_id
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN (SELECT ejecucion_id, COUNT(*) AS n
+                       FROM #__ejecuciones_items
+                      WHERE desmarcado_por_auditor = 1
+                      GROUP BY ejecucion_id) d ON d.ejecucion_id = a.ejecucion_id
               WHERE a.created_at >= ? AND a.created_at < ?
                     {$hotelCond}
               GROUP BY u.id, u.nombre
               ORDER BY u.nombre",
             $params
         );
+
+        return array_map(static fn (array $f): array => [
+            'usuario_id'            => (int) $f['usuario_id'],
+            'nombre'                => (string) $f['nombre'],
+            'total'                 => (int) $f['total'],
+            'aprobadas'             => (int) $f['aprobadas'],
+            'aprobadas_observacion' => (int) $f['aprobadas_observacion'],
+            'rechazadas'            => (int) $f['rechazadas'],
+            'observaciones'         => (int) $f['observaciones'],
+        ], $filas);
     }
 
     /**
-     * CSV del resumen mensual de auditorías.
+     * Excel del resumen mensual (un solo archivo, dos pestañas — pedido de Nicolás, 04/10/2026):
+     *   «Trabajadores» = el resumen por trabajador con el hotel elegido (mismos números que la pantalla);
+     *   «Supervisores» = las inspecciones del mes SIEMPRE con los dos hoteles: un bloque por hotel y
+     *                    uno con el total, sin importar el filtro de hotel.
+     *
+     * @return array<string, list<list<string|int|float|null>>> nombre de la pestaña → filas
      */
-    public function exportarCsvMensualAuditores(int $anio, int $mes, string $hotel): string
+    public function hojasMensual(int $anio, int $mes, string $hotel): array
     {
-        $filas = $this->resumenMensualAuditores($anio, $mes, $hotel);
-
-        $hotelLabel = match ($hotel) {
-            '1_sur' => 'Atankalama',
-            'inn'   => 'Atankalama INN',
-            default => 'Ambos hoteles',
-        };
-        $meses = [
-            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        return [
+            'Trabajadores' => $this->filasMensualTrabajadores($anio, $mes, $hotel),
+            'Supervisores' => $this->filasMensualSupervisores($anio, $mes),
         ];
+    }
 
+    /** @return list<list<string|int|float|null>> */
+    private function filasMensualSupervisores(int $anio, int $mes): array
+    {
         $rows = [];
         $rows[] = ['Resumen mensual de inspecciones por inspector', 'Atankalama Corp'];
-        $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
+        $rows[] = ['Mes', self::nombreMes($anio, $mes)];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
-        $rows[] = [];
-        $rows[] = ['Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas'];
 
-        $totT = $totA = $totO = $totR = 0;
-        foreach ($filas as $f) {
-            $rows[] = [
-                $f['nombre'],
-                (int) $f['total'],
-                (int) $f['aprobadas'],
-                (int) $f['aprobadas_observacion'],
-                (int) $f['rechazadas'],
-            ];
-            $totT += (int) $f['total'];
-            $totA += (int) $f['aprobadas'];
-            $totO += (int) $f['aprobadas_observacion'];
-            $totR += (int) $f['rechazadas'];
-        }
-        if (!empty($filas)) {
+        foreach (['1_sur' => 'ATANKALAMA', 'inn' => 'ATANKALAMA INN', 'ambos' => 'TOTAL AMBOS HOTELES'] as $hotel => $titulo) {
             $rows[] = [];
-            $rows[] = ['TOTAL', $totT, $totA, $totO, $totR];
+            $rows[] = [$titulo];
+            $rows[] = ['Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones'];
+
+            $filas = $this->resumenMensualAuditores($anio, $mes, $hotel);
+            if ($filas === []) {
+                $rows[] = ['Sin inspecciones en el mes'];
+                continue;
+            }
+            $tot = [0, 0, 0, 0, 0];
+            foreach ($filas as $f) {
+                $valores = [$f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['observaciones']];
+                $rows[] = [$f['nombre'], ...$valores];
+                foreach ($valores as $i => $v) {
+                    $tot[$i] += $v;
+                }
+            }
+            $rows[] = ['TOTAL', ...$tot];
         }
 
-        $output = "\xEF\xBB\xBF";
-        foreach ($rows as $row) {
-            $cols = array_map(
-                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
-                $row
-            );
-            $output .= implode(';', $cols) . "\r\n";
-        }
-        return $output;
+        return $rows;
     }
 
     /**
-     * CSV del resumen mensual por trabajador (mismos números que la pantalla y que la ficha del mes).
+     * Pestaña «Trabajadores» del resumen mensual (mismos números que la pantalla y que la ficha del mes).
+     *
+     * @return list<list<string|int|float|null>>
      */
-    public function exportarCsvMensual(int $anio, int $mes, string $hotel): string
+    private function filasMensualTrabajadores(int $anio, int $mes, string $hotel): array
     {
         $corte = (new BonoAseoService())->corte($anio, $mes)['valor'];
         $filas = $this->resumenMensual($anio, $mes, $hotel, $corte);
@@ -300,26 +318,22 @@ final class ReportesService
             'inn'   => 'Atankalama INN',
             default => 'Ambos hoteles',
         };
-        $meses = [
-            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
-            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
-            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
-        ];
 
         $rows = [];
         $rows[] = ['Resumen mensual de limpieza por trabajador', 'Atankalama Corp'];
-        $rows[] = ['Hotel', $hotelLabel, 'Mes', "{$meses[$mes]} {$anio}"];
+        $rows[] = ['Hotel', $hotelLabel, 'Mes', self::nombreMes($anio, $mes)];
         $rows[] = ['Corte hab./día', $corte, 'Jornada parcial', $corte / 2];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
         $rows[] = [];
         // Mismo orden que la planilla «KPI ASEO» de RRHH (hab. hechas → extras), con el RUT como llave.
+        // «Hab. limpiadas» (hechas + rechazadas) va antes, como dato informativo: no entra al bono.
         $rows[] = [
-            'RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. hechas', 'Act. por día', 'Observaciones',
-            '% act. observadas', 'Eficacia (%)', '% logro', 'Factor de peso', 'Resultado (%)', 'Actividades extras',
+            'RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas', 'Act. por día', 'Observaciones',
+            '% act. observadas', 'Eficacia (%)', '% logro', 'Factor de peso', 'KPIs Calidad (%)', 'Actividades extras',
             'Habitaciones rechazadas', 'Créditos obtenidos', 'Créditos asignados', 'Eficiencia (%)',
         ];
 
-        $totalDias = $totalHab = $totalObs = $totalRec = $totalCre = $totalAsig = 0;
+        $totalDias = $totalLimp = $totalHab = $totalObs = $totalRec = $totalCre = $totalAsig = 0;
         $totalExtras = 0.0;
         foreach ($filas as $f) {
             $b = $f['bono'];
@@ -328,6 +342,7 @@ final class ReportesService
                 $f['nombre'],
                 self::jornadaLabel($f['jornada']),
                 $f['dias_trabajados'],
+                $f['limpiadas'],
                 $f['habitaciones'],
                 $b['act_dia'] ?? '',
                 $f['observaciones'],
@@ -343,6 +358,7 @@ final class ReportesService
                 $f['eficiencia_pct'] ?? '',
             ];
             $totalDias   += $f['dias_trabajados'];
+            $totalLimp   += $f['limpiadas'];
             $totalHab    += $f['habitaciones'];
             $totalObs    += $f['observaciones'];
             $totalExtras += (float) ($b['extras'] ?? 0);
@@ -356,19 +372,21 @@ final class ReportesService
             // tiene su base y su jornada; los créditos incluyen áreas comunes, lo asignado no): se dejan
             // vacíos antes que mostrar un cociente engañoso.
             $rows[] = [];
-            $rows[] = ['', 'TOTAL', '', $totalDias, $totalHab, '', $totalObs, '', '', '', '', '', round($totalExtras, 1),
+            $rows[] = ['', 'TOTAL', '', $totalDias, $totalLimp, $totalHab, '', $totalObs, '', '', '', '', '', round($totalExtras, 1),
                 $totalRec, $totalCre, $totalAsig, ''];
         }
 
-        $output = "\xEF\xBB\xBF";
-        foreach ($rows as $row) {
-            $cols = array_map(
-                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
-                $row
-            );
-            $output .= implode(';', $cols) . "\r\n";
-        }
-        return $output;
+        return $rows;
+    }
+
+    private static function nombreMes(int $anio, int $mes): string
+    {
+        $meses = [
+            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+            5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+            9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre',
+        ];
+        return "{$meses[$mes]} {$anio}";
     }
 
     /**
@@ -645,6 +663,46 @@ final class ReportesService
             ],
             'productividad'    => $this->kpiProductividad($desde, $hasta, $hotel, $usuarioId),
             'tasa_desmarcados' => $this->kpiTasaDesmarcados($desde, $hasta, $hotel, $usuarioId),
+            'limpiadas'        => $this->kpiLimpiadas($desde, $hasta, $hotel, $usuarioId),
+        ];
+    }
+
+    /**
+     * Habitaciones limpiadas del período (pedido de Nicolás, 04/10/2026): el mismo número que «limpiadas»
+     * de la sección Supervisora (seccionSupervisora: mismas condiciones), para verlo arriba sin bajar.
+     * Toda limpieza terminada de una pieza de huésped, haya quedado aprobada, con observación, rechazada,
+     * sin inspeccionar o cerrada por el cierre automático. Con una trabajadora filtrada, las suyas.
+     *
+     * @return array<string, mixed>
+     */
+    private function kpiLimpiadas(string $desde, string $hasta, string $hotel, ?int $usuarioId): array
+    {
+        $p = Fechas::rangoUtc($desde, $hasta);
+        $h = $this->hotelCond($hotel, $p);
+        $u = $this->userCond($usuarioId, $p, 'ec');
+        $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $p);
+        $f = Database::fetchOne(
+            "SELECT COUNT(*) AS limpiadas,
+                    SUM(CASE WHEN a.veredicto IN " . self::VEREDICTOS_HUMANOS . " THEN 1 ELSE 0 END) AS inspeccionadas
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                    {$h}{$u}{$x}",
+            $p
+        );
+        $limpiadas      = (int) ($f['limpiadas'] ?? 0);
+        $inspeccionadas = (int) ($f['inspeccionadas'] ?? 0);
+
+        return [
+            'valor'    => $limpiadas === 0 ? null : $limpiadas,
+            'unidad'   => 'hab',
+            'meta'     => null,
+            'contexto' => $limpiadas === 0 ? '0 limpiezas' : "{$inspeccionadas} inspeccionadas por una persona",
+            'estado'   => $limpiadas === 0 ? 'sin_datos' : 'informativo',
         ];
     }
 
@@ -1628,6 +1686,7 @@ final class ReportesService
             'aprobacion_primera' => 'Aprobación a la primera',
             'productividad'      => 'Productividad promedio',
             'tasa_desmarcados'   => 'Tasa de ítems desmarcados',
+            'limpiadas'          => 'Habitaciones limpiadas',
         ];
     }
 }

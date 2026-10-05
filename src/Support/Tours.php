@@ -1160,17 +1160,13 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'descargar', 'v' => 1,
+                        'id' => 'descargar', 'v' => 2,
                         'titulo' => 'Descargar los reportes',
                         'pregunta' => '¿Cómo exporto los datos a una planilla?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Bajar los KPIs del período',
-                             'texto' => 'El botón «Exportar Excel» genera un archivo con los indicadores del período y los filtros elegidos, listo para abrir en Excel.'],
-                            ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Bajar el mes por trabajador',
-                             'texto' => 'Dentro de «Resumen mensual por trabajador», «Exportar» descarga la planilla del mes elegido con el RUT, las habitaciones, los días trabajados, las columnas del bono de aseo y los créditos de cada persona.'],
-                            ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Bajar el mes de inspecciones',
-                             'texto' => 'En «Resumen mensual de inspecciones», «Exportar» descarga la planilla del mes con el total y el desglose por inspector.'],
+                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
+                             'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores y de supervisores), los KPIs del período elegido arriba o las inspecciones pendientes de un día.'],
                         ],
                     ],
                     [
@@ -1180,9 +1176,9 @@ final class Tours
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
-                             'texto' => 'Elige un mes y verás por trabajador sus habitaciones, días trabajados, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
+                             'texto' => 'Elige un mes y verás por trabajador las habitaciones limpiadas y las que quedaron bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
-                             'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó y cómo quedaron: aprobadas, con observación o rechazadas.'],
+                             'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó, cómo quedaron (aprobadas, con observación o rechazadas) y cuántas casillas del checklist desmarcó.'],
                         ],
                     ],
                     [
