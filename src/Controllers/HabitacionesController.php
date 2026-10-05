@@ -90,10 +90,16 @@ final class HabitacionesController
         }
 
         // Última inspección pre-entrega de Recepción (v6.18): solo para quien ve todas las piezas; la
-        // trabajadora no la recibe. Protegido: una falla de la revisión no tumba el detalle de la pieza.
+        // trabajadora no la recibe. `vigente` = la pieza no cambió de estado desde entonces (el botón
+        // «Re-limpiar» solo se ofrece así). Protegido: una falla de la revisión no tumba el detalle.
         if ($puedeVerTodas) {
             try {
-                $detalle['revision_entrega'] = $this->revisionesEntrega->ultimaDePieza($id);
+                $revision = $this->revisionesEntrega->ultimaDePieza($id);
+                if ($revision !== null) {
+                    $vigente = $this->revisionesEntrega->revisionesVigentes($id)[$id] ?? null;
+                    $revision['vigente'] = $vigente !== null && $vigente['id'] === $revision['id'];
+                }
+                $detalle['revision_entrega'] = $revision;
             } catch (\Throwable $e) {
                 Logger::warning('revision_entrega', 'no se pudo leer la inspección pre-entrega de la pieza', [
                     'habitacion_id' => $id,

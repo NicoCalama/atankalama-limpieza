@@ -65,7 +65,10 @@ final class MigracionRevisionEntregaTest extends TestCase
             "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_revisiones_entrega_%' ORDER BY name"
         ), 'name');
         $this->assertSame(
-            ['idx_revisiones_entrega_auditoria', 'idx_revisiones_entrega_created', 'idx_revisiones_entrega_hab_fecha', 'idx_revisiones_entrega_idem'],
+            [
+                'idx_revisiones_entrega_auditoria', 'idx_revisiones_entrega_created', 'idx_revisiones_entrega_hab_fecha',
+                'idx_revisiones_entrega_idem', 'idx_revisiones_entrega_relimp_asig', 'idx_revisiones_entrega_relimpieza',
+            ],
             $indices
         );
         $columnas = array_column(Database::fetchAll('PRAGMA table_info(revisiones_entrega)'), 'name');

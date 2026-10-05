@@ -23,11 +23,14 @@ $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
 $puedeInspeccionar = $usuario->tienePermiso('revision_entrega.registrar');
 // Editar edificio/piso de la pieza (el lápiz de la tarjeta): v6.18, permiso propio.
 $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edificios');
+// «Re-limpiar» una pieza que Recepción no aprobó (v6.18): es una asignación.
+$puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
 ?>
 
-<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>, <?= $puedeInspeccionar ? 'true' : 'false' ?>, <?= $puedeGestionarEdificios ? 'true' : 'false' ?>)"
+<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>, <?= $puedeInspeccionar ? 'true' : 'false' ?>, <?= $puedeGestionarEdificios ? 'true' : 'false' ?>, <?= $puedeRelimpiar ? 'true' : 'false' ?>)"
      x-init="cargar()"
-     @inspeccion-pre-entrega-registrada.window="onInspeccionRegistrada($event.detail)">
+     @inspeccion-pre-entrega-registrada.window="onInspeccionRegistrada($event.detail)"
+     @relimpieza-pedida.window="onRelimpiezaPedida($event.detail)">
     <div data-vg-context='{"inspecciona_entrega": <?= $puedeInspeccionar ? 'true' : 'false' ?>}' hidden></div>
 
     <!-- Header sticky -->
@@ -241,7 +244,7 @@ $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edific
                 <template x-for="hab in habitacionesFiltradas" :key="hab.id">
                     <div @click="if (!$event.target.closest('button')) window.location.href = u('/habitaciones/' + hab.id)"
                        class="relative rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden hover:shadow-md transition shadow-sm flex flex-col cursor-pointer group bg-white dark:bg-gray-800"
-                       :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) && !puedeInspeccionar ? 'opacity-60' : '']">
+                       :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) && !puedeInspeccionar && !tieneNoVigente(hab) ? 'opacity-60' : '']">
                         <div class="p-4 flex flex-col gap-2">
                             <div class="flex items-start justify-between">
                                 <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
@@ -351,11 +354,21 @@ $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edific
                             </button>
                         </template>
                         <?php endif; ?>
-                        <template x-if="!puedeInspeccionar && puedeVerTodas && hab.revision_vigente">
+                        <!-- Quien ve todas las piezas sin inspeccionar (Supervisora) ve el resultado como franja. Un NO
+                             sobre una pieza aprobada se vuelve el botón «Re-limpiar» para quien puede asignar. -->
+                        <template x-if="!puedeInspeccionar && puedeVerTodas && hab.revision_vigente && !puedeRelimpiarPieza(hab)">
                             <div class="w-full min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-center border-t"
                                  :class="claseInspeccion(hab)" :title="tituloInspeccion(hab)">
                                 <span class="font-oswald text-xs sm:text-sm font-semibold uppercase tracking-wide leading-tight line-clamp-2 break-words" x-text="textoInspeccion(hab)"></span>
                             </div>
+                        </template>
+                        <template x-if="!puedeInspeccionar && puedeRelimpiarPieza(hab)">
+                            <button type="button" @click.stop="abrirRelimpiar(hab)"
+                                    class="w-full min-h-[44px] px-3 py-2 flex items-center justify-center gap-1.5 text-center border-t transition"
+                                    :class="claseInspeccion(hab)" :title="tituloInspeccion(hab)">
+                                <span class="inline-flex shrink-0"><i data-lucide="rotate-cw" class="w-4 h-4"></i></span>
+                                <span class="font-oswald text-xs sm:text-sm font-semibold uppercase tracking-wide leading-tight line-clamp-2 break-words" x-text="textoRelimpiar(hab)"></span>
+                            </button>
                         </template>
                     </div>
                 </template>
@@ -528,7 +541,7 @@ $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edific
 </div>
 
 <script>
-function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota, puedeInspeccionar, puedeGestionarEdificios) {
+function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota, puedeInspeccionar, puedeGestionarEdificios, puedeRelimpiar) {
     return {
         puedeVerTodas: puedeVerTodas,
         usuarioId: usuarioId,
@@ -536,6 +549,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         puedeAgregarNota: puedeAgregarNota,
         puedeInspeccionar: !!puedeInspeccionar,
         puedeGestionarEdificios: !!puedeGestionarEdificios,
+        puedeRelimpiar: !!puedeRelimpiar,
         modalAccionesEstado: { abierta: false, hab: null },
         accionEstadoEnCurso: false,
         // Formulario de mensaje a la mucama (dentro del mismo modal de acciones): se pega
@@ -777,6 +791,38 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             var base = (r.resultado === 'si' ? 'Inspección pre-entrega aprobada' : 'Inspección pre-entrega no aprobada: ' + (r.motivo_nombre || ''))
                 + ' · ' + this.cuandoInspeccion(r) + (quien ? ' · ' + quien : '');
             return r.comentario ? base + ' — ' + r.comentario : base;
+        },
+
+        // ── Re-limpiar (v6.18): la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó ──
+        tieneNoVigente(hab) {
+            return !!hab.revision_vigente && hab.revision_vigente.resultado === 'no';
+        },
+
+        puedeRelimpiarPieza(hab) {
+            return this.puedeRelimpiar && !!hab.revision_vigente && !!hab.revision_vigente.relimpiable;
+        },
+
+        abrirRelimpiar(hab) {
+            window.dispatchEvent(new CustomEvent('abrir-relimpiar-entrega', {
+                detail: { revision: hab.revision_vigente, habitacion: { id: hab.id, numero: hab.numero, hotel_codigo: hab.hotel_codigo } }
+            }));
+        },
+
+        // «No aprobada · Baño sucio · Re-limpiar»; ya asignada con el botón: «Re-limpieza: Ana»; con el
+        // interruptor, de vuelta en la cola de quien la limpió: «… · En cola de Ana».
+        textoRelimpiar(hab) {
+            var r = hab.revision_vigente;
+            var primer = function (n) { return String(n || '').trim().split(/\s+/)[0] || ''; };
+            if (r.relimpieza_trabajador) return 'Re-limpieza: ' + primer(r.relimpieza_trabajador);
+            var base = 'No aprobada · ' + (r.motivo_nombre || '');
+            if (hab.estado === 'sucia' && hab.asignado_a_nombre) return base + ' · En cola de ' + primer(hab.asignado_a_nombre);
+            return base + ' · Re-limpiar';
+        },
+
+        // La ventana asignó la re-limpieza: se recarga la lista (estado, asignada y franja salen del servidor).
+        onRelimpiezaPedida(d) {
+            if (!d || !d.habitacion_id) return;
+            this.cargar();
         },
 
         // Botón "N": si ya es nochero, quitarlo es un solo paso (confirm nativo, sin

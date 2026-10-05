@@ -32,6 +32,7 @@ final class RevisionEntregaRutasTest extends TestCase
         ['PUT', '/api/revision-entrega/motivos/1'],
         ['GET', '/api/revision-entrega/config'],
         ['PUT', '/api/revision-entrega/config'],
+        ['POST', '/api/revision-entrega/1/relimpiar'],
         ['GET', '/api/reportes/revision-entrega'],
     ];
 
@@ -108,6 +109,14 @@ final class RevisionEntregaRutasTest extends TestCase
         $this->assertSame(200, $this->pedir('GET', '/api/revision-entrega/motivos', 'supervisora')->status);
         $this->assertSame(200, $this->pedir('PUT', '/api/revision-entrega/config', 'supervisora', ['no_ensucia' => true])->status);
         $this->assertSame(403, $this->pedir('GET', '/api/revision-entrega/formulario', 'supervisora')->status, 'la supervisora no inspecciona');
+
+        // «Re-limpiar» es una asignación: Recepción no la tiene; la supervisora pasa el middleware (y la
+        // revisión 99999 no existe).
+        $recepcion = $this->pedir('POST', '/api/revision-entrega/99999/relimpiar', 'recepcion', ['trabajador_id' => 1]);
+        $this->assertSame('PERMISO_INSUFICIENTE', $this->codigo($recepcion));
+        $supervisora = $this->pedir('POST', '/api/revision-entrega/99999/relimpiar', 'supervisora', ['trabajador_id' => 1]);
+        $this->assertSame(404, $supervisora->status);
+        $this->assertSame('REVISION_NO_ENCONTRADA', $this->codigo($supervisora));
     }
 
     public function testElModoEspiaNoEscribe(): void

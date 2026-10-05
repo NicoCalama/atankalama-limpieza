@@ -511,9 +511,14 @@ final class Kernel
         ]);
 
         // Inspección pre-entrega (v6.18, docs/revision-entrega.md; en código «revision_entrega»). Se
-        // registra desde la tarjeta de la pieza en Habitaciones (GET /api/habitaciones trae el resultado
-        // de hoy). La ventana del NO pide /formulario; /motivos y /config quedan solo para Ajustes.
+        // registra desde la tarjeta de la pieza en Habitaciones (GET /api/habitaciones trae la revisión
+        // vigente). La ventana del NO pide /formulario; /motivos y /config quedan solo para Ajustes.
+        // «Re-limpiar» es una asignación: la usa quien asigna (Supervisora), no Recepción.
         $revisionEntrega = new RevisionEntregaController();
+        $router->post('/api/revision-entrega/{id}/relimpiar', [$revisionEntrega, 'relimpiar'], [
+            $authCheck,
+            new PermissionCheck('asignaciones.asignar_manual'),
+        ]);
         $router->get('/api/revision-entrega/formulario', [$revisionEntrega, 'formulario'], [
             $authCheck,
             new PermissionCheck('revision_entrega.registrar'),

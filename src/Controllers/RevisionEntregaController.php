@@ -154,6 +154,33 @@ final class RevisionEntregaController
         }
     }
 
+    /**
+     * POST /api/revision-entrega/{id}/relimpiar {trabajador_id, prioridad} — botón «Re-limpiar» de la
+     * supervisora sobre una pieza que Recepción no aprobó. La ruta exige asignaciones.asignar_manual (es
+     * una asignación); la prioridad (primera de la cola) exige además reordenar la cola.
+     */
+    public function relimpiar(Request $request): Response
+    {
+        if (($error = $this->exigir($request, 'asignaciones.asignar_manual')) !== null) {
+            return $error;
+        }
+        $id = $request->rutaInt('id');
+        $trabajadorId = $request->inputInt('trabajador_id');
+        if ($id === null || $trabajadorId === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'Elige a quién le asignas la re-limpieza.', 400);
+        }
+        $prioridad = $request->input('prioridad') === true;
+        if ($prioridad && !$request->usuario->tienePermiso('asignaciones.reordenar_cola_trabajador')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para cambiar el orden de la cola.', 403);
+        }
+        try {
+            $revision = $this->servicio()->pedirRelimpieza($id, $trabajadorId, $prioridad, $request->usuario->id);
+        } catch (RevisionEntregaException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['revision' => $revision]);
+    }
+
     /** GET /api/revision-entrega/motivos?todos=1 (Ajustes; el modal del NO usa /piezas). */
     public function listarMotivos(Request $request): Response
     {

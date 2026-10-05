@@ -127,7 +127,8 @@ final class RevisionEntregaServiceTest extends TestCase
         $this->assertSame('revision_entrega_no', $n['tipo']);
         $this->assertSame('Hab. 101 (Atankalama): pre-entrega no aprobada', $n['titulo']);
         $this->assertStringStartsWith('Baño sucio: «la tina quedó con pelos». Revisó Carla a las ', $n['cuerpo']);
-        $this->assertStringEndsWith('Hay foto.', $n['cuerpo']);
+        $this->assertStringContainsString('. Hay foto.', $n['cuerpo']);
+        $this->assertStringEndsWith('Si hay que rehacerla, usa «Re-limpiar» en la pieza.', $n['cuerpo'], 'la pieza estaba aprobada: se puede re-limpiar');
         $this->assertStringNotContainsString('sucia', mb_strtolower(str_replace('Baño sucio', '', $n['cuerpo'])), 'con el interruptor apagado no dice que volvió a sucia');
         $this->assertStringEndsWith('/habitaciones/' . $this->hab['101'], $n['url']);
     }

@@ -141,6 +141,11 @@
             <?php include __DIR__ . '/componentes/modal-inspeccion-pre-entrega.php'; ?>
         <?php endif; ?>
 
+        <!-- Ventana «Re-limpiar» de una pieza que Recepción no aprobó (v6.18): es una asignación -->
+        <?php if ($usuario->tienePermiso('asignaciones.asignar_manual')): ?>
+            <?php include __DIR__ . '/componentes/modal-relimpiar-entrega.php'; ?>
+        <?php endif; ?>
+
         <!-- Modal asignación masiva de turno (varios días a la vez) -->
         <?php if ($usuario->tienePermiso('turnos.asignar_a_usuario')): ?>
             <?php include __DIR__ . '/componentes/modal-turno-masivo.php'; ?>

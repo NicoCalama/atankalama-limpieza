@@ -107,6 +107,57 @@ final class RevisionEntregaControllerTest extends TestCase
         $this->assertSame($primera['revision']['id'], $segunda['revision']['id']);
     }
 
+    /**
+     * «Re-limpiar» (v6.18): es una asignación (asignaciones.asignar_manual); la prioridad exige además
+     * reordenar la cola. Lo de fondo (cola, KPIs) está en RevisionEntregaRelimpiezaTest.
+     */
+    public function testRelimpiarExigePermisosDeAsignarYDeReordenarParaLaPrioridad(): void
+    {
+        $no = $this->ok($this->ctrl->registrar($this->req('POST', [
+            'habitacion_id' => (string) $this->hab101, 'resultado' => 'no', 'motivo_id' => (string) $this->motivo,
+        ])), 201)['revision'];
+        $this->assertTrue($no['relimpiable'], 'NO sobre una pieza aprobada');
+        $ruta = ['id' => (string) $no['id']];
+        $cuerpo = ['trabajador_id' => $this->ana, 'prioridad' => true];
+
+        $this->error($this->ctrl->relimpiar($this->req('POST', $cuerpo, ruta: $ruta, permisos: null)), 401, 'NO_AUTENTICADO');
+        $this->error($this->ctrl->relimpiar($this->req('POST', $cuerpo, ruta: $ruta)), 403, 'SIN_PERMISO');
+        $this->error(
+            $this->ctrl->relimpiar($this->req('POST', $cuerpo, ruta: $ruta, permisos: ['asignaciones.asignar_manual'])),
+            403,
+            'SIN_PERMISO'
+        );
+        $this->error(
+            $this->ctrl->relimpiar($this->req('POST', ['prioridad' => true], ruta: $ruta, permisos: ['asignaciones.asignar_manual'])),
+            400,
+            'PARAMETROS_INVALIDOS'
+        );
+
+        $sinPrioridad = $this->ok($this->ctrl->relimpiar($this->req('POST', ['trabajador_id' => $this->ana, 'prioridad' => false], ruta: $ruta, permisos: ['asignaciones.asignar_manual'])));
+        $this->assertSame('Ana', $sinPrioridad['revision']['relimpieza_trabajador']);
+        $this->assertSame('sucia', Database::fetchColumn('SELECT estado FROM habitaciones WHERE id = ?', [$this->hab101]));
+
+        // Con los dos permisos y prioridad (vuelve a asignarla: la revisión sigue vigente hasta que empiecen).
+        $conPrioridad = $this->ok($this->ctrl->relimpiar($this->req('POST', $cuerpo, ruta: $ruta, permisos: [
+            'asignaciones.asignar_manual', 'asignaciones.reordenar_cola_trabajador',
+        ])));
+        $this->assertSame('Ana', $conPrioridad['revision']['relimpieza_trabajador']);
+    }
+
+    public function testElDetalleDiceSiLaRevisionSigueVigente(): void
+    {
+        $this->ctrl->registrar($this->req('POST', ['habitacion_id' => (string) $this->hab101, 'resultado' => 'no', 'motivo_id' => (string) $this->motivo]));
+        $detalle = function (): array {
+            $r = new Request(metodo: 'GET', path: '/api/habitaciones/' . $this->hab101, cuerpo: [], ruta: ['id' => (string) $this->hab101], query: [], cookies: [], headers: []);
+            $r->usuario = $this->usuario(['habitaciones.ver_todas']);
+            return $this->ok((new HabitacionesController())->obtener($r))['habitacion']['revision_entrega'];
+        };
+        $this->assertTrue($detalle()['vigente']);
+
+        Database::execute('UPDATE habitaciones SET estado = ? WHERE id = ?', ['sucia', $this->hab101]);
+        $this->assertFalse($detalle()['vigente'], 'la pieza cambió de estado: ya no se ofrece «Re-limpiar»');
+    }
+
     public function testRegistrarValidaSesionPermisoYDatos(): void
     {
         $base = ['habitacion_id' => (string) $this->hab101, 'resultado' => 'si'];

@@ -43,6 +43,11 @@ final class RecursosVistaTest extends TestCase
         $inspeccion = $this->pedir('componentes/modal-inspeccion-pre-entrega.js');
         $this->assertSame(200, $inspeccion->status);
         $this->assertStringContainsString('function modalInspeccionPreEntrega()', $inspeccion->cuerpo);
+
+        // Y la ventana «Re-limpiar» de la supervisora.
+        $relimpiar = $this->pedir('componentes/modal-relimpiar-entrega.js');
+        $this->assertSame(200, $relimpiar->status);
+        $this->assertStringContainsString('function modalRelimpiarEntrega(', $relimpiar->cuerpo);
     }
 
     /** @return array<string, array{string}> */

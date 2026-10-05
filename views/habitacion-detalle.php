@@ -16,7 +16,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 ?>
 
 <div x-data="habitacionDetalleApp(<?= (int) $habitacionId ?>, <?= (int) $usuario->id ?>)"
-     x-init="cargar(); iniciarListeners();">
+     x-init="cargar(); iniciarListeners();"
+     @relimpieza-pedida.window="if ($event.detail && $event.detail.habitacion_id === habitacionId) cargar()">
 
     <?php /* Bandera para la Vista Guiada: gatea el recorrido «Dar por limpia» (solo supervisión). */ ?>
     <div data-vg-context='{"puede_marcar_limpia": <?= $usuario->tienePermiso('habitaciones.marcar_limpia_manual') ? 'true' : 'false' ?>}' hidden></div>
@@ -192,9 +193,19 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                         <p class="text-sm font-semibold" x-text="habitacion.revision_entrega.motivo_nombre"></p>
                                         <p x-show="habitacion.revision_entrega.comentario" class="text-sm whitespace-pre-wrap" x-text="habitacion.revision_entrega.comentario"></p>
                                         <p x-show="habitacion.revision_entrega.paso_a_sucia" class="text-xs font-medium mt-0.5">La pieza volvió a sucia.</p>
+                                        <p x-show="habitacion.revision_entrega.relimpieza_trabajador" class="text-xs font-medium mt-0.5"
+                                           x-text="'Re-limpieza asignada a ' + (habitacion.revision_entrega.relimpieza_trabajador || '') + (habitacion.revision_entrega.relimpieza_iniciada ? ' (ya empezó).' : '.')"></p>
                                     </div>
                                 </template>
                                 <p class="text-xs opacity-80 mt-0.5" x-text="textoRevisionEntrega(habitacion.revision_entrega)"></p>
+                                <!-- «Re-limpiar» (v6.18): un NO vigente sobre una pieza aprobada, para quien puede asignar. -->
+                                <template x-if="puedeAsignar && habitacion.revision_entrega.relimpiable && habitacion.revision_entrega.vigente">
+                                    <button type="button" @click="abrirRelimpiar()"
+                                            class="mt-2 min-h-[44px] px-4 inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">
+                                        <span class="inline-flex"><i data-lucide="rotate-cw" class="w-4 h-4"></i></span>
+                                        <span x-text="habitacion.revision_entrega.relimpieza_trabajador ? 'Cambiar quién la re-limpia' : 'Re-limpiar'"></span>
+                                    </button>
+                                </template>
                             </div>
                             <template x-if="habitacion.revision_entrega.foto_url">
                                 <a :href="habitacion.revision_entrega.foto_url" target="_blank" rel="noopener" class="flex-shrink-0" aria-label="Ver foto">
@@ -277,11 +288,13 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </button>
                 </template>
 
-                <!-- No asignada y sucia -->
+                <!-- Sucia y no está en MI cola: o la tiene otra persona hoy, o falta asignarla. (Antes decía
+                     «pendiente de asignación» aunque estuviera asignada a otra; arreglado en la v6.18.) -->
                 <template x-if="habitacion.estado === 'sucia' && !estaAsignada && puedeVerTodas">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                        Esta habitación está pendiente de asignación.
-                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2"
+                       x-text="habitacion.asignado_a_nombre
+                           ? 'Asignada hoy a ' + habitacion.asignado_a_nombre + '.'
+                           : 'Esta habitación está pendiente de asignación.'"></p>
                 </template>
 
                 <!-- Asignada a mí pero no es mi turno todavía (flujo "una a la vez": si llegué
@@ -702,6 +715,15 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             var p = String(iso).split('-');
             if (p.length !== 3) return iso;
             return p[2] + '/' + p[1] + '/' + p[0];
+        },
+
+        // «Re-limpiar» (v6.18): abre la ventana compartida (componentes/modal-relimpiar-entrega.php).
+        abrirRelimpiar() {
+            var h = this.habitacion;
+            if (!h || !h.revision_entrega) return;
+            window.dispatchEvent(new CustomEvent('abrir-relimpiar-entrega', {
+                detail: { revision: h.revision_entrega, habitacion: { id: h.id, numero: h.numero, hotel_codigo: h.hotel_codigo } }
+            }));
         },
 
         // Pie de la tarjeta de la inspección pre-entrega: «Hoy 14:32 · Carla P.» si fue hoy, o

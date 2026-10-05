@@ -731,16 +731,27 @@ CREATE TABLE revisiones_entrega (
     ejecucion_id     INTEGER,                                  -- última limpieza de la pieza a ese momento
     auditoria_id     INTEGER,                                  -- inspección de esa limpieza (quién la aprobó), si hubo
     idempotency_key  TEXT,                                     -- UUID del cliente: un reintento por red no duplica fila ni aviso
+    -- Re-limpieza por este NO (botón «Re-limpiar» de la supervisora o el interruptor prendido). La limpieza
+    -- que la rehace queda fuera de los KPIs de aseo y de inspección (decisión de Nicolás, 05/10/2026).
+    relimpieza_asignacion_id INTEGER,                          -- asignación que creó «Re-limpiar» (NULL con el interruptor solo)
+    relimpieza_pedida_por    INTEGER,                          -- supervisora que tocó «Re-limpiar»
+    relimpieza_pedida_at     TEXT,                             -- cuándo la pidió (ISO UTC)
+    relimpieza_ejecucion_id  INTEGER,                          -- la limpieza que la rehizo (se vincula al empezarla)
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE RESTRICT,
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
     FOREIGN KEY (motivo_id) REFERENCES motivos_revision_entrega(id) ON DELETE RESTRICT,
     FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE SET NULL,
-    FOREIGN KEY (auditoria_id) REFERENCES auditorias(id) ON DELETE SET NULL
+    FOREIGN KEY (auditoria_id) REFERENCES auditorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_pedida_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_revisiones_entrega_hab_fecha ON revisiones_entrega(habitacion_id, created_at);
 CREATE INDEX idx_revisiones_entrega_created ON revisiones_entrega(created_at);
 CREATE INDEX idx_revisiones_entrega_auditoria ON revisiones_entrega(auditoria_id);
+CREATE INDEX idx_revisiones_entrega_relimpieza ON revisiones_entrega(relimpieza_ejecucion_id);
+CREATE INDEX idx_revisiones_entrega_relimp_asig ON revisiones_entrega(relimpieza_asignacion_id);
 CREATE UNIQUE INDEX idx_revisiones_entrega_idem ON revisiones_entrega(idempotency_key);
 
 -- ============================================================================

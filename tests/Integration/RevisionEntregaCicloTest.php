@@ -135,7 +135,29 @@ final class RevisionEntregaCicloTest extends TestCase
         $this->assertSame([], $this->cb->peticiones, 'ninguna escritura a Cloudbeds');
         $this->assertSame(1, $this->auditorias(), 'la inspección sigue siendo una sola');
         $this->assertSame(0, (int) Database::fetchColumn("SELECT COUNT(*) FROM cloudbeds_sync_historial WHERE tipo = 'escritura_estado'"));
-        $this->assertEquals($antes, $this->indicadores(), 'KPIs, ficha y resumen mensual iguales');
+
+        // KPIs de aseo e inspección iguales; lo único que cambia es la columna «Recepción» de la supervisora
+        // que aprobó la pieza: el NO le cuenta a ella (un NO y un SÍ sobre la misma aprobación = no aprobada).
+        $despues = $this->indicadores();
+        $sofia = array_values(array_filter(
+            $despues['ficha']['supervisoras']['inspectoras'],
+            fn (array $i): bool => $i['usuario_id'] === $this->sofia
+        ))[0] ?? [];
+        $this->assertSame([0, 1], [$sofia['recepcion_aprobadas'] ?? null, $sofia['recepcion_rechazadas'] ?? null]);
+        $this->assertEquals($this->sinRecepcion($antes), $this->sinRecepcion($despues), 'KPIs, ficha y resumen mensual iguales');
+    }
+
+    /**
+     * @param array<string, mixed> $indicadores
+     * @return array<string, mixed>
+     */
+    private function sinRecepcion(array $indicadores): array
+    {
+        foreach ($indicadores['ficha']['supervisoras']['inspectoras'] as &$i) {
+            unset($i['recepcion_aprobadas'], $i['recepcion_rechazadas']);
+        }
+        unset($i);
+        return $indicadores;
     }
 
     public function testConElInterruptorApagadoUnNoDejaIgualesLosSieteEstados(): void
@@ -179,7 +201,12 @@ final class RevisionEntregaCicloTest extends TestCase
         $this->assertSame(['desde' => 'aprobada', 'hasta' => 'sucia'], json_decode((string) $cambio['detalles_json'], true));
 
         $cuerpo = (string) Database::fetchColumn('SELECT cuerpo FROM notificaciones WHERE usuario_id = ?', [$this->sofia]);
-        $this->assertStringEndsWith('La pieza volvió a sucia: asígnala desde Asignaciones.', $cuerpo);
+        $this->assertStringEndsWith('La pieza volvió a sucia y a la cola de Ana; puedes cambiarla con «Re-limpiar».', $cuerpo);
+        // La limpió Ana hoy: la pieza vuelve sola a su cola y a ella se le avisa (antes no se enteraba).
+        $aviso = Database::fetchOne("SELECT titulo, cuerpo FROM notificaciones WHERE usuario_id = ? AND tipo = 'asignacion' ORDER BY id DESC LIMIT 1", [$this->ana]);
+        $this->assertSame('Hab. 101 de vuelta en tu cola', $aviso['titulo'] ?? null);
+        $this->assertStringContainsString('Baño sucio', (string) ($aviso['cuerpo'] ?? ''));
+        $this->assertSame('101', (new AsignacionService())->habitacionActualDeCola($this->ana, $this->hoy)['numero'] ?? null);
         $this->assertSame(1, $this->auditorias(), 'nunca escribe auditorias');
         $this->assertSame(
             'no',

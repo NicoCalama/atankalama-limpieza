@@ -43,6 +43,7 @@ $tHabitaciones = Database::tabla('habitaciones');
 $tUsuarios     = Database::tabla('usuarios');
 $tEjecuciones  = Database::tabla('ejecuciones_checklist');
 $tAuditorias   = Database::tabla('auditorias');
+$tAsignaciones = Database::tabla('asignaciones');
 
 // 1. Tablas
 if ($esMaria) {
@@ -68,16 +69,25 @@ if ($esMaria) {
             ejecucion_id     INT NULL,
             auditoria_id     INT NULL,
             idempotency_key  VARCHAR(64) NULL,
+            relimpieza_asignacion_id INT NULL,
+            relimpieza_pedida_por    INT NULL,
+            relimpieza_pedida_at     VARCHAR(30) NULL,
+            relimpieza_ejecucion_id  INT NULL,
             created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
             UNIQUE KEY idx_revisiones_entrega_idem (idempotency_key),
             KEY idx_revisiones_entrega_hab_fecha (habitacion_id, created_at),
             KEY idx_revisiones_entrega_created (created_at),
             KEY idx_revisiones_entrega_auditoria (auditoria_id),
+            KEY idx_revisiones_entrega_relimpieza (relimpieza_ejecucion_id),
+            KEY idx_revisiones_entrega_relimp_asig (relimpieza_asignacion_id),
             FOREIGN KEY (habitacion_id) REFERENCES {$tHabitaciones}(id) ON DELETE RESTRICT,
             FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT,
             FOREIGN KEY (motivo_id) REFERENCES {$tMotivos}(id) ON DELETE RESTRICT,
             FOREIGN KEY (ejecucion_id) REFERENCES {$tEjecuciones}(id) ON DELETE SET NULL,
-            FOREIGN KEY (auditoria_id) REFERENCES {$tAuditorias}(id) ON DELETE SET NULL
+            FOREIGN KEY (auditoria_id) REFERENCES {$tAuditorias}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_asignacion_id) REFERENCES {$tAsignaciones}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_pedida_por) REFERENCES {$tUsuarios}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES {$tEjecuciones}(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 } else {
@@ -103,17 +113,26 @@ if ($esMaria) {
             ejecucion_id     INTEGER,
             auditoria_id     INTEGER,
             idempotency_key  TEXT,
+            relimpieza_asignacion_id INTEGER,
+            relimpieza_pedida_por    INTEGER,
+            relimpieza_pedida_at     TEXT,
+            relimpieza_ejecucion_id  INTEGER,
             created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             FOREIGN KEY (habitacion_id) REFERENCES {$tHabitaciones}(id) ON DELETE RESTRICT,
             FOREIGN KEY (usuario_id) REFERENCES {$tUsuarios}(id) ON DELETE RESTRICT,
             FOREIGN KEY (motivo_id) REFERENCES {$tMotivos}(id) ON DELETE RESTRICT,
             FOREIGN KEY (ejecucion_id) REFERENCES {$tEjecuciones}(id) ON DELETE SET NULL,
-            FOREIGN KEY (auditoria_id) REFERENCES {$tAuditorias}(id) ON DELETE SET NULL
+            FOREIGN KEY (auditoria_id) REFERENCES {$tAuditorias}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_asignacion_id) REFERENCES {$tAsignaciones}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_pedida_por) REFERENCES {$tUsuarios}(id) ON DELETE SET NULL,
+            FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES {$tEjecuciones}(id) ON DELETE SET NULL
         )"
     );
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_revisiones_entrega_hab_fecha ON {$tRevisiones}(habitacion_id, created_at)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_revisiones_entrega_created ON {$tRevisiones}(created_at)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_revisiones_entrega_auditoria ON {$tRevisiones}(auditoria_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_revisiones_entrega_relimpieza ON {$tRevisiones}(relimpieza_ejecucion_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_revisiones_entrega_relimp_asig ON {$tRevisiones}(relimpieza_asignacion_id)");
     $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_revisiones_entrega_idem ON {$tRevisiones}(idempotency_key)");
 }
 echo "Tablas {$tMotivos} y {$tRevisiones} listas.\n";

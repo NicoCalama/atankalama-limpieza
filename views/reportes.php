@@ -526,6 +526,7 @@
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechaz.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Minutos promedio desde que abre la pieza hasta que da el veredicto. Solo inspecciones desde que se activó la medición.">T. por insp.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Lo que ella inspeccionó sobre todo lo limpiado en la sección.">Aporte cobert.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -547,6 +548,9 @@
                                                 <span class="text-gray-700 dark:text-gray-300" x-text="fmtPct(i.aporte_cobertura_pct)"></span>
                                                 <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.aporte_cobertura_pct, ' pts')"></span>
                                             </td>
+                                            <td class="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                                                <span class="font-semibold text-emerald-700 dark:text-emerald-400" x-text="i.recepcion_aprobadas"></span><span class="text-gray-400 dark:text-gray-500"> / </span><span class="font-semibold text-red-700 dark:text-red-400" x-text="i.recepcion_rechazadas"></span>
+                                            </td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -557,6 +561,7 @@
                                         <td class="px-3 py-2" colspan="3"></td>
                                         <td class="px-3 py-2 text-right" x-text="ficha.supervisoras.comparativa.tiempo_auditacion.promedio === null ? '—' : (ficha.supervisoras.comparativa.tiempo_auditacion.promedio + ' min')"></td>
                                         <td class="px-3 py-2 text-right" x-text="fmtPct(ficha.supervisoras.comparativa.aporte_cobertura_pct.promedio)"></td>
+                                        <td class="px-3 py-2"></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -738,6 +743,7 @@
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Casillas del checklist que desmarcó al inspeccionar (en aprobadas con observación y en rechazadas). Es lo mismo que «Observ.» de los trabajadores, contado desde quien inspecciona.">Observaciones</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -749,6 +755,9 @@
                                     <td class="px-4 py-3 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="a.aprobadas_observacion"></td>
                                     <td class="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold" x-text="a.rechazadas"></td>
                                     <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-semibold" x-text="a.observaciones"></td>
+                                    <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">
+                                        <span class="font-semibold text-emerald-700 dark:text-emerald-400" x-text="a.recepcion_aprobadas"></span><span class="text-gray-400 dark:text-gray-500"> / </span><span class="font-semibold text-red-700 dark:text-red-400" x-text="a.recepcion_rechazadas"></span>
+                                    </td>
                                 </tr>
                             </template>
                         </tbody>

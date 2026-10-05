@@ -43,6 +43,7 @@ final class RevisionEntregaService
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly PushService $push = new PushService(),
         private readonly ?CloudbedsSyncService $cloudbeds = null,
+        private readonly AsignacionService $asignaciones = new AsignacionService(),
     ) {
     }
 
@@ -89,32 +90,37 @@ final class RevisionEntregaService
      * prendido) no cuenta: se hace ANTES de guardar la revisión (ver registrar()).
      *
      * Dos condiciones, porque no todo cambio de estado deja rastro igual:
-     *   1. La pieza sigue en el estado en que quedó al revisarla (estado_pieza, o 'sucia' si ese NO la
-     *      devolvió a sucia). Cubre los cambios que no pasan por cambiarEstado() (la (re)asignación y la
-     *      desasignación de AsignacionService la ponen 'sucia' con un UPDATE directo, sin audit_log).
+     *   1. La pieza sigue en el estado en que quedó al revisarla: estado_pieza, o 'sucia' si ese NO la
+     *      devolvió a sucia (interruptor) o la supervisora la mandó a re-limpiar (pedirRelimpieza). Cubre
+     *      los cambios que no pasan por cambiarEstado() (la (re)asignación y la desasignación de
+     *      AsignacionService la ponen 'sucia' con un UPDATE directo, sin audit_log).
      *   2. Su último 'habitacion.cambiar_estado' del audit_log no es posterior a la revisión. Cubre las
      *      idas y vueltas (aprobada → sucia → … → aprobada de nuevo). Se busca solo el último cambio de
      *      cada pieza (índice entidad/entidad_id, de atrás hacia adelante), así no recorre todo el historial.
      *      Las dos fechas salen del reloj de la base (created_at por defecto); el empate de milisegundo con
      *      el cambio que provocó la propia revisión cuenta como anterior.
+     * Así, un NO mandado a re-limpiar se sigue viendo hasta que empiezan a limpiar la pieza.
      *
+     * @param int|null $habitacionId solo esa pieza (el detalle); null = todas (la lista)
      * @return array<int, array<string, mixed>>
      */
-    public function revisionesVigentes(): array
+    public function revisionesVigentes(?int $habitacionId = null): array
     {
+        $soloPieza = $habitacionId !== null ? ' AND r.habitacion_id = ?' : '';
         $filas = Database::fetchAll(
             self::SELECT_REVISION . "
                JOIN (SELECT habitacion_id, MAX(id) AS id
                        FROM #__revisiones_entrega
                       GROUP BY habitacion_id) ult ON ult.id = r.id
-              WHERE ((r.paso_a_sucia = 1 AND h.estado = 'sucia')
-                     OR (r.paso_a_sucia = 0 AND h.estado = r.estado_pieza))
+              WHERE (((r.paso_a_sucia = 1 OR r.relimpieza_pedida_at IS NOT NULL) AND h.estado = 'sucia')
+                     OR (r.paso_a_sucia = 0 AND r.relimpieza_pedida_at IS NULL AND h.estado = r.estado_pieza))
                 AND COALESCE((SELECT al.created_at
                                 FROM #__audit_log al
                                WHERE al.entidad = 'habitacion' AND al.entidad_id = r.habitacion_id
                                  AND al.accion = 'habitacion.cambiar_estado'
                                ORDER BY al.id DESC
-                               LIMIT 1), '') <= r.created_at"
+                               LIMIT 1), '') <= r.created_at{$soloPieza}",
+            $habitacionId !== null ? [$habitacionId] : []
         );
         $porPieza = [];
         foreach ($filas as $fila) {
@@ -319,8 +325,12 @@ final class RevisionEntregaService
             throw $e;
         }
 
+        // Con el interruptor, la pieza vuelve sola a la cola de quien la tenía asignada hoy (la que la
+        // limpió): se le avisa a ella y el aviso a las supervisoras dice en qué cola quedó.
+        $colaDe = null;
         if ($pasaASucia) {
             $this->avisarDirtyACloudbeds($habitacionId, $hab['cloudbeds_room_id'] !== null);
+            $colaDe = $this->avisarColaDeVuelta($hab, (string) $motivoNombre);
         }
 
         Logger::audit($usuarioId, 'revision_entrega.registrar', 'habitacion', $habitacionId, [
@@ -337,7 +347,16 @@ final class RevisionEntregaService
 
         if ($resultado === self::RESULTADO_NO) {
             try {
-                $this->avisarSupervisoras($hab, (string) $motivoNombre, $comentario, $fotoRuta !== null, $pasaASucia, $usuarioId);
+                $this->avisarSupervisoras(
+                    $hab,
+                    (string) $motivoNombre,
+                    $comentario,
+                    $fotoRuta !== null,
+                    $pasaASucia,
+                    $colaDe,
+                    in_array($estadoAntes, Habitacion::ESTADOS_APROBADOS, true),
+                    $usuarioId,
+                );
             } catch (\Throwable $e) {
                 // La revisión ya quedó guardada: un aviso que falla nunca le devuelve error a Recepción.
                 Logger::error('revision_entrega', 'no se pudo avisar a las supervisoras', [
@@ -393,10 +412,47 @@ final class RevisionEntregaService
     }
 
     /**
+     * Interruptor prendido: la pieza volvió a sucia y, si hoy la tenía asignada alguien (quien la limpió),
+     * volvió a su cola, en su lugar de siempre. Se le avisa (campanita + push si está de turno) para que
+     * no le aparezca sin explicación. Best-effort: un aviso que falla no tumba la revisión.
+     * Devuelve el primer nombre de esa persona, o null si la pieza quedó sin asignar.
+     *
+     * @param array<string, mixed> $hab
+     */
+    private function avisarColaDeVuelta(array $hab, string $motivo): ?string
+    {
+        try {
+            $asignacion = $this->asignaciones->obtenerActivaDeHabitacion((int) $hab['id'], date('Y-m-d'));
+            if ($asignacion === null) {
+                return null;
+            }
+            $nombre = (string) Database::fetchColumn('SELECT nombre FROM #__usuarios WHERE id = ?', [$asignacion->usuarioId]);
+            $this->push->notificar(
+                [$asignacion->usuarioId],
+                "Hab. {$hab['numero']} de vuelta en tu cola",
+                "Recepción no la aprobó para entregar ({$motivo}). Hay que volver a limpiarla.",
+                "/habitaciones/{$hab['id']}",
+                [],
+                true,
+                'asignacion'
+            );
+            return explode(' ', trim($nombre))[0];
+        } catch (\Throwable $e) {
+            Logger::error('revision_entrega', 'no se pudo avisar a quien tenía la pieza en su cola', [
+                'habitacion_id' => $hab['id'],
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Aviso a quienes reciben las alertas operativas (permiso alertas.recibir_predictivas), sin el
      * usuario del cron ni quien registró el NO. Sin dedupe: cada NO es un evento.
      *
      * @param array<string, mixed> $hab
+     * @param string|null $colaDe   con el interruptor, a la cola de quién volvió (null = quedó sin asignar)
+     * @param bool        $aprobada la pieza estaba aprobada: se puede mandar a re-limpiar
      */
     private function avisarSupervisoras(
         array $hab,
@@ -404,6 +460,8 @@ final class RevisionEntregaService
         ?string $comentario,
         bool $conFoto,
         bool $pasoASucia,
+        ?string $colaDe,
+        bool $aprobada,
         int $actorId,
     ): void {
         $ids = array_map('intval', array_column(Database::fetchAll(
@@ -430,7 +488,12 @@ final class RevisionEntregaService
             . ($comentario !== null ? ': «' . rtrim(mb_substr($comentario, 0, 140), '. ') . '»' : '')
             . ($primerNombre !== '' ? ". Revisó {$primerNombre} a las " . date('H:i') . '.' : '.')
             . ($conFoto ? ' Hay foto.' : '')
-            . ($pasoASucia ? ' La pieza volvió a sucia: asígnala desde Asignaciones.' : '');
+            . match (true) {
+                $pasoASucia && $colaDe !== null => " La pieza volvió a sucia y a la cola de {$colaDe}; puedes cambiarla con «Re-limpiar».",
+                $pasoASucia => ' La pieza volvió a sucia y quedó sin asignar: asígnala con «Re-limpiar».',
+                $aprobada => ' Si hay que rehacerla, usa «Re-limpiar» en la pieza.',
+                default => '',
+            };
 
         $this->push->notificar($ids, $titulo, $cuerpo, "/habitaciones/{$hab['id']}", [], true, self::NOTIF_TIPO);
     }
@@ -438,12 +501,15 @@ final class RevisionEntregaService
     // ───────────────────────────── Lectura ─────────────────────────────
 
     private const SELECT_REVISION = 'SELECT r.*, m.nombre AS motivo_nombre, m.activo AS motivo_activo,
-                   u.nombre AS usuario_nombre, h.numero, ho.codigo AS hotel_codigo
+                   u.nombre AS usuario_nombre, h.numero, ho.codigo AS hotel_codigo,
+                   rlu.nombre AS relimpieza_trabajador_nombre
               FROM #__revisiones_entrega r
               JOIN #__habitaciones h ON h.id = r.habitacion_id
               JOIN #__hoteles ho ON ho.id = h.hotel_id
               JOIN #__usuarios u ON u.id = r.usuario_id
-         LEFT JOIN #__motivos_revision_entrega m ON m.id = r.motivo_id';
+         LEFT JOIN #__motivos_revision_entrega m ON m.id = r.motivo_id
+         LEFT JOIN #__asignaciones rla ON rla.id = r.relimpieza_asignacion_id
+         LEFT JOIN #__usuarios rlu ON rlu.id = rla.usuario_id';
 
     /** @return array<string, mixed>|null */
     public function obtener(int $id): ?array
@@ -492,14 +558,136 @@ final class RevisionEntregaService
             'created_at' => $creado,
             'fecha_local' => Fechas::fechaLocalDeUtc($creado),
             'hora_local' => Fechas::horaMinutoLocalDeUtc($creado),
+            // Un NO sobre una pieza aprobada: la supervisora la puede mandar a re-limpiar.
+            'relimpiable' => $f['resultado'] === self::RESULTADO_NO
+                && in_array($f['estado_pieza'], Habitacion::ESTADOS_APROBADOS, true),
+            // A quién se la dio «Re-limpiar» (null si nadie la pidió con el botón) y si ya empezaron.
+            'relimpieza_trabajador' => isset($f['relimpieza_trabajador_nombre']) ? (string) $f['relimpieza_trabajador_nombre'] : null,
+            'relimpieza_iniciada' => $f['relimpieza_ejecucion_id'] !== null,
         ];
+    }
+
+    // ───────────────────────────── Re-limpieza ─────────────────────────────
+
+    /**
+     * Botón «Re-limpiar» de la supervisora (decisión de Nicolás, 05/10/2026) sobre una pieza aprobada que
+     * Recepción no aprobó para entregar: se la asigna HOY a una trabajadora por el mismo camino que
+     * reasignar en Asignaciones (la pasa a sucia y avisa 'dirty' a Cloudbeds si estaba aprobada; a ella le
+     * llega «Nueva habitación asignada» con el motivo) y, con prioridad, la deja primera en su cola.
+     * Sirve igual con el interruptor prendido (la pieza ya está sucia: solo la asigna).
+     * La limpieza que la rehace no cuenta en los KPIs (vincularRelimpieza()).
+     *
+     * @return array<string, mixed> la revisión actualizada
+     */
+    public function pedirRelimpieza(int $revisionId, int $trabajadorId, bool $prioridad, int $actorId): array
+    {
+        $revision = $this->obtener($revisionId);
+        if ($revision === null) {
+            throw new RevisionEntregaException('REVISION_NO_ENCONTRADA', 'No encontramos esa inspección.', 404);
+        }
+        if (!$revision['relimpiable']) {
+            throw new RevisionEntregaException(
+                'RELIMPIEZA_NO_APLICA',
+                'Re-limpiar es para piezas aprobadas que Recepción no aprobó para entregar. Asígnala desde Asignaciones.',
+                409
+            );
+        }
+        $habitacionId = $revision['habitacion_id'];
+        $vigente = $this->revisionesVigentes($habitacionId)[$habitacionId] ?? null;
+        if ($vigente === null || $vigente['id'] !== $revisionId) {
+            throw new RevisionEntregaException(
+                'REVISION_NO_VIGENTE',
+                'La pieza cambió desde que Recepción la revisó. Recarga la pantalla.',
+                409
+            );
+        }
+        $trabajador = Database::fetchOne('SELECT id, nombre FROM #__usuarios WHERE id = ? AND activo = 1', [$trabajadorId]);
+        if ($trabajador === null) {
+            throw new RevisionEntregaException('TRABAJADOR_NO_ENCONTRADO', 'No encontramos a esa persona. Elige otra.', 404);
+        }
+
+        $hoy = date('Y-m-d');
+        $motivo = (string) ($revision['motivo_nombre'] ?? '');
+        try {
+            $asignacion = $this->asignaciones->reasignar(
+                $habitacionId,
+                $trabajadorId,
+                $hoy,
+                'Inspección pre-entrega no aprobada: ' . $motivo,
+                $actorId,
+                notaAviso: "Es una re-limpieza: Recepción no la aprobó para entregar ({$motivo}).",
+            );
+            if ($prioridad) {
+                $this->asignaciones->subirAlInicioDeCola($habitacionId, $trabajadorId, $hoy, $actorId);
+            }
+        } catch (AsignacionException $e) {
+            throw new RevisionEntregaException($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+
+        Database::execute(
+            'UPDATE #__revisiones_entrega
+                SET relimpieza_asignacion_id = ?, relimpieza_pedida_por = ?, relimpieza_pedida_at = ?
+              WHERE id = ?',
+            [$asignacion->id, $actorId, Database::now(), $revisionId]
+        );
+        Logger::audit($actorId, 'revision_entrega.pedir_relimpieza', 'habitacion', $habitacionId, [
+            'revision_id' => $revisionId,
+            'trabajador_id' => $trabajadorId,
+            'asignacion_id' => $asignacion->id,
+            'prioridad' => $prioridad,
+        ]);
+
+        return $this->obtener($revisionId) ?? $revision;
+    }
+
+    /**
+     * Al EMPEZAR una limpieza (ChecklistService::iniciarEjecucion): si la pieza tiene una re-limpieza por un
+     * NO pedida ese mismo día (botón «Re-limpiar» o interruptor prendido) y todavía sin limpieza, esta es
+     * esa re-limpieza y queda vinculada. Las limpiezas vinculadas no cuentan en los KPIs de aseo ni de
+     * inspección (ReportesService): no le suman a la trabajadora; el NO le cuenta a la supervisora que
+     * la había aprobado (decisión de Nicolás, 05/10/2026).
+     * Un pedido de otro día no se vincula: esa limpieza es la normal del día.
+     * Estático y solo con la base, para que ChecklistService no tenga que construir este servicio.
+     *
+     * @param string $fecha fecha (local) de la asignación de la limpieza que empieza
+     * @return int|null id de la revisión vinculada
+     */
+    public static function vincularRelimpieza(int $habitacionId, int $ejecucionId, string $fecha): ?int
+    {
+        $fila = Database::fetchOne(
+            "SELECT id, created_at, relimpieza_pedida_at
+               FROM #__revisiones_entrega
+              WHERE habitacion_id = ? AND resultado = 'no' AND relimpieza_ejecucion_id IS NULL
+                AND (paso_a_sucia = 1 OR relimpieza_pedida_at IS NOT NULL)
+              ORDER BY id DESC
+              LIMIT 1",
+            [$habitacionId]
+        );
+        if ($fila === null) {
+            return null;
+        }
+        $pedida = (string) ($fila['relimpieza_pedida_at'] ?? $fila['created_at']);
+        if (Fechas::fechaLocalDeUtc($pedida) !== $fecha) {
+            return null;
+        }
+        $revisionId = (int) $fila['id'];
+        Database::execute(
+            'UPDATE #__revisiones_entrega SET relimpieza_ejecucion_id = ? WHERE id = ? AND relimpieza_ejecucion_id IS NULL',
+            [$ejecucionId, $revisionId]
+        );
+        Logger::info('revision_entrega', 'limpieza vinculada como re-limpieza de un NO', [
+            'revision_id' => $revisionId,
+            'habitacion_id' => $habitacionId,
+            'ejecucion_id' => $ejecucionId,
+        ]);
+        return $revisionId;
     }
 
     // ───────────────────────────── Reportes ─────────────────────────────
 
     /**
-     * Sección «Inspección pre-entrega» de Reportes. Lee solo revisiones_entrega: ReportesService no
-     * la conoce y ningún KPI cambia.
+     * Sección «Inspección pre-entrega» de Reportes. Lee solo revisiones_entrega; los KPIs de aseo e
+     * inspección (ReportesService) solo la miran para dejar fuera las re-limpiezas.
      *
      * @return array<string, mixed>
      */
