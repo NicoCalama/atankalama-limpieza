@@ -70,7 +70,7 @@
                             </span>
                             <span>
                                 <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Avisar y devolver la pieza a limpieza</span>
-                                <span class="block text-xs text-gray-500 dark:text-gray-400">Si estaba aprobada, vuelve a sucia y se avisa a Cloudbeds. La re-limpieza cuenta como una pieza más.</span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400">Si estaba aprobada, vuelve a sucia y se avisa a Cloudbeds. La re-limpieza no suma en los KPIs.</span>
                             </span>
                         </button>
                     </div>
