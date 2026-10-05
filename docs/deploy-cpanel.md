@@ -1214,3 +1214,56 @@ Lista = `git diff --name-only 158a7aa HEAD` (el commit del ZIP de la v6.16) meno
 **Smoke:** badge **v6.16.1** (incógnito); Reportes → con septiembre en «Personalizado», la tarjeta «Habitaciones
 limpiadas» da lo mismo que «… inspeccionadas de N limpiadas» de la sección Supervisora; el resumen mensual muestra
 «Desglose hab.».
+
+### 11.16 Release "ciclo de limpieza con Cloudbeds" → v6.17
+
+Arreglos del documento «Ciclo de limpieza y Cloudbeds» (28/09/2026) que no dependen de consultas en producción —R4
+(rechazos), R5 («Volver a limpiar» con las aprobadas por el cierre automático) y R6 (historial de reseteos y guarda
+del sync)— más dos mejoras de nocheros tras el incidente del 02/10: marcar nochero después de las 16:00 barre al tiro,
+y aviso el día que vence una marca. Antes de tocar el código se armó una red de 15 escenarios de punta a punta contra
+un Cloudbeds simulado. **R1 (turnover) no va:** espera la consulta Q2 del documento. La inspección pre-entrega (ex
+v6.18, §11.15) **tampoco**: sale aparte como v7, cuando gerencia la apruebe.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos** (no toca `public/` → sin bump de `CACHE_VERSION`). El aviso de
+nocheros usa el tipo de notificación `nochero_por_vencer`: `notificaciones.tipo` es texto libre, sin CHECK. ZIP
+`build/limpieza-v617-delta.zip` (estructura `limpieza/…`), todo a `app_core/`:
+
+- `src/Services/{HabitacionService,CloudbedsSyncService,AsignacionService,ChecklistService}.php`;
+- `src/Services/CierreDiaService.php` (**nuevo**: el cierre de día que antes vivía dentro del script del cron);
+- `src/Controllers/HabitacionesController.php` y `views/habitaciones.php`;
+- `scripts/{sync-cloudbeds,aprobar-pendientes-cierre-dia}.php` (los dos crons ahora solo llaman a los servicios);
+- `CHANGELOG.md` (v6.17 fechada).
+
+Lista = `git diff --name-only 138fbfb HEAD` (`138fbfb` = `main` con la v6.16.1, lo último desplegado) menos `docs/` y
+`tests/`: 10 archivos.
+
+**Cuándo y cómo subir:** los 10 de una vez (arrastrar `limpieza/` sobre `public_html/` en FileZilla), **fuera de
+15:45–16:05**: los crons usan `CierreDiaService` y `HabitacionService::barrerNocheros()`, y una pasada con el script
+nuevo y el servicio viejo falla (la siguiente corre bien, pero justo a esa hora es el cierre de las 15:50 o el barrido
+de las 16:00).
+
+**Smoke:**
+- badge **v6.17** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- Inicio → Salud del sistema: una sincronización con Cloudbeds posterior al deploy, sin error;
+- **el mismo día, después de las 16:05 y antes de las 21:00** (la consulta toma el día UTC): el cierre de las 15:50
+  pasó a «aprobada automática» las piezas en espera de inspección, y el barrido de las 16:00 mandó a sucia los
+  nocheros vigentes:
+
+  ```sql
+  SELECT DATE_FORMAT(DATE_SUB(REPLACE(LEFT(created_at, 19), 'T', ' '), INTERVAL 3 HOUR), '%H:%i') AS hora_chile,
+         JSON_VALUE(detalles_json, '$.desde') AS desde, JSON_VALUE(detalles_json, '$.hasta') AS hasta,
+         COUNT(*) AS piezas
+    FROM limpieza_audit_log
+   WHERE accion = 'habitacion.cambiar_estado' AND origen = 'cron'
+     AND created_at >= CONCAT(UTC_DATE(), 'T18:40:00')  -- 15:40 de Chile (UTC-3)
+   GROUP BY hora_chile, desde, hasta
+   ORDER BY hora_chile;
+  ```
+
+  Esperado: filas de las 15:50 `completada_pendiente_auditoria → aprobada_automatica` y de las 16:00 `aprobada… →
+  sucia` (los nocheros). Si a las 16:00 no hay nada, revisar que haya nocheros vigentes antes de alarmarse.
+- **el día que vence una marca**, desde las 08:00: llega «N marcas de nochero vencen hoy» (campanita y push) a quienes
+  tienen `habitaciones.marcar_nochero`. Las del INN vencen el **10/10**.
+
+**Vuelta atrás:** volver a subir esos archivos tal como están en `138fbfb` (`CierreDiaService.php` puede quedar: sin
+los scripts nuevos nadie lo llama).
