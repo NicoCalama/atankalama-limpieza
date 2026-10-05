@@ -268,7 +268,18 @@ El botón muestra el resultado hasta que **la pieza cambia de estado** (se ensuc
 
 Si la señal está mala y no sabes si llegó, vuelve a tocar el mismo botón: nunca se duplica. El botón «N» de la tarjeta sigue sirviendo para marcar nocheros.
 
-**Supervisora / Admin:** en **Ajustes → Inspección pre-entrega** se elige qué hace un NO (solo avisar, o además devolver la pieza a limpieza) y se editan los motivos (crear, renombrar, activar o desactivar). En Habitaciones ven el resultado en cada tarjeta (hasta que la pieza cambia de estado); la última revisión de cada pieza aparece en su detalle, y **Reportes → Inspección pre-entrega (Recepción)** muestra los SÍ y NO del período, los NO por motivo y el historial con fotos. Estos datos quedan guardados para el KPI de calidad de las supervisoras.
+**Supervisora / Admin:** en **Ajustes → Inspección pre-entrega** se elige qué hace un NO (solo avisar, o además devolver la pieza a limpieza) y se editan los motivos (crear, renombrar, activar o desactivar). En Habitaciones ven el resultado en cada tarjeta (hasta que la pieza cambia de estado); la última revisión de cada pieza aparece en su detalle, y **Reportes → Inspección pre-entrega (Recepción)** muestra los SÍ y NO del período, los NO por motivo y el historial con fotos.
+
+**Re-limpiar una pieza que Recepción no aprobó (Supervisora):**
+
+1. En **Habitaciones**, la tarjeta de una pieza aprobada que recibió un NO se ve a color completo, con la franja roja **«No aprobada · motivo · Re-limpiar»**. También está el botón en la tarjeta roja del detalle de la pieza, que es donde lleva el aviso.
+2. Toca la franja: se abre la ventana con el motivo y las trabajadoras con turno hoy en ese hotel, con cuántas piezas les quedan.
+3. Elige a quién. **«Que sea la siguiente de su cola»** viene marcado: la pieza queda primera (si está limpiando otra, termina esa primero).
+4. Toca **Re-limpiar**. La pieza pasa a sucia (y se le avisa a Cloudbeds), a la trabajadora le llega el aviso con el motivo y la franja dice **«Re-limpieza: nombre»** hasta que empiezan a limpiarla.
+
+Si el interruptor está en «Avisar y devolver la pieza a limpieza», la pieza vuelve sola a la cola de quien la limpió hoy (y a ella le llega el aviso); con **Re-limpiar** puedes dársela a otra persona.
+
+La re-limpieza **no suma en los KPIs** de quien la haga y no le resta a quien la limpió primero. El NO cuenta para la supervisora que había aprobado la pieza: en **Reportes**, la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» (y del Excel) muestra, de las piezas que aprobó cada una, cuántas aprobó Recepción (en verde) y cuántas no (en rojo).
 
 ---
 

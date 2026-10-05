@@ -1225,12 +1225,15 @@ Pedido de gerencia (04/10/2026; diseño final de Nicolás 05/10): Recepción rev
 opcionales y avisa a las supervisoras (notificación + push, no `alertas_activas`). En **Ajustes → Inspección pre-entrega**
 se elige si un NO además devuelve la pieza aprobada a sucia (con `dirty` a Cloudbeds); **arranca apagado** (solo avisa).
 Nunca escribe `auditorias`. Cada revisión guarda estado de la pieza, última limpieza e inspección para el futuro KPI de
-calidad de las supervisoras. En código se llama `revision_entrega`. Spec: [revision-entrega.md](revision-entrega.md).
+calidad de las supervisoras. La supervisora puede mandar a **«Re-limpiar»** una pieza aprobada que recibió un NO (la asigna
+con prioridad); esa re-limpieza no cuenta en los KPIs, y Reportes suma la columna **«Recepción»** por supervisora. En
+código se llama `revision_entrega`. Spec: [revision-entrega.md](revision-entrega.md).
 Rama `v6.18-revision-entrega`, nace de `main` (la v6.17 va aparte).
 
 **Orden: SQL en phpMyAdmin ANTES del ZIP** (§10 paso 2). Es aditivo: el código viejo ignora las tablas; el nuevo las exige
 y `/api/health` da 503 si faltan. Ojo: sin el SQL, **nadie puede entrar a Edificios y Mapeo** (el código nuevo pide
-`habitaciones.gestionar_edificios`). Equivale a `scripts/migrate-add-revision-entrega.php`. Índices como `KEY` dentro del
+`habitaciones.gestionar_edificios`) y **Reportes falla** (los KPIs leen `revisiones_entrega` para dejar fuera las
+re-limpiezas). Equivale a `scripts/migrate-add-revision-entrega.php`. Índices como `KEY` dentro del
 `CREATE` para que un corte de phpMyAdmin en el primer error no deje índices sin crear. No escribe sobre ningún hotel.
 
 ```sql
@@ -1254,16 +1257,25 @@ CREATE TABLE IF NOT EXISTS limpieza_revisiones_entrega (
     ejecucion_id     INT NULL,
     auditoria_id     INT NULL,
     idempotency_key  VARCHAR(64) NULL,
+    relimpieza_asignacion_id INT NULL,
+    relimpieza_pedida_por    INT NULL,
+    relimpieza_pedida_at     VARCHAR(30) NULL,
+    relimpieza_ejecucion_id  INT NULL,
     created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE KEY idx_revisiones_entrega_idem (idempotency_key),
     KEY idx_revisiones_entrega_hab_fecha (habitacion_id, created_at),
     KEY idx_revisiones_entrega_created (created_at),
     KEY idx_revisiones_entrega_auditoria (auditoria_id),
+    KEY idx_revisiones_entrega_relimpieza (relimpieza_ejecucion_id),
+    KEY idx_revisiones_entrega_relimp_asig (relimpieza_asignacion_id),
     FOREIGN KEY (habitacion_id) REFERENCES limpieza_habitaciones(id) ON DELETE RESTRICT,
     FOREIGN KEY (usuario_id) REFERENCES limpieza_usuarios(id) ON DELETE RESTRICT,
     FOREIGN KEY (motivo_id) REFERENCES limpieza_motivos_revision_entrega(id) ON DELETE RESTRICT,
     FOREIGN KEY (ejecucion_id) REFERENCES limpieza_ejecuciones_checklist(id) ON DELETE SET NULL,
-    FOREIGN KEY (auditoria_id) REFERENCES limpieza_auditorias(id) ON DELETE SET NULL
+    FOREIGN KEY (auditoria_id) REFERENCES limpieza_auditorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_asignacion_id) REFERENCES limpieza_asignaciones(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_pedida_por) REFERENCES limpieza_usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES limpieza_ejecuciones_checklist(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
@@ -1318,10 +1330,11 @@ Lista = `git diff --name-only <commit del ZIP de la v6.16.1> HEAD` menos `docs/`
 `tests/` y `.claude/`:
 
 - `src/Core/Kernel.php`; `src/Controllers/{PaginasController,ReportesController,HabitacionesController,UploadsController,AlertasController,RevisionEntregaController}.php`;
-- `src/Services/{RevisionEntregaService,RevisionEntregaException,ImagenAdjuntoService}.php`; `src/Support/{Tours,TourResolver,PantallaInicio}.php`;
+- `src/Services/{RevisionEntregaService,RevisionEntregaException,ImagenAdjuntoService,ReportesService,AsignacionService,ChecklistService,HabitacionService}.php`;
+  `src/Support/{Tours,TourResolver,PantallaInicio}.php`;
 - `views/{home,habitaciones,ajustes,ajustes-revision-entrega,habitacion-detalle,reportes,layout}.php`;
-  `views/componentes/{bottom-nav,sidebar,notificaciones-popup,modal-inspeccion-pre-entrega}.php`;
-  `views/recursos/componentes/modal-inspeccion-pre-entrega.js`;
+  `views/componentes/{bottom-nav,sidebar,notificaciones-popup,modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.php`;
+  `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.js`;
 - `database/seeds/{permisos,roles,motivos_revision_entrega}.php`; `scripts/{seed,migrate-add-revision-entrega,lint-prefix-tokens}.php`;
 - `docs/database-schema.sql`, `docs/database-schema.mariadb.sql` (los lee el verificador de esquema);
 - `CHANGELOG.md` (v6.18 con la fecha real).
@@ -1340,13 +1353,23 @@ Lista = `git diff --name-only <commit del ZIP de la v6.16.1> HEAD` menos `docs/`
    aviso de foto muy pesada, revisar `post_max_size` / `upload_max_filesize` en MultiPHP INI antes de culpar al código
    (en dev no se puede probar la foto real: el PHP local no tiene `gd`).
 5. Supervisora: campanita y push (si está de turno) «Hab. … (…): pre-entrega no aprobada»; el link abre el detalle con la
-   tarjeta; en Habitaciones ve el resultado como franja (sin botón) y conserva «Inicio» y Edificios y Mapeo.
+   tarjeta roja y el botón «Re-limpiar»; en Habitaciones la test room (aprobada) se ve a color completo con la franja
+   «No aprobada · motivo · Re-limpiar»; conserva «Inicio» y Edificios y Mapeo.
 6. phpMyAdmin: el `estado` de la test room NO cambió; `limpieza_audit_log` tiene `revision_entrega.registrar`;
    `limpieza_revisiones_entrega` tiene `estado_pieza` y, si la pieza se limpió e inspeccionó en la app, `ejecucion_id` y
    `auditoria_id`.
 7. Ajustes → Inspección pre-entrega: prender «Avisar y devolver la pieza a limpieza», NO sobre la test room aprobada → pasa
-   a `sucia`, `limpieza_cloudbeds_sync_historial` tiene una `escritura_estado` dirty y el aviso dice que volvió a sucia.
+   a `sucia`, `limpieza_cloudbeds_sync_historial` tiene una `escritura_estado` dirty y el aviso dice que volvió a sucia (y
+   a qué cola, si alguien la tenía asignada hoy: a esa persona le llega «Hab. … de vuelta en tu cola»).
    **Volver a apagarlo** (el default acordado es «Solo avisar») salvo que gerencia diga otra cosa.
 8. Motivos: crear, duplicado («Ya existe un motivo con ese nombre.»), renombrar, desactivar; el checklist del NO lo refleja.
 9. Reportes (Admin) con «Hoy»: la sección «Inspección pre-entrega (Recepción)» muestra las pruebas; los KPIs de arriba no cambian.
 10. Trabajador: no ve el botón ni la tarjeta en el detalle de su pieza.
+11. **Re-limpiar** (Supervisora, test room aprobada con un NO, interruptor apagado): franja → ventana con las trabajadoras de
+    turno → elegir una de prueba (o avisarle antes) con «Que sea la siguiente de su cola» → la test room pasa a `sucia`,
+    queda primera en su cola (Asignaciones), le llega «Nueva habitación asignada … Es una re-limpieza: …», la franja dice
+    «Re-limpieza: nombre» y `limpieza_revisiones_entrega.relimpieza_asignacion_id` / `relimpieza_pedida_at` quedan
+    llenos. Al empezar la limpieza, `relimpieza_ejecucion_id` se llena y la franja desaparece.
+12. Reportes (Admin) con «Hoy»: la re-limpieza **no** suma en la fila de esa trabajadora ni en «Habitaciones limpiadas»;
+    la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» muestra el NO (rojo)
+    para la supervisora que había aprobado la test room; el Excel mensual trae las dos columnas nuevas en «Supervisores».
