@@ -11,6 +11,8 @@ return [
     ['habitaciones.marcar_limpia_manual', 'Marcar una habitación como limpia sin checklist (queda pendiente de auditoría)', 'Habitaciones', 'global'],
     ['habitaciones.marcar_nochero', 'Marcar/desmarcar una habitación como nochero (aseo doble por turno minero)', 'Habitaciones', 'global'],
     ['habitaciones.agregar_nota', 'Dejar/quitar la nota de Recepción para la mucama en una habitación', 'Habitaciones', 'global'],
+    // v6.18: antes alcanzaba con habitaciones.ver_todas, así que Recepción también podía crear y borrar edificios.
+    ['habitaciones.gestionar_edificios', 'Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo)', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
@@ -33,6 +35,13 @@ return [
     ['auditoria.rechazar', 'Dar veredicto rechazada', 'Auditoría', 'global'],
     ['auditoria.editar_checklist_durante_auditoria', 'Desmarcar items durante la auditoría', 'Auditoría', 'global'],
     ['auditoria.reordenar_bandeja', 'Reordenar manualmente la bandeja de auditoría', 'Auditoría', 'global'],
+
+    // Inspección pre-entrega (pedido de gerencia, 04/10/2026; en código «revision_entrega»): Recepción
+    // registra si una pieza está en condiciones para entregarla al huésped, desde la tarjeta de la pieza
+    // en Habitaciones. Nunca escribe auditorias. Se guarda para el KPI de calidad de las supervisoras.
+    // Ver docs/revision-entrega.md.
+    ['revision_entrega.registrar', 'Registrar la inspección pre-entrega de una habitación (SÍ / NO con motivo, observaciones y foto) desde su tarjeta en Habitaciones', 'Inspección pre-entrega', 'global'],
+    ['revision_entrega.configurar', 'Configurar la inspección pre-entrega: motivos de un NO y si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega)', 'Inspección pre-entrega', 'global'],
 
     ['tickets.crear', 'Crear un ticket de mantenimiento', 'Tickets', 'global'],
     ['tickets.ver_propios', 'Ver solo los tickets propios', 'Tickets', 'propio'],

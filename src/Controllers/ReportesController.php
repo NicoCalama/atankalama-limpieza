@@ -9,13 +9,36 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Helpers\ExcelExport;
 use Atankalama\Limpieza\Services\BonoAseoService;
 use Atankalama\Limpieza\Services\ReportesService;
+use Atankalama\Limpieza\Services\RevisionEntregaService;
 
 final class ReportesController
 {
     public function __construct(
         private readonly ReportesService $service = new ReportesService(),
         private readonly BonoAseoService $bono = new BonoAseoService(),
+        private readonly RevisionEntregaService $revisionEntrega = new RevisionEntregaService(),
     ) {
+    }
+
+    /**
+     * GET /api/reportes/revision-entrega?desde&hasta&hotel — SÍ / NO de Recepción antes de entregar
+     * (v6.18). Lee solo revisiones_entrega: ningún KPI cambia. Ignora la trabajadora del filtro.
+     */
+    public function revisionEntrega(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
+        }
+
+        [$desde, $hasta, $hotel] = $this->parsearFiltros($request);
+
+        return Response::ok($this->revisionEntrega->reporte($desde, $hasta, $hotel) + [
+            'filtros' => ['desde' => $desde, 'hasta' => $hasta, 'hotel' => $hotel],
+        ]);
     }
 
     /** GET /api/reportes/kpis */

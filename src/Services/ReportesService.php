@@ -212,7 +212,11 @@ final class ReportesService
      * contado desde quien inspecciona (pedido de Nicolás, 04/10/2026). Una ejecución tiene una sola
      * auditoría (inmutable), así que cada casilla desmarcada se le cuenta a un solo auditor.
      *
-     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int}>
+     * recepcion_aprobadas / recepcion_rechazadas = inspección pre-entrega (v6.18): de las piezas que aprobó,
+     * las que Recepción aprobó y no aprobó para entregar en el mes (recepcionPorSupervisora()). Las
+     * re-limpiezas de un NO no cuentan como inspecciones (sinRelimpieza()).
+     *
+     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int, recepcion_aprobadas:int, recepcion_rechazadas:int}>
      */
     public function resumenMensualAuditores(int $anio, int $mes, string $hotel): array
     {
@@ -238,13 +242,14 @@ final class ReportesService
                       WHERE desmarcado_por_auditor = 1
                       GROUP BY ejecucion_id) d ON d.ejecucion_id = a.ejecucion_id
               WHERE a.created_at >= ? AND a.created_at < ?
+                AND " . self::sinRelimpieza('a.ejecucion_id') . "
                     {$hotelCond}
               GROUP BY u.id, u.nombre
               ORDER BY u.nombre",
             $params
         );
 
-        return array_map(static fn (array $f): array => [
+        $filas = array_map(static fn (array $f): array => [
             'usuario_id'            => (int) $f['usuario_id'],
             'nombre'                => (string) $f['nombre'],
             'total'                 => (int) $f['total'],
@@ -253,6 +258,14 @@ final class ReportesService
             'rechazadas'            => (int) $f['rechazadas'],
             'observaciones'         => (int) $f['observaciones'],
         ], $filas);
+
+        // Columna «Recepción» (inspección pre-entrega, v6.18): de las piezas que aprobó, cuántas aprobó y
+        // cuántas rechazó Recepción en el mes. Quien solo tiene eso en el mes entra igual (ordenado por nombre).
+        $filas = $this->conRecepcion($filas, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
+            'total' => 0, 'aprobadas' => 0, 'aprobadas_observacion' => 0, 'rechazadas' => 0, 'observaciones' => 0,
+        ]);
+        usort($filas, static fn (array $a, array $b): int => strcmp((string) $a['nombre'], (string) $b['nombre']));
+        return $filas;
     }
 
     /**
@@ -282,16 +295,23 @@ final class ReportesService
         foreach (['1_sur' => 'ATANKALAMA', 'inn' => 'ATANKALAMA INN', 'ambos' => 'TOTAL AMBOS HOTELES'] as $hotel => $titulo) {
             $rows[] = [];
             $rows[] = [$titulo];
-            $rows[] = ['Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones'];
+            $rows[] = [
+                'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
+                // Inspección pre-entrega (v6.18): de las piezas que aprobó, lo que aprobó y rechazó Recepción.
+                'Recepción: aprobadas', 'Recepción: rechazadas',
+            ];
 
             $filas = $this->resumenMensualAuditores($anio, $mes, $hotel);
             if ($filas === []) {
                 $rows[] = ['Sin inspecciones en el mes'];
                 continue;
             }
-            $tot = [0, 0, 0, 0, 0];
+            $tot = [0, 0, 0, 0, 0, 0, 0];
             foreach ($filas as $f) {
-                $valores = [$f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['observaciones']];
+                $valores = [
+                    $f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['observaciones'],
+                    $f['recepcion_aprobadas'], $f['recepcion_rechazadas'],
+                ];
                 $rows[] = [$f['nombre'], ...$valores];
                 foreach ($valores as $i => $v) {
                     $tot[$i] += $v;
@@ -439,6 +459,7 @@ final class ReportesService
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND ec.timestamp_fin IS NOT NULL
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_fin >= ? AND ec.timestamp_fin < ?
                     {$h}
            ORDER BY ho.codigo, h.numero, ec.timestamp_fin",
@@ -690,6 +711,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}{$x}",
             $p
@@ -760,6 +782,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado IN ('completada', 'auditada')
                 AND " . self::CON_TRABAJO . "
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}{$x}",
             $params
@@ -807,6 +830,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}{$x}",
             $params
@@ -858,6 +882,20 @@ final class ReportesService
      * Requiere el alias `ec`.
      */
     private const CON_TRABAJO = 'EXISTS (SELECT 1 FROM #__ejecuciones_items eit WHERE eit.ejecucion_id = ec.id AND eit.marcado_por = ec.usuario_id)';
+
+    /**
+     * La limpieza NO es la re-limpieza de un NO de la inspección pre-entrega (v6.18, decisión de Nicolás
+     * 05/10/2026): esa re-limpieza no suma ni resta en los KPIs de aseo (piezas, créditos, tiempos,
+     * productividad, rechazos, Asignadas, bono) ni en los de inspección (cobertura, rechazo, aprobación a la
+     * primera, inspecciones por inspectora). El NO le cuenta a la supervisora que había aprobado la pieza
+     * (columna «Recepción»). Ver RevisionEntregaService::vincularRelimpieza().
+     *
+     * @param string $colEjecucion columna con el id de la ejecución (literal del código, nunca input)
+     */
+    private static function sinRelimpieza(string $colEjecucion = 'ec.id'): string
+    {
+        return "NOT EXISTS (SELECT 1 FROM #__revisiones_entrega rle WHERE rle.relimpieza_ejecucion_id = {$colEjecucion})";
+    }
     /** Antifraude del tiempo por auditación: fuera de [30 s, 4 h] se considera ruido (pausas, aperturas accidentales). */
     private const AUDITACION_MIN_MINUTOS = 0.5;
     private const AUDITACION_MAX_MINUTOS = 240.0;
@@ -945,6 +983,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                 AND " . self::CON_TRABAJO . "
+                AND " . self::sinRelimpieza() . "
                     {$h}
               ORDER BY ec.timestamp_inicio",
             $p
@@ -991,6 +1030,7 @@ final class ReportesService
               WHERE ec.estado IN ('completada', 'auditada')
                 AND ei.marcado_por IS NOT NULL
                 AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hc}
               GROUP BY ei.marcado_por, u.nombre, ec.id, ec.usuario_id, ec.habitacion_id, ec.timestamp_inicio,
@@ -1054,6 +1094,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ei.desmarcado_por_auditor = 1
                 AND h.es_espacio_comun = 0
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}
               GROUP BY COALESCE(ei.marcado_por, ec.usuario_id), u.nombre",
@@ -1078,6 +1119,7 @@ final class ReportesService
               WHERE ec.timestamp_fin IS NOT NULL
                 AND ec.estado IN ('completada', 'auditada')
                 AND " . self::CON_TRABAJO . "
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}
               GROUP BY ec.usuario_id, u.nombre",
@@ -1107,7 +1149,8 @@ final class ReportesService
         $ejecucionesDe = []; // asignacion_id → sus ejecuciones
         foreach (Database::fetchAll(
             "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado,
-                    CASE WHEN " . self::CON_TRABAJO . " THEN 1 ELSE 0 END AS con_trabajo
+                    CASE WHEN " . self::CON_TRABAJO . " THEN 1 ELSE 0 END AS con_trabajo,
+                    CASE WHEN " . self::sinRelimpieza() . " THEN 0 ELSE 1 END AS es_relimpieza
                FROM #__ejecuciones_checklist ec
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
                JOIN #__habitaciones h ON h.id = asg.habitacion_id
@@ -1123,6 +1166,8 @@ final class ReportesService
         $hE = $this->hotelCond($hotel, $pE);
         $esperado = Database::fetchAll(
             "SELECT asg.id, asg.usuario_id, u.nombre, asg.habitacion_id, asg.fecha, asg.franja, asg.activa,
+                    CASE WHEN EXISTS (SELECT 1 FROM #__revisiones_entrega rla WHERE rla.relimpieza_asignacion_id = asg.id)
+                         THEN 1 ELSE 0 END AS es_relimpieza,
                     (SELECT COUNT(*) FROM #__asignaciones o
                       WHERE o.habitacion_id = asg.habitacion_id AND o.fecha = asg.fecha
                         AND COALESCE(o.franja, '') = COALESCE(asg.franja, '')
@@ -1147,7 +1192,14 @@ final class ReportesService
             $base = $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '') . ':';
             $trabajadas = []; // vuelta → template de su limpieza
             $soloAtajo  = false;
+            $relimpio   = false; // trabajó la re-limpieza de un NO de la inspección pre-entrega
             foreach ($ejecucionesDe[(int) $f['id']] ?? [] as $x) {
+                // La re-limpieza de un NO de la inspección pre-entrega no es otra pieza asignada ni abre
+                // vuelta: no suma para nadie (decisión de Nicolás, 05/10/2026). Sí es un día trabajado.
+                if ((int) $x['es_relimpieza'] === 1) {
+                    $relimpio = true;
+                    continue;
+                }
                 // Una limpieza recién empezada (en curso, aún sin ítems) también es trabajo suyo.
                 if ((int) $x['con_trabajo'] === 1 || $x['estado'] === 'en_progreso') {
                     $trabajadas[$vueltas[(int) $x['id']] ?? 0] ??= (int) $x['template_id'];
@@ -1155,11 +1207,13 @@ final class ReportesService
                     $soloAtajo = true;
                 }
             }
-            if ($trabajadas !== [] || (!$soloAtajo && (int) $f['activa'] === 1)) {
+            if ($trabajadas !== [] || $relimpio || (!$soloAtajo && (int) $f['activa'] === 1)) {
                 $diasTrabajados[$uid][(string) $f['fecha']] = (string) $f['nombre'];
             }
             if ($trabajadas === []) {
-                if ($soloAtajo) {
+                // La asignación que creó «Re-limpiar» (o una que solo tuvo esa re-limpieza) tampoco es
+                // una pieza asignada, haya empezado o no.
+                if ($soloAtajo || $relimpio || (int) $f['es_relimpieza'] === 1) {
                     continue;
                 }
                 $trabajadas = [0 => null];
@@ -1276,6 +1330,7 @@ final class ReportesService
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::sinRelimpieza() . "
                 AND asg.fecha BETWEEN ? AND ?
               ORDER BY ec.timestamp_inicio, ec.id",
             [date('Y-m-d', strtotime($desde . ' -1 day')), date('Y-m-d', strtotime($hasta . ' +1 day'))]
@@ -1445,6 +1500,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE a.veredicto IN " . self::VEREDICTOS_HUMANOS . "
                 AND u.rut <> '" . self::RUT_SISTEMA . "'
+                AND " . self::sinRelimpieza() . "
                 AND a.created_at >= ? AND a.created_at < ?
                     {$h}
               GROUP BY u.id, u.nombre
@@ -1485,11 +1541,93 @@ final class ReportesService
         }
         unset($i);
 
+        // ── Inspección pre-entrega (v6.18): de las piezas que ELLA aprobó, cuántas aprobó y cuántas rechazó
+        // Recepción en el período (columna «Recepción»). Quien solo tiene resultados de Recepción (aprobó en
+        // el período anterior y en este no inspeccionó) va al final, fuera del promedio.
+        $inspectoras = $this->conRecepcion($inspectoras, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
+            'total' => 0, 'aprobadas' => 0, 'con_observacion' => 0, 'rechazadas' => 0,
+            'tiempo_auditacion' => null, 'n_tiempo' => 0, 'aporte_cobertura_pct' => null,
+            'cmp' => array_fill_keys(array_keys($comparativa), null),
+        ]);
+
         return [
             'seccion'     => $seccion,
             'inspectoras' => $inspectoras,
             'comparativa' => $comparativa,
         ];
+    }
+
+    /**
+     * Inspección pre-entrega por supervisora (v6.18, pedido de Nicolás 05/10/2026: su bono de calidad se
+     * ve afectado por las piezas que aprobó y Recepción aprobó o rechazó para entregar). Cuenta cada
+     * inspección APROBADA por una persona (no el cierre automático) que Recepción revisó en el período:
+     * rechazada si Recepción le dio al menos un NO, aprobada si solo SÍ. Ventana = fecha de la revisión de
+     * Recepción: un mes cerrado no cambia después.
+     *
+     * DEFAULT APLICADO (aprobado por el usuario, 05/10/2026): una pieza = una inspección aprobada; el NO
+     * manda sobre el SÍ; ventana por fecha de la revisión de Recepción.
+     *
+     * @return array<int, array{nombre:string, aprobadas:int, rechazadas:int}> auditor_id → conteo
+     */
+    private function recepcionPorSupervisora(string $desde, string $hasta, string $hotel): array
+    {
+        $p = Fechas::rangoUtc($desde, $hasta);
+        $h = $this->hotelCond($hotel, $p);
+        $filas = Database::fetchAll(
+            "SELECT u.id AS usuario_id, u.nombre,
+                    SUM(CASE WHEN x.nos > 0 THEN 0 ELSE 1 END) AS aprobadas,
+                    SUM(CASE WHEN x.nos > 0 THEN 1 ELSE 0 END) AS rechazadas
+               FROM (SELECT r.auditoria_id, SUM(CASE WHEN r.resultado = 'no' THEN 1 ELSE 0 END) AS nos
+                       FROM #__revisiones_entrega r
+                       JOIN #__habitaciones h ON h.id = r.habitacion_id
+                       JOIN #__hoteles ho ON ho.id = h.hotel_id
+                      WHERE r.auditoria_id IS NOT NULL
+                        AND r.created_at >= ? AND r.created_at < ?
+                            {$h}
+                      GROUP BY r.auditoria_id) x
+               JOIN #__auditorias a ON a.id = x.auditoria_id
+               JOIN #__usuarios u ON u.id = a.auditor_id
+              WHERE a.veredicto IN ('aprobado', 'aprobado_con_observacion')
+                AND u.rut <> '" . self::RUT_SISTEMA . "'
+              GROUP BY u.id, u.nombre",
+            $p
+        );
+        $porSupervisora = [];
+        foreach ($filas as $f) {
+            $porSupervisora[(int) $f['usuario_id']] = [
+                'nombre'     => (string) $f['nombre'],
+                'aprobadas'  => (int) $f['aprobadas'],
+                'rechazadas' => (int) $f['rechazadas'],
+            ];
+        }
+        return $porSupervisora;
+    }
+
+    /**
+     * Suma a cada fila (por usuario_id) la columna «Recepción» (recepcion_aprobadas / recepcion_rechazadas) y
+     * agrega al final, con $vacia en lo demás, a quien solo tiene resultados de Recepción en el período.
+     *
+     * @param list<array<string, mixed>>                                   $filas
+     * @param array<int, array{nombre:string, aprobadas:int, rechazadas:int}> $recepcion
+     * @param array<string, mixed>                                          $vacia
+     * @return list<array<string, mixed>>
+     */
+    private function conRecepcion(array $filas, array $recepcion, array $vacia): array
+    {
+        foreach ($filas as &$fila) {
+            $uid = (int) $fila['usuario_id'];
+            $fila['recepcion_aprobadas']  = $recepcion[$uid]['aprobadas'] ?? 0;
+            $fila['recepcion_rechazadas'] = $recepcion[$uid]['rechazadas'] ?? 0;
+            unset($recepcion[$uid]);
+        }
+        unset($fila);
+        foreach ($recepcion as $uid => $r) {
+            $filas[] = ['usuario_id' => $uid, 'nombre' => $r['nombre']] + $vacia + [
+                'recepcion_aprobadas'  => $r['aprobadas'],
+                'recepcion_rechazadas' => $r['rechazadas'],
+            ];
+        }
+        return $filas;
     }
 
     /**
@@ -1523,6 +1661,7 @@ final class ReportesService
           LEFT JOIN #__usuarios_turnos ut ON ut.usuario_id = ec.usuario_id AND ut.fecha = asg.fecha
           LEFT JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$x}
               GROUP BY t.nombre, t.hora_inicio",

@@ -546,7 +546,7 @@ final class Tours
             // ════════════════════════════════════════════════════════════
             'edificios' => [
                 'nombre'    => 'Edificios y Mapeo',
-                'capacidad' => 'habitaciones.ver_todas',
+                'capacidad' => 'habitaciones.gestionar_edificios', // v6.18: antes alcanzaba con ver_todas
                 'recorridos' => [
 
                     // ── 1. Dar de alta un edificio (el paso previo a mapear). ──
@@ -820,6 +820,28 @@ final class Tours
                                 'sel'    => '[data-tour="hb.filtros"]',
                                 'titulo' => 'Por hotel y por estado',
                                 'texto'  => 'Filtra por hotel y por estado (sucias, por inspeccionar, rechazadas…). Lo que elijas se recuerda para la próxima vez.',
+                            ],
+                        ],
+                    ],
+
+                    // ── 3. Inspección pre-entrega (v6.18). Solo quien inspecciona (Recepción): la vista
+                    //       emite la bandera inspecciona_entrega en data-vg-context. ──
+                    [
+                        'id'       => 'inspeccionar',
+                        'v'        => 1,
+                        'titulo'   => 'Inspeccionar la pieza',
+                        'pregunta' => '¿Cómo reviso si la pieza se puede entregar?',
+                        'requiere' => ['inspecciona_entrega'],
+                        'pasos' => [
+                            [
+                                'sel'    => '[data-tour="hb.inspeccion"]',
+                                'titulo' => 'El botón de la tarjeta',
+                                'texto'  => 'Al pie de cada tarjeta está «Inspección pre-entrega». Tócalo y responde si la pieza está en condiciones para entregarse a un cliente.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="hb.inspeccion"]',
+                                'titulo' => 'Si la respuesta es NO',
+                                'texto'  => 'Eliges el motivo y puedes sumar observaciones y una foto. Las supervisoras reciben el aviso y el botón muestra el resultado hasta que la pieza cambia de estado.',
                             ],
                         ],
                     ],
@@ -1182,13 +1204,39 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'pendientes', 'v' => 2,
-                        'titulo' => 'Inspecciones pendientes',
-                        'pregunta' => '¿Qué piezas quedan sin inspeccionar hoy?',
+                        // v3 (v6.18): suma la sección «Inspección pre-entrega» (la pantalla ya tiene 4 recorridos, el tope).
+                        'id' => 'pendientes', 'v' => 3,
+                        'titulo' => 'Inspecciones y entregas',
+                        'pregunta' => '¿Qué quedó sin inspeccionar o sin entregar?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
                              'texto' => 'Este panel lista, por turno mañana y tarde, las piezas limpiadas hoy que nadie inspeccionó: sin veredicto o aprobadas solo por el sistema. Cada noche se envía por correo a los administradores.'],
+                            ['sel' => '[data-tour="rep.revision_entrega"]', 'titulo' => 'La inspección pre-entrega',
+                             'texto' => 'Cuenta los SÍ y los NO que Recepción registró antes de entregar, en el período y hotel elegidos. Abajo van los NO por motivo y el detalle con observaciones y foto.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // Ajustes → Inspección pre-entrega (v6.18; en código «revision_entrega»). La inspección en sí se
+            // hace desde la tarjeta de la pieza en Habitaciones (recorrido «inspeccionar» de 'habitaciones').
+            'ajustes.revision_entrega' => [
+                'nombre' => 'Inspección pre-entrega',
+                'capacidad' => 'revision_entrega.configurar',
+                'recorridos' => [
+                    [
+                        'id' => 'configurar', 'v' => 1,
+                        'titulo' => 'Configurar el NO',
+                        'pregunta' => '¿Qué pasa cuando Recepción marca NO?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="rev.interruptor"]', 'titulo' => 'Elige qué hace un NO',
+                             'texto' => 'Con «Solo avisar», la pieza no cambia de estado y la supervisora decide. Con «Devolver a limpieza», si estaba aprobada vuelve a sucia y se avisa a Cloudbeds.'],
+                            ['sel' => '[data-tour="mot.nuevo"]', 'titulo' => 'Agrega un motivo',
+                             'texto' => 'Escribe la razón tal como la verá Recepción y toca «Agregar». Aparece en la lista de motivos cuando Recepción marca NO en la inspección.'],
+                            ['sel' => '[data-tour="mot.lista"]', 'titulo' => 'Renombra o desactiva',
+                             'texto' => 'El lápiz cambia el nombre y el interruptor lo desactiva. Un motivo inactivo deja de aparecer en el NO, pero el historial lo conserva.'],
                         ],
                     ],
                 ],

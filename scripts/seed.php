@@ -24,6 +24,7 @@ Database::transaction(function () use ($seedDir) {
     seedPermisos($seedDir);
     seedRoles($seedDir);
     seedCatalogos($seedDir);
+    seedMotivosRevisionEntrega($seedDir);
     seedChecklistTemplates($seedDir);
     seedAdminInicial();
 });
@@ -117,6 +118,16 @@ function seedCatalogos(string $seedDir): void
         );
     }
     echo "  cloudbeds_config: " . count($c['cloudbeds_config']) . "\n";
+}
+
+/** Motivos iniciales de un NO en la revisión de entrega (nombre UNIQUE: re-correr no duplica). */
+function seedMotivosRevisionEntrega(string $seedDir): void
+{
+    $motivos = require $seedDir . '/motivos_revision_entrega.php';
+    foreach ($motivos as $nombre) {
+        Database::execute('INSERT OR IGNORE INTO #__motivos_revision_entrega (nombre) VALUES (?)', [$nombre]);
+    }
+    echo "  motivos_revision_entrega: " . count($motivos) . "\n";
 }
 
 function seedChecklistTemplates(string $seedDir): void

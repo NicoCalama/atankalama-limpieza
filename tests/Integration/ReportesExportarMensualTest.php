@@ -77,14 +77,18 @@ final class ReportesExportarMensualTest extends TestCase
         $sup = $hojas['Supervisores'];
         $this->assertSame(['ATANKALAMA', 'ATANKALAMA INN', 'TOTAL AMBOS HOTELES'], $this->titulosDeBloque($sup));
         $this->assertSame(
-            ['Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones'],
+            [
+                'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
+                'Recepción: aprobadas', 'Recepción: rechazadas',
+            ],
             $sup[array_search(['ATANKALAMA'], $sup, true) + 1]
         );
+        // Sin inspecciones pre-entrega de Recepción en este escenario: la columna «Recepción» va en cero.
         $this->assertSame(
-            [['Sofia', 1, 0, 1, 0, 1], ['Sofia', 1, 0, 0, 1, 2], ['Sofia', 2, 0, 1, 1, 3]],
+            [['Sofia', 1, 0, 1, 0, 1, 0, 0], ['Sofia', 1, 0, 0, 1, 2, 0, 0], ['Sofia', 2, 0, 1, 1, 3, 0, 0]],
             array_values(array_filter($sup, static fn (array $f): bool => ($f[0] ?? null) === 'Sofia'))
         );
-        $this->assertSame(['TOTAL', 2, 0, 1, 1, 3], $sup[count($sup) - 1]);
+        $this->assertSame(['TOTAL', 2, 0, 1, 1, 3, 0, 0], $sup[count($sup) - 1]);
     }
 
     public function testElControladorDevuelveUnExcelConLasDosPestanas(): void

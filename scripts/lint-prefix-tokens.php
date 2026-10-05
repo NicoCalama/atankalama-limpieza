@@ -21,7 +21,8 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
 
 $root = dirname(__DIR__);
 
-// Las 32 tablas (deben coincidir con docs/database-schema.sql).
+// Tablas de docs/database-schema.sql (la lista quedó incompleta desde antes; la v6.18 suma
+// solo las de la revisión de entrega).
 $tables = [
     'permisos', 'roles', 'rol_permisos', 'usuarios', 'usuarios_roles', 'sesiones',
     'contrasenas_temporales', 'intentos_login', 'hoteles', 'tipos_habitacion', 'habitaciones',
@@ -29,7 +30,7 @@ $tables = [
     'ejecuciones_checklist', 'ejecuciones_items', 'auditorias', 'alertas_activas', 'bitacora_alertas',
     'alertas_config', 'cloudbeds_sync_historial', 'cloudbeds_config', 'tickets', 'logs_eventos',
     'audit_log', 'copilot_conversaciones', 'copilot_mensajes', 'notificaciones_disponibilidad',
-    'push_subscriptions', 'notificaciones',
+    'push_subscriptions', 'notificaciones', 'motivos_revision_entrega', 'revisiones_entrega',
 ];
 // Match del nombre más largo primero (ej. usuarios_roles antes que usuarios).
 usort($tables, static fn($a, $b) => strlen($b) <=> strlen($a));
