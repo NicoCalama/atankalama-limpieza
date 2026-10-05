@@ -43,16 +43,16 @@ trait EscenarioCicloLimpieza
     protected function prepararEscenario(): void
     {
         TestDatabase::recrear();
-        Database::execute("INSERT INTO hoteles (codigo, nombre, cloudbeds_property_id) VALUES ('1_sur', '1 Sur', 'CB_1SUR')");
-        Database::execute("INSERT INTO tipos_habitacion (nombre) VALUES ('Doble')");
+        Database::execute("INSERT INTO #__hoteles (codigo, nombre, cloudbeds_property_id) VALUES ('1_sur', '1 Sur', 'CB_1SUR')");
+        Database::execute("INSERT INTO #__tipos_habitacion (nombre) VALUES ('Doble')");
         TestDatabase::sembrarChecklistTemplates();
-        $hotelId = (int) Database::fetchColumn("SELECT id FROM hoteles WHERE codigo = '1_sur'");
-        $tipoId  = (int) Database::fetchColumn('SELECT id FROM tipos_habitacion LIMIT 1');
+        $hotelId = (int) Database::fetchColumn("SELECT id FROM #__hoteles WHERE codigo = '1_sur'");
+        $tipoId  = (int) Database::fetchColumn('SELECT id FROM #__tipos_habitacion LIMIT 1');
 
         $this->cb = new CloudbedsSimulado();
         foreach (['101', '102', '103'] as $numero) {
             Database::execute(
-                "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, es_espacio_comun) VALUES (?, ?, ?, ?, 'sucia', 0)",
+                "INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, es_espacio_comun) VALUES (?, ?, ?, ?, 'sucia', 0)",
                 [$hotelId, $numero, $tipoId, "CB_{$numero}"]
             );
             $this->hab[$numero] = Database::lastInsertId();
@@ -125,16 +125,16 @@ trait EscenarioCicloLimpieza
      */
     private function pasarDia(): void
     {
-        foreach (Database::fetchAll("SELECT id, created_at FROM audit_log WHERE accion = 'habitacion.cambiar_estado'") as $f) {
+        foreach (Database::fetchAll("SELECT id, created_at FROM #__audit_log WHERE accion = 'habitacion.cambiar_estado'") as $f) {
             $antes = (new \DateTimeImmutable((string) $f['created_at'], new \DateTimeZone('UTC')))->modify('-1 day');
-            Database::execute('UPDATE audit_log SET created_at = ? WHERE id = ?', [$antes->format('Y-m-d\TH:i:s.v\Z'), (int) $f['id']]);
+            Database::execute('UPDATE #__audit_log SET created_at = ? WHERE id = ?', [$antes->format('Y-m-d\TH:i:s.v\Z'), (int) $f['id']]);
         }
-        Database::execute('UPDATE habitaciones SET nochero_ultima_reversion = NULL');
+        Database::execute('UPDATE #__habitaciones SET nochero_ultima_reversion = NULL');
     }
 
     private function templateDe(int $ejecucionId): int
     {
-        return (int) Database::fetchColumn('SELECT template_id FROM ejecuciones_checklist WHERE id = ?', [$ejecucionId]);
+        return (int) Database::fetchColumn('SELECT template_id FROM #__ejecuciones_checklist WHERE id = ?', [$ejecucionId]);
     }
 
     /** @return list<int> */
@@ -152,14 +152,14 @@ trait EscenarioCicloLimpieza
     private function creditosObligatorios(int $templateId): int
     {
         return (int) Database::fetchColumn(
-            'SELECT COALESCE(SUM(creditos), 0) FROM items_checklist WHERE template_id = ? AND obligatorio = 1',
+            'SELECT COALESCE(SUM(creditos), 0) FROM #__items_checklist WHERE template_id = ? AND obligatorio = 1',
             [$templateId]
         );
     }
 
     private function alertasDeshechas(): int
     {
-        return (int) Database::fetchColumn('SELECT COUNT(*) FROM alertas_activas WHERE tipo = ?', [AlertaActiva::TIPO_APROBACION_DESHECHA]);
+        return (int) Database::fetchColumn('SELECT COUNT(*) FROM #__alertas_activas WHERE tipo = ?', [AlertaActiva::TIPO_APROBACION_DESHECHA]);
     }
 
     private function assertSinAlertasDeshechas(string $mensaje = 'sin alerta de aprobación deshecha'): void
@@ -171,7 +171,7 @@ trait EscenarioCicloLimpieza
     {
         $this->assertSame(
             $esperado,
-            Database::fetchColumn('SELECT estado FROM habitaciones WHERE id = ?', [$this->hab[$numero]]),
+            Database::fetchColumn('SELECT estado FROM #__habitaciones WHERE id = ?', [$this->hab[$numero]]),
             $mensaje !== '' ? $mensaje : "estado de la {$numero}"
         );
     }
