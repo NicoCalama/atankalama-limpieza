@@ -554,13 +554,17 @@ final class HabitacionService
      * ¿La pieza cambió de estado DESPUÉS de $instanteUtc (ISO UTC, mismo formato que audit_log)?
      * Lo usa la sincronización: lo que Cloudbeds respondió antes de ese cambio ya no sirve para
      * decidir sobre la pieza (ver CloudbedsSyncService::sincronizar).
+     *
+     * `>=` y no `>`: un cambio en el MISMO milisegundo que la lectura cuenta como posterior. Con
+     * `>` ese empate se colaba y el sync deshacía el cambio (pasó en la suite). Contar de más
+     * solo atrasa la pieza un sync; contar de menos deshace el trabajo de la supervisora.
      */
     public function cambioDeEstadoDespuesDe(int $id, string $instanteUtc): bool
     {
         return Database::fetchOne(
             "SELECT 1 FROM #__audit_log
               WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'
-                AND created_at > ?
+                AND created_at >= ?
               LIMIT 1",
             [$id, $instanteUtc]
         ) !== null;
