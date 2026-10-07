@@ -138,6 +138,9 @@ final class HomeController
         $horaActual = date('H:i');
 
         $trabajadores = $this->home->trabajadoresEnTurno($hoy);
+        // El estado predictivo «en riesgo» es solo para quien recibe esas alertas: la ruta se abre
+        // con habitaciones.ver_todas, que también tiene Recepción. Ver docs/alertas-predictivas.md.
+        $veRiesgo = $usuario->tienePermiso('alertas.recibir_predictivas');
 
         $equipo = [];
         $globalCompletadas = 0;
@@ -191,7 +194,7 @@ final class HomeController
             if ($sinTrabajo) {
                 $estadoTrab = 'disponible';
             }
-            if ($this->home->trabajadorEnRiesgo($usuarioId, $hoy)) {
+            if ($veRiesgo && $this->home->trabajadorEnRiesgo($usuarioId, $hoy)) {
                 $estadoTrab = 'en_riesgo';
             }
 

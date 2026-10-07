@@ -96,6 +96,7 @@ Si `requiere_cambio_pwd = 1` después del login, el frontend redirige inmediatam
 
 - Invalida la fila en `sesiones` (DELETE por token).
 - Limpia la cookie en el cliente.
+- Se permite también en **modo espía** (es la única escritura permitida además de salir del modo espía): borrar la sesión cierra también el modo espía, y el cierre queda en `audit_log` a nombre del admin real.
 - Respuesta 200 `{ "ok": true }`.
 
 ---
@@ -182,7 +183,7 @@ Flujo:
 ### 6.1 Duración de sesión
 
 - Default: **8 horas** desde último uso (sliding window).
-- Cada request válido actualiza `sesiones.expires_at = now + 8h`.
+- Cada request válido actualiza `sesiones.expires_at = now + 8h`, y `AuthCheck`/`OptionalAuth` vuelven a emitir la cookie con el mismo vencimiento (`AuthService::renovarCookieSesion`). Sin eso el navegador borraba la cookie a las 8 h del login aunque la sesión se siguiera usando.
 - Tras 8h de inactividad → sesión expirada, requiere re-login.
 
 ---

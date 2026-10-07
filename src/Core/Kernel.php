@@ -121,13 +121,15 @@ final class Kernel
         $router->delete('/api/roles/{id}', [$roles, 'eliminar'], [$authCheck, new PermissionCheck('permisos.asignar_a_rol')]);
         $router->get('/api/permisos', [$roles, 'listarPermisos'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
 
+        // usuarios.asignar_rol (no usuarios.editar): editar nombre/email no debe alcanzar para
+        // darse un rol. Además RbacService no deja dar un rol con permisos que uno no tiene.
         $router->post('/api/usuarios/{id}/roles', [$roles, 'asignarRolAUsuario'], [
             $authCheck,
-            new PermissionCheck('usuarios.editar'),
+            new PermissionCheck('usuarios.asignar_rol'),
         ]);
         $router->delete('/api/usuarios/{id}/roles/{rolId}', [$roles, 'quitarRolAUsuario'], [
             $authCheck,
-            new PermissionCheck('usuarios.editar'),
+            new PermissionCheck('usuarios.asignar_rol'),
         ]);
 
         // Habitaciones

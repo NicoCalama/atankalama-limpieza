@@ -7,6 +7,8 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Helpers\Rut;
 use Atankalama\Limpieza\Models\Usuario;
 
@@ -17,6 +19,41 @@ final class AuthService
      * porque en prod convive con otras apps bajo el mismo dominio (Maisterchef).
      */
     public const SESSION_COOKIE = 'limpieza_session';
+
+    /**
+     * Opciones de la cookie de sesión. Las usan el login y la renovación de cada request
+     * (AuthCheck/OptionalAuth): la sesión se renueva en la BD con el uso, y la cookie tiene que
+     * acompañarla; si no, el navegador la borraba a las 8 h del login aunque se siguiera usando.
+     *
+     * @return array<string, mixed>
+     */
+    public static function opcionesCookieSesion(): array
+    {
+        $opciones = [
+            'expires' => time() + Config::getInt('SESSION_LIFETIME_MINUTES', 480) * 60,
+            'path' => Url::base() ?: '/',
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ];
+        if (Config::get('APP_ENV', 'local') !== 'local') {
+            $opciones['secure'] = true;
+        }
+        return $opciones;
+    }
+
+    /**
+     * Vuelve a emitir la cookie de sesión con el vencimiento renovado, salvo que la respuesta
+     * ya la toque (login, logout, sesión expirada).
+     */
+    public static function renovarCookieSesion(Response $respuesta, string $token): Response
+    {
+        foreach ($respuesta->cookies() as $c) {
+            if ($c['nombre'] === self::SESSION_COOKIE) {
+                return $respuesta;
+            }
+        }
+        return $respuesta->conCookie(self::SESSION_COOKIE, $token, self::opcionesCookieSesion());
+    }
 
     private static bool $migracionThrottleAplicada = false;
 
@@ -272,6 +309,10 @@ final class AuthService
         $usuario = Database::fetchOne('SELECT id, nombre, rut, email FROM #__usuarios WHERE id = ?', [$usuarioIdObjetivo]);
         if ($usuario === null) {
             throw new AuthException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
+        }
+        // Resetear la clave de alguien con más permisos y recibir la temporal = quedarse con su cuenta.
+        if (!(new RbacService())->puedeGestionarUsuario($adminId, $usuarioIdObjetivo)) {
+            throw new AuthException('PRIVILEGIOS_INSUFICIENTES', RbacService::MSG_USUARIO_SUPERIOR, 403);
         }
 
         $temporal = $this->passwords->generarTemporal();

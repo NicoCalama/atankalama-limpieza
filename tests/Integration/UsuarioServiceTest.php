@@ -325,6 +325,9 @@ final class UsuarioServiceTest extends TestCase
         $this->assertCount(1, $exportPropio['ejecuciones']);
         $this->assertArrayNotHasKey('timestamp_inicio', $exportPropio['ejecuciones'][0]);
         $this->assertArrayNotHasKey('timestamp_fin', $exportPropio['ejecuciones'][0]);
+        // created_at sale del mismo INSERT que timestamp_inicio: a la propia persona solo la fecha.
+        $this->assertArrayNotHasKey('created_at', $exportPropio['ejecuciones'][0]);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $exportPropio['ejecuciones'][0]['fecha']);
 
         // Caso 2: un admin exporta → SÍ ve los timestamps
         $exportAdmin = $this->svc->exportarDatosPersonales($usuarioId, ocultaTimestampsKpi: false);
@@ -382,8 +385,10 @@ final class UsuarioServiceTest extends TestCase
             $this->svc->activar($this->adminId, false, $trabajadorId);
             $this->fail('Debía lanzar');
         } catch (UsuarioException $e) {
-            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
-            $this->assertSame(409, $e->httpStatus);
+            // Quien no es admin ya no llega a la guardia de último admin (409): lo frena antes la
+            // anti-escalada (403), porque el Admin tiene permisos de gestión que él no tiene.
+            $this->assertSame('PRIVILEGIOS_INSUFICIENTES', $e->codigo);
+            $this->assertSame(403, $e->httpStatus);
         }
         // Rollback: sigue activo.
         $this->assertTrue($this->svc->buscarPorId($this->adminId)->activo);
@@ -404,8 +409,9 @@ final class UsuarioServiceTest extends TestCase
             $this->svc->eliminar($this->adminId, $trabajadorId);
             $this->fail('Debía lanzar');
         } catch (UsuarioException $e) {
-            $this->assertSame('ULTIMO_ADMIN', $e->codigo);
-            $this->assertSame(409, $e->httpStatus);
+            // Ver testNoSePuedeDesactivarAlUltimoAdmin: la anti-escalada lo frena antes (403).
+            $this->assertSame('PRIVILEGIOS_INSUFICIENTES', $e->codigo);
+            $this->assertSame(403, $e->httpStatus);
         }
         // Rollback: no se anonimizó, sigue siendo admin activo.
         $admin = $this->svc->buscarPorId($this->adminId);

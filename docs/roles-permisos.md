@@ -387,6 +387,12 @@ Un Admin puede quitarle permisos a su propio rol desde la matriz. La UI debe mos
 
 **Estado: IMPLEMENTADO (15/09/2026).** El invariante lo aplica `RbacService::conGuardiaDeAdmin()` de forma atómica (transacción serializada `Database::transactionImmediate()` + bloqueo de fila `FOR UPDATE` en MariaDB / `BEGIN IMMEDIATE` en SQLite), cubriendo los **5 vectores**: desactivar, eliminar, quitar el rol admin a un usuario, vaciar el permiso llave del rol vía la matriz (`actualizarRol`), y borrar un rol admin-equivalente. "Admin" se define por **PERMISO** (`permisos.asignar_a_rol`), nunca por nombre de rol (RBAC dinámico). Errores: **409 `ULTIMO_ADMIN`** y **400 `AUTO_DESACTIVACION_PROHIBIDA`** (al intentar desactivarse uno mismo). La UI (`views/componentes/modal-usuario-detalle.php`) deshabilita los botones de desactivar/quitar-rol con un tooltip cuando el usuario es el último admin, usando el flag `es_ultimo_admin` que devuelve `GET /api/usuarios`.
 
+### 5.4 Nadie da ni toca permisos de gestión que no tiene (anti-escalada)
+
+**Estado: IMPLEMENTADO (07/10/2026).** Quien gestiona usuarios solo puede dar un rol, o tocar a un usuario, si ya tiene todos los permisos de **gestión de cuentas** (categorías *Usuarios* y *Roles* del catálogo) que ese rol o ese usuario traen. Lo aplican `RbacService::puedeOtorgarRol()` y `RbacService::puedeGestionarUsuario()` en: asignar rol, crear usuario con roles (y la carga masiva), quitar rol, editar datos o email, resetear contraseña, activar/desactivar y eliminar. Error: **403 `PRIVILEGIOS_INSUFICIENTES`**. Sobre uno mismo siempre se puede.
+
+Solo se comparan esas dos categorías, no todo el catálogo: así una supervisora con `usuarios.crear` puede crear trabajadoras (el rol Trabajador trae permisos de terreno que ella no tiene), pero nadie sin `permisos.asignar_a_rol` puede dar el rol Admin, crear una cuenta Admin, ni cambiarle el email o la clave a un Admin. Asignar y quitar roles exige `usuarios.asignar_rol` (antes bastaba `usuarios.editar`).
+
 **Recuperación de emergencia.** Si aun así el sistema quedara sin ningún admin activo (un bug, una migración o edición directa de la BD), correr en el servidor:
 
 ```

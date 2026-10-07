@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
-use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Core\Url;
@@ -33,23 +32,13 @@ final class AuthController
         }
 
         $usuario = $resultado['usuario'];
-        $cookieOpts = [
-            'expires' => time() + Config::getInt('SESSION_LIFETIME_MINUTES', 480) * 60,
-            'path' => Url::base() ?: '/',
-            'httponly' => true,
-            'samesite' => 'Strict',
-        ];
-        if (Config::get('APP_ENV', 'local') !== 'local') {
-            $cookieOpts['secure'] = true;
-        }
-
         return Response::ok([
             'usuario' => $usuario->toArrayPublico(),
             'permisos' => $usuario->permisos,
             'requiere_cambio_pwd' => $usuario->requiereCambioPwd,
             // home_target viaja al navegador para navegar directo: va con prefijo.
             'home_target' => Url::a($resultado['home_target']),
-        ])->conCookie(AuthService::SESSION_COOKIE, $resultado['token'], $cookieOpts);
+        ])->conCookie(AuthService::SESSION_COOKIE, $resultado['token'], AuthService::opcionesCookieSesion());
     }
 
     /**
@@ -79,7 +68,8 @@ final class AuthController
     {
         $token = $request->sessionToken;
         if ($token !== null) {
-            $this->auth->logout($token, $request->usuario?->id, $request->ip);
+            // En modo espía $request->usuario es el espiado: el cierre se registra a nombre del admin real.
+            $this->auth->logout($token, $request->espiaAdminId ?? $request->usuario?->id, $request->ip);
         }
         return Response::ok(['mensaje' => 'Sesión cerrada.'])
             ->conCookie(AuthService::SESSION_COOKIE, '', ['expires' => time() - 3600, 'path' => Url::base() ?: '/']);
