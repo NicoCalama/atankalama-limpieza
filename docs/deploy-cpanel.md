@@ -1268,3 +1268,38 @@ de las 16:00).
 
 **Vuelta atrás:** volver a subir esos archivos tal como están en `138fbfb` (`CierreDiaService.php` puede quedar: sin
 los scripts nuevos nadie lo llama).
+
+### 11.17 Release "preasignaciones y «Marcar sucia»" → v6.17.1
+
+Hotfix sobre la v6.17, armado desde lo que está en producción (`eb3f7d2`) y **no desde `main`**: `main` tiene la
+inspección pre-entrega (futura v7) en estos mismos archivos, y un ZIP armado desde ahí la subiría sin aprobación.
+Diagnóstico con datos de producción del 06/10/2026:
+
+- **Áreas comunes preasignadas** para otro día: al llegar el día pasan a sucia y quedan pendientes en la cola de quien
+  las tiene. Antes se cancelaban como si no hicieran falta, o quedaban en la cola sin poder empezarse: de 31
+  preasignaciones de áreas entre el 07/09 y el 06/10, solo una se limpió.
+- **Habitaciones preasignadas que amanecen «aprobada automática»**: salen de la cola con el aviso de siempre (la INN 101
+  el 25/09). Desde la v6.11 el sync ya no convierte la automática en «aprobada», y el chequeo no la reconocía.
+- **«Marcar sucia»** en Habitaciones acepta las piezas que aprobó el cierre automático (antes respondía 409).
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos.** La acción nueva de auditoría `asignacion.preasignacion_activada`
+va a `audit_log.accion`, que es texto libre. ZIP `build/limpieza-v6171-delta.zip` (estructura `limpieza/…`), todo a
+`app_core/`:
+
+- `src/Services/AsignacionService.php`;
+- `src/Controllers/HabitacionesController.php`;
+- `views/habitaciones.php`;
+- `CHANGELOG.md` (v6.17.1 fechada).
+
+Lista = `git diff --name-only eb3f7d2 HEAD` menos `docs/` y `tests/`: 4 archivos.
+
+**Cuándo y cómo subir:** a cualquier hora (no cambia nada de lo que usan los crons). Precheck como en la v6.17: bajar
+de prod los 3 archivos de código y compararlos con `eb3f7d2`, normalizando `\r`.
+
+**Smoke:**
+- badge **v6.17.1** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- Habitaciones → menú de una pieza «Aprob. auto.»: aparece «Marcar sucia» (no hace falta usarlo; si se usa, la pieza
+  pasa a sucia y se le avisa `dirty` a Cloudbeds);
+- al día siguiente de preasignar un área común: aparece «Pendiente» en la cola de esa persona, con «Comenzar limpieza».
+
+**Vuelta atrás:** volver a subir esos 3 archivos tal como están en `eb3f7d2`.
