@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Cierre del día de las áreas comunes (v6.17.3, decisión de Nicolás del 07/10/2026): la que queda
+ * Cierre del día de las áreas comunes (v6.18, decisión de Nicolás del 07/10/2026): la que queda
  * en progreso sigue mañana en la cola de la misma persona, con lo que ya marcó; de la rechazada que
  * nadie volvió a pedir se avisa cada noche; y la tarjeta muestra la franja solo de lo que está en
  * curso o pasó hoy. Ver CierreDiaService::cerrarAreasComunes() y EspacioService::franjaVisible().

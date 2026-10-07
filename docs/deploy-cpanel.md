@@ -1401,7 +1401,7 @@ pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien
 **Vuelta atrás:** subir `build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`, la
 v6.17 desplegada).
 
-### 11.19 Release "tarjeta y cierre del día de las áreas comunes" → v6.17.3
+### 11.19 Release "tarjeta y cierre del día de las áreas comunes" → v6.18
 
 Pedido de jefatura (07/10/2026) y decisiones de Nicolás: la tarjeta de Áreas comunes pasa a ser la ficha de
 Habitaciones (franja de estado al pie con los textos y colores de las habitaciones, a quién está asignada hoy; sin
@@ -1410,7 +1410,12 @@ día (23:55) cierra también el día de las áreas: la que quedó en progreso si
 persona, y de esa y de las rechazadas que nadie volvió a pedir se avisa por campanita a quienes tienen
 `espacios.pedir_limpieza`. Detalle en `docs/areas-comunes.md` («Tarjeta y cierre del día»).
 
-**Orden:** va encima de la v6.17.2 (rama `v6.17.3-areas-comunes`, desde `v6.17.2-rescate`; no lleva la v7).
+**Orden:** va encima de la v6.17.2 (rama `v6.18-areas-comunes`, desde `v6.17.2-rescate`; no lleva la v7).
+
+**Número:** v6.18, por decisión de Nicolás (07/10/2026; se armó como v6.17.3). El número ya se había usado como rótulo
+provisorio de los cambios de Reportes del 04/10 (salieron dentro de la v6.16) y de la inspección pre-entrega (§11.15,
+hoy v7). En `main` el CHANGELOG todavía tiene la fila «v6.18 · sin publicar» de la inspección: **al integrar esta rama
+a `main`, esa fila pasa a ser la de la v7**.
 
 **Sin SQL de esquema, sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`).
 **Sin cambios en los cron:** el cierre de las áreas va dentro de `aprobar-pendientes-cierre-dia.php`, que ya corre a
@@ -1448,20 +1453,20 @@ Las `rechazada` salen en el aviso de la primera noche. Una `en_progreso` con `fe
 esa noche; con una `fecha` anterior **no** se arrastra (quedó colgada de antes): va a mostrar EN PROGRESO sin nadie
 asignado hasta que alguien pida su limpieza, así que conviene decidir cada una antes (pedirla de nuevo o dejarla).
 
-**ZIP** `build/limpieza-v6173-delta.zip` (estructura `limpieza/…`), todo a `app_core/`: lista =
+**ZIP** `build/limpieza-v618-delta.zip` (estructura `limpieza/…`), todo a `app_core/`: lista =
 `git diff --name-only 5c67afc HEAD` menos `docs/` y `tests/` (**7 archivos**, todos modificados, ninguno nuevo:
 `CHANGELOG.md`, `scripts/aprobar-pendientes-cierre-dia.php`, `src/Services/AsignacionService.php`,
 `src/Services/CierreDiaService.php`, `src/Services/EspacioService.php`, `src/Support/Tours.php` y
 `views/espacios.php`).
 
-**Precheck** (como en la v6.17.2): bajar de prod esos 7 archivos a `build/prod-antes-v6173/` y compararlos contra
+**Precheck** (como en la v6.17.2): bajar de prod esos 7 archivos a `build/prod-antes-v618/` y compararlos contra
 `5c67afc` normalizando `\r`; con eso, armar `build/limpieza-v6172-vuelta-atras.zip` (los 7 tal como están en
 `5c67afc`).
 
 **Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (el script del cierre de día está en el ZIP).
 
 **Smoke:**
-- badge **v6.17.3** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- badge **v6.18** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
 - Áreas comunes: un área sin pedir no tiene franja; al pedirla para hoy aparece PENDIENTE y el nombre de la persona;
   el encabezado sigue diciendo el hotel elegido; la vista de tabla muestra «Asignada hoy».
 

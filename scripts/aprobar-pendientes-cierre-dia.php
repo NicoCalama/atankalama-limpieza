@@ -22,7 +22,7 @@ declare(strict_types=1);
  * (estado/veredicto nuevos + usuario "Sistema").
  *
  * En la pasada de la noche (desde las 20:00) cierra además el día de las áreas
- * comunes (v6.17.3, CierreDiaService::cerrarAreasComunes): las que quedan en
+ * comunes (v6.18, CierreDiaService::cerrarAreasComunes): las que quedan en
  * progreso siguen mañana en la cola de la misma persona y se avisa a las
  * supervisoras, igual que de las rechazadas que nadie volvió a pedir. La corrida
  * de las 15:50 (cron duplicado que jefatura decidió mantener) no toca las áreas.

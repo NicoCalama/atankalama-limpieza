@@ -63,7 +63,7 @@ aprobada (auto-cierre, sin auditoría)        ← vuelve a idle; listo para el p
 ```
 
 - **Reusa el estado `aprobada`** como terminal "listo/idle" — no se agrega un estado nuevo. En la UI
-  de espacios se rotulaba como "Listo", no como "Aprobada" (desde la v6.17.3 la tarjeta usa los textos
+  de espacios se rotulaba como "Listo", no como "Aprobada" (desde la v6.18 la tarjeta usa los textos
   de las habitaciones; ver «Tarjeta y cierre del día»).
 - La transición `en_progreso → aprobada` se agrega a la matriz de `EstadoHabitacionService`
   **solo la ejercita el auto-cierre de espacios** (`ChecklistService::completar` bifurca por
@@ -93,7 +93,7 @@ Antes las áreas pasaban por la misma regla que las habitaciones: se cancelaban 
 limpieza» o, si las había aprobado el sistema, quedaban en la cola sin poder empezarse. En producción,
 de 31 preasignaciones de áreas entre el 07/09 y el 06/10/2026, solo una se limpió.
 
-### Tarjeta y cierre del día (v6.17.3)
+### Tarjeta y cierre del día (v6.18)
 
 Decisiones de Nicolás del 07/10/2026. Las asignaciones son por día, así que «no asignada» **no es un
 estado nuevo**: es un área sin asignación activa para hoy. El estado guardado no cambia.

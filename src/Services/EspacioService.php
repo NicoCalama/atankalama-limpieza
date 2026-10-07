@@ -46,7 +46,7 @@ final class EspacioService
     }
 
     /**
-     * Franja de estado que muestra la tarjeta del área (v6.17.3, decisión de Nicolás del
+     * Franja de estado que muestra la tarjeta del área (v6.18, decisión de Nicolás del
      * 07/10/2026), o null = sin franja. Las asignaciones son por día: un área sin nadie asignado
      * hoy no muestra su estado, salvo que esté en progreso, por inspeccionar o rechazada (la
      * rechazada mantiene su franja hasta que alguien vuelva a pedir la limpieza). Asignada y sin
