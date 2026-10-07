@@ -46,23 +46,55 @@ final class EspacioService
     }
 
     /**
-     * Lista los espacios activos (opcionalmente filtrados por hotel), con su hotel, estado y
-     * cantidad de ítems del checklist.
+     * Franja de estado que muestra la tarjeta del área (v6.17.3, decisión de Nicolás del
+     * 07/10/2026), o null = sin franja. Las asignaciones son por día: un área sin nadie asignado
+     * hoy no muestra su estado, salvo que esté en progreso, por inspeccionar o rechazada (la
+     * rechazada mantiene su franja hasta que alguien vuelva a pedir la limpieza). Asignada y sin
+     * empezar es «Pendiente».
+     */
+    public static function franjaVisible(string $estado, bool $asignadaHoy): ?string
+    {
+        return match ($estado) {
+            Habitacion::ESTADO_EN_PROGRESO,
+            Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
+            Habitacion::ESTADO_RECHAZADA => $estado,
+            Habitacion::ESTADO_SUCIA,
+            Habitacion::ESTADO_APROBADA,
+            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+            Habitacion::ESTADO_APROBADA_AUTOMATICA => $asignadaHoy ? $estado : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Lista los espacios activos (opcionalmente filtrados por hotel), con su hotel, estado,
+     * cantidad de ítems del checklist, quién lo tiene asignado hoy y la franja de su tarjeta.
      *
      * @param 'ambos'|'1_sur'|'inn'|null $hotel
      * @return list<array<string, mixed>>
      */
     public function listar(?string $hotel = 'ambos'): array
     {
+        $hoy = date('Y-m-d');
+        // Un área preasignada para hoy que sigue «aprobada» pasa a sucia al cargar una cola o el
+        // tablero (v6.17.1); se hace también acá para que su tarjeta no muestre la aprobación de
+        // la limpieza anterior si nadie abrió todavía su cola.
+        $this->asignaciones->ponerAlDiaPreasignaciones($hoy);
+
         $where = ['h.es_espacio_comun = 1', 'h.activa = 1'];
-        $params = [];
+        $params = [$hoy];
         if ($hotel !== null && $hotel !== 'ambos') {
             $where[] = 'ho.codigo = ?';
             $params[] = $hotel;
         }
 
-        return Database::fetchAll(
+        $filas = Database::fetchAll(
             'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+                    (SELECT u.nombre
+                       FROM #__asignaciones a
+                       JOIN #__usuarios u ON u.id = a.usuario_id
+                      WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                      ORDER BY a.id DESC LIMIT 1) AS asignado_a_nombre,
                     (SELECT COUNT(*)
                        FROM #__checklists_template ct
                        JOIN #__items_checklist ic ON ic.template_id = ct.id
@@ -78,6 +110,11 @@ final class EspacioService
               ORDER BY ho.codigo, h.numero',
             $params
         );
+        return array_map(static function (array $f): array {
+            $f['asignada_hoy'] = $f['asignado_a_nombre'] !== null;
+            $f['franja'] = self::franjaVisible((string) $f['estado'], $f['asignada_hoy']);
+            return $f;
+        }, $filas);
     }
 
     /**
@@ -245,22 +282,29 @@ final class EspacioService
             'inn'   => 'Atankalama Inn',
             default => 'Ambos hoteles',
         };
-        $etiquetasEstado = [
-            'aprobada'    => 'Listo',
-            'sucia'       => 'Limpieza pendiente',
-            'en_progreso' => 'En limpieza',
+        // Los textos de la franja de la tarjeta (los de las habitaciones); sin franja, sin asignar.
+        $etiquetasFranja = [
+            Habitacion::ESTADO_SUCIA                          => 'Pendiente',
+            Habitacion::ESTADO_EN_PROGRESO                    => 'En progreso',
+            Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA => 'Por inspeccionar',
+            Habitacion::ESTADO_APROBADA                       => 'Aprobada',
+            Habitacion::ESTADO_APROBADA_CON_OBSERVACION       => 'Aprobada c/obs.',
+            Habitacion::ESTADO_APROBADA_AUTOMATICA            => 'Aprobada auto.',
+            Habitacion::ESTADO_RECHAZADA                      => 'Rechazada',
         ];
 
         $rows = [];
         $rows[] = ['Áreas comunes', $hotelLabel];
         $rows[] = ['Generado', date('d/m/Y H:i:s')];
         $rows[] = [];
-        $rows[] = ['Hotel', 'Nombre', 'Estado', 'Ítems', 'Créditos'];
+        $rows[] = ['Hotel', 'Nombre', 'Estado', 'Asignada hoy a', 'Ítems', 'Créditos'];
         foreach ($espacios as $e) {
+            $estado = $e['franja'] !== null ? ($etiquetasFranja[$e['franja']] ?? $e['franja']) : 'Sin asignar';
             $rows[] = [
                 $e['hotel_nombre'],
                 $e['numero'],
-                $etiquetasEstado[$e['estado']] ?? $e['estado'],
+                $estado,
+                $e['asignado_a_nombre'] ?? '',
                 (int) $e['items_count'],
                 (int) $e['creditos_total'],
             ];
