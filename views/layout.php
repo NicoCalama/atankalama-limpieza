@@ -91,7 +91,7 @@
 
     <?php if (isset($usuario)): ?>
         <!-- Centro de notificaciones (popup global) -->
-        <?php include __DIR__ . '/componentes/notificaciones-popup.php'; ?>
+        <?php if ($usuario->tienePermiso('notificaciones.ver')) include __DIR__ . '/componentes/notificaciones-popup.php'; ?>
 
         <!-- Bottom nav móvil -->
         <?php include __DIR__ . '/componentes/bottom-nav.php'; ?>
@@ -165,7 +165,7 @@
         // Inicializar iconos Lucide después del render
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
-            <?php if (isset($usuario)): ?>
+            <?php if (isset($usuario) && $usuario->tienePermiso('notificaciones.ver')): ?>
             // Cargar conteo de no leídas para el badge
             fetch(u('/api/notificaciones/sin-leer'))
                 .then(function(r) { return r.json(); })

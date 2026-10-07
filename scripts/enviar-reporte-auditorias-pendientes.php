@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Envía a los administradores (rol Admin, activos, con email) el reporte diario de
+ * Envía a los administradores (permiso permisos.asignar_a_rol, activos, con email) el reporte diario de
  * habitaciones limpiadas y no auditadas al corte de las 23:50, separado por turno
  * mañana/tarde. Ver ReportesService::auditoriasPendientes() y
  * EmailService::enviarReporteAuditoriasPendientes().

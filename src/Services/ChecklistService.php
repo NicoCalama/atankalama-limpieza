@@ -1003,9 +1003,20 @@ final class ChecklistService
         }
 
         $existente = Database::fetchOne(
-            'SELECT id FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            'SELECT id, marcado, marcado_por FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
             [$ejecucionId, $itemId]
         );
+        // Ítem heredado de una re-limpieza (lo marcó otra persona en el intento anterior): solo
+        // lectura, también en el backend. Si no, con un PUT directo se desmarcaba y volvía a marcar
+        // y pasaba a nombre de quien lo tocó, llevándose los créditos de quien lo hizo.
+        // Volver a marcarlo no cambia nada (no se reescribe marcado_por): se responde el progreso.
+        if ($existente !== null && (int) $existente['marcado'] === 1
+            && $existente['marcado_por'] !== null && (int) $existente['marcado_por'] !== $usuarioId) {
+            if ($marcado) {
+                return $this->calcularProgreso($ejecucionId, $ejec->templateId);
+            }
+            throw new ChecklistException('ITEM_HEREDADO', 'Este ítem ya lo dejó listo otra persona.', 403);
+        }
         // marcado_por = quién dejó el ítem marcado (null al desmarcar). Clave para repartir
         // créditos en re-limpieza: cada ítem queda a nombre de quien lo completó.
         $marcadoPor = $marcado ? $usuarioId : null;

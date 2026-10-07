@@ -29,6 +29,9 @@ final class Rut
         }
 
         [$numero, $dvEsperado] = explode('-', $normalizado);
+        if ((int) $numero === 0) {
+            return false; // «0-0» tenía un dígito verificador «correcto» y pasaba como RUT válido
+        }
         $dvCalculado = self::calcularDigitoVerificador($numero);
 
         return $dvCalculado === $dvEsperado;

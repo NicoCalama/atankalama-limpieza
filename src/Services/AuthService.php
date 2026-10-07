@@ -89,20 +89,27 @@ final class AuthService
                 throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
             }
 
+            // Anti-enumeración (mismo cuidado que recuperarContrasena): un RUT que no existe pasa
+            // igual por bcrypt (mismo tiempo de respuesta) y la contraseña se verifica ANTES de mirar
+            // si la cuenta está inactiva. Antes, con cualquier clave, «inactivo» (403) y la respuesta
+            // más rápida del RUT inexistente delataban qué RUT están registrados.
             $fila = Database::fetchOne('SELECT * FROM #__usuarios WHERE rut = ?', [$rutNorm]);
+            $hash = $fila !== null ? (string) $fila['password_hash'] : self::hashDeRelleno();
+            $passwordOk = $this->passwords->verificar($password, $hash);
+
             if ($fila === null) {
                 Logger::warning('auth', 'login fallido: rut no encontrado', ['rut' => $rutNorm]);
+                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
+            }
+
+            if (!$passwordOk) {
+                Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
                 throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
             }
 
             if (((int) $fila['activo']) !== 1) {
                 Logger::warning('auth', 'login fallido: usuario inactivo', ['usuario_id' => (int) $fila['id']]);
                 throw new AuthException('USUARIO_INACTIVO', 'Tu usuario está inactivo. Contacta al admin.', 403);
-            }
-
-            if (!$this->passwords->verificar($password, (string) $fila['password_hash'])) {
-                Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
-                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
             }
         } catch (AuthException $e) {
             // Cualquier fallo de credenciales/inactivo/rut inválido suma al throttle
@@ -136,7 +143,17 @@ final class AuthService
      */
     private function claveThrottle(string $rutNorm, ?string $ip): string
     {
-        return $rutNorm . '|' . ($ip ?? 'sin_ip');
+        // Acotada: la clave se arma antes de validar el RUT, y un «RUT» de cientos de caracteres
+        // no cabe en intentos_login.clave (VARCHAR(80) en MariaDB → 500 en vez de 400).
+        // Un RUT real tiene a lo más 10 caracteres normalizado.
+        return substr($rutNorm, 0, 20) . '|' . substr($ip ?? 'sin_ip', 0, 45);
+    }
+
+    /** Hash bcrypt de un valor al azar, para gastar el mismo tiempo cuando el RUT no existe. */
+    private static function hashDeRelleno(): string
+    {
+        static $hash = null;
+        return $hash ??= password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
     }
 
     /**
@@ -267,6 +284,7 @@ final class AuthService
         #[\SensitiveParameter] string $actual,
         #[\SensitiveParameter] string $nueva,
         #[\SensitiveParameter] string $confirmacion,
+        #[\SensitiveParameter] ?string $tokenSesionActual = null,
     ): void
     {
         if ($nueva !== $confirmacion) {
@@ -286,11 +304,19 @@ final class AuthService
             throw new AuthException('PWD_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta.', 401);
         }
 
-        Database::transaction(function () use ($usuarioId, $nueva): void {
+        Database::transaction(function () use ($usuarioId, $nueva, $tokenSesionActual): void {
             Database::execute(
                 "UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$this->passwords->hash($nueva), $usuarioId]
             );
+            // Las demás sesiones abiertas se cierran (quien cambia la clave porque se la vieron no
+            // quiere que la otra sesión siga viva); la de este dispositivo sigue.
+            if ($tokenSesionActual !== null) {
+                Database::execute(
+                    'DELETE FROM #__sesiones WHERE usuario_id = ? AND token <> ?',
+                    [$usuarioId, $tokenSesionActual]
+                );
+            }
             Database::execute(
                 "UPDATE #__contrasenas_temporales SET usada = 1, usada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE usuario_id = ? AND usada = 0",
                 [$usuarioId]

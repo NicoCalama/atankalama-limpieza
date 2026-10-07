@@ -104,7 +104,7 @@ final class AuthController
         }
 
         try {
-            $this->auth->cambiarContrasena($usuario->id, $actual, $nueva, $confirm);
+            $this->auth->cambiarContrasena($usuario->id, $actual, $nueva, $confirm, $request->sessionToken);
         } catch (AuthException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

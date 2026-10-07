@@ -658,8 +658,9 @@ final class TicketService
 
     /**
      * Agrega un comentario al historial del ticket (solo-append: sin edición ni borrado).
-     * Si $avisarSupervisora, notifica a todo usuario activo con rol Supervisora o Admin —
-     * mismo patrón de consulta por nombre de rol que esTrabajador(). El aviso va por
+     * Si $avisarSupervisora, notifica a todo usuario activo con permiso alertas.recibir_predictivas
+     * (la supervisión: hoy Supervisora y Admin). RBAC dinámico: antes se buscaba por nombre de rol y
+     * un rol renombrado o uno propio con los mismos permisos se quedaba sin aviso. El aviso va por
      * PushService::notificar() (mismo mecanismo que usa AuditoriaService para el rechazo):
      * persiste en la campanita a todos los destinatarios y además intenta push real a
      * quien tenga suscripción y no esté fuera de turno — se degrada en silencio si faltan
@@ -689,8 +690,8 @@ final class TicketService
                 Database::fetchAll(
                     "SELECT DISTINCT u.id FROM #__usuarios u
                        JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
-                       JOIN #__roles r ON r.id = ur.rol_id
-                      WHERE r.nombre IN ('Supervisora', 'Admin') AND u.activo = 1"
+                       JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+                      WHERE rp.permiso_codigo = 'alertas.recibir_predictivas' AND u.activo = 1"
                 ),
                 'id'
             );

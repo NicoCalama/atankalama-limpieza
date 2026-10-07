@@ -55,7 +55,7 @@ Set-Cookie: `session=<token>; HttpOnly; SameSite=Strict; Secure; Path=/`.
 
 Errores:
 - `401` `CREDENCIALES_INVALIDAS` — RUT o pwd incorrectos (mensaje genérico, no revelar cuál falló).
-- `403` `USUARIO_INACTIVO` — usuario existe pero `activo=0`.
+- `403` `USUARIO_INACTIVO` — usuario existe, `activo=0` **y la contraseña es correcta** (con una clave incorrecta responde `CREDENCIALES_INVALIDAS`, igual que un RUT que no existe; y un RUT inexistente también pasa por bcrypt para tardar lo mismo). Así el login no delata qué RUT están registrados (07/10/2026).
 - `400` `RUT_INVALIDO` — formato o DV inválido.
 
 ### 1.4 Decisión de Home (`home_target`)

@@ -105,9 +105,16 @@ final class AlertasController
         }
         // Lista blanca: solo las claves de Ajustes → Alertas. alertas_config también guarda datos de
         // otros módulos (p. ej. el interruptor de la inspección pre-entrega, que exige su propio permiso).
-        foreach (array_keys($payload) as $clave) {
+        foreach ($payload as $clave => $valor) {
             if (!array_key_exists((string) $clave, AlertasService::CONFIG_DEFAULTS)) {
                 return Response::error('CLAVE_INVALIDA', "No se puede cambiar «{$clave}» desde Ajustes → Alertas.", 400);
+            }
+            // Todos los umbrales son enteros no negativos (minutos, σ, %, piezas). Un margen de
+            // «-15» o un tiempo de 0 min por pieza rompían el algoritmo predictivo en silencio.
+            $texto = trim((string) (is_scalar($valor) ? $valor : ''));
+            $minimo = in_array($clave, ['tiempo_fallback_nueva_habitacion', 'recalculo_intervalo_minutos'], true) ? 1 : 0;
+            if (!ctype_digit($texto) || (int) $texto < $minimo || (int) $texto > 1000) {
+                return Response::error('VALOR_INVALIDO', "«{$clave}» debe ser un número entero entre {$minimo} y 1000.", 400);
             }
         }
         Database::transaction(function () use ($payload, $request): void {

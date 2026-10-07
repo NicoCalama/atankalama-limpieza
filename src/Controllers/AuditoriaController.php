@@ -84,6 +84,12 @@ final class AuditoriaController
         }
 
         $itemsIds = is_array($items) ? array_values(array_map('intval', $items)) : [];
+        // Desmarcar ítems en una observación exige su propio permiso, igual que en la pantalla
+        // (en el rechazo los ítems fallidos son parte del veredicto). Antes solo lo revisaba el frontend.
+        if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsIds !== []
+            && !$request->usuario->tienePermiso('auditoria.editar_checklist_durante_auditoria')) {
+            return Response::error('PERMISO_INSUFICIENTE', 'Falta permiso auditoria.editar_checklist_durante_auditoria.', 403);
+        }
 
         try {
             $auditoria = $this->servicio()->emitirVeredicto(

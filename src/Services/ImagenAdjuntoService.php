@@ -17,6 +17,7 @@ use GdImage;
 final class ImagenAdjuntoService
 {
     /** Nunca se procesa un archivo original más pesado que esto (defensa contra memoria/DoS). */
+    private const MAX_PIXELES = 25_000_000;
     private const MAX_BYTES_ORIGINAL = 12 * 1024 * 1024;
 
     /** Objetivo de peso de salida. */
@@ -54,6 +55,11 @@ final class ImagenAdjuntoService
             throw new ImagenException('FORMATO_INVALIDO', 'El archivo no es una imagen válida.');
         }
         [$anchoOriginal, $altoOriginal, $tipo] = $info;
+        // GD reserva ~4 bytes por píxel (y el doble al rotar): una foto de 50 MP pide >200 MB y
+        // agota la memoria con un fatal que no se puede atajar. Se rechaza antes de abrirla.
+        if ($anchoOriginal * $altoOriginal > self::MAX_PIXELES) {
+            throw new ImagenException('IMAGEN_MUY_GRANDE', 'La foto tiene demasiada resolución. Tómala con la cámara en calidad normal.');
+        }
 
         $imagen = match ($tipo) {
             IMAGETYPE_JPEG => @imagecreatefromjpeg($tmpPath),
@@ -71,7 +77,9 @@ final class ImagenAdjuntoService
             $exif = @exif_read_data($tmpPath);
             $orientacion = (int) ($exif['Orientation'] ?? 1);
             $imagen = $this->aplicarOrientacionExif($imagen, $orientacion);
-            if (in_array($orientacion, [5, 6, 7, 8], true)) {
+            // Solo las que de verdad se rotaron (6 y 8). Con 5 y 7 (volteos, no soportados) se
+            // intercambiaban ancho y alto sin rotar, y la foto salía deformada.
+            if (in_array($orientacion, [6, 8], true)) {
                 [$anchoOriginal, $altoOriginal] = [$altoOriginal, $anchoOriginal];
             }
         }

@@ -404,6 +404,15 @@ El script solo **agrega** capacidad admin (nunca la quita), por lo que es seguro
 
 ---
 
+### 5.5 Permisos del catálogo que se revisan
+
+Desde el 07/10/2026: `notificaciones.ver` (rutas de la
+campanita, que tampoco se muestra sin él), `usuarios.exportar_datos_propios` (exportar los datos propios)
+y `roles.ver` (leer la matriz; antes bastaba `ajustes.acceder`). Quedan **sin ruta propia, a propósito**:
+`usuarios.cambiar_propia_contrasena` (cambiar la clave temporal es obligatorio para entrar: exigir el
+permiso podría dejar a alguien sin poder entrar) y `roles.crear` / `roles.editar` / `roles.eliminar`
+(crear, editar y borrar roles exige `permisos.asignar_a_rol`, que ya incluye todo eso).
+
 ## 6. Cómo agregar un permiso nuevo
 
 Cuando implementes una feature que requiera un permiso nuevo:
