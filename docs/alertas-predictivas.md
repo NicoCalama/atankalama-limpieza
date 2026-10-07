@@ -40,6 +40,10 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 
 **Implementación (07/10/2026):** una sola alerta activa (dedupe `cloudbeds_sync`) cuyo texto se actualiza con la última falla. Se levanta con cualquier sync entrante que tenga errores, también los `parcial` (un hotel falla y el otro actualiza piezas), y nombra el hotel. Se resuelve sola con el siguiente sync **de todos los hoteles** sin errores. «Reintentar ahora» llama a `POST /api/cloudbeds/sync` (permiso `cloudbeds.forzar_sincronizacion`; sin él no se muestra el botón); ya no borra la alerta.
 
+**Escrituras fallidas (v6.17.2):** cuando falla una escritura saliente (aprobar → `clean`; barrido de nocheros, «Marcar sucia», reasignar → `dirty`), la P0 es **propia de la pieza** (dedupe `cloudbeds_escritura:{habitacion_id}`, con `habitacion_id` en el contexto) y no la cierra un sync de lectura, que no reintenta la escritura: se cerraba justo cuando la pieza seguía desfasada en Cloudbeds. Se cierra cuando una escritura de **esa misma pieza** funciona. Su botón es «Ver habitación», para rehacer la acción desde la ficha.
+
+**Acciones a mano:** solo «Marcar atendido» sobre `ticket_nuevo` cierra una alerta desde `POST /api/alertas/{id}/accion` (lista blanca por tipo); cualquier otra acción responde **400 `ACCION_NO_PERMITIDA`**. Los demás botones solo navegan.
+
 ### 3.2 P1 — `trabajador_en_riesgo`
 
 **Disparador:** el algoritmo predictivo (§4) estima que un trabajador no alcanzará a terminar su turno.

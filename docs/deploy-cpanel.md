@@ -1303,3 +1303,92 @@ de prod los 3 archivos de código y compararlos con `eb3f7d2`, normalizando `\r`
 - al día siguiente de preasignar un área común: aparece «Pendiente» en la cola de esa persona, con «Comenzar limpieza».
 
 **Vuelta atrás:** volver a subir esos 3 archivos tal como están en `eb3f7d2`.
+
+### 11.18 Release "rescate de la auditoría del 07/10" → v6.17.2
+
+Arreglos de la auditoría de código del 07/10/2026 (rama `ccr-d58d9709-6vgn0f`, sesión en la nube), traídos a la línea
+de producción **sin la v7** y **solo lo útil** (decisión de Nicolás): atomicidad de completar/veredicto/cierre de día,
+anti-escalada de privilegios, cookie y logout en modo espía, RBAC por permiso, ciclo de vida de las alertas (sin
+«Descartar»), sábanas con cambio de horario, importación de turnos, inventario protegido, orden de la bandeja, push y
+hallazgos menores (login, copilot, fotos, CSV). **Fuera:** cambios de KPIs de Reportes (días trabajados con áreas,
+productividad del equipo, desmarcados, «solo hasta hoy»), la limpieza «interrumpida» y su migración, el reparto
+automático por hotel, su versión de las preasignaciones (queda la de la v6.17.1) y la cola offline del checklist.
+Con correcciones de la revisión: anti-escalada con lista explícita (`RbacService::PERMISOS_GESTION`), hash fijo en el
+login, P0 propia por escritura fallida, lista blanca de acciones de alertas, push que de verdad no tumba la request,
+filas corridas y horas `HH:MM` en la importación de turnos.
+
+**Orden:** va encima de la v6.17.1 (§11.17). Si se suben juntas, sumar al ZIP `src/Controllers/HabitacionesController.php`
+y `views/habitaciones.php` (la lista sería `git diff --name-only eb3f7d2 HEAD`).
+
+**Sin SQL de esquema, sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`).
+
+**ANTES de subir: revisar permisos en producción** (consultas de solo lectura en phpMyAdmin, con `cat6852_australia`
+elegida). El código ahora exige permisos que antes no miraba, y en producción los permisos se cargaron a mano.
+
+A) Qué roles tienen cada permiso que importa (si falta una fila, ese permiso no existe en producción):
+
+```sql
+SELECT p.codigo,
+       COALESCE(GROUP_CONCAT(r.nombre ORDER BY r.id SEPARATOR ', '), '-- NADIE --') AS roles
+  FROM limpieza_permisos p
+  LEFT JOIN limpieza_rol_permisos rp ON rp.permiso_codigo = p.codigo
+  LEFT JOIN limpieza_roles r ON r.id = rp.rol_id
+ WHERE p.codigo IN ('notificaciones.ver', 'disponibilidad.notificar_supervisora', 'usuarios.asignar_rol',
+                    'usuarios.editar', 'alertas.recibir_predictivas', 'permisos.asignar_a_rol',
+                    'cloudbeds.forzar_sincronizacion', 'auditoria.editar_checklist_durante_auditoria',
+                    'usuarios.exportar_datos_propios', 'roles.ver')
+ GROUP BY p.codigo
+ ORDER BY p.codigo;
+```
+
+Esperado: `notificaciones.ver` en **todos** los roles que usan la app (sin él no hay campanita);
+`disponibilidad.notificar_supervisora` en Trabajador y Apoyo (sin él no aparece «Estoy disponible»).
+
+B) Personas a las que algo les cambia (vacío = a nadie):
+
+```sql
+SELECT u.nombre, (COALESCE(u.email, '') <> '') AS con_email,
+       GROUP_CONCAT(DISTINCT r.nombre ORDER BY r.nombre SEPARATOR ', ') AS roles,
+       COALESCE(MAX(r.nombre = 'Admin'), 0) AS correo_antes,
+       COALESCE(MAX(rp.permiso_codigo = 'permisos.asignar_a_rol'), 0) AS correo_despues,
+       COALESCE(MAX(rp.permiso_codigo = 'notificaciones.ver'), 0) AS campanita,
+       COALESCE(MAX(rp.permiso_codigo = 'usuarios.editar'), 0) AS edita_usuarios,
+       COALESCE(MAX(rp.permiso_codigo = 'usuarios.asignar_rol'), 0) AS asigna_roles
+  FROM limpieza_usuarios u
+  JOIN limpieza_usuarios_roles ur ON ur.usuario_id = u.id
+  JOIN limpieza_roles r ON r.id = ur.rol_id
+  LEFT JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id
+   AND rp.permiso_codigo IN ('permisos.asignar_a_rol', 'notificaciones.ver', 'usuarios.editar', 'usuarios.asignar_rol')
+ WHERE u.activo = 1
+ GROUP BY u.id, u.nombre, u.email
+HAVING correo_antes <> correo_despues OR campanita = 0 OR edita_usuarios > asigna_roles
+ ORDER BY u.nombre;
+```
+
+Cada fila: `correo_antes ≠ correo_despues` → cambia quién recibe el correo de las 23:50; `campanita = 0` → darle
+`notificaciones.ver` a su rol; `edita_usuarios > asigna_roles` → antes podía asignar roles y ahora no (darle
+`usuarios.asignar_rol` si corresponde). Lo que falte se da **antes de subir** desde Ajustes → Roles y Permisos.
+
+C) Alertas viejas (sin «Descartar», las que no se cierran solas quedan a la vista):
+
+```sql
+SELECT tipo, COUNT(*) AS activas, MIN(created_at) AS la_mas_vieja
+  FROM limpieza_alertas_activas
+ GROUP BY tipo
+ ORDER BY tipo;
+```
+
+**ZIP** `build/limpieza-v6172-delta.zip` (estructura `limpieza/…`), todo a `app_core/`: lista =
+`git diff --name-only 17a268a HEAD` menos `docs/` y `tests/` (45 archivos: `CHANGELOG.md`, un script, 9
+controladores, `Core/Kernel.php`, 2 helpers, 2 middleware, 21 servicios, `Support/Tours.php` y 7 vistas).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Toca servicios que usan el cierre de día y el sync; una
+pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien).
+
+**Smoke:**
+- badge **v6.17.2** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`; login con una cuenta real;
+- Inicio de supervisora: las alertas sin «Descartar»; Ajustes → Alertas guarda un cambio;
+- con una trabajadora: campanita visible y, con la cola vacía, «Estoy disponible»;
+- si una supervisora gestiona usuarios: editar a una trabajadora funciona (no 403).
+
+**Vuelta atrás:** volver a subir esos 45 archivos tal como están en `17a268a`.
