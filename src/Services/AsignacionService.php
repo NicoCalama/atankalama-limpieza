@@ -609,29 +609,59 @@ final class AsignacionService
     }
 
     /**
-     * Autocancela preasignaciones de HOY que dejaron de tener sentido: la habitación llegó al
-     * día con estado "ya limpia" (aprobada / aprobada_con_observacion) sin que nadie la haya
-     * trabajado mediante esa asignación (sin fila en #__ejecuciones_checklist ligada a su id) —
-     * la pieza no necesitó la limpieza que se había planificado con anticipación.
+     * Pone al día las preasignaciones de HOY que llegaron al día con la pieza ya aprobada
+     * (aprobada, con observación o automática) sin que nadie la haya trabajado mediante esa
+     * asignación (sin fila en #__ejecuciones_checklist ligada a su id):
      *
-     * No toca asignaciones de hoy que SÍ se ejecutaron (esas tienen ejecución ligada y siguen el
-     * flujo normal de "completadas"), ni asignaciones de fechas futuras (ahí no se conoce el
-     * estado real todavía). Solo opera sobre $fecha = hoy; los llamadores ya filtran por eso.
+     *  - Habitación de huésped: se autocancela. La pieza no necesitó la limpieza que se había
+     *    planificado con anticipación (p. ej. nadie se alojó esa noche).
+     *  - Área común: pasa a 'sucia' y la asignación sigue. Un área queda «Lista» (aprobada) entre
+     *    un servicio y otro, así que preasignarla es un pedido firme de limpieza para ese día
+     *    (decisión de Nicolás, 07/10/2026); asignarManual no la ensucia al preasignar porque la
+     *    fecha todavía no llega. Antes se cancelaba como si no hiciera falta o, si la había
+     *    aprobado el sistema, quedaba en la cola sin poder empezarse: de 31 preasignaciones de
+     *    áreas entre el 07/09 y el 06/10/2026, solo una se limpió.
+     *
+     * La aprobación automática del cierre de día cuenta como cualquier otra (v6.17.1): hasta la
+     * v6.11 el sync la convertía en 'aprobada' y este chequeo la tomaba de rebote; desde entonces
+     * queda como está y la habitación seguía en la cola.
+     *
+     * No toca asignaciones de hoy que SÍ se ejecutaron (tienen ejecución ligada, incluso la del
+     * atajo «Marcar limpia»), así que un área ya limpiada hoy no se vuelve a ensuciar; tampoco las
+     * de fechas futuras (ahí no se conoce el estado real todavía). Solo opera sobre $fecha = hoy;
+     * los llamadores ya filtran por eso.
      */
     private function reconciliarPreasignaciones(string $fecha): void
     {
+        $estados = Habitacion::ESTADOS_APROBADOS;
+        $marcas = implode(', ', array_fill(0, count($estados), '?'));
         $huerfanas = Database::fetchAll(
-            "SELECT a.id, a.usuario_id, h.numero
+            "SELECT a.id, a.usuario_id, a.habitacion_id, h.numero, h.es_espacio_comun
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.fecha = ?
                 AND a.activa = 1
-                AND h.estado IN ('aprobada', 'aprobada_con_observacion')
+                AND h.estado IN ({$marcas})
                 AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)",
-            [$fecha]
+            [$fecha, ...$estados]
         );
         foreach ($huerfanas as $fila) {
             $id = (int) $fila['id'];
+            if ((int) $fila['es_espacio_comun'] === 1) {
+                // Sin autor: lo hace la app al llegar el día. Las áreas no existen en Cloudbeds.
+                try {
+                    (new HabitacionService())->cambiarEstado((int) $fila['habitacion_id'], Habitacion::ESTADO_SUCIA, null, 'script');
+                } catch (HabitacionException) {
+                    // Otra carga de una cola o del tablero la activó en el mismo instante (sucia →
+                    // sucia no es una transición válida): ya está hecho, y la página no debe caerse.
+                    continue;
+                }
+                Logger::audit(null, 'asignacion.preasignacion_activada', 'asignacion', $id, [
+                    'usuario_id' => (int) $fila['usuario_id'], 'fecha' => $fecha,
+                    'motivo' => 'área común preasignada: pasa a sucia al llegar el día para que se pueda limpiar',
+                ], 'script');
+                continue;
+            }
             Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE id = ?', [$id]);
             Logger::audit(null, 'asignacion.autocancelada', 'asignacion', $id, [
                 'usuario_id' => (int) $fila['usuario_id'], 'fecha' => $fecha,

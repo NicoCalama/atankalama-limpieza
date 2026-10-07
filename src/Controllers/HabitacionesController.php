@@ -255,11 +255,12 @@ final class HabitacionesController
             return Response::error('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
 
+        // Toda aprobada cuenta, también la que aprobó el sistema en el cierre de día (v6.17.1):
+        // antes faltaba y una pieza que nadie inspeccionó no se podía devolver a limpieza.
         $estadosValidos = [
             Habitacion::ESTADO_EN_PROGRESO,
-            Habitacion::ESTADO_APROBADA,
-            Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
             Habitacion::ESTADO_RECHAZADA,
+            ...Habitacion::ESTADOS_APROBADOS,
         ];
         if (!in_array($habitacion->estado, $estadosValidos, true)) {
             return Response::error(
