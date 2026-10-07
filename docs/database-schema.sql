@@ -699,8 +699,64 @@ CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario ON notificaciones(usuario_
 CREATE INDEX IF NOT EXISTS idx_notificaciones_created ON notificaciones(created_at);
 
 -- ============================================================================
+-- Bloque 10: Inspección pre-entrega (Recepción, pedido de gerencia 04/10/2026; en código «revision_entrega»)
+-- Ver docs/revision-entrega.md
+-- ============================================================================
+
+-- Catálogo de motivos de un NO (Ajustes → Inspección pre-entrega). Nunca se borra: se desactiva
+-- (FK RESTRICT desde revisiones_entrega, para que el historial conserve el motivo).
+CREATE TABLE motivos_revision_entrega (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre      TEXT NOT NULL UNIQUE,                          -- 'Baño sucio' (máx. 60, lo valida el servicio)
+    activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Inspección pre-entrega («visión cliente»): una fila por cada SÍ/NO que registra Recepción antes de
+-- entregar la pieza. Solo-append. Nunca escribe auditorias. Un NO devuelve la pieza a 'sucia' solo si el
+-- interruptor de Ajustes está prendido (alertas_config 'revision_entrega_no_ensucia') y la pieza estaba
+-- aprobada: eso queda en paso_a_sucia. estado_pieza / ejecucion_id / auditoria_id son una FOTO del
+-- momento para el KPI de calidad de las supervisoras (qué limpieza y qué inspección se estaba evaluando):
+-- después ese vínculo no se puede reconstruir con certeza.
+CREATE TABLE revisiones_entrega (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    habitacion_id    INTEGER NOT NULL,
+    usuario_id       INTEGER NOT NULL,                         -- recepcionista que revisó
+    resultado        TEXT NOT NULL CHECK (resultado IN ('si', 'no')),
+    motivo_id        INTEGER,                                  -- obligatorio si resultado = 'no' (lo exige el servicio)
+    comentario       TEXT,                                     -- observaciones, opcional, máx. 300 (servicio)
+    foto_ruta        TEXT,                                     -- 'revision-entrega/2026/10/ab12cd34ef567890.webp' o NULL
+    paso_a_sucia     INTEGER NOT NULL DEFAULT 0 CHECK (paso_a_sucia IN (0, 1)),
+    estado_pieza     TEXT NOT NULL,                            -- habitaciones.estado al momento de revisar
+    ejecucion_id     INTEGER,                                  -- última limpieza de la pieza a ese momento
+    auditoria_id     INTEGER,                                  -- inspección de esa limpieza (quién la aprobó), si hubo
+    idempotency_key  TEXT,                                     -- UUID del cliente: un reintento por red no duplica fila ni aviso
+    -- Re-limpieza por este NO (botón «Re-limpiar» de la supervisora o el interruptor prendido). La limpieza
+    -- que la rehace queda fuera de los KPIs de aseo y de inspección (decisión de Nicolás, 05/10/2026).
+    relimpieza_asignacion_id INTEGER,                          -- asignación que creó «Re-limpiar» (NULL con el interruptor solo)
+    relimpieza_pedida_por    INTEGER,                          -- supervisora que tocó «Re-limpiar»
+    relimpieza_pedida_at     TEXT,                             -- cuándo la pidió (ISO UTC)
+    relimpieza_ejecucion_id  INTEGER,                          -- la limpieza que la rehizo (se vincula al empezarla)
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (motivo_id) REFERENCES motivos_revision_entrega(id) ON DELETE RESTRICT,
+    FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (auditoria_id) REFERENCES auditorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_asignacion_id) REFERENCES asignaciones(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_pedida_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_revisiones_entrega_hab_fecha ON revisiones_entrega(habitacion_id, created_at);
+CREATE INDEX idx_revisiones_entrega_created ON revisiones_entrega(created_at);
+CREATE INDEX idx_revisiones_entrega_auditoria ON revisiones_entrega(auditoria_id);
+CREATE INDEX idx_revisiones_entrega_relimpieza ON revisiones_entrega(relimpieza_ejecucion_id);
+CREATE INDEX idx_revisiones_entrega_relimp_asig ON revisiones_entrega(relimpieza_asignacion_id);
+CREATE UNIQUE INDEX idx_revisiones_entrega_idem ON revisiones_entrega(idempotency_key);
+
+-- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 30
+-- Total de tablas: 32
 --   Bloque 1 (RBAC/Auth):  8  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales, intentos_login)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,
@@ -712,5 +768,6 @@ CREATE INDEX IF NOT EXISTS idx_notificaciones_created ON notificaciones(created_
 --   Bloque 7 (Logs):       2  (logs_eventos, audit_log)
 --   Bloque 8 (Copilot):    2  (copilot_conversaciones, copilot_mensajes)
 --   Bloque 9 (Notif.):     3  (notificaciones_disponibilidad, push_subscriptions, notificaciones)
---   TOTAL: 30 tablas
+--   Bloque 10 (Rev. entrega): 2 (motivos_revision_entrega, revisiones_entrega)
+--   TOTAL: 32 tablas (el conteo por bloque venía desfasado de las tablas reales; se suman solo las nuevas)
 -- ============================================================================

@@ -16,13 +16,16 @@ $rutaActual = \Atankalama\Limpieza\Core\Url::rutaActual();
 
 $items = [];
 
-// Inicio — visible para todos los autenticados
-$items[] = [
-    'ruta' => '/home',
-    'icono' => 'home',
-    'label' => 'Inicio',
-    'activo' => in_array($rutaActual, ['/home', '/home-trabajador', '/home-supervisora', '/home-recepcion', '/home-admin']),
-];
+// Inicio — salvo para quien no tiene Inicio propio (Recepción: su Inicio es Habitaciones, que queda
+// primera). Se decide por permisos en PantallaInicio, igual que views/home.php.
+if (\Atankalama\Limpieza\Support\PantallaInicio::tienePantallaPropia($usuario)) {
+    $items[] = [
+        'ruta' => '/home',
+        'icono' => 'home',
+        'label' => 'Inicio',
+        'activo' => in_array($rutaActual, ['/home', '/home-trabajador', '/home-supervisora', '/home-recepcion', '/home-admin']),
+    ];
+}
 
 // Habitaciones — visible si puede ver propias o todas
 if ($usuario->tieneAlgunPermiso(['habitaciones.ver_asignadas_propias', 'habitaciones.ver_todas'])) {

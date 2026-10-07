@@ -10,12 +10,15 @@ $rutaActual = \Atankalama\Limpieza\Core\Url::rutaActual();
 
 $items = [];
 
-$items[] = [
-    'ruta' => '/home',
-    'icono' => 'home',
-    'label' => 'Inicio',
-    'activo' => in_array($rutaActual, ['/home', '/home-trabajador', '/home-supervisora', '/home-recepcion', '/home-admin']),
-];
+// Inicio — salvo para quien no tiene Inicio propio (Recepción: su Inicio es Habitaciones). Ver PantallaInicio.
+if (\Atankalama\Limpieza\Support\PantallaInicio::tienePantallaPropia($usuario)) {
+    $items[] = [
+        'ruta' => '/home',
+        'icono' => 'home',
+        'label' => 'Inicio',
+        'activo' => in_array($rutaActual, ['/home', '/home-trabajador', '/home-supervisora', '/home-recepcion', '/home-admin']),
+    ];
+}
 
 if ($usuario->tieneAlgunPermiso(['habitaciones.ver_asignadas_propias', 'habitaciones.ver_todas'])) {
     $items[] = [

@@ -38,6 +38,16 @@ final class RecursosVistaTest extends TestCase
         $css = $this->pedir('tickets/tickets.css');
         $this->assertSame(200, $css->status);
         $this->assertStringStartsWith('text/css', $css->contentType);
+
+        // Inspección pre-entrega (v6.18): el JS de su ventana también va por acá, nada al docroot.
+        $inspeccion = $this->pedir('componentes/modal-inspeccion-pre-entrega.js');
+        $this->assertSame(200, $inspeccion->status);
+        $this->assertStringContainsString('function modalInspeccionPreEntrega()', $inspeccion->cuerpo);
+
+        // Y la ventana «Re-limpiar» de la supervisora.
+        $relimpiar = $this->pedir('componentes/modal-relimpiar-entrega.js');
+        $this->assertSame(200, $relimpiar->status);
+        $this->assertStringContainsString('function modalRelimpiarEntrega(', $relimpiar->cuerpo);
     }
 
     /** @return array<string, array{string}> */

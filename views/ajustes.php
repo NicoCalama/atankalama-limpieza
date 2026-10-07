@@ -7,7 +7,7 @@
  */
 
 // letra_indice: posición (0-based) de la letra de acceso dentro de "label", ya
-// resuelta a mano para que las 11 no choquen entre sí (accesibilidad-teclado.md).
+// resuelta a mano para que las 12 no choquen entre sí (accesibilidad-teclado.md).
 // Evita D/E/F/V/H/B/T cuando hay alternativa (conocidas reservadas por el
 // navegador en Windows); "Versiones" no tuvo alternativa y usa "V".
 $secciones = [
@@ -44,12 +44,21 @@ $secciones = [
         'visible' => $usuario->tienePermiso('checklists.editar'),
     ],
     [
+        'ruta' => '/ajustes/revision-entrega',
+        'icono' => 'clipboard-check',
+        'label' => 'Inspección pre-entrega',
+        'letra_indice' => 20, // Inspección pre-entre[g]a (I, n, s, p, c, r, a ya están tomadas; e, t reservadas)
+        'descripcion' => 'Qué pasa con un NO y los motivos que elige Recepción',
+        'visible' => $usuario->tienePermiso('revision_entrega.configurar'),
+    ],
+    [
         'ruta' => '/edificios',
         'icono' => 'layout-dashboard',
         'label' => 'Edificios',
         'letra_indice' => 2, // Ed[i]ficios
         'descripcion' => 'CRUD de edificios y asignación drag-and-drop',
-        'visible' => $usuario->tienePermiso('habitaciones.ver_todas'),
+        // v6.18: permiso propio (antes alcanzaba con habitaciones.ver_todas y Recepción también la veía).
+        'visible' => $usuario->tienePermiso('habitaciones.gestionar_edificios'),
     ],
     [
         'ruta' => '/ajustes/colores',
@@ -95,7 +104,7 @@ $secciones = [
         'ruta' => '/ajustes/versiones',
         'icono' => 'git-branch',
         'label' => 'Versiones',
-        'letra_indice' => 0, // V (sin alternativa libre entre las 11)
+        'letra_indice' => 0, // V (sin alternativa libre entre las 12)
         'descripcion' => 'Qué cambió en cada versión de la app',
         'visible' => true,
     ],

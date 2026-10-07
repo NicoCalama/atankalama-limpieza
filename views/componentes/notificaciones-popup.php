@@ -199,6 +199,7 @@ function notificacionesPopup() {
                 disponible:        'bg-emerald-50 dark:bg-emerald-900/30',
                 auditoria:         'bg-purple-50 dark:bg-purple-900/30',
                 ticket_comentario: 'bg-blue-50 dark:bg-blue-900/30',
+                revision_entrega_no: 'bg-red-50 dark:bg-red-900/30',
             }[tipo] || 'bg-gray-100 dark:bg-gray-700';
         },
 
@@ -210,6 +211,7 @@ function notificacionesPopup() {
                 disponible:        'check-circle',
                 auditoria:         'shield-check',
                 ticket_comentario: 'message-square',
+                revision_entrega_no: 'clipboard-x',
             }[tipo] || 'bell';
         },
 
@@ -221,6 +223,7 @@ function notificacionesPopup() {
                 disponible:        'text-emerald-600 dark:text-emerald-400',
                 auditoria:         'text-purple-600 dark:text-purple-400',
                 ticket_comentario: 'text-blue-600 dark:text-blue-400',
+                revision_entrega_no: 'text-red-600 dark:text-red-400',
             }[tipo] || 'text-gray-500 dark:text-gray-400';
         },
 

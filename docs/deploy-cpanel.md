@@ -306,7 +306,8 @@ Una columna sin CHECK en la base, o con una lista más ancha que el schema, no s
      el `?v=` miente. (Pasó en el deploy de la v6.12, 24/09/2026: los badges
      nuevos no aparecían porque `app.js` había ido solo a `app_core/`.)
    - **`app_core/public/uploads/` es contenido de los usuarios, no código:** ahí guarda la
-     app las fotos de los tickets, y PHP las sirve por la ruta `/uploads/…`. El
+     app las fotos de los tickets y, desde la v6.18, las de la inspección pre-entrega
+     (`uploads/{tickets,revision-entrega}/`), y PHP las sirve por la ruta `/uploads/…`. El
      `uploads/` del docroot queda vacío. Nunca va en un delta, y hay que preservarlo en un
      deploy con ZIP completo (ver el gotcha de §11).
    - **`public/.htaccess` NUNCA va a `app_core/public/`.** Ese es el `.htaccess` de
@@ -402,7 +403,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-01 | **Jornada + días trabajados + bono de aseo de RRHH** → **v6.15.1** (hotfix sobre la v6.15; merge `9db3bb4` = `2a67724` + `60ae7d4` + `42d5838`, CHANGELOG `99b00a2`) | Pedido de Nicolás: jornada (completa/parcial) en Usuarios, «Días trab.» en las tablas de trabajadores de Reportes y el bono de aseo de RRHH (planilla «KPI ASEO») en el resumen mensual, con el «Corte hab./día» editable por mes (permiso nuevo `reportes.editar_corte`). Delta `build/limpieza-v6151-delta.zip` (17 archivos, todos a `app_core/`; sin estáticos, `vendor/` ni `.env`); no toca nada de la v6.16, que sigue sin publicar. **Incidente:** el código subió **sin** la migración de `usuarios.jornada` → Usuarios (y Reportes) cayeron con 500 «Unknown column jornada»; el login siguió funcionando (`UsuarioService::hidratar` tolera la columna ausente). Se resolvió corriendo el SQL de §11.11 en phpMyAdmin (columna + permiso), sin rollback. **Lección:** el SQL va **antes** de extraer el ZIP; que el ZIP traiga los scripts de migración no significa que se corran solos. Smokes verdes tras el SQL: Usuarios carga, Reportes y el corte editable con Admin. |
 | 2026-10-04 | **Deploy combinado** → **v6.16** (rol Apoyo `5c70315` + CHECK de alertas `3041b45`/`eba650d`/`b2f8593` + Reportes con pestañas `38b76db`; ZIP y CHANGELOG `158a7aa`) | Decisión de Nicolás: un solo ZIP con todo lo terminado (la v6.15.2 y la ex-v6.18 quedan dentro de la v6.16; la v6.17 fuera). Runbook §11.13. **SQL de Apoyo antes del ZIP:** los 2 permisos nuevos se crearon, pero el rol «Apoyo» **ya existía** en producción (lo creó Nicolás a mano, id 6, con 10 permisos de Trabajador): quedó con 15 = los 13 de Trabajador + los 2 de marca (en prod Trabajador no tiene `kpis.ver_propios`). ZIP de 26 archivos a `app_core/` (incluido `public/.htaccess` de bloqueo) y **CHECK de alertas inmediatamente después**. Smoke externo: `/api/health` 200 con `esquema.ok`, `/login` 200, `app_core/public/…` 403. **Después, a mano en Ajustes → Roles y Permisos:** `kpis.excluido` y `asignaciones.excluir_auto` a **todos los roles menos Trabajador**; el repo se alineó en el commit siguiente (seeds y `docs/roles-permisos.md`). |
 | 2026-10-04 | **Tarjeta «Habitaciones limpiadas» + «Desglose hab.»** → **v6.16.1** (`dd7ad72` + `b3fe009`, merge `f43fd51`) | Pedido de Nicolás tras la v6.16: tarjeta entre los KPIs de arriba de Reportes con las limpiezas del período (mismo número que «limpiadas» de la sección Supervisora; respeta fechas, hotel y trabajadora) y, en el resumen mensual, «Hab. hechas» → «Desglose hab.» (el Excel conserva «Hab. hechas»). Runbook §11.14: **sin SQL**, ZIP de 9 archivos a `app_core/` (los 3 de la versión + los seeds, scripts y `RbacService.php` de la alineación de permisos de marca `727a99e`). Smoke de Nicolás: todo verde (badge, tarjeta = sección Supervisora, «Desglose hab.»); `/api/health` 200. |
-| 2026-10-05 | **Ciclo de limpieza con Cloudbeds** → **v6.17** (red `557591b`, R4/R5/R6 `3a37a53`, nocheros `dd374eb`, guarda `15a34aa`; CHANGELOG y runbook `060dcb6` + `8f1fe72`) | Arreglos del documento «Ciclo de limpieza y Cloudbeds» que no dependen de consultas en prod (R4 rechazos, R5 «Volver a limpiar» con las aprobadas por el cierre automático, R6 historial de reseteos y guarda del sync) + nochero marcado después de las 16:00 barre al tiro + aviso de marcas que vencen. Runbook §11.16: **sin SQL**, ZIP de 10 archivos a `app_core/`. Decisión de Nicolás: sale **sola**; la inspección pre-entrega (ex v6.18, ya en `main`) pasa a llamarse **v7** y espera el visto bueno de gerencia. **Precheck nuevo:** antes de subir se bajaron de prod los 9 archivos que el ZIP pisa y se compararon con `138fbfb`: contenido idéntico (5 tienen CRLF en el servidor; FileZilla en ASCII los baja con `\r\r\n` → comparar normalizando `\r`), y se armó `build/limpieza-v6161-vuelta-atras.zip`. Línea base: sync `exito`, 0 errores en 24 h. Subido ~19:10, fuera de 15:45–16:05. Smoke: badge **v6.17** (Nicolás), aviso nuevo «2 marcas de nochero vencen hoy» (INN 307 y 407) en la campanita, `/api/health` 200 (19:12). El primer cierre (15:50) y barrido (16:00) con la v6.17 son los del 06/10 → consulta de §11.16 ese día. |
+| 2026-10-05 | **Ciclo de limpieza con Cloudbeds** → **v6.17** (red `557591b`, R4/R5/R6 `3a37a53`, nocheros `dd374eb`, guarda `15a34aa`; CHANGELOG y runbook `060dcb6` + `8f1fe72`) | Arreglos del documento «Ciclo de limpieza y Cloudbeds» que no dependen de consultas en prod (R4 rechazos, R5 «Volver a limpiar» con las aprobadas por el cierre automático, R6 historial de reseteos y guarda del sync) + nochero marcado después de las 16:00 barre al tiro + aviso de marcas que vencen. Runbook §11.16: **sin SQL**, ZIP de 10 archivos a `app_core/`. Decisión de Nicolás: sale **sola**; la inspección pre-entrega (ex v6.18, ya en `main`) pasa a llamarse **v7** y espera el visto bueno de gerencia. **Precheck nuevo:** antes de subir se bajaron de prod los 9 archivos que el ZIP pisa y se compararon con `138fbfb`: contenido idéntico (5 tienen CRLF en el servidor; FileZilla en ASCII los baja con `\r\r\n` → comparar normalizando `\r`), y se armó `build/limpieza-v6161-vuelta-atras.zip`. Línea base: sync `exito`, 0 errores en 24 h. Subido ~19:10, fuera de 15:45–16:05. Smoke: badge **v6.17** (Nicolás), aviso nuevo «2 marcas de nochero vencen hoy» (INN 307 y 407) en la campanita, `/api/health` 200 (19:12). La primera sincronización tras el deploy (id 11213, 19:10:03) salió `exito` en la misma pasada del cron que el aviso de nocheros (19:10:01), o sea, ya con el código nuevo. **Verificado el 06/10** con la consulta de §11.16 (Nicolás): el cierre de las 15:50 pasó **44** piezas de `completada_pendiente_auditoria` a `aprobada_automatica` y el barrido de las 16:00 mandó **53** nocheros a sucia (23 `aprobada` + 30 `aprobada_automatica`). Salió una fila más, a las 18:10: la **802 del 1 Sur** (no es nochero), limpiada 10:42–11:19 y aprobada 12:36, volvió a sucia por el sync con ocupación `turnover`. Es un caso **R1**, que la v6.17 no trae (no es regresión; por diseño levanta la alerta «Habitación 802 volvió a sucia»), y el tercer día seguido con uno (04 y 05/10 también). Con eso se borró el ZIP de vuelta atrás. |
 | 2026-10-07 | **Preasignaciones + rescate de la auditoría del 07/10** → **v6.17.1 + v6.17.2** (v6.17.1 `14335e8` + `17a268a`; v6.17.2 `733b1af` + `59786d3` + `f3f6e66`; CHANGELOG fechado y runbook `8dc4df6`) | Deploy combinado (decisión de Nicolás). **v6.17.1** (§11.17): las áreas comunes preasignadas pasan a sucia al llegar el día (preasignar un área es un pedido firme de limpieza; de 31 entre el 07/09 y el 06/10 solo una se había limpiado), las habitaciones preasignadas que amanecen «aprobada automática» salen de la cola con aviso, y «Marcar sucia» acepta las aprobadas por el sistema. **v6.17.2** (§11.18): lo útil de la auditoría de código de una sesión en la nube (rama `ccr-d58d9709-6vgn0f`, sin la v7 y sin sus cambios de KPIs, la limpieza «interrumpida», el reparto por hotel ni la cola offline), con las correcciones de la revisión. Sin SQL. **Antes de subir:** consultas de permisos de §11.18 (todo en orden: `notificaciones.ver` en todos los roles, `disponibilidad.notificar_supervisora` en Trabajador, Apoyo y Admin, `usuarios.asignar_rol` ya en Supervisora, el correo de las 23:50 le llega a las mismas personas) y precheck: los 231 archivos de `src/`, `views/` y `scripts/` y el `CHANGELOG.md` bajados de prod, idénticos a `eb3f7d2`. ZIP de 47 archivos a `app_core/` y `build/limpieza-v617-vuelta-atras.zip` de respaldo. Subido el 07/10 antes de las 08:00. Smoke: badge **v6.17.2** (Nicolás), `/api/health` 200 con `checks.esquema.ok: true` y `/login` 200 (07:59). Alertas activas al subir: 48 `trabajador_en_riesgo` (las de días anteriores las cierra el primer recálculo), 47 `ticket_nuevo` desde el 29/09, 12 `aprobacion_deshecha` desde el 06/10 18:10 y 1 de inventario. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
@@ -415,7 +416,8 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 > escribe fresco), copiar `.env` de `limpieza_old/app_core/` al nuevo, smokes contra
 > rutas NUEVAS (no solo `/api/health`), y recién ahí borrar `limpieza_old`.
 >
-> **⚠️ Y las fotos de los tickets (desde v5, anotado el 27/09/2026):** viven en
+> **⚠️ Y las fotos de los tickets (desde v5, anotado el 27/09/2026) y de la inspección pre-entrega
+> (desde v6.18, en `uploads/revision-entrega/`):** viven en
 > `app_core/public/uploads/`, que el ZIP trae vacío (solo `.gitkeep`), y el backup del cron
 > respalda la base, no los archivos. Antes de borrar `limpieza_old`, copiar también
 > `limpieza_old/app_core/public/uploads/` al nuevo `app_core/public/` y abrir un ticket viejo
@@ -1216,6 +1218,163 @@ Lista = `git diff --name-only 158a7aa HEAD` (el commit del ZIP de la v6.16) meno
 **Smoke:** badge **v6.16.1** (incógnito); Reportes → con septiembre en «Personalizado», la tarjeta «Habitaciones
 limpiadas» da lo mismo que «… inspeccionadas de N limpiadas» de la sección Supervisora; el resumen mensual muestra
 «Desglose hab.».
+
+### 11.15 Release "inspección pre-entrega" → v6.18
+
+Pedido de gerencia (04/10/2026; diseño final de Nicolás 05/10): Recepción revisa la pieza antes de entregarla al huésped
+(«inspección visión cliente») desde un botón al pie de la tarjeta en **Habitaciones**, que pasa a ser su pantalla principal
+(sin «Inicio» en el menú; tampoco ve Edificios y Mapeo). SÍ / NO; el NO lleva motivo del catálogo + observaciones y foto
+opcionales y avisa a las supervisoras (notificación + push, no `alertas_activas`). En **Ajustes → Inspección pre-entrega**
+se elige si un NO además devuelve la pieza aprobada a sucia (con `dirty` a Cloudbeds); **arranca apagado** (solo avisa).
+Nunca escribe `auditorias`. Cada revisión guarda estado de la pieza, última limpieza e inspección para el futuro KPI de
+calidad de las supervisoras. La supervisora puede mandar a **«Re-limpiar»** una pieza aprobada que recibió un NO (la asigna
+con prioridad); esa re-limpieza no cuenta en los KPIs, y Reportes suma la columna **«Recepción»** por supervisora. En
+código se llama `revision_entrega`. Spec: [revision-entrega.md](revision-entrega.md).
+Rama `v6.18-revision-entrega`, nace de `main` (la v6.17 va aparte).
+
+**Orden: SQL en phpMyAdmin ANTES del ZIP** (§10 paso 2). Es aditivo: el código viejo ignora las tablas; el nuevo las exige
+y `/api/health` da 503 si faltan. Ojo: sin el SQL, **nadie puede entrar a Edificios y Mapeo** (el código nuevo pide
+`habitaciones.gestionar_edificios`) y **Reportes falla** (los KPIs leen `revisiones_entrega` para dejar fuera las
+re-limpiezas). Equivale a `scripts/migrate-add-revision-entrega.php`. Índices como `KEY` dentro del
+`CREATE` para que un corte de phpMyAdmin en el primer error no deje índices sin crear. No escribe sobre ningún hotel.
+
+```sql
+CREATE TABLE IF NOT EXISTS limpieza_motivos_revision_entrega (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(60) NOT NULL UNIQUE,
+    activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS limpieza_revisiones_entrega (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    habitacion_id    INT NOT NULL,
+    usuario_id       INT NOT NULL,
+    resultado        VARCHAR(2) NOT NULL CHECK (resultado IN ('si', 'no')),
+    motivo_id        INT NULL,
+    comentario       VARCHAR(300) NULL,
+    foto_ruta        VARCHAR(500) NULL,
+    paso_a_sucia     TINYINT NOT NULL DEFAULT 0 CHECK (paso_a_sucia IN (0, 1)),
+    estado_pieza     VARCHAR(40) NOT NULL,
+    ejecucion_id     INT NULL,
+    auditoria_id     INT NULL,
+    idempotency_key  VARCHAR(64) NULL,
+    relimpieza_asignacion_id INT NULL,
+    relimpieza_pedida_por    INT NULL,
+    relimpieza_pedida_at     VARCHAR(30) NULL,
+    relimpieza_ejecucion_id  INT NULL,
+    created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY idx_revisiones_entrega_idem (idempotency_key),
+    KEY idx_revisiones_entrega_hab_fecha (habitacion_id, created_at),
+    KEY idx_revisiones_entrega_created (created_at),
+    KEY idx_revisiones_entrega_auditoria (auditoria_id),
+    KEY idx_revisiones_entrega_relimpieza (relimpieza_ejecucion_id),
+    KEY idx_revisiones_entrega_relimp_asig (relimpieza_asignacion_id),
+    FOREIGN KEY (habitacion_id) REFERENCES limpieza_habitaciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (usuario_id) REFERENCES limpieza_usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (motivo_id) REFERENCES limpieza_motivos_revision_entrega(id) ON DELETE RESTRICT,
+    FOREIGN KEY (ejecucion_id) REFERENCES limpieza_ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (auditoria_id) REFERENCES limpieza_auditorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_asignacion_id) REFERENCES limpieza_asignaciones(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_pedida_por) REFERENCES limpieza_usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES limpieza_ejecuciones_checklist(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'revision_entrega.registrar', 'Registrar la inspección pre-entrega de una habitación (SÍ / NO con motivo, observaciones y foto) desde su tarjeta en Habitaciones', 'Inspección pre-entrega', 'global'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'revision_entrega.registrar');
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'revision_entrega.configurar', 'Configurar la inspección pre-entrega: motivos de un NO y si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega)', 'Inspección pre-entrega', 'global'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'revision_entrega.configurar');
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope)
+SELECT 'habitaciones.gestionar_edificios', 'Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo)', 'Habitaciones', 'global'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_permisos WHERE codigo = 'habitaciones.gestionar_edificios');
+
+-- El '__ALL__' de Admin se expande solo al sembrar: se concede explícito por nombre Y a todo rol
+-- que administra la matriz (permisos.asignar_a_rol), igual que el script de migración.
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT r.id, 'revision_entrega.registrar' FROM limpieza_roles r
+ WHERE r.nombre IN ('Recepción', 'Admin')
+    OR EXISTS (SELECT 1 FROM limpieza_rol_permisos rp WHERE rp.rol_id = r.id AND rp.permiso_codigo = 'permisos.asignar_a_rol');
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT r.id, 'revision_entrega.configurar' FROM limpieza_roles r
+ WHERE r.nombre IN ('Supervisora', 'Admin')
+    OR EXISTS (SELECT 1 FROM limpieza_rol_permisos rp WHERE rp.rol_id = r.id AND rp.permiso_codigo = 'permisos.asignar_a_rol');
+-- Edificios y Mapeo se abría con habitaciones.ver_todas: lo conserva todo rol que lo tenía, MENOS Recepción.
+INSERT IGNORE INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT r.id, 'habitaciones.gestionar_edificios' FROM limpieza_roles r
+ WHERE (r.nombre <> 'Recepción'
+        AND EXISTS (SELECT 1 FROM limpieza_rol_permisos rp WHERE rp.rol_id = r.id AND rp.permiso_codigo = 'habitaciones.ver_todas'))
+    OR r.nombre = 'Admin'
+    OR EXISTS (SELECT 1 FROM limpieza_rol_permisos rp WHERE rp.rol_id = r.id AND rp.permiso_codigo = 'permisos.asignar_a_rol');
+
+-- Motivos iniciales (aprobados por Nicolás el 04/10/2026). INSERT IGNORE: nombre es UNIQUE.
+INSERT IGNORE INTO limpieza_motivos_revision_entrega (nombre) VALUES
+('Baño sucio'), ('Cama mal hecha o sábanas sucias'), ('Piso o superficies sucias'), ('Basura sin retirar'),
+('Faltan amenities o toallas'), ('Mal olor'), ('Algo roto o no funciona'), ('Otro');
+
+-- Verificación (esperado: 2 tablas; registrar → Admin,Recepción; configurar → Admin,Supervisora;
+-- gestionar_edificios → Admin,Supervisora (+ otro rol que tuviera ver_todas, nunca Recepción); 8 motivos).
+SHOW TABLES LIKE 'limpieza_%revision%';
+SELECT p.codigo, GROUP_CONCAT(r.nombre ORDER BY r.nombre) AS roles FROM limpieza_permisos p
+  LEFT JOIN limpieza_rol_permisos rp ON rp.permiso_codigo = p.codigo LEFT JOIN limpieza_roles r ON r.id = rp.rol_id
+ WHERE p.codigo IN ('revision_entrega.registrar', 'revision_entrega.configurar', 'habitaciones.gestionar_edificios')
+ GROUP BY p.codigo;
+SELECT COUNT(*) AS motivos FROM limpieza_motivos_revision_entrega;
+```
+
+El interruptor no se siembra: sin la fila `revision_entrega_no_ensucia` en `limpieza_alertas_config`, un NO solo avisa.
+(`PUT /api/alertas/config` ya no puede escribirla: acepta solo las claves de Ajustes → Alertas.)
+
+**ZIP delta** `build/limpieza-v618-delta.zip` (FileZilla en **Binario**), todo a `app_core/`, **sin estáticos al docroot**
+(el JS nuevo va en `views/recursos/` y lo sirve PHP; no se toca `public/assets/` ni `sw.js`, sin bump de `CACHE_VERSION`).
+Lista = `git diff --name-only <commit del ZIP de la v6.16.1> HEAD` menos `docs/` (salvo los dos `database-schema*.sql`),
+`tests/` y `.claude/`:
+
+- `src/Core/Kernel.php`; `src/Controllers/{PaginasController,ReportesController,HabitacionesController,UploadsController,AlertasController,RevisionEntregaController}.php`;
+- `src/Services/{RevisionEntregaService,RevisionEntregaException,ImagenAdjuntoService,ReportesService,AsignacionService,ChecklistService,HabitacionService}.php`;
+  `src/Support/{Tours,TourResolver,PantallaInicio}.php`;
+- `views/{home,habitaciones,ajustes,ajustes-revision-entrega,habitacion-detalle,reportes,layout}.php`;
+  `views/componentes/{bottom-nav,sidebar,notificaciones-popup,modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.php`;
+  `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.js`;
+- `database/seeds/{permisos,roles,motivos_revision_entrega}.php`; `scripts/{seed,migrate-add-revision-entrega,lint-prefix-tokens}.php`;
+- `docs/database-schema.sql`, `docs/database-schema.mariadb.sql` (los lee el verificador de esquema);
+- `CHANGELOG.md` (v6.18 con la fecha real).
+
+**Smoke** (con una **test room**, nunca una pieza real; avisar antes a las supervisoras de turno que les llegará un aviso de prueba):
+
+1. `/api/health` 200; Inicio del Admin → «Esquema de base de datos» sin faltantes; badge **v6.18** en incógnito.
+2. Ajustes → Roles y permisos: categoría «Inspección pre-entrega»; Recepción ✓ `registrar`, Supervisora ✓ `configurar` y
+   ✓ `gestionar_edificios`, Admin los tres; Recepción **sin** `gestionar_edificios`.
+3. Como Recepción real: al entrar cae en **Habitaciones**; el menú es Habitaciones · Inspección · Tickets · Ajustes (sin
+   «Inicio»); Ajustes sin «Edificios»; cada tarjeta tiene la «N» y el botón «Inspección pre-entrega».
+4. Test room: botón → **SÍ** → el botón queda verde con la hora; recargar y sigue. Botón → **NO** → checklist: motivo +
+   observaciones + **foto desde la cámara del celular** → «Avisar NO»; el botón queda rojo con el motivo; la foto abre
+   `https://atankalama.com/limpieza/uploads/revision-entrega/AAAA/MM/….webp` desde el detalle de la pieza (200,
+   `image/webp`) y el archivo está en `app_core/public/uploads/revision-entrega/`. Si llega «la foto no se pudo subir» o el
+   aviso de foto muy pesada, revisar `post_max_size` / `upload_max_filesize` en MultiPHP INI antes de culpar al código
+   (en dev no se puede probar la foto real: el PHP local no tiene `gd`).
+5. Supervisora: campanita y push (si está de turno) «Hab. … (…): pre-entrega no aprobada»; el link abre el detalle con la
+   tarjeta roja y el botón «Re-limpiar»; en Habitaciones la test room (aprobada) se ve a color completo con la franja
+   «No aprobada · motivo · Re-limpiar»; conserva «Inicio» y Edificios y Mapeo.
+6. phpMyAdmin: el `estado` de la test room NO cambió; `limpieza_audit_log` tiene `revision_entrega.registrar`;
+   `limpieza_revisiones_entrega` tiene `estado_pieza` y, si la pieza se limpió e inspeccionó en la app, `ejecucion_id` y
+   `auditoria_id`.
+7. Ajustes → Inspección pre-entrega: prender «Avisar y devolver la pieza a limpieza», NO sobre la test room aprobada → pasa
+   a `sucia`, `limpieza_cloudbeds_sync_historial` tiene una `escritura_estado` dirty y el aviso dice que volvió a sucia (y
+   a qué cola, si alguien la tenía asignada hoy: a esa persona le llega «Hab. … de vuelta en tu cola»).
+   **Volver a apagarlo** (el default acordado es «Solo avisar») salvo que gerencia diga otra cosa.
+8. Motivos: crear, duplicado («Ya existe un motivo con ese nombre.»), renombrar, desactivar; el checklist del NO lo refleja.
+9. Reportes (Admin) con «Hoy»: la sección «Inspección pre-entrega (Recepción)» muestra las pruebas; los KPIs de arriba no cambian.
+10. Trabajador: no ve el botón ni la tarjeta en el detalle de su pieza.
+11. **Re-limpiar** (Supervisora, test room aprobada con un NO, interruptor apagado): franja → ventana con las trabajadoras de
+    turno → elegir una de prueba (o avisarle antes) con «Que sea la siguiente de su cola» → la test room pasa a `sucia`,
+    queda primera en su cola (Asignaciones), le llega «Nueva habitación asignada … Es una re-limpieza: …», la franja dice
+    «Re-limpieza: nombre» y `limpieza_revisiones_entrega.relimpieza_asignacion_id` / `relimpieza_pedida_at` quedan
+    llenos. Al empezar la limpieza, `relimpieza_ejecucion_id` se llena y la franja desaparece.
+12. Reportes (Admin) con «Hoy»: la re-limpieza **no** suma en la fila de esa trabajadora ni en «Habitaciones limpiadas»;
+    la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» muestra el NO (rojo)
+    para la supervisora que había aprobado la test room; el Excel mensual trae las dos columnas nuevas en «Supervisores».
 
 ### 11.16 Release "ciclo de limpieza con Cloudbeds" → v6.17
 
