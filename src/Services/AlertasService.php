@@ -27,7 +27,9 @@ final class AlertasService
     ];
 
     /**
-     * Levanta una alerta. Si ya existe una activa del mismo tipo + dedupe key, no la duplica.
+     * Levanta una alerta. Si ya existe una activa del mismo tipo + dedupe key, no la duplica:
+     * le actualiza título, descripción y contexto con los datos de ahora (si no, la supervisora
+     * seguía viendo «le quedan 6 habitaciones» cuando quedaban 2).
      *
      * @param array<string, mixed> $contexto
      */
@@ -47,7 +49,12 @@ final class AlertasService
         if ($dedupeKey !== null) {
             $existente = $this->buscarActivaPorDedupe($tipo, $dedupeKey);
             if ($existente !== null) {
-                return $existente;
+                $json = json_encode($contexto + ['_dedupe' => $dedupeKey], JSON_UNESCAPED_UNICODE);
+                Database::execute(
+                    'UPDATE #__alertas_activas SET titulo = ?, descripcion = ?, contexto_json = ? WHERE id = ?',
+                    [$titulo, $descripcion, $json, $existente->id]
+                );
+                return AlertaActiva::desdeFila(Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$existente->id]));
             }
         }
 

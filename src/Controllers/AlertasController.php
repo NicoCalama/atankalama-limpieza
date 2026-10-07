@@ -38,6 +38,8 @@ final class AlertasController
         ]);
     }
 
+    private const ACCIONES_QUE_NO_RESUELVEN = ['descartar', 'cloudbeds_retry'];
+
     public function ejecutarAccion(Request $request): Response
     {
         if ($request->usuario === null) {
@@ -50,6 +52,17 @@ final class AlertasController
         $accion = $request->inputString('accion', '');
         if ($accion === '') {
             return Response::error('ACCION_REQUERIDA', 'accion es requerida.', 400);
+        }
+        // Las alertas no se descartan (docs/home-supervisora.md): se resuelven solas cuando la
+        // condición desaparece, o con su acción. «Reintentar» de la P0 de Cloudbeds tampoco pasa
+        // por acá: dispara un sync real (POST /api/cloudbeds/sync) y la alerta se cierra si
+        // funciona. Antes ambas solo borraban la alerta.
+        if (in_array($accion, self::ACCIONES_QUE_NO_RESUELVEN, true)) {
+            return Response::error(
+                'ACCION_NO_PERMITIDA',
+                'Esta alerta se cierra sola cuando se resuelve el problema.',
+                400
+            );
         }
 
         try {

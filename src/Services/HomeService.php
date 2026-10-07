@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Helpers\Changelog;
 use Atankalama\Limpieza\Helpers\Fechas;
+use Atankalama\Limpieza\Models\AlertaActiva;
 
 /**
  * Servicio de datos para las cuatro homes (trabajador, supervisora, recepción, admin).
@@ -74,7 +75,33 @@ final class HomeService
              VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
             [$trabajadorId, $fecha]
         );
+
+        // El aviso le llega a la supervisora como alerta P2 (docs/alertas-predictivas.md §3.5).
+        // Antes solo quedaba la fila de arriba y nadie se enteraba. Se resuelve sola al asignarle
+        // una pieza (AsignacionService::asignarManual) o al día siguiente (recalcularTodos).
+        $trabajador = Database::fetchOne(
+            'SELECT u.nombre, h.id AS hotel_id
+               FROM #__usuarios u
+               LEFT JOIN #__hoteles h ON h.codigo = u.hotel_default
+              WHERE u.id = ?',
+            [$trabajadorId]
+        );
+        $nombre = (string) ($trabajador['nombre'] ?? 'Una trabajadora');
+        (new AlertasService())->levantar(
+            AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE,
+            "{$nombre} está disponible",
+            'Terminó su cola y puede recibir más habitaciones.',
+            ['usuario_id' => $trabajadorId],
+            isset($trabajador['hotel_id']) ? (int) $trabajador['hotel_id'] : null,
+            self::dedupeDisponible($trabajadorId, $fecha),
+        );
         return true;
+    }
+
+    /** Dedupe de la alerta trabajador_disponible: una por persona y día. */
+    public static function dedupeDisponible(int $trabajadorId, string $fecha): string
+    {
+        return "disponible:{$trabajadorId}:fecha:{$fecha}";
     }
 
     // -----------------------------------------------------------------------

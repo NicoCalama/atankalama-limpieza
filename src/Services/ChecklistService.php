@@ -1135,9 +1135,10 @@ final class ChecklistService
                 'SELECT t.hora_fin
                    FROM #__usuarios_turnos ut
                    JOIN #__turnos t ON t.id = ut.turno_id
-                  WHERE ut.usuario_id = ? AND ut.fecha = date(\'now\')
+                  WHERE ut.usuario_id = ? AND ut.fecha = ?
                   ORDER BY ut.id DESC LIMIT 1',
-                [$usuarioId]
+                // Fecha local, no date('now') de la BD (UTC): desde las 20-21 h ya era «mañana».
+                [$usuarioId, date('Y-m-d')]
             );
             if ($turno !== null) {
                 $svc->evaluarTrabajador($usuarioId, date('Y-m-d'), (string) $turno['hora_fin'], date('H:i'));

@@ -96,6 +96,7 @@ final class HomeController
             'habitacion_actual' => $habitacionActual,
             'tiene_asignaciones_hoy' => $total > 0,
             'aviso_disponibilidad_enviado_hoy' => $avisoEnviado,
+            'puede_avisar_disponibilidad' => $usuario->tienePermiso('disponibilidad.notificar_supervisora'),
         ]);
     }
 
@@ -276,6 +277,7 @@ final class HomeController
                 'auditoria_ver_bandeja' => $usuario->tienePermiso('auditoria.ver_bandeja'),
                 'tickets_ver_todos' => $usuario->tienePermiso('tickets.ver_todos'),
                 'habitaciones_importar_inventario' => $usuario->tienePermiso('habitaciones.importar_inventario'),
+                'cloudbeds_forzar_sincronizacion' => $usuario->tienePermiso('cloudbeds.forzar_sincronizacion'),
             ],
         ]);
     }
@@ -405,6 +407,7 @@ final class HomeController
                 'sistema_ver_salud' => $puedeSistema,
                 'ajustes_acceder' => $puedeAjustes,
                 'asignaciones_asignar_manual' => $usuario->tienePermiso('asignaciones.asignar_manual'),
+                'cloudbeds_forzar_sincronizacion' => $usuario->tienePermiso('cloudbeds.forzar_sincronizacion'),
             ],
             'timestamp_request' => date('c'),
         ]);

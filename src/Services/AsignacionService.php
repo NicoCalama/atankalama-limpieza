@@ -92,6 +92,12 @@ final class AsignacionService
             'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'fecha' => $fecha,
         ]);
 
+        // Su aviso «estoy disponible» ya tuvo respuesta (docs/alertas-predictivas.md §3.5).
+        $this->alertas->resolverPorDedupe(
+            AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE,
+            HomeService::dedupeDisponible($usuarioId, $fecha)
+        );
+
         $asignacion = $this->obtener($id)
             ?? throw new AsignacionException('ASIGNACION_NO_CREADA', 'Error al crear asignación.', 500);
 

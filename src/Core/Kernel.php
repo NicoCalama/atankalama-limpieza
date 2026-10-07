@@ -99,7 +99,10 @@ final class Kernel
         // Home API
         $home = new HomeController();
         $router->get('/api/home/trabajador', [$home, 'trabajador'], [$authCheck]);
-        $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [$authCheck]);
+        $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [
+            $authCheck,
+            new PermissionCheck('disponibilidad.notificar_supervisora'),
+        ]);
         $router->get('/api/home/recepcion', [$home, 'recepcion'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
