@@ -74,7 +74,10 @@ final class CopilotToolExecutor
             Logger::warning('copilot', "Error ejecutando tool {$toolName}: {$e->getMessage()}", [
                 'usuario_id' => $usuario->id,
             ]);
-            return ['ok' => false, 'resultado' => null, 'error' => $e->getMessage()];
+            // Al modelo solo le llega el mensaje de los errores de negocio (pensados para el
+            // usuario); un error de BD se queda en el log, no viaja con su SQL al modelo.
+            $mensaje = $e instanceof \PDOException ? 'No se pudo completar la acción. Intenta de nuevo.' : $e->getMessage();
+            return ['ok' => false, 'resultado' => null, 'error' => $mensaje];
         }
     }
 
@@ -170,7 +173,10 @@ final class CopilotToolExecutor
             (int) ($input['hotel_id'] ?? 0),
             (string) ($input['titulo'] ?? ''),
             (string) ($input['descripcion'] ?? ''),
-            (string) ($input['prioridad'] ?? Ticket::PRIORIDAD_NORMAL),
+            // Misma regla que TicketsController::crear: fijar la prioridad exige tickets.editar_prioridad.
+            $usuario->tienePermiso('tickets.editar_prioridad')
+                ? (string) ($input['prioridad'] ?? Ticket::PRIORIDAD_NORMAL)
+                : Ticket::PRIORIDAD_NORMAL,
             $usuario->id,
             isset($input['habitacion_id']) ? (int) $input['habitacion_id'] : null,
         );

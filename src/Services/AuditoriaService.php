@@ -41,37 +41,12 @@ final class AuditoriaService
             throw new AuditoriaException('VEREDICTO_INVALIDO', "Veredicto inválido: {$veredicto}.", 400);
         }
 
-        $habitacion = $this->habitaciones->obtener($habitacionId);
-        if ($habitacion === null) {
-            throw new AuditoriaException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
-        }
-        if ($habitacion->estado !== Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
-            throw new AuditoriaException(
-                'HABITACION_NO_PENDIENTE',
-                'La habitación no está pendiente de auditoría.',
-                409
-            );
-        }
+        // Un mismo ítem repetido (p.ej. [3, 3]) no es un error del auditor: se cuenta una vez.
+        $itemsDesmarcados = array_values(array_unique($itemsDesmarcados));
 
-        $ejecFila = Database::fetchOne(
-            "SELECT * FROM #__ejecuciones_checklist
-              WHERE habitacion_id = ? AND estado = 'completada'
-              ORDER BY id DESC LIMIT 1",
-            [$habitacionId]
-        );
-        if ($ejecFila === null) {
-            throw new AuditoriaException(
-                'EJECUCION_NO_COMPLETADA',
-                'No hay ejecución completada para auditar.',
-                409
-            );
-        }
-        $ejecucion = EjecucionChecklist::desdeFila($ejecFila);
-
-        $existente = Database::fetchOne('SELECT id FROM #__auditorias WHERE ejecucion_id = ?', [$ejecucion->id]);
-        if ($existente !== null) {
-            throw new AuditoriaException('AUDITORIA_YA_EXISTE', 'Esta habitación ya fue auditada.', 409);
-        }
+        // Chequeo previo sin bloqueo, para validar antes de abrir la transacción. Se repite
+        // adentro con bloqueo: otra auditora (o el cierre de día) pudo adelantarse entremedio.
+        $this->ejecucionAuditable($habitacionId);
 
         $esComentarioRequerido = in_array($veredicto, [
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
@@ -109,22 +84,7 @@ final class AuditoriaService
                 400
             );
         }
-        if ($admiteDesmarcados && $itemsDesmarcados !== []) {
-            $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
-        }
-
         $itemsJson = $itemsDesmarcados === [] ? null : json_encode($itemsDesmarcados);
-
-        Database::execute(
-            'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
-            [$ejecucion->id, $habitacionId, $auditorId, $veredicto, $comentario, $itemsJson]
-        );
-        $auditoriaId = Database::lastInsertId();
-
-        Database::execute(
-            "UPDATE #__ejecuciones_checklist SET estado = 'auditada' WHERE id = ?",
-            [$ejecucion->id]
-        );
 
         $nuevoEstadoHab = match ($veredicto) {
             Auditoria::VEREDICTO_APROBADO => Habitacion::ESTADO_APROBADA,
@@ -133,7 +93,49 @@ final class AuditoriaService
             Auditoria::VEREDICTO_RECHAZADO => Habitacion::ESTADO_RECHAZADA,
         };
         $origenCambio = $veredicto === Auditoria::VEREDICTO_APROBADO_AUTOMATICO ? 'cron' : 'ui';
-        $this->habitaciones->cambiarEstado($habitacionId, $nuevoEstadoHab, $auditorId, $origenCambio);
+
+        // Todo lo que escribe en la BD va junto: antes, dos veredictos casi simultáneos (dos
+        // auditoras, o una auditora y el cierre de día) pasaban ambos el chequeo, el segundo
+        // desmarcaba ítems sobre la ejecución que el primero ya había aprobado y recién después
+        // chocaba con el UNIQUE. Ahora el INSERT va antes de desmarcar y el choque deshace todo.
+        // La escritura a Cloudbeds queda afuera: es una llamada de red y no debe retener el lock.
+        [$auditoriaId, $ejecucion] = Database::transactionImmediate(function () use (
+            $habitacionId, $auditorId, $veredicto, $comentario, $itemsDesmarcados, $admiteDesmarcados,
+            $itemsJson, $nuevoEstadoHab, $origenCambio
+        ): array {
+            $ejecucion = $this->ejecucionAuditable($habitacionId, Database::forUpdate());
+
+            try {
+                Database::execute(
+                    'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
+                    [$ejecucion->id, $habitacionId, $auditorId, $veredicto, $comentario, $itemsJson]
+                );
+            } catch (\PDOException $e) {
+                // 23000 = el UNIQUE de auditorias.ejecucion_id: otra auditoría ganó la carrera.
+                if ((string) $e->getCode() === '23000') {
+                    throw new AuditoriaException('AUDITORIA_YA_EXISTE', 'Esta habitación ya fue auditada.', 409);
+                }
+                throw $e;
+            }
+            $auditoriaId = Database::lastInsertId();
+
+            if ($admiteDesmarcados && $itemsDesmarcados !== []) {
+                $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
+            }
+
+            Database::execute(
+                "UPDATE #__ejecuciones_checklist SET estado = 'auditada' WHERE id = ?",
+                [$ejecucion->id]
+            );
+            // El orden manual de la bandeja es de ESTA vuelta: si no se limpia, la pieza que se
+            // arrastró al primer lugar el lunes vuelve arriba el jueves, por sobre nocheros y
+            // «se va hoy», y con el tiempo la prioridad automática deja de funcionar.
+            Database::execute('UPDATE #__habitaciones SET auditoria_orden = NULL WHERE id = ?', [$habitacionId]);
+
+            $this->habitaciones->cambiarEstado($habitacionId, $nuevoEstadoHab, $auditorId, $origenCambio);
+
+            return [$auditoriaId, $ejecucion];
+        });
 
         if (in_array($veredicto, [
             Auditoria::VEREDICTO_APROBADO,
@@ -166,6 +168,47 @@ final class AuditoriaService
         ]);
 
         return Auditoria::desdeFila(Database::fetchOne('SELECT * FROM #__auditorias WHERE id = ?', [$auditoriaId]));
+    }
+
+    /**
+     * La ejecución que un veredicto cerraría: la última 'completada' de una pieza pendiente de
+     * auditoría y sin auditoría previa. $bloqueo = Database::forUpdate() dentro de la transacción.
+     */
+    private function ejecucionAuditable(int $habitacionId, string $bloqueo = ''): EjecucionChecklist
+    {
+        $estado = Database::fetchColumn('SELECT estado FROM #__habitaciones WHERE id = ?' . $bloqueo, [$habitacionId]);
+        if ($estado === false) {
+            throw new AuditoriaException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+        if ($estado !== Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
+            throw new AuditoriaException(
+                'HABITACION_NO_PENDIENTE',
+                'La habitación no está pendiente de auditoría.',
+                409
+            );
+        }
+
+        $ejecFila = Database::fetchOne(
+            "SELECT * FROM #__ejecuciones_checklist
+              WHERE habitacion_id = ? AND estado = 'completada'
+              ORDER BY id DESC LIMIT 1" . $bloqueo,
+            [$habitacionId]
+        );
+        if ($ejecFila === null) {
+            throw new AuditoriaException(
+                'EJECUCION_NO_COMPLETADA',
+                'No hay ejecución completada para auditar.',
+                409
+            );
+        }
+        $ejecucion = EjecucionChecklist::desdeFila($ejecFila);
+
+        $existente = Database::fetchOne('SELECT id FROM #__auditorias WHERE ejecucion_id = ?', [$ejecucion->id]);
+        if ($existente !== null) {
+            throw new AuditoriaException('AUDITORIA_YA_EXISTE', 'Esta habitación ya fue auditada.', 409);
+        }
+
+        return $ejecucion;
     }
 
     public function obtener(int $id): ?Auditoria

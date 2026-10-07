@@ -7,6 +7,8 @@ namespace Atankalama\Limpieza\Services;
 use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Helpers\Rut;
 use Atankalama\Limpieza\Models\Usuario;
 
@@ -17,6 +19,41 @@ final class AuthService
      * porque en prod convive con otras apps bajo el mismo dominio (Maisterchef).
      */
     public const SESSION_COOKIE = 'limpieza_session';
+
+    /**
+     * Opciones de la cookie de sesión. Las usan el login y la renovación de cada request
+     * (AuthCheck/OptionalAuth): la sesión se renueva en la BD con el uso, y la cookie tiene que
+     * acompañarla; si no, el navegador la borraba a las 8 h del login aunque se siguiera usando.
+     *
+     * @return array<string, mixed>
+     */
+    public static function opcionesCookieSesion(): array
+    {
+        $opciones = [
+            'expires' => time() + Config::getInt('SESSION_LIFETIME_MINUTES', 480) * 60,
+            'path' => Url::base() ?: '/',
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ];
+        if (Config::get('APP_ENV', 'local') !== 'local') {
+            $opciones['secure'] = true;
+        }
+        return $opciones;
+    }
+
+    /**
+     * Vuelve a emitir la cookie de sesión con el vencimiento renovado, salvo que la respuesta
+     * ya la toque (login, logout, sesión expirada).
+     */
+    public static function renovarCookieSesion(Response $respuesta, string $token): Response
+    {
+        foreach ($respuesta->cookies() as $c) {
+            if ($c['nombre'] === self::SESSION_COOKIE) {
+                return $respuesta;
+            }
+        }
+        return $respuesta->conCookie(self::SESSION_COOKIE, $token, self::opcionesCookieSesion());
+    }
 
     private static bool $migracionThrottleAplicada = false;
 
@@ -52,20 +89,27 @@ final class AuthService
                 throw new AuthException('RUT_INVALIDO', 'El RUT no es válido.', 400);
             }
 
+            // Anti-enumeración (mismo cuidado que recuperarContrasena): un RUT que no existe pasa
+            // igual por bcrypt (mismo tiempo de respuesta) y la contraseña se verifica ANTES de mirar
+            // si la cuenta está inactiva. Antes, con cualquier clave, «inactivo» (403) y la respuesta
+            // más rápida del RUT inexistente delataban qué RUT están registrados.
             $fila = Database::fetchOne('SELECT * FROM #__usuarios WHERE rut = ?', [$rutNorm]);
+            $hash = $fila !== null ? (string) $fila['password_hash'] : self::hashDeRelleno();
+            $passwordOk = $this->passwords->verificar($password, $hash);
+
             if ($fila === null) {
                 Logger::warning('auth', 'login fallido: rut no encontrado', ['rut' => $rutNorm]);
+                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
+            }
+
+            if (!$passwordOk) {
+                Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
                 throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
             }
 
             if (((int) $fila['activo']) !== 1) {
                 Logger::warning('auth', 'login fallido: usuario inactivo', ['usuario_id' => (int) $fila['id']]);
                 throw new AuthException('USUARIO_INACTIVO', 'Tu usuario está inactivo. Contacta al admin.', 403);
-            }
-
-            if (!$this->passwords->verificar($password, (string) $fila['password_hash'])) {
-                Logger::warning('auth', 'login fallido: password incorrecta', ['usuario_id' => (int) $fila['id']]);
-                throw new AuthException('CREDENCIALES_INVALIDAS', 'RUT o contraseña incorrectos.', 401);
             }
         } catch (AuthException $e) {
             // Cualquier fallo de credenciales/inactivo/rut inválido suma al throttle
@@ -99,7 +143,25 @@ final class AuthService
      */
     private function claveThrottle(string $rutNorm, ?string $ip): string
     {
-        return $rutNorm . '|' . ($ip ?? 'sin_ip');
+        // Acotada: la clave se arma antes de validar el RUT, y un «RUT» de cientos de caracteres
+        // no cabe en intentos_login.clave (VARCHAR(80) en MariaDB → 500 en vez de 400).
+        // Un RUT real tiene a lo más 10 caracteres normalizado.
+        // mb_strcut y no substr: cortar por bytes en medio de una ñ o una tilde deja UTF-8 inválido,
+        // y MariaDB en modo estricto rechaza el INSERT (500 en vez de 400).
+        return mb_strcut($rutNorm, 0, 20, 'UTF-8') . '|' . mb_strcut($ip ?? 'sin_ip', 0, 45, 'UTF-8');
+    }
+
+    /**
+     * Hash bcrypt fijo (costo 12, el mismo de las contraseñas reales en PHP 8.4) de un valor al azar
+     * que no es la clave de nadie: con un RUT que no existe, el login hace una sola verificación,
+     * igual que con uno que existe. Antes se generaba en cada request (password_hash + verify: el
+     * doble de tiempo), y el RUT inexistente era el que tardaba más.
+     */
+    private const HASH_DE_RELLENO = '$2y$12$MQQdMKBp1pR7PC2qwYUpGenvLPJs0xziMd4C.PGeGj/JSMgVHwksO';
+
+    private static function hashDeRelleno(): string
+    {
+        return self::HASH_DE_RELLENO;
     }
 
     /**
@@ -230,6 +292,7 @@ final class AuthService
         #[\SensitiveParameter] string $actual,
         #[\SensitiveParameter] string $nueva,
         #[\SensitiveParameter] string $confirmacion,
+        #[\SensitiveParameter] ?string $tokenSesionActual = null,
     ): void
     {
         if ($nueva !== $confirmacion) {
@@ -249,11 +312,19 @@ final class AuthService
             throw new AuthException('PWD_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta.', 401);
         }
 
-        Database::transaction(function () use ($usuarioId, $nueva): void {
+        Database::transaction(function () use ($usuarioId, $nueva, $tokenSesionActual): void {
             Database::execute(
                 "UPDATE #__usuarios SET password_hash = ?, requiere_cambio_pwd = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$this->passwords->hash($nueva), $usuarioId]
             );
+            // Las demás sesiones abiertas se cierran (quien cambia la clave porque se la vieron no
+            // quiere que la otra sesión siga viva); la de este dispositivo sigue.
+            if ($tokenSesionActual !== null) {
+                Database::execute(
+                    'DELETE FROM #__sesiones WHERE usuario_id = ? AND token <> ?',
+                    [$usuarioId, $tokenSesionActual]
+                );
+            }
             Database::execute(
                 "UPDATE #__contrasenas_temporales SET usada = 1, usada_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE usuario_id = ? AND usada = 0",
                 [$usuarioId]
@@ -272,6 +343,10 @@ final class AuthService
         $usuario = Database::fetchOne('SELECT id, nombre, rut, email FROM #__usuarios WHERE id = ?', [$usuarioIdObjetivo]);
         if ($usuario === null) {
             throw new AuthException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
+        }
+        // Resetear la clave de alguien con más permisos y recibir la temporal = quedarse con su cuenta.
+        if (!(new RbacService())->puedeGestionarUsuario($adminId, $usuarioIdObjetivo)) {
+            throw new AuthException('PRIVILEGIOS_INSUFICIENTES', RbacService::MSG_USUARIO_SUPERIOR, 403);
         }
 
         $temporal = $this->passwords->generarTemporal();

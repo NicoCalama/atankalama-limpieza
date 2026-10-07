@@ -642,7 +642,14 @@ final class ChecklistService
             [$habitacionId, $asignacion->id]
         );
         if ($existente !== null) {
-            return EjecucionChecklist::desdeFila($existente);
+            if ($habitacion->estado === Habitacion::ESTADO_EN_PROGRESO) {
+                return EjecucionChecklist::desdeFila($existente);
+            }
+            // La pieza salió de 'en_progreso' por otro camino («Marcar sucia», «sin aseo», el
+            // sync de Cloudbeds) y la ejecución quedó colgando de una asignación que sigue activa.
+            // Reanudarla dejaba a la trabajadora en un bucle; se descarta y se sigue como si no
+            // existiera.
+            $this->descartarEjecucionVencida((int) $existente['id'], $habitacionId, $habitacion->estado, $usuarioId);
         }
 
         // Candado "una habitación a la vez": el trabajador no puede iniciar una
@@ -656,12 +663,16 @@ final class ChecklistService
         //  - Asignación inactiva (a.activa=0): si la habitación fue reasignada a otra
         //    persona, la ejecución del trabajador queda huérfana y tampoco es saltable
         //    ni completable; contarla en el candado lo dejaría trabado sin salida.
+        //  - Pieza que ya no está 'en_progreso': la ejecución quedó vencida (ver arriba) y
+        //    tampoco se puede terminar; contarla trababa a la trabajadora todo el turno.
         $otraEnProgreso = Database::fetchOne(
             "SELECT ec.habitacion_id
                FROM #__ejecuciones_checklist ec
                JOIN #__asignaciones a ON a.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
               WHERE ec.usuario_id = ? AND ec.estado = 'en_progreso'
                 AND ec.habitacion_id != ? AND a.fecha = ? AND a.activa = 1
+                AND h.estado = 'en_progreso'
               ORDER BY ec.id DESC LIMIT 1",
             [$usuarioId, $habitacionId, $fecha]
         );
@@ -785,6 +796,26 @@ final class ChecklistService
     }
 
     /**
+     * Borra una ejecución 'en_progreso' cuya pieza ya no está 'en_progreso' (la sacaron por
+     * «Marcar sucia», «sin aseo» o el sync de Cloudbeds). Mismo criterio que saltar: el
+     * progreso parcial se descarta y el registro queda en audit_log.
+     */
+    private function descartarEjecucionVencida(int $ejecucionId, int $habitacionId, string $estadoHabitacion, int $usuarioId): void
+    {
+        Database::transaction(function () use ($ejecucionId): void {
+            Database::execute('DELETE FROM #__ejecuciones_items WHERE ejecucion_id = ?', [$ejecucionId]);
+            Database::execute(
+                "DELETE FROM #__ejecuciones_checklist WHERE id = ? AND estado = 'en_progreso'",
+                [$ejecucionId]
+            );
+        });
+        Logger::audit($usuarioId, 'checklist.descartar_vencida', 'ejecucion_checklist', $ejecucionId, [
+            'habitacion_id' => $habitacionId,
+            'estado_habitacion' => $estadoHabitacion,
+        ]);
+    }
+
+    /**
      * Devuelve el id de la ejecución 'en_progreso' más reciente para una habitación
      * y trabajador específicos, o null si no existe.
      */
@@ -826,12 +857,15 @@ final class ChecklistService
      */
     private function obtenerEjecucionEnProgresoDeCola(int $habitacionId, int $usuarioId, string $fecha): ?int
     {
+        // h.estado = 'en_progreso': una ejecución vencida (la pieza salió de en_progreso por
+        // otro camino) no se salta; saltarla devolvía a 'sucia' una pieza ya aprobada.
         $fila = Database::fetchOne(
             "SELECT ec.id
                FROM #__ejecuciones_checklist ec
                JOIN #__asignaciones a ON a.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
               WHERE ec.habitacion_id = ? AND ec.usuario_id = ? AND ec.estado = 'en_progreso'
-                AND a.fecha = ? AND a.activa = 1
+                AND a.fecha = ? AND a.activa = 1 AND h.estado = 'en_progreso'
               ORDER BY ec.id DESC LIMIT 1",
             [$habitacionId, $usuarioId, $fecha]
         );
@@ -969,9 +1003,20 @@ final class ChecklistService
         }
 
         $existente = Database::fetchOne(
-            'SELECT id FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
+            'SELECT id, marcado, marcado_por FROM #__ejecuciones_items WHERE ejecucion_id = ? AND item_id = ?',
             [$ejecucionId, $itemId]
         );
+        // Ítem heredado de una re-limpieza (lo marcó otra persona en el intento anterior): solo
+        // lectura, también en el backend. Si no, con un PUT directo se desmarcaba y volvía a marcar
+        // y pasaba a nombre de quien lo tocó, llevándose los créditos de quien lo hizo.
+        // Volver a marcarlo no cambia nada (no se reescribe marcado_por): se responde el progreso.
+        if ($existente !== null && (int) $existente['marcado'] === 1
+            && $existente['marcado_por'] !== null && (int) $existente['marcado_por'] !== $usuarioId) {
+            if ($marcado) {
+                return $this->calcularProgreso($ejecucionId, $ejec->templateId);
+            }
+            throw new ChecklistException('ITEM_HEREDADO', 'Este ítem ya lo dejó listo otra persona.', 403);
+        }
         // marcado_por = quién dejó el ítem marcado (null al desmarcar). Clave para repartir
         // créditos en re-limpieza: cada ítem queda a nombre de quien lo completó.
         $marcadoPor = $marcado ? $usuarioId : null;
@@ -1043,18 +1088,37 @@ final class ChecklistService
             );
         }
 
-        Database::execute(
-            "UPDATE #__ejecuciones_checklist
-                SET estado = 'completada',
-                    timestamp_fin = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-              WHERE id = ?",
-            [$ejecucionId]
-        );
+        // Cerrar la ejecución y pasar la pieza a inspección van juntos: si el cambio de estado
+        // fallaba, la ejecución quedaba 'completada' con la pieza sin tocar, y el reintento del
+        // trabajador se daba por bueno sin que la pieza llegara nunca a la auditoría.
+        Database::transactionImmediate(function () use ($ejecucionId, $ejec, $usuarioId): void {
+            $estadoHab = Database::fetchColumn(
+                'SELECT estado FROM #__habitaciones WHERE id = ?' . Database::forUpdate(),
+                [$ejec->habitacionId]
+            );
+            if ($estadoHab !== Habitacion::ESTADO_EN_PROGRESO) {
+                throw new ChecklistException(
+                    'HABITACION_NO_EN_PROGRESO',
+                    'Esta habitación cambió de estado mientras la limpiabas. Vuelve al inicio para ver tu habitación actual.',
+                    409
+                );
+            }
+            $cerradas = Database::execute(
+                "UPDATE #__ejecuciones_checklist
+                    SET estado = 'completada',
+                        timestamp_fin = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                  WHERE id = ? AND estado = 'en_progreso'",
+                [$ejecucionId]
+            );
+            if ($cerradas !== 1) {
+                throw new ChecklistException('EJECUCION_NO_EDITABLE', 'Ejecución ya completada.', 409);
+            }
+            $this->habitaciones->cambiarEstado($ejec->habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $usuarioId, 'ui');
+        });
 
         // Áreas comunes pasan por la misma auditoría que las piezas de huésped —
         // ver docs/areas-comunes.md (antes se auto-cerraban directo a aprobada).
         $esEspacio = $habitacion !== null && $habitacion->esEspacioComun;
-        $this->habitaciones->cambiarEstado($ejec->habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $usuarioId, 'ui');
 
         // La nota de Recepción es para "la próxima limpieza": una vez completada, ya cumplió
         // su propósito. Se limpia acá (no en el veredicto de auditoría) porque el trabajador
@@ -1082,9 +1146,10 @@ final class ChecklistService
                 'SELECT t.hora_fin
                    FROM #__usuarios_turnos ut
                    JOIN #__turnos t ON t.id = ut.turno_id
-                  WHERE ut.usuario_id = ? AND ut.fecha = date(\'now\')
+                  WHERE ut.usuario_id = ? AND ut.fecha = ?
                   ORDER BY ut.id DESC LIMIT 1',
-                [$usuarioId]
+                // Fecha local, no date('now') de la BD (UTC): desde las 20-21 h ya era «mañana».
+                [$usuarioId, date('Y-m-d')]
             );
             if ($turno !== null) {
                 $svc->evaluarTrabajador($usuarioId, date('Y-m-d'), (string) $turno['hora_fin'], date('H:i'));

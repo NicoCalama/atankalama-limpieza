@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Helpers\Changelog;
 use Atankalama\Limpieza\Helpers\Fechas;
+use Atankalama\Limpieza\Models\AlertaActiva;
 
 /**
  * Servicio de datos para las cuatro homes (trabajador, supervisora, recepción, admin).
@@ -69,12 +70,42 @@ final class HomeService
             return false;
         }
 
-        Database::execute(
-            "INSERT INTO #__notificaciones_disponibilidad (trabajador_id, fecha, created_at)
-             VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-            [$trabajadorId, $fecha]
-        );
+        // El aviso y su alerta van juntos: si la alerta fallaba, el aviso quedaba guardado («✓ Aviso
+        // enviado») sin que le llegara a nadie, y el reintento chocaba con «ya avisaste hoy».
+        Database::transaction(function () use ($trabajadorId, $fecha): void {
+            Database::execute(
+                "INSERT INTO #__notificaciones_disponibilidad (trabajador_id, fecha, created_at)
+                 VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                [$trabajadorId, $fecha]
+            );
+
+            // El aviso le llega a la supervisora como alerta P2 (docs/alertas-predictivas.md §3.5).
+            // Antes solo quedaba la fila de arriba y nadie se enteraba. Se resuelve sola al asignarle
+            // una pieza (AsignacionService::asignarManual) o al día siguiente (recalcularTodos).
+            $trabajador = Database::fetchOne(
+                'SELECT u.nombre, h.id AS hotel_id
+                   FROM #__usuarios u
+                   LEFT JOIN #__hoteles h ON h.codigo = u.hotel_default
+                  WHERE u.id = ?',
+                [$trabajadorId]
+            );
+            $nombre = (string) ($trabajador['nombre'] ?? 'Una trabajadora');
+            (new AlertasService())->levantar(
+                AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE,
+                "{$nombre} está disponible",
+                'Terminó su cola y puede recibir más habitaciones.',
+                ['usuario_id' => $trabajadorId],
+                isset($trabajador['hotel_id']) ? (int) $trabajador['hotel_id'] : null,
+                self::dedupeDisponible($trabajadorId, $fecha),
+            );
+        });
         return true;
+    }
+
+    /** Dedupe de la alerta trabajador_disponible: una por persona y día. */
+    public static function dedupeDisponible(int $trabajadorId, string $fecha): string
+    {
+        return "disponible:{$trabajadorId}:fecha:{$fecha}";
     }
 
     // -----------------------------------------------------------------------
@@ -379,15 +410,20 @@ final class HomeService
 
         // KPI 3: eficiencia de equipo = completadas / asignadas
         $metaEf = 85;
-        $asignadas = (int) (Database::fetchOne(
-            'SELECT COUNT(*) AS c
+        // Numerador y denominador sobre la MISMA base: las asignaciones de hoy. Antes el numerador
+        // contaba todas las piezas limpias del hotel (incluidas las de días anteriores) y el KPI
+        // pasaba del 100 % y siempre daba «OK».
+        $filaEf = Database::fetchOne(
+            "SELECT COUNT(*) AS asignadas,
+                    SUM(CASE WHEN h.estado IN ('aprobada', 'aprobada_con_observacion', 'aprobada_automatica',
+                                               'completada_pendiente_auditoria') THEN 1 ELSE 0 END) AS completadas
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
-              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND a.fecha = ? AND a.activa = 1',
+              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND a.fecha = ? AND a.activa = 1",
             [$hotelId, $fecha]
-        )['c'] ?? 0);
-        $completadas = (int) $metricas['habitaciones']['limpias']
-            + (int) $metricas['habitaciones']['por_auditar'];
+        );
+        $asignadas = (int) ($filaEf['asignadas'] ?? 0);
+        $completadas = (int) ($filaEf['completadas'] ?? 0);
         $eficiencia = $asignadas > 0 ? (int) round($completadas * 100 / $asignadas) : 0;
         if ($asignadas === 0) {
             $efEstado = 'SIN_DATOS';
@@ -715,7 +751,9 @@ final class HomeService
      */
     public function sistemaUsuariosActivos(int $adminId): array
     {
-        $ahora = date('Y-m-d H:i:s');
+        // expires_at es ISO UTC con 'T' (AuthService): se compara con el mismo formato. Antes se
+        // usaba la hora local con espacio y toda sesión que vencía hoy (UTC) parecía vigente.
+        $ahora = Database::now();
         $sesiones = Database::fetchAll(
             'SELECT s.usuario_id, u.nombre, MAX(s.created_at) AS created_at
                FROM #__sesiones s

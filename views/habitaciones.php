@@ -959,7 +959,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         },
 
         puedeMarcarSucia(hab) {
-            return !!hab && ['en_progreso', 'aprobada', 'aprobada_con_observacion', 'rechazada'].indexOf(hab.estado) !== -1;
+            return !!hab && ['en_progreso', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'].indexOf(hab.estado) !== -1;
         },
 
         puedeSinAseoCliente(hab) {

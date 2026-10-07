@@ -27,6 +27,7 @@ final class OptionalAuth implements Middleware
     public function handle(Request $request, callable $next): Response
     {
         $token = $request->cookies[AuthService::SESSION_COOKIE] ?? null;
+        $sesionValida = false;
         if ($token !== null && $token !== '') {
             $usuario = $this->auth->validarSesion($token);
             if ($usuario !== null && $usuario->activo) {
@@ -46,9 +47,12 @@ final class OptionalAuth implements Middleware
 
                 $request->usuario = $usuario;
                 $request->permisos = $usuario->permisos;
+                $sesionValida = true;
             }
         }
 
-        return $next($request);
+        $respuesta = $next($request);
+        // La sesión se renovó en la BD: la cookie acompaña (ver AuthService::opcionesCookieSesion).
+        return $sesionValida ? AuthService::renovarCookieSesion($respuesta, (string) $token) : $respuesta;
     }
 }

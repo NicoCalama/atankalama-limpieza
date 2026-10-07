@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
+use Atankalama\Limpieza\Helpers\Fechas;
 use Atankalama\Limpieza\Helpers\Rut;
 use Atankalama\Limpieza\Models\Usuario;
 
@@ -69,6 +70,14 @@ final class UsuarioService
         );
     }
 
+    /** 403 si el objetivo tiene permisos que quien actúa no tiene (ver RbacService::puedeGestionarUsuario). */
+    private function exigirPuedeGestionar(int $actorId, int $objetivoId): void
+    {
+        if (!(new RbacService())->puedeGestionarUsuario($actorId, $objetivoId)) {
+            throw new UsuarioException('PRIVILEGIOS_INSUFICIENTES', RbacService::MSG_USUARIO_SUPERIOR, 403);
+        }
+    }
+
     /**
      * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,jornada?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
      * @return array{usuario:Usuario, password_temporal:string}
@@ -120,6 +129,9 @@ final class UsuarioService
             if ($rolId <= 0 || Database::fetchOne('SELECT id FROM #__roles WHERE id = ?', [$rolId]) === null) {
                 throw new UsuarioException('ROL_NO_ENCONTRADO', 'Uno de los roles indicados no existe.', 404);
             }
+            if (!(new RbacService())->puedeOtorgarRol($creadoPor, $rolId)) {
+                throw new UsuarioException('PRIVILEGIOS_INSUFICIENTES', RbacService::MSG_ROL_SUPERIOR, 403);
+            }
             $rolesIds[] = $rolId;
         }
 
@@ -167,6 +179,7 @@ final class UsuarioService
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
+        $this->exigirPuedeGestionar($editadoPor, $usuarioId);
         $sets = [];
         $params = [];
         if (isset($datos['nombre'])) {
@@ -225,6 +238,7 @@ final class UsuarioService
         if ($existente === null) {
             throw new UsuarioException('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
         }
+        $this->exigirPuedeGestionar($editadoPor, $usuarioId);
 
         if ($activo) {
             Database::execute(
@@ -297,6 +311,7 @@ final class UsuarioService
                 400
             );
         }
+        $this->exigirPuedeGestionar($solicitanteId, $usuarioId);
 
         $rutOriginal = (string) $existente['rut'];
         $randSuffix = bin2hex(random_bytes(3)); // 6 caracteres hex
@@ -456,6 +471,15 @@ final class UsuarioService
               ORDER BY created_at DESC",
             [$usuarioId, $desde90]
         );
+        if ($ocultaTimestampsKpi) {
+            // created_at de la ejecución es el mismo instante que timestamp_inicio (mismo INSERT):
+            // a la propia persona se le entrega solo la fecha local, no la hora en que empezó.
+            $ejecuciones = array_map(static function (array $e): array {
+                $e['fecha'] = Fechas::fechaLocalDeUtc((string) $e['created_at']);
+                unset($e['created_at']);
+                return $e;
+            }, $ejecuciones);
+        }
 
         // Tickets: levantados o asignados a la persona. "Asignado" incluye ser corresponsable
         // (tickets_asignados): asignado_a guarda solo al responsable principal.

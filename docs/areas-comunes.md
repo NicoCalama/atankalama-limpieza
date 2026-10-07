@@ -78,6 +78,20 @@ resetee cualquier estado terminal (`aprobada`, `aprobada_con_observacion`, `rech
 crear una asignación nueva (hoy solo resetea `rechazada`). La matriz ya permite las tres transiciones.
 Esta misma primitiva es la que reusará el feature **F (varias limpiezas por día)**.
 
+### Preasignar un área para otro día (v6.17.1)
+
+Pedir limpieza para una fecha futura no ensucia el área en ese momento: `asignarManual` solo resetea
+el estado terminal si la asignación es para hoy. Cuando llega el día, la primera carga de una cola o
+del tablero (`AsignacionService::reconciliarPreasignaciones`) pasa a `sucia` el área preasignada que
+sigue «Lista» (aprobada, con observación o automática) y sin limpieza ligada a esa asignación:
+**preasignar un área es un pedido firme de limpieza para ese día** (decisión de Nicolás, 07/10/2026).
+Las habitaciones de huésped, en cambio, se retiran de la cola si amanecen aprobadas: no necesitaron la
+limpieza planificada.
+
+Antes las áreas pasaban por la misma regla que las habitaciones: se cancelaban «porque no necesitaron
+limpieza» o, si las había aprobado el sistema, quedaban en la cola sin poder empezarse. En producción,
+de 31 preasignaciones de áreas entre el 07/09 y el 06/10/2026, solo una se limpió.
+
 ---
 
 ## 3. Checklist propio por espacio

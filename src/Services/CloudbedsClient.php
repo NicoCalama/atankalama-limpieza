@@ -137,7 +137,16 @@ final class CloudbedsClient
         $pagina = 1;
         while (count($rooms) < $total && $pagina < self::HABITACIONES_MAX_PAGINAS) {
             $pagina++;
-            $nuevas = $this->extraerRooms($this->obtenerPaginaHabitaciones($propertyId, $apiKey, $pagina));
+            $respuesta = $this->obtenerPaginaHabitaciones($propertyId, $apiKey, $pagina);
+            if (($respuesta['success'] ?? null) !== true) {
+                // Una página que falla no puede pasar por «no hay más»: el import tomaba las
+                // piezas que faltaban como bajas y las desactivaba.
+                throw new CloudbedsException(
+                    'GETROOMS_PAGINA_FALLIDA',
+                    "getRooms falló en la página {$pagina}: el inventario quedaría incompleto."
+                );
+            }
+            $nuevas = $this->extraerRooms($respuesta);
             if ($nuevas === []) {
                 // Página vacía antes de alcanzar `total`: corta para no colgar el loop.
                 Logger::warning('cloudbeds', 'getRooms devolvió página vacía antes de total', [

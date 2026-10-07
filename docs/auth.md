@@ -55,7 +55,7 @@ Set-Cookie: `session=<token>; HttpOnly; SameSite=Strict; Secure; Path=/`.
 
 Errores:
 - `401` `CREDENCIALES_INVALIDAS` — RUT o pwd incorrectos (mensaje genérico, no revelar cuál falló).
-- `403` `USUARIO_INACTIVO` — usuario existe pero `activo=0`.
+- `403` `USUARIO_INACTIVO` — usuario existe, `activo=0` **y la contraseña es correcta** (con una clave incorrecta responde `CREDENCIALES_INVALIDAS`, igual que un RUT que no existe; y un RUT inexistente también pasa por bcrypt para tardar lo mismo). Así el login no delata qué RUT están registrados (07/10/2026).
 - `400` `RUT_INVALIDO` — formato o DV inválido.
 
 ### 1.4 Decisión de Home (`home_target`)
@@ -96,6 +96,7 @@ Si `requiere_cambio_pwd = 1` después del login, el frontend redirige inmediatam
 
 - Invalida la fila en `sesiones` (DELETE por token).
 - Limpia la cookie en el cliente.
+- Se permite también en **modo espía** (es la única escritura permitida además de salir del modo espía): borrar la sesión cierra también el modo espía, y el cierre queda en `audit_log` a nombre del admin real.
 - Respuesta 200 `{ "ok": true }`.
 
 ---
@@ -182,7 +183,7 @@ Flujo:
 ### 6.1 Duración de sesión
 
 - Default: **8 horas** desde último uso (sliding window).
-- Cada request válido actualiza `sesiones.expires_at = now + 8h`.
+- Cada request válido actualiza `sesiones.expires_at = now + 8h`, y `AuthCheck`/`OptionalAuth` vuelven a emitir la cookie con el mismo vencimiento (`AuthService::renovarCookieSesion`). Sin eso el navegador borraba la cookie a las 8 h del login aunque la sesión se siguiera usando.
 - Tras 8h de inactividad → sesión expirada, requiere re-login.
 
 ---

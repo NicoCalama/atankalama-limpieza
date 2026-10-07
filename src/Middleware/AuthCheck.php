@@ -19,6 +19,13 @@ final class AuthCheck implements Middleware
      */
     private const RUTA_SALIR_MODO_ESPIA = '/api/modo-espia/salir';
 
+    /**
+     * Cerrar sesión también se permite en modo espía: antes respondía 403, el frontend igual
+     * mandaba a /login y la sesión del admin quedaba viva en el equipo. El logout borra la fila
+     * de la sesión, y con ella el modo espía.
+     */
+    private const RUTA_LOGOUT = '/api/auth/logout';
+
     private const METODOS_MUTANTES = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
     public function __construct(
@@ -58,7 +65,7 @@ final class AuthCheck implements Middleware
             EspiaContext::activar($estadoEspia['admin']->nombre);
 
             $esMutacion = in_array($request->metodo, self::METODOS_MUTANTES, true);
-            if ($esMutacion && $request->path !== self::RUTA_SALIR_MODO_ESPIA) {
+            if ($esMutacion && !in_array($request->path, [self::RUTA_SALIR_MODO_ESPIA, self::RUTA_LOGOUT], true)) {
                 return Response::error(
                     'MODO_ESPIA_SOLO_LECTURA',
                     'Estás en modo espía (solo lectura). Sal del modo espía para hacer cambios.',
@@ -70,6 +77,6 @@ final class AuthCheck implements Middleware
         $request->usuario = $usuario;
         $request->permisos = $usuario->permisos;
 
-        return $next($request);
+        return AuthService::renovarCookieSesion($next($request), $token);
     }
 }

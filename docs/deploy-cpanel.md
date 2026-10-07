@@ -404,6 +404,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-04 | **Deploy combinado** → **v6.16** (rol Apoyo `5c70315` + CHECK de alertas `3041b45`/`eba650d`/`b2f8593` + Reportes con pestañas `38b76db`; ZIP y CHANGELOG `158a7aa`) | Decisión de Nicolás: un solo ZIP con todo lo terminado (la v6.15.2 y la ex-v6.18 quedan dentro de la v6.16; la v6.17 fuera). Runbook §11.13. **SQL de Apoyo antes del ZIP:** los 2 permisos nuevos se crearon, pero el rol «Apoyo» **ya existía** en producción (lo creó Nicolás a mano, id 6, con 10 permisos de Trabajador): quedó con 15 = los 13 de Trabajador + los 2 de marca (en prod Trabajador no tiene `kpis.ver_propios`). ZIP de 26 archivos a `app_core/` (incluido `public/.htaccess` de bloqueo) y **CHECK de alertas inmediatamente después**. Smoke externo: `/api/health` 200 con `esquema.ok`, `/login` 200, `app_core/public/…` 403. **Después, a mano en Ajustes → Roles y Permisos:** `kpis.excluido` y `asignaciones.excluir_auto` a **todos los roles menos Trabajador**; el repo se alineó en el commit siguiente (seeds y `docs/roles-permisos.md`). |
 | 2026-10-04 | **Tarjeta «Habitaciones limpiadas» + «Desglose hab.»** → **v6.16.1** (`dd7ad72` + `b3fe009`, merge `f43fd51`) | Pedido de Nicolás tras la v6.16: tarjeta entre los KPIs de arriba de Reportes con las limpiezas del período (mismo número que «limpiadas» de la sección Supervisora; respeta fechas, hotel y trabajadora) y, en el resumen mensual, «Hab. hechas» → «Desglose hab.» (el Excel conserva «Hab. hechas»). Runbook §11.14: **sin SQL**, ZIP de 9 archivos a `app_core/` (los 3 de la versión + los seeds, scripts y `RbacService.php` de la alineación de permisos de marca `727a99e`). Smoke de Nicolás: todo verde (badge, tarjeta = sección Supervisora, «Desglose hab.»); `/api/health` 200. |
 | 2026-10-05 | **Ciclo de limpieza con Cloudbeds** → **v6.17** (red `557591b`, R4/R5/R6 `3a37a53`, nocheros `dd374eb`, guarda `15a34aa`; CHANGELOG y runbook `060dcb6` + `8f1fe72`) | Arreglos del documento «Ciclo de limpieza y Cloudbeds» que no dependen de consultas en prod (R4 rechazos, R5 «Volver a limpiar» con las aprobadas por el cierre automático, R6 historial de reseteos y guarda del sync) + nochero marcado después de las 16:00 barre al tiro + aviso de marcas que vencen. Runbook §11.16: **sin SQL**, ZIP de 10 archivos a `app_core/`. Decisión de Nicolás: sale **sola**; la inspección pre-entrega (ex v6.18, ya en `main`) pasa a llamarse **v7** y espera el visto bueno de gerencia. **Precheck nuevo:** antes de subir se bajaron de prod los 9 archivos que el ZIP pisa y se compararon con `138fbfb`: contenido idéntico (5 tienen CRLF en el servidor; FileZilla en ASCII los baja con `\r\r\n` → comparar normalizando `\r`), y se armó `build/limpieza-v6161-vuelta-atras.zip`. Línea base: sync `exito`, 0 errores en 24 h. Subido ~19:10, fuera de 15:45–16:05. Smoke: badge **v6.17** (Nicolás), aviso nuevo «2 marcas de nochero vencen hoy» (INN 307 y 407) en la campanita, `/api/health` 200 (19:12). La primera sincronización tras el deploy (id 11213, 19:10:03) salió `exito` en la misma pasada del cron que el aviso de nocheros (19:10:01), o sea, ya con el código nuevo. **Verificado el 06/10** con la consulta de §11.16 (Nicolás): el cierre de las 15:50 pasó **44** piezas de `completada_pendiente_auditoria` a `aprobada_automatica` y el barrido de las 16:00 mandó **53** nocheros a sucia (23 `aprobada` + 30 `aprobada_automatica`). Salió una fila más, a las 18:10: la **802 del 1 Sur** (no es nochero), limpiada 10:42–11:19 y aprobada 12:36, volvió a sucia por el sync con ocupación `turnover`. Es un caso **R1**, que la v6.17 no trae (no es regresión; por diseño levanta la alerta «Habitación 802 volvió a sucia»), y el tercer día seguido con uno (04 y 05/10 también). Con eso se borró el ZIP de vuelta atrás. |
+| 2026-10-07 | **Preasignaciones + rescate de la auditoría del 07/10** → **v6.17.1 + v6.17.2** (v6.17.1 `14335e8` + `17a268a`; v6.17.2 `733b1af` + `59786d3` + `f3f6e66`; CHANGELOG fechado y runbook `8dc4df6`) | Deploy combinado (decisión de Nicolás). **v6.17.1** (§11.17): las áreas comunes preasignadas pasan a sucia al llegar el día (preasignar un área es un pedido firme de limpieza; de 31 entre el 07/09 y el 06/10 solo una se había limpiado), las habitaciones preasignadas que amanecen «aprobada automática» salen de la cola con aviso, y «Marcar sucia» acepta las aprobadas por el sistema. **v6.17.2** (§11.18): lo útil de la auditoría de código de una sesión en la nube (rama `ccr-d58d9709-6vgn0f`, sin la v7 y sin sus cambios de KPIs, la limpieza «interrumpida», el reparto por hotel ni la cola offline), con las correcciones de la revisión. Sin SQL. **Antes de subir:** consultas de permisos de §11.18 (todo en orden: `notificaciones.ver` en todos los roles, `disponibilidad.notificar_supervisora` en Trabajador, Apoyo y Admin, `usuarios.asignar_rol` ya en Supervisora, el correo de las 23:50 le llega a las mismas personas) y precheck: los 231 archivos de `src/`, `views/` y `scripts/` y el `CHANGELOG.md` bajados de prod, idénticos a `eb3f7d2`. ZIP de 47 archivos a `app_core/` y `build/limpieza-v617-vuelta-atras.zip` de respaldo. Subido el 07/10 antes de las 08:00. Smoke: badge **v6.17.2** (Nicolás), `/api/health` 200 con `checks.esquema.ok: true` y `/login` 200 (07:59). Alertas activas al subir: 48 `trabajador_en_riesgo` (las de días anteriores las cierra el primer recálculo), 47 `ticket_nuevo` desde el 29/09, 12 `aprobacion_deshecha` desde el 06/10 18:10 y 1 de inventario. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -1427,3 +1428,134 @@ de las 16:00).
 
 **Vuelta atrás:** volver a subir esos archivos tal como están en `138fbfb` (`CierreDiaService.php` puede quedar: sin
 los scripts nuevos nadie lo llama).
+
+### 11.17 Release "preasignaciones y «Marcar sucia»" → v6.17.1
+
+Hotfix sobre la v6.17, armado desde lo que está en producción (`eb3f7d2`) y **no desde `main`**: `main` tiene la
+inspección pre-entrega (futura v7) en estos mismos archivos, y un ZIP armado desde ahí la subiría sin aprobación.
+Diagnóstico con datos de producción del 06/10/2026:
+
+- **Áreas comunes preasignadas** para otro día: al llegar el día pasan a sucia y quedan pendientes en la cola de quien
+  las tiene. Antes se cancelaban como si no hicieran falta, o quedaban en la cola sin poder empezarse: de 31
+  preasignaciones de áreas entre el 07/09 y el 06/10, solo una se limpió.
+- **Habitaciones preasignadas que amanecen «aprobada automática»**: salen de la cola con el aviso de siempre (la INN 101
+  el 25/09). Desde la v6.11 el sync ya no convierte la automática en «aprobada», y el chequeo no la reconocía.
+- **«Marcar sucia»** en Habitaciones acepta las piezas que aprobó el cierre automático (antes respondía 409).
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos.** La acción nueva de auditoría `asignacion.preasignacion_activada`
+va a `audit_log.accion`, que es texto libre. ZIP `build/limpieza-v6171-delta.zip` (estructura `limpieza/…`), todo a
+`app_core/`:
+
+- `src/Services/AsignacionService.php`;
+- `src/Controllers/HabitacionesController.php`;
+- `views/habitaciones.php`;
+- `CHANGELOG.md` (v6.17.1 fechada).
+
+Lista = `git diff --name-only eb3f7d2 HEAD` menos `docs/` y `tests/`: 4 archivos.
+
+**Cuándo y cómo subir:** a cualquier hora (no cambia nada de lo que usan los crons). Precheck como en la v6.17: bajar
+de prod los 3 archivos de código y compararlos con `eb3f7d2`, normalizando `\r`.
+
+**Smoke:**
+- badge **v6.17.1** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- Habitaciones → menú de una pieza «Aprob. auto.»: aparece «Marcar sucia» (no hace falta usarlo; si se usa, la pieza
+  pasa a sucia y se le avisa `dirty` a Cloudbeds);
+- al día siguiente de preasignar un área común: aparece «Pendiente» en la cola de esa persona, con «Comenzar limpieza».
+
+**Vuelta atrás:** volver a subir esos 3 archivos tal como están en `eb3f7d2`.
+
+### 11.18 Release "rescate de la auditoría del 07/10" → v6.17.2
+
+Arreglos de la auditoría de código del 07/10/2026 (rama `ccr-d58d9709-6vgn0f`, sesión en la nube), traídos a la línea
+de producción **sin la v7** y **solo lo útil** (decisión de Nicolás): atomicidad de completar/veredicto/cierre de día,
+anti-escalada de privilegios, cookie y logout en modo espía, RBAC por permiso, ciclo de vida de las alertas (sin
+«Descartar»), sábanas con cambio de horario, importación de turnos, inventario protegido, orden de la bandeja, push y
+hallazgos menores (login, copilot, fotos, CSV). **Fuera:** cambios de KPIs de Reportes (días trabajados con áreas,
+productividad del equipo, desmarcados, «solo hasta hoy»), la limpieza «interrumpida» y su migración, el reparto
+automático por hotel, su versión de las preasignaciones (queda la de la v6.17.1) y la cola offline del checklist.
+Con correcciones de la revisión: anti-escalada con lista explícita (`RbacService::PERMISOS_GESTION`), hash fijo en el
+login, P0 propia por escritura fallida, lista blanca de acciones de alertas, push que de verdad no tumba la request,
+filas corridas y horas `HH:MM` en la importación de turnos.
+
+**Orden:** va encima de la v6.17.1 (§11.17). **Decisión de Nicolás (07/10/2026): suben juntas, en un solo ZIP** (las dos
+filas del CHANGELOG fechadas ese día; el badge muestra v6.17.2).
+
+**Sin SQL de esquema, sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`).
+
+**ANTES de subir: revisar permisos en producción** (consultas de solo lectura en phpMyAdmin, con `cat6852_australia`
+elegida). El código ahora exige permisos que antes no miraba, y en producción los permisos se cargaron a mano.
+
+A) Qué roles tienen cada permiso que importa (si falta una fila, ese permiso no existe en producción):
+
+```sql
+SELECT p.codigo,
+       COALESCE(GROUP_CONCAT(r.nombre ORDER BY r.id SEPARATOR ', '), '-- NADIE --') AS roles
+  FROM limpieza_permisos p
+  LEFT JOIN limpieza_rol_permisos rp ON rp.permiso_codigo = p.codigo
+  LEFT JOIN limpieza_roles r ON r.id = rp.rol_id
+ WHERE p.codigo IN ('notificaciones.ver', 'disponibilidad.notificar_supervisora', 'usuarios.asignar_rol',
+                    'usuarios.editar', 'alertas.recibir_predictivas', 'permisos.asignar_a_rol',
+                    'cloudbeds.forzar_sincronizacion', 'auditoria.editar_checklist_durante_auditoria',
+                    'usuarios.exportar_datos_propios', 'roles.ver')
+ GROUP BY p.codigo
+ ORDER BY p.codigo;
+```
+
+Esperado: `notificaciones.ver` en **todos** los roles que usan la app (sin él no hay campanita);
+`disponibilidad.notificar_supervisora` en Trabajador y Apoyo (sin él no aparece «Estoy disponible»).
+
+B) Personas a las que algo les cambia (vacío = a nadie):
+
+```sql
+SELECT u.nombre, (COALESCE(u.email, '') <> '') AS con_email,
+       GROUP_CONCAT(DISTINCT r.nombre ORDER BY r.nombre SEPARATOR ', ') AS roles,
+       COALESCE(MAX(r.nombre = 'Admin'), 0) AS correo_antes,
+       COALESCE(MAX(rp.permiso_codigo = 'permisos.asignar_a_rol'), 0) AS correo_despues,
+       COALESCE(MAX(rp.permiso_codigo = 'notificaciones.ver'), 0) AS campanita,
+       COALESCE(MAX(rp.permiso_codigo = 'usuarios.editar'), 0) AS edita_usuarios,
+       COALESCE(MAX(rp.permiso_codigo = 'usuarios.asignar_rol'), 0) AS asigna_roles
+  FROM limpieza_usuarios u
+  JOIN limpieza_usuarios_roles ur ON ur.usuario_id = u.id
+  JOIN limpieza_roles r ON r.id = ur.rol_id
+  LEFT JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id
+   AND rp.permiso_codigo IN ('permisos.asignar_a_rol', 'notificaciones.ver', 'usuarios.editar', 'usuarios.asignar_rol')
+ WHERE u.activo = 1
+ GROUP BY u.id, u.nombre, u.email
+HAVING correo_antes <> correo_despues OR campanita = 0 OR edita_usuarios > asigna_roles
+ ORDER BY u.nombre;
+```
+
+Cada fila: `correo_antes ≠ correo_despues` → cambia quién recibe el correo de las 23:50; `campanita = 0` → darle
+`notificaciones.ver` a su rol; `edita_usuarios > asigna_roles` → antes podía asignar roles y ahora no (darle
+`usuarios.asignar_rol` si corresponde). Lo que falte se da **antes de subir** desde Ajustes → Roles y Permisos.
+
+C) Alertas viejas (sin «Descartar», las que no se cierran solas quedan a la vista):
+
+```sql
+SELECT tipo, COUNT(*) AS activas, MIN(created_at) AS la_mas_vieja
+  FROM limpieza_alertas_activas
+ GROUP BY tipo
+ ORDER BY tipo;
+```
+
+**ZIP** `build/limpieza-v6172-delta.zip` (estructura `limpieza/…`), todo a `app_core/`, con la v6.17.1 y la v6.17.2:
+lista = `git diff --name-only eb3f7d2 HEAD` menos `docs/` y `tests/` (**47 archivos**, todos modificados, ninguno
+nuevo: `CHANGELOG.md`, un script, 10 controladores, `Core/Kernel.php`, 2 helpers, 2 middleware, 21 servicios,
+`Support/Tours.php` y 8 vistas).
+
+**Precheck** (como en la v6.17): bajar de prod por FileZilla, con su estructura, `app_core/src/`, `app_core/views/`,
+`app_core/scripts/` y `app_core/CHANGELOG.md` a `build/prod-antes-v6172/`, y comparar contra `eb3f7d2` normalizando
+`\r` (detecta cualquier cambio hecho en prod por fuera de git, no solo en los 47). ZIP de vuelta atrás:
+`build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Toca servicios que usan el cierre de día y el sync; una
+pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien).
+
+**Smoke:**
+- badge **v6.17.2** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`; login con una cuenta real;
+- Inicio de supervisora: las alertas sin «Descartar»; Ajustes → Alertas guarda un cambio;
+- con una trabajadora: campanita visible y, con la cola vacía, «Estoy disponible»;
+- si una supervisora gestiona usuarios: editar a una trabajadora funciona (no 403).
+
+**Vuelta atrás:** subir `build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`, la
+v6.17 desplegada).

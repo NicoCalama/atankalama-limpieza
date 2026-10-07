@@ -102,6 +102,7 @@ Cuando el trabajador abre una habitación desde su Home:
 
 1. Si `habitacion.estado == 'sucia'` + no hay ejecución previa → POST `/api/habitaciones/{id}/iniciar` crea `ejecuciones_checklist` con `estado='en_progreso'`, `timestamp_inicio=now`. Habitación pasa a `en_progreso`.
 2. Si ya existe ejecución `en_progreso` para esa habitación/asignación → la reanuda (muestra checks ya marcados).
+3. Si esa ejecución existe pero la habitación **ya no está** `en_progreso` (la sacaron por «Marcar sucia», «Sin aseo» o el sync de Cloudbeds), la ejecución está **vencida**: se borra (queda `checklist.descartar_vencida` en `audit_log`) y se sigue como en el caso 1. Una ejecución vencida no cuenta para el candado, no es la "habitación actual" y no se puede saltar.
 
 **Candado "una habitación a la vez":** el trabajador no puede iniciar una habitación
 nueva mientras tenga **otra** en progreso. En ese caso `iniciar` responde `409`
@@ -178,6 +179,7 @@ Al tocarlo:
   - Valida 100% obligatorios marcados (backend también, no solo frontend).
   - Setea `ejecuciones_checklist.estado='completada'`, `timestamp_fin=now`.
   - Setea `habitaciones.estado='completada_pendiente_auditoria'`.
+  - Las dos escrituras van en una sola transacción: si la habitación ya no está `en_progreso` responde `409 HABITACION_NO_EN_PROGRESO` y no cierra la ejecución.
   - Respuesta incluye redirect al Home con toast "Habitación lista para auditoría".
 
 ---

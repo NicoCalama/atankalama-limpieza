@@ -16,6 +16,7 @@
 // acá se resuelven en el servidor y viajan al x-data.
 $puedeAsignar = $usuario->tienePermiso('asignaciones.asignar_manual');
 $puedeImportarInventario = $usuario->tienePermiso('habitaciones.importar_inventario');
+$puedeSincronizarCloudbeds = $usuario->tienePermiso('cloudbeds.forzar_sincronizacion');
 ?>
 
 <div x-data="alertasApp()" x-init="cargar()">
@@ -119,32 +120,6 @@ $puedeImportarInventario = $usuario->tienePermiso('habitaciones.importar_inventa
          :class="toast.tipo === 'exito' ? 'bg-green-600' : 'bg-red-600'"
          x-text="toast.mensaje"></div>
 
-    <!-- Modal: confirmar descarte (mismo criterio que el Inicio: acción destructiva -> confirmación) -->
-    <div x-show="modalDescartar.abierto" x-cloak
-         x-effect="modalDescartar.abierto && $nextTick(() => $refs.btnDescartar.focus())"
-         @keydown.escape.window="modalDescartar.abierto && cerrarModalDescartar()"
-         @keydown.tab.window="atraparTabModalDescartar($event)"
-         @keydown.window="manejarAltModalDescartar($event)"
-         @keyup.window="altModalDescartar = false"
-         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
-         @click.self="cerrarModalDescartar()">
-        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Descartar esta alerta?</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
-            <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
-            <div class="flex gap-2 justify-end">
-                <button x-ref="btnCancelar" @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
-                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
-                    <span :class="altModalDescartar ? 'underline' : ''">C</span>ancelar
-                </button>
-                <button x-ref="btnDescartar" @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
-                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    <template x-if="modalDescartar.enviando"><span>Descartando...</span></template>
-                    <template x-if="!modalDescartar.enviando"><span>De<span :class="altModalDescartar ? 'underline' : ''">s</span>cartar</span></template>
-                </button>
-            </div>
-        </div>
-    </div>
 
 </div>
 
@@ -155,10 +130,9 @@ function alertasApp() {
         error: null,
         alertas: [],
         toast: { visible: false, tipo: 'exito', mensaje: '' },
-        modalDescartar: { abierto: false, alerta: null, enviando: false },
-        altModalDescartar: false,
         puedeAsignar: <?= $puedeAsignar ? 'true' : 'false' ?>,
         puedeImportarInventario: <?= $puedeImportarInventario ? 'true' : 'false' ?>,
+        puedeSincronizarCloudbeds: <?= $puedeSincronizarCloudbeds ? 'true' : 'false' ?>,
 
         async cargar() {
             this.cargando = true;
@@ -220,9 +194,7 @@ function alertasApp() {
             var btnPrimario = 'bg-blue-600 hover:bg-blue-700 text-white';
             var btnSecundario = 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100';
 
-            // Cambios de inventario exigen una decisión explícita (Aceptar/Rechazar); no se
-            // ofrece "Descartar" genérico, igual que en el Inicio de la supervisora, para no
-            // dejar el cambio propuesto sin resolver.
+            // Cambios de inventario exigen una decisión explícita (Aceptar/Rechazar).
             if (al.tipo === 'inventario_cambios_pendientes') {
                 if (!this.puedeImportarInventario) return [];
                 return [
@@ -233,11 +205,18 @@ function alertasApp() {
 
             var botones = [];
             if (al.tipo === 'cloudbeds_sync_failed') {
-                botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                if (al.contexto && al.contexto.habitacion_id) {
+                    // Escritura fallida de UNA pieza: se cierra cuando una escritura de esa pieza
+                    // funciona (rehacer la acción desde su ficha), no con un sync de lectura.
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                } else if (this.puedeSincronizarCloudbeds) {
+                    // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
+                    botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                }
             } else if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
-                botones.push({ accion: 'ir_asignaciones', etiqueta: 'Ver asignaciones', clase: btnSecundario });
-                if (this.puedeAsignar) botones.push({ accion: 'ir_asignaciones', etiqueta: 'Reasignar', clase: btnPrimario });
-            } else if (al.tipo === 'habitacion_rechazada' || al.tipo === 'aprobacion_deshecha') {
+                // Un solo botón: los dos llevaban a /asignaciones con la misma key (rompía el x-for).
+                botones.push({ accion: 'ir_asignaciones', etiqueta: this.puedeAsignar ? 'Reasignar' : 'Ver asignaciones', clase: btnPrimario });
+            } else if (al.tipo === 'habitacion_rechazada' || al.tipo === 'aprobacion_deshecha' || al.tipo === 'habitacion_saltada') {
                 if (al.contexto && al.contexto.habitacion_id) {
                     botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
                 }
@@ -247,7 +226,6 @@ function alertasApp() {
                 botones.push({ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario });
             }
 
-            botones.push({ accion: 'descartar', etiqueta: 'Descartar', clase: btnSecundario });
             return botones;
         },
 
@@ -255,8 +233,21 @@ function alertasApp() {
         // que viven en esa pantalla (dependen de su payload de equipo). Acá no existen, así que
         // estas acciones navegan a /asignaciones, igual que en el Inicio del Admin.
         async accionAlerta(al, accion) {
-            if (accion === 'descartar') {
-                this.modalDescartar = { abierto: true, alerta: al, enviando: false };
+            if (accion === 'cloudbeds_retry') {
+                // Sync real (antes solo borraba la alerta). La P0 se cierra sola si funciona.
+                try {
+                    var rs = await apiPost('/api/cloudbeds/sync', {});
+                    if (rs && rs.ok && rs.data && rs.data.sync && rs.data.sync.resultado === 'exito') {
+                        this.mostrarToast('exito', 'Sincronización completa.');
+                    } else if (rs && rs.ok) {
+                        this.mostrarToast('error', 'La sincronización volvió a fallar. Revisa el detalle en Ajustes → Cloudbeds.');
+                    } else {
+                        this.mostrarToast('error', (rs && rs.error && rs.error.mensaje) || 'No pudimos sincronizar.');
+                    }
+                } catch (e) {
+                    this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                }
+                this.cargar();
                 return;
             }
             if (accion === 'ir_asignaciones') {
@@ -285,7 +276,7 @@ function alertasApp() {
                 }
                 return;
             }
-            // Acciones genéricas que resuelven la alerta en bitácora (cloudbeds retry, marcar atendido)
+            // Acciones genéricas que resuelven la alerta en bitácora (hoy: «Marcar atendido» del ticket)
             try {
                 var r = await apiPost('/api/alertas/' + al.id + '/accion', { accion: accion });
                 if (r && r.ok) {
@@ -297,52 +288,6 @@ function alertasApp() {
             } catch (e) {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             }
-        },
-
-        async confirmarDescartarAlerta() {
-            if (this.modalDescartar.enviando || !this.modalDescartar.alerta) return;
-            this.modalDescartar.enviando = true;
-            try {
-                var r = await apiPost('/api/alertas/' + this.modalDescartar.alerta.id + '/accion', { accion: 'descartar' });
-                if (r && r.ok) {
-                    this.mostrarToast('exito', 'Alerta descartada.');
-                    this.cerrarModalDescartar();
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos descartar la alerta.');
-                    this.modalDescartar.enviando = false;
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-                this.modalDescartar.enviando = false;
-            }
-        },
-
-        cerrarModalDescartar() {
-            this.modalDescartar = { abierto: false, alerta: null, enviando: false };
-            this.altModalDescartar = false;
-        },
-
-        atraparTabModalDescartar(e) {
-            if (!this.modalDescartar.abierto) return;
-            var f = [this.$refs.btnCancelar, this.$refs.btnDescartar];
-            var i = f.indexOf(document.activeElement);
-            if (e.shiftKey) {
-                if (i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
-            } else {
-                if (i === f.length - 1) { e.preventDefault(); f[0].focus(); }
-            }
-        },
-
-        // Alt (Windows) / Option (Mac): subraya la letra de acceso y activa el botón.
-        // "C" = Cancelar, "S" = Descartar (no "D": choca con Alt+D de la barra de direcciones).
-        manejarAltModalDescartar(e) {
-            if (!this.modalDescartar.abierto) return;
-            if (e.key === 'Alt') { this.altModalDescartar = true; return; }
-            if (!e.altKey || this.modalDescartar.enviando) return;
-            // e.code (tecla física) en vez de e.key: en Mac, Option+S/Option+C escriben "ß"/"ç".
-            if (e.code === 'KeyC') { e.preventDefault(); this.cerrarModalDescartar(); }
-            else if (e.code === 'KeyS') { e.preventDefault(); this.confirmarDescartarAlerta(); }
         },
 
         mostrarToast(tipo, mensaje) {

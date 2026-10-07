@@ -14,7 +14,7 @@
 $puedeEditar = $usuario->tienePermiso('usuarios.editar');
 $puedeActivar = $usuario->tienePermiso('usuarios.activar_desactivar');
 $puedeResetPwd = $usuario->tienePermiso('usuarios.resetear_password');
-$puedeAsignarRoles = $usuario->tieneAlgunPermiso(['usuarios.editar', 'permisos.asignar_a_rol']);
+$puedeAsignarRoles = $usuario->tienePermiso('usuarios.asignar_rol');
 $puedeEspiar = $usuario->tienePermiso('usuarios.modo_espia');
 $usuarioActualId = $usuario->id;
 ?>

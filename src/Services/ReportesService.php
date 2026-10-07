@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Services;
 
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Helpers\ExcelExport;
 use Atankalama\Limpieza\Helpers\Fechas;
 use Atankalama\Limpieza\Models\Habitacion;
 
@@ -196,7 +197,8 @@ final class ReportesService
         $output = "\xEF\xBB\xBF";
         foreach ($rows as $row) {
             $cols = array_map(
-                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                // Mismo saneo que el Excel: un nombre o número que empieza con = + - @ no se ejecuta como fórmula.
+                fn ($cell) => '"' . str_replace('"', '""', (string) ExcelExport::neutralizarFormula($cell)) . '"',
                 $row
             );
             $output .= implode(';', $cols) . "\r\n";
@@ -565,7 +567,8 @@ final class ReportesService
         $output = "\xEF\xBB\xBF";
         foreach ($rows as $row) {
             $cols = array_map(
-                fn ($cell) => '"' . str_replace('"', '""', (string) $cell) . '"',
+                // Mismo saneo que el Excel: un nombre o número que empieza con = + - @ no se ejecuta como fórmula.
+                fn ($cell) => '"' . str_replace('"', '""', (string) ExcelExport::neutralizarFormula($cell)) . '"',
                 $row
             );
             $output .= implode(';', $cols) . "\r\n";
@@ -585,11 +588,13 @@ final class ReportesService
             "SELECT DISTINCT u.id, u.nombre, u.email
                FROM #__usuarios u
                JOIN #__usuarios_roles ur ON ur.usuario_id = u.id
-               JOIN #__roles r ON r.id = ur.rol_id
-              WHERE r.nombre = 'Admin'
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+              WHERE rp.permiso_codigo = ?
                 AND u.activo = 1
                 AND u.email IS NOT NULL AND u.email <> ''
-              ORDER BY u.nombre"
+              ORDER BY u.nombre",
+            // «Administrador» por permiso, no por nombre de rol (RBAC dinámico, ver RbacService::PERMISO_ADMIN).
+            [RbacService::PERMISO_ADMIN]
         );
     }
 

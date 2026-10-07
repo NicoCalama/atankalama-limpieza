@@ -445,32 +445,6 @@ if ($hora < 12) {
         </div>
     </div>
 
-    <!-- Modal: Confirmar descarte de alerta -->
-    <div x-show="modalDescartar.abierto" x-cloak
-         x-effect="modalDescartar.abierto && $nextTick(() => $refs.btnDescartar.focus())"
-         @keydown.escape.window="modalDescartar.abierto && cerrarModalDescartar()"
-         @keydown.tab.window="atraparTabModalDescartar($event)"
-         @keydown.window="manejarAltModalDescartar($event)"
-         @keyup.window="altModalDescartar = false"
-         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
-         @click.self="cerrarModalDescartar()">
-        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Descartar esta alerta?</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" x-text="modalDescartar.alerta?.titulo"></p>
-            <p class="text-xs text-gray-500 dark:text-gray-500 mb-5">Esta acción no se puede deshacer.</p>
-            <div class="flex gap-2 justify-end">
-                <button x-ref="btnCancelar" @click="cerrarModalDescartar()" :disabled="modalDescartar.enviando"
-                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
-                    <span :class="altModalDescartar ? 'underline' : ''">C</span>ancelar
-                </button>
-                <button x-ref="btnDescartar" @click="confirmarDescartarAlerta()" :disabled="modalDescartar.enviando"
-                        class="min-h-[40px] px-4 py-1.5 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
-                    <template x-if="modalDescartar.enviando"><span>Descartando...</span></template>
-                    <template x-if="!modalDescartar.enviando"><span>De<span :class="altModalDescartar ? 'underline' : ''">s</span>cartar</span></template>
-                </button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -489,8 +463,6 @@ function homeSupervisora() {
 
         modalVerCarga: { abierto: false, trabajador: null, cola: [], cargando: false },
         modalReasignar: { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, motivo: '', cargando: false, enviando: false },
-        modalDescartar: { abierto: false, alerta: null, enviando: false },
-        altModalDescartar: false,
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -661,8 +633,7 @@ function homeSupervisora() {
             var btnSecundario = 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100';
             var puedeAsignar = this.data && this.data.permisos && this.data.permisos.asignaciones_asignar_manual;
 
-            // Cambios de inventario exigen una decisión explícita (Aceptar/Rechazar); no se
-            // ofrece "Descartar" genérico aquí para no dejar el cambio propuesto sin resolver.
+            // Cambios de inventario exigen una decisión explícita (Aceptar/Rechazar).
             if (al.tipo === 'inventario_cambios_pendientes') {
                 var puedeImportar = this.data && this.data.permisos && this.data.permisos.habitaciones_importar_inventario;
                 if (!puedeImportar) return [];
@@ -679,27 +650,47 @@ function homeSupervisora() {
             } else if (al.tipo === 'habitacion_rechazada') {
                 // "Resolver ahora" no implementado en H2d — se hará cuando exista la auditoría express.
                 if (puedeAsignar) botones.push({ accion: 'reasignar_hab', etiqueta: 'Reasignar', clase: btnPrimario });
-            } else if (al.tipo === 'aprobacion_deshecha') {
-                // Cloudbeds la volvió a marcar sucia: se va a limpiar de nuevo. Ver la ficha
-                // es lo útil (historial de movimientos + ocupación), no reasignar.
+            } else if (al.tipo === 'aprobacion_deshecha' || al.tipo === 'habitacion_saltada') {
+                // Deshecha: Cloudbeds la volvió a marcar sucia y se va a limpiar de nuevo. Saltada:
+                // la trabajadora no pudo terminarla (se cierra sola al terminarla o aprobarla). En
+                // las dos lo útil es ver la ficha (historial de movimientos + ocupación).
                 if (al.contexto && al.contexto.habitacion_id) {
                     botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
                 }
             } else if (al.tipo === 'trabajador_disponible') {
                 if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario });
             } else if (al.tipo === 'cloudbeds_sync_failed') {
-                botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                if (al.contexto && al.contexto.habitacion_id) {
+                    // Escritura fallida de UNA pieza: se cierra cuando una escritura de esa pieza
+                    // funciona (rehacer la acción desde su ficha), no con un sync de lectura.
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                } else if (this.data && this.data.permisos && this.data.permisos.cloudbeds_forzar_sincronizacion) {
+                    // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
+                    botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                }
             } else if (al.tipo === 'ticket_nuevo') {
                 botones.push({ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario });
             }
 
-            botones.push({ accion: 'descartar', etiqueta: 'Descartar', clase: btnSecundario });
             return botones;
         },
 
         async accionAlerta(al, accion) {
-            if (accion === 'descartar') {
-                this.modalDescartar = { abierto: true, alerta: al, enviando: false };
+            if (accion === 'cloudbeds_retry') {
+                // Sync real (antes solo borraba la alerta). La P0 se cierra sola si funciona.
+                try {
+                    var rs = await apiPost('/api/cloudbeds/sync', {});
+                    if (rs && rs.ok && rs.data && rs.data.sync && rs.data.sync.resultado === 'exito') {
+                        this.mostrarToast('exito', 'Sincronización completa.');
+                    } else if (rs && rs.ok) {
+                        this.mostrarToast('error', 'La sincronización volvió a fallar. Revisa el detalle en Ajustes → Cloudbeds.');
+                    } else {
+                        this.mostrarToast('error', (rs && rs.error && rs.error.mensaje) || 'No pudimos sincronizar.');
+                    }
+                } catch (e) {
+                    this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+                }
+                this.cargar();
                 return;
             }
             if (accion === 'ver_carga') {
@@ -757,7 +748,7 @@ function homeSupervisora() {
                 }
                 return;
             }
-            // Acciones "genéricas" que resuelven la alerta en bitácora (cloudbeds retry, marcar atendido)
+            // Acciones genéricas que resuelven la alerta en bitácora (hoy: «Marcar atendido» del ticket)
             try {
                 var r = await apiPost('/api/alertas/' + al.id + '/accion', { accion: accion });
                 if (r && r.ok) {
@@ -771,43 +762,8 @@ function homeSupervisora() {
             }
         },
 
-        async confirmarDescartarAlerta() {
-            if (this.modalDescartar.enviando || !this.modalDescartar.alerta) return;
-            this.modalDescartar.enviando = true;
-            try {
-                var r = await apiPost('/api/alertas/' + this.modalDescartar.alerta.id + '/accion', { accion: 'descartar' });
-                if (r && r.ok) {
-                    this.mostrarToast('exito', 'Alerta descartada.');
-                    this.cerrarModalDescartar();
-                    this.cargar();
-                } else {
-                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos descartar la alerta.');
-                    this.modalDescartar.enviando = false;
-                }
-            } catch (e) {
-                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-                this.modalDescartar.enviando = false;
-            }
-        },
-
-        cerrarModalDescartar() {
-            this.modalDescartar = { abierto: false, alerta: null, enviando: false };
-            this.altModalDescartar = false;
-        },
-
-        atraparTabModalDescartar(e) {
-            if (!this.modalDescartar.abierto) return;
-            var f = [this.$refs.btnCancelar, this.$refs.btnDescartar];
-            var i = f.indexOf(document.activeElement);
-            if (e.shiftKey) {
-                if (i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
-            } else {
-                if (i === f.length - 1) { e.preventDefault(); f[0].focus(); }
-            }
-        },
-
         // Focus trap genérico (accesibilidad-teclado.md): para modales de contenido variable
-        // (listas dinámicas), a diferencia del trap de 2 botones fijos de arriba. Consulta los
+        // (listas dinámicas). Consulta los
         // elementos enfocables reales del modal en el momento de la tecla.
         atraparTabGenerico(e, elModal, activo) {
             if (!activo || !elModal) return;
@@ -825,19 +781,6 @@ function homeSupervisora() {
                     e.preventDefault(); primero.focus();
                 }
             }
-        },
-
-        // Alt (Windows) / Option (Mac): subraya la letra de acceso y activa el
-        // botón correspondiente. "C" = Cancelar, "S" = Descartar (no "D": choca
-        // con Alt+D de la barra de direcciones en Chrome/Edge/Firefox/Windows).
-        manejarAltModalDescartar(e) {
-            if (!this.modalDescartar.abierto) return;
-            if (e.key === 'Alt') { this.altModalDescartar = true; return; }
-            if (!e.altKey || this.modalDescartar.enviando) return;
-            // e.code (tecla física) en vez de e.key: en Mac, Option+S/Option+C
-            // no escriben "s"/"c", escriben "ß"/"ç" — e.key no sirve aquí.
-            if (e.code === 'KeyC') { e.preventDefault(); this.cerrarModalDescartar(); }
-            else if (e.code === 'KeyS') { e.preventDefault(); this.confirmarDescartarAlerta(); }
         },
 
         // --- Ver carga ---

@@ -118,7 +118,10 @@ Ninguna se puede asumir; cada una cambia el diseño:
      existe; actualizar `numero`/`tipo` si cambiaron. (Nota: `cloudbeds_room_id` hoy **no**
      tiene índice único — conviene agregar `UNIQUE (hotel_id, cloudbeds_room_id)` como
      índice parcial que ignore NULLs, o resolver el upsert en código.)
-  5. Según #6, desactivar (`activa=0`) las piezas de la app cuyo room_id ya no venga.
+  5. Según #6, desactivar (`activa=0`) las piezas de la app cuyo room_id ya no venga. Excepción: si
+     la misma pieza (mismo número) aparece con un roomID nuevo, se re-vincula y **no** se desactiva por
+     el roomID viejo. Si una página de getRooms falla, el import de ese hotel se corta con error (no se
+     toman como bajas las piezas que faltan), y «Aceptar» en la alerta responde error sin cerrarla.
   6. Reportar contadores: creadas / actualizadas / saltadas / desactivadas.
 - **Barandas:** modo `--dry-run` (imprime el plan de cambios sin tocar la BD), correr en
   baja ocupación, logging de cada alta/baja. Respeta el rate limit (getRooms ya pagina

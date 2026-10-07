@@ -30,7 +30,8 @@ final class TurnosImportService
             $linea = trim($linea);
             if ($linea === '') continue;
 
-            $campos = str_getcsv($linea, ',');
+            // Escape explícito (el de siempre): PHP 8.4 avisa que el valor por defecto va a cambiar.
+            $campos = str_getcsv($linea, ',', '"', '\\');
 
             if ($encabezado === null) {
                 $encabezado = array_map('trim', $campos);
@@ -40,8 +41,18 @@ final class TurnosImportService
             while (count($campos) < count($encabezado)) {
                 $campos[] = '';
             }
+            // Columnas de más: array_combine lanzaba ValueError y la carga respondía 500. Si las
+            // sobrantes vienen vacías (una coma al final) se descartan. Si traen algo (un nombre con
+            // coma sin comillas), las columnas quedaron corridas: la fila se marca para que el
+            // preview la rechace con su motivo, en vez de leer la fecha como TIPO y perderla sin aviso.
+            $sobrantes = array_slice($campos, count($encabezado));
+            $campos = array_slice($campos, 0, count($encabezado));
 
-            $filas[] = array_combine($encabezado, array_map('trim', $campos));
+            $fila = array_combine($encabezado, array_map('trim', $campos));
+            if (array_filter($sobrantes, static fn ($v): bool => trim((string) $v) !== '') !== []) {
+                $fila[self::MARCA_COLUMNAS_DE_MAS] = '1';
+            }
+            $filas[] = $fila;
         }
 
         return $filas;
@@ -109,9 +120,10 @@ final class TurnosImportService
         $filasImportar = [];
         $yaExistentes = 0;
 
+        $rechazadas = [];
         foreach ($filas as $fila) {
             $rut = $this->normalizarRut(trim($fila['rut']));
-            $fecha = trim($fila['fecha']);
+            $fechaArchivo = trim($fila['fecha']);
             $turnoNombre = trim($fila['turno_nombre']);
 
             if (!isset($rutsMapeados[$rut])) {
@@ -119,7 +131,12 @@ final class TurnosImportService
                 continue;
             }
 
-            if ($fecha !== '') $fechas[] = $fecha;
+            $fecha = self::normalizarFecha($fechaArchivo);
+            if ($fecha === null) {
+                $rechazadas[] = ['rut' => $rut, 'nombre' => trim($fila['nombre']), 'fecha' => $fechaArchivo, 'motivo' => self::MOTIVO_FECHA];
+                continue;
+            }
+            $fechas[] = $fecha;
 
             $turno = $turnosPorNombre[$turnoNombre] ?? null;
             if ($turno === null) {
@@ -172,6 +189,7 @@ final class TurnosImportService
             ),
             'turnos_nuevos'          => [], // este formato no crea turnos nuevos, solo matchea por nombre
             'turnos_no_encontrados'  => array_keys($turnosNoEncontrados),
+            'filas_rechazadas'       => $rechazadas,
             'filas_importar'         => $filasImportar,
         ];
     }
@@ -188,8 +206,21 @@ final class TurnosImportService
         $totalPermisos       = 0;
         $totalTurnosFilas    = 0;
         $yaExistentes        = 0;
+        $rechazadas          = [];
 
         foreach ($filas as $fila) {
+            // Antes que mirar TIPO: con las columnas corridas, TIPO trae otro dato y la fila se
+            // saltaba en silencio (la persona quedaba «sin turno» sin que nadie se enterara).
+            if (isset($fila[self::MARCA_COLUMNAS_DE_MAS])) {
+                $rechazadas[] = [
+                    'rut'    => $this->normalizarRut(trim($fila['DNI'] ?? '')),
+                    'nombre' => trim(($fila['NOMBRE'] ?? '') . ' ' . ($fila['APELLIDOS'] ?? '')),
+                    'fecha'  => trim($fila['FECHA'] ?? ''),
+                    'motivo' => self::MOTIVO_COLUMNAS,
+                ];
+                continue;
+            }
+
             $tipo = strtoupper(trim($fila['TIPO'] ?? ''));
 
             if ($tipo === 'PERMISO') {
@@ -207,15 +238,36 @@ final class TurnosImportService
             $totalTurnosFilas++;
 
             $rut         = $this->normalizarRut(trim($fila['DNI'] ?? ''));
-            $fecha        = trim($fila['FECHA'] ?? '');
+            $fechaArchivo = trim($fila['FECHA'] ?? '');
             $nombreTurno = trim($fila['NOMBRE TURNO'] ?? '');
+            $nombrePersona = trim(($fila['NOMBRE'] ?? '') . ' ' . ($fila['APELLIDOS'] ?? ''));
 
             if (!isset($rutsMapeados[$rut])) {
-                $rutsNoEncontrados[$rut] = trim(($fila['NOMBRE'] ?? '') . ' ' . ($fila['APELLIDOS'] ?? ''));
+                $rutsNoEncontrados[$rut] = $nombrePersona;
                 continue;
             }
 
-            if ($fecha !== '') $fechas[] = $fecha;
+            $fecha = self::normalizarFecha($fechaArchivo);
+            $minInicio = self::minutosDeHora($horaInicio);
+            $minFin = self::minutosDeHora($horaFin);
+            $motivo = match (true) {
+                $fecha === null => self::MOTIVO_FECHA,
+                $minInicio === null || $minFin === null => self::MOTIVO_HORA,
+                // Un turno que cruza la medianoche (22:00-06:00) rompía el algoritmo predictivo,
+                // los push y la edición del turno: la app no los soporta (docs/turnos.md §5.3) y
+                // en Atankalama no existen. Se rechaza la fila, igual que la creación manual.
+                $minFin <= $minInicio => self::MOTIVO_MEDIANOCHE,
+                default => null,
+            };
+            if ($motivo !== null) {
+                $rechazadas[] = ['rut' => $rut, 'nombre' => $nombrePersona, 'fecha' => $fechaArchivo, 'motivo' => $motivo];
+                continue;
+            }
+            // Horas al formato de la base (HH:MM): «8:00» creaba un turno aparte de «08:00», y
+            // «08:00:00» no cabe en turnos.hora_inicio de MariaDB (VARCHAR(5)).
+            $horaInicio = self::formatoHora((int) $minInicio);
+            $horaFin    = self::formatoHora((int) $minFin);
+            $fechas[] = $fecha;
 
             $usuarioId = $rutsMapeados[$rut];
             $turnoKey  = $horaInicio . '-' . $horaFin;
@@ -225,7 +277,6 @@ final class TurnosImportService
                     'nombre'           => $nombreTurno,
                     'hora_inicio'      => $horaInicio,
                     'hora_fin'         => $horaFin,
-                    'cruza_medianoche' => $horaFin < $horaInicio,
                 ];
             }
 
@@ -273,6 +324,7 @@ final class TurnosImportService
                 $rutsNoEncontrados
             ),
             'turnos_nuevos'   => array_values($turnosNuevos),
+            'filas_rechazadas' => $rechazadas,
             'filas_importar'  => $filasImportar,
         ];
     }
@@ -321,6 +373,53 @@ final class TurnosImportService
         ]);
 
         return ['importados' => $importados, 'omitidos' => $omitidos, 'errores' => $errores];
+    }
+
+    public const MOTIVO_FECHA = 'Fecha que no se entiende (usa DD/MM/AAAA)';
+    public const MOTIVO_HORA = 'Hora que no se entiende (usa HH:MM)';
+    public const MOTIVO_MEDIANOCHE = 'El turno termina antes de empezar o cruza la medianoche';
+    public const MOTIVO_COLUMNAS = 'La fila tiene más columnas que el encabezado (¿un nombre con una coma sin comillas?)';
+
+    /** Clave interna con la que parsearCsv() marca una fila de columnas corridas (no es una columna del archivo). */
+    private const MARCA_COLUMNAS_DE_MAS = '__columnas_de_mas';
+
+    /**
+     * Fecha del archivo → 'Y-m-d', o null si no se entiende. Acepta 'Y-m-d', 'DD/MM/AAAA',
+     * 'DD-MM-AAAA' y el número de serie de Excel (lo que trae una celda con formato fecha).
+     * Antes se guardaba tal cual: '07/10/2026' nunca coincidía con el turno de hoy y la persona
+     * quedaba «sin turno» (fuera de las alertas y del reparto).
+     */
+    public static function normalizarFecha(string $valor): ?string
+    {
+        $valor = trim($valor);
+        if (preg_match('/^\d{4,5}$/', $valor) === 1 && (int) $valor >= 30000 && (int) $valor <= 80000) {
+            // Serie de Excel: días desde el 30/12/1899.
+            return (new \DateTimeImmutable('1899-12-30', new \DateTimeZone('UTC')))
+                ->modify('+' . (int) $valor . ' days')->format('Y-m-d');
+        }
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $valor, $m) === 1) {
+            [$a, $mes, $d] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } elseif (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $valor, $m) === 1) {
+            [$d, $mes, $a] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } else {
+            return null;
+        }
+        return checkdate($mes, $d, $a) ? sprintf('%04d-%02d-%02d', $a, $mes, $d) : null;
+    }
+
+    /** 'H:MM', 'HH:MM' o 'HH:MM:SS' → minutos desde medianoche; null si no es una hora. */
+    private static function minutosDeHora(string $hora): ?int
+    {
+        if (preg_match('/^(\d{1,2}):([0-5]\d)(:[0-5]\d)?$/', $hora, $m) !== 1 || (int) $m[1] > 23) {
+            return null;
+        }
+        return (int) $m[1] * 60 + (int) $m[2];
+    }
+
+    /** Minutos desde medianoche → 'HH:MM'. */
+    private static function formatoHora(int $minutos): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutos, 60), $minutos % 60);
     }
 
     public function normalizarRut(string $rut): string

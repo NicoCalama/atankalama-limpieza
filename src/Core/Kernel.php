@@ -99,7 +99,10 @@ final class Kernel
         // Home API
         $home = new HomeController();
         $router->get('/api/home/trabajador', [$home, 'trabajador'], [$authCheck]);
-        $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [$authCheck]);
+        $router->post('/api/disponibilidad/avisar', [$home, 'avisarDisponibilidad'], [
+            $authCheck,
+            new PermissionCheck('disponibilidad.notificar_supervisora'),
+        ]);
         $router->get('/api/home/recepcion', [$home, 'recepcion'], [
             $authCheck,
             new PermissionCheck('auditoria.ver_bandeja'),
@@ -114,20 +117,25 @@ final class Kernel
         ]);
 
         // RBAC
-        $router->get('/api/roles', [$roles, 'listar'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
-        $router->get('/api/roles/{id}', [$roles, 'obtener'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
+        // Leer la matriz de roles: quien la administra (roles.ver / permisos.asignar_a_rol) o quien
+        // necesita la lista para crear usuarios o asignarles roles. Antes bastaba ajustes.acceder.
+        $leerRoles = new PermissionCheck(['roles.ver', 'permisos.asignar_a_rol', 'usuarios.asignar_rol', 'usuarios.crear']);
+        $router->get('/api/roles', [$roles, 'listar'], [$authCheck, $leerRoles]);
+        $router->get('/api/roles/{id}', [$roles, 'obtener'], [$authCheck, $leerRoles]);
         $router->post('/api/roles', [$roles, 'crear'], [$authCheck, new PermissionCheck('permisos.asignar_a_rol')]);
         $router->put('/api/roles/{id}', [$roles, 'actualizar'], [$authCheck, new PermissionCheck('permisos.asignar_a_rol')]);
         $router->delete('/api/roles/{id}', [$roles, 'eliminar'], [$authCheck, new PermissionCheck('permisos.asignar_a_rol')]);
-        $router->get('/api/permisos', [$roles, 'listarPermisos'], [$authCheck, new PermissionCheck('ajustes.acceder')]);
+        $router->get('/api/permisos', [$roles, 'listarPermisos'], [$authCheck, new PermissionCheck(['roles.ver', 'permisos.asignar_a_rol'])]);
 
+        // usuarios.asignar_rol (no usuarios.editar): editar nombre/email no debe alcanzar para
+        // darse un rol. Además RbacService no deja dar un rol con permisos que uno no tiene.
         $router->post('/api/usuarios/{id}/roles', [$roles, 'asignarRolAUsuario'], [
             $authCheck,
-            new PermissionCheck('usuarios.editar'),
+            new PermissionCheck('usuarios.asignar_rol'),
         ]);
         $router->delete('/api/usuarios/{id}/roles/{rolId}', [$roles, 'quitarRolAUsuario'], [
             $authCheck,
-            new PermissionCheck('usuarios.editar'),
+            new PermissionCheck('usuarios.asignar_rol'),
         ]);
 
         // Habitaciones
@@ -439,7 +447,7 @@ final class Kernel
         ]);
         // Derecho de acceso a datos personales (Ley 19.628 art. 12).
         // No usa PermissionCheck: el control vive en el controller porque permite tanto
-        // al propio usuario como a un admin con usuarios.editar consultar los datos.
+        // al propio usuario (usuarios.exportar_datos_propios) como a un admin con usuarios.editar.
         $router->get('/api/usuarios/{id}/datos-personales', [$usuarios, 'exportarDatos'], [$authCheck]);
 
         // Modo espía: ver la app como otro usuario, solo lectura (docs/contexto).
@@ -607,10 +615,11 @@ final class Kernel
 
         // Notificaciones (inbox por usuario)
         $notif = new NotificacionesController();
-        $router->get('/api/notificaciones', [$notif, 'listar'], [$authCheck]);
-        $router->get('/api/notificaciones/sin-leer', [$notif, 'sinLeer'], [$authCheck]);
-        $router->delete('/api/notificaciones/{id}', [$notif, 'eliminar'], [$authCheck]);
-        $router->delete('/api/notificaciones', [$notif, 'eliminarTodas'], [$authCheck]);
+        $verNotif = new PermissionCheck('notificaciones.ver');
+        $router->get('/api/notificaciones', [$notif, 'listar'], [$authCheck, $verNotif]);
+        $router->get('/api/notificaciones/sin-leer', [$notif, 'sinLeer'], [$authCheck, $verNotif]);
+        $router->delete('/api/notificaciones/{id}', [$notif, 'eliminar'], [$authCheck, $verNotif]);
+        $router->delete('/api/notificaciones', [$notif, 'eliminarTodas'], [$authCheck, $verNotif]);
 
         // Reportes y KPIs
         $reportes = new ReportesController();

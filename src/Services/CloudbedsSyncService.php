@@ -264,8 +264,20 @@ final class CloudbedsSyncService
         $resultado = $errores === 0 ? 'exito' : ($actualizadas > 0 ? 'parcial' : 'error');
         $this->cerrarHistorial($syncId, $resultado, $actualizadas, $errores, $detalle);
 
-        if ($resultado === 'error') {
-            $this->crearAlertaP0('cloudbeds_sync_failed', 'Sincronización Cloudbeds falló', 'Revisar credenciales y logs.');
+        // P0 también con 'parcial': un hotel que falla mientras el otro actualiza piezas dejaba de
+        // sincronizar horas sin que nadie se enterara. Un sync completo la resuelve sola
+        // (docs/alertas-predictivas.md §3.1).
+        if ($errores > 0) {
+            $hotelesConError = implode(', ', array_unique(array_column($detalle, 'hotel')));
+            $this->crearAlertaP0(
+                'cloudbeds_sync_failed',
+                'Sincronización Cloudbeds falló',
+                ($hotelesConError !== '' ? "Hotel: {$hotelesConError}. " : '') . 'Revisar credenciales y logs.'
+            );
+        } elseif ($hotelIdFiltro === null) {
+            // Solo un sync de todos los hoteles la resuelve: uno filtrado a un hotel no dice nada
+            // del otro, que puede ser el que falló.
+            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED, 'cloudbeds_sync');
         }
 
         return $syncId;
@@ -461,9 +473,12 @@ final class CloudbedsSyncService
                 ]
             );
 
-            if (!$exito) {
-                $this->crearAlertaP0(
-                    'cloudbeds_sync_failed',
+            if ($exito) {
+                // Una escritura de la misma pieza que funciona cierra la P0 de su escritura fallida.
+                $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED, self::dedupeEscritura($habitacion));
+            } else {
+                $this->alertaEscrituraFallida(
+                    $habitacion,
                     "Error escribiendo habitación {$habitacion->numero} a Cloudbeds",
                     'Status: ' . $resp->status . ($mensajeCloudbeds !== null ? ". Cloudbeds: {$mensajeCloudbeds}" : '') . '. Revisar logs.'
                 );
@@ -479,13 +494,37 @@ final class CloudbedsSyncService
                   WHERE id = ?",
                 [$e->codigo . ': ' . $e->getMessage(), $histId]
             );
-            $this->crearAlertaP0(
-                'cloudbeds_sync_failed',
-                'Credencial Cloudbeds inválida',
-                'Revisar las credenciales Cloudbeds por propiedad (.env) en Ajustes.'
+            $this->alertaEscrituraFallida(
+                $habitacion,
+                "No se pudo escribir la habitación {$habitacion->numero} en Cloudbeds",
+                'Credencial Cloudbeds inválida: revisar las credenciales por propiedad (.env) en Ajustes.'
             );
             return false;
         }
+    }
+
+    /**
+     * P0 propia de cada pieza cuya escritura a Cloudbeds falló. No comparte la clave de la P0 del
+     * sync (`cloudbeds_sync`): esa se cierra sola con el siguiente sync de lectura sin errores, que
+     * no reintenta la escritura, y la falla quedaba tapada justo cuando la pieza seguía desfasada
+     * (p. ej. el barrido de nocheros de las 16:00 que no llegó a Cloudbeds). Esta se cierra cuando
+     * una escritura de esa misma pieza funciona.
+     */
+    private function alertaEscrituraFallida(Habitacion $habitacion, string $titulo, string $descripcion): void
+    {
+        $this->alertas->levantar(
+            AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED,
+            $titulo,
+            $descripcion,
+            ['habitacion_id' => $habitacion->id],
+            $habitacion->hotelId,
+            self::dedupeEscritura($habitacion),
+        );
+    }
+
+    private static function dedupeEscritura(Habitacion $habitacion): string
+    {
+        return "cloudbeds_escritura:{$habitacion->id}";
     }
 
     /** @return array<string, mixed>|null */

@@ -48,6 +48,28 @@ final class PushService
         return $this->webPush;
     }
 
+    /**
+     * ¿Los datos parecen una suscripción Web Push real? Endpoint https (el del servicio push del
+     * navegador) y claves base64url del largo que fija el estándar (p256dh: 65 bytes, auth: 16).
+     * Sin esto se guardaba cualquier cosa: una URL interna (el servidor le hacía POST a ciegas) o
+     * una clave rota que después hacía fallar el envío.
+     */
+    public static function suscripcionValida(string $endpoint, string $p256dh, string $auth): bool
+    {
+        $partes = parse_url($endpoint);
+        if (!is_array($partes) || ($partes['scheme'] ?? '') !== 'https' || ($partes['host'] ?? '') === '' || strlen($endpoint) > 1000) {
+            return false;
+        }
+        $bytes = static function (string $b64url): ?int {
+            if (preg_match('/^[A-Za-z0-9_+\/-]+=*$/', $b64url) !== 1) {
+                return null;
+            }
+            $raw = base64_decode(strtr($b64url, '-_', '+/'), true);
+            return $raw === false ? null : strlen($raw);
+        };
+        return $bytes($p256dh) === 65 && $bytes($auth) === 16;
+    }
+
     public function suscribir(int $usuarioId, string $endpoint, string $p256dh, string $auth): void
     {
         $onConflict = Database::onConflictUpdate(['usuario_id', 'endpoint'], ['p256dh', 'auth']);
@@ -112,28 +134,47 @@ final class PushService
 
         $caidas = [];
 
-        foreach ($suscripciones as $sub) {
-            $subscription = Subscription::create([
-                'endpoint'        => $sub['endpoint'],
-                'keys' => [
-                    'p256dh' => $sub['p256dh'],
-                    'auth'   => $sub['auth'],
-                ],
-            ]);
-            $webPush->queueNotification($subscription, $payload);
-        }
+        // Un push que falla nunca debe tumbar la acción que lo dispara: quien lo llama (rechazo de
+        // auditoría, nota de Recepción…) ya escribió en la BD, y un 500 acá hacía creer que no se
+        // guardó (y el reintento chocaba con un 409). flush() es un generador: el cifrado con las
+        // claves de cada dispositivo y el envío corren recién al recorrerlo, así que el recorrido
+        // va dentro del try (antes el try cubría solo la llamada, que no hace nada).
+        try {
+            foreach ($suscripciones as $sub) {
+                // Datos con el formato o el largo equivocados harían fallar el cifrado del lote
+                // entero: se saltan. Sin borrarlos: si esta validación fuera más estricta que un
+                // navegador, se perdería para siempre una suscripción buena (el navegador no la
+                // vuelve a mandar porque cree que sigue suscrito).
+                if (!self::suscripcionValida((string) $sub['endpoint'], (string) $sub['p256dh'], (string) $sub['auth'])) {
+                    Logger::warning('push', 'suscripción con datos inválidos, se omite', ['id' => (int) $sub['id']]);
+                    continue;
+                }
+                $webPush->queueNotification(Subscription::create([
+                    'endpoint' => $sub['endpoint'],
+                    'keys'     => [
+                        'p256dh' => $sub['p256dh'],
+                        'auth'   => $sub['auth'],
+                    ],
+                ]), $payload);
+            }
 
-        foreach ($webPush->flush() as $report) {
-            if (!$report->isSuccess()) {
-                $caidas[] = $report->getEndpoint();
-                // Limpiar suscripciones con endpoint inválido (410 Gone)
-                if ($report->getResponse() !== null && $report->getResponse()->getStatusCode() === 410) {
-                    Database::execute(
-                        'DELETE FROM #__push_subscriptions WHERE endpoint = ?',
-                        [$report->getEndpoint()]
-                    );
+            foreach ($webPush->flush() as $report) {
+                if (!$report->isSuccess()) {
+                    $caidas[] = $report->getEndpoint();
+                    // Limpiar suscripciones con endpoint inválido (410 Gone)
+                    if ($report->getResponse() !== null && $report->getResponse()->getStatusCode() === 410) {
+                        Database::execute(
+                            'DELETE FROM #__push_subscriptions WHERE endpoint = ?',
+                            [$report->getEndpoint()]
+                        );
+                    }
                 }
             }
+        } catch (\Throwable $e) {
+            // Un payload demasiado grande, claves que pasan la validación pero no sirven para
+            // cifrar, un error de la librería: se registra y la acción que lo disparó sigue.
+            Logger::error('push', 'fallo enviando notificaciones', ['mensaje' => $e->getMessage()]);
+            return;
         }
 
         if (!empty($caidas)) {

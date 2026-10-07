@@ -56,7 +56,7 @@ final class ExcelExport
      * Antepone una comilla simple a las celdas de texto que empezarían una fórmula, para
      * que Excel/Sheets las traten como texto. Los números (int/float) y null pasan intactos.
      */
-    private static function neutralizarFormula(string|int|float|null $valor): string|int|float|null
+    public static function neutralizarFormula(string|int|float|null $valor): string|int|float|null
     {
         if (!is_string($valor) || $valor === '') {
             return $valor;

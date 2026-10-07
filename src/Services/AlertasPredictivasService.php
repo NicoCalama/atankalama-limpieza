@@ -57,6 +57,10 @@ final class AlertasPredictivasService
             $stats['fin_turno'] += $resultado['fin_turno_levantada'] ? 1 : 0;
             $stats['resueltas'] += $resultado['resueltas'];
         }
+        $stats['resueltas'] += $this->resolverVencidas($fecha, array_map(
+            static fn(array $tr): int => (int) $tr['usuario_id'],
+            $trabajadores
+        ));
 
         Logger::info('alertas_predictivas', 'recálculo completado', $stats + ['fecha' => $fecha]);
         return $stats;
@@ -82,7 +86,10 @@ final class AlertasPredictivasService
 
         $tiempoEstimado = $habitacionesRestantes * $tiempoPromedio;
         $umbral = $tiempoRestanteMin - $margen;
-        $enRiesgo = $habitacionesRestantes > 0 && $tiempoEstimado > $umbral;
+        // Con el turno ya terminado deja de estar en riesgo (docs/turnos.md §5.2: sale de los
+        // cálculos predictivos). Antes el tiempo restante quedaba negativo y la alerta seguía
+        // levantada toda la noche.
+        $enRiesgo = $habitacionesRestantes > 0 && $tiempoRestanteMin > 0 && $tiempoEstimado > $umbral;
 
         $nombre = $this->obtenerNombre($usuarioId);
         $hotelId = $this->hotelDelTrabajador($usuarioId);
@@ -144,6 +151,47 @@ final class AlertasPredictivasService
         }
 
         return $stats;
+    }
+
+    /**
+     * Resuelve las alertas por trabajador que ya no corresponden: las de días anteriores (nadie las
+     * reevalúa, y antes quedaban en la bandeja para siempre) y las de hoy de quien ya no tiene
+     * turno (se lo quitaron). Cubre trabajador_en_riesgo, fin_turno_pendientes y
+     * trabajador_disponible, todas con «fecha:YYYY-MM-DD» al final de su dedupe.
+     *
+     * @param list<int> $conTurnoHoy
+     */
+    private function resolverVencidas(string $fecha, array $conTurnoHoy): int
+    {
+        $tipos = [
+            AlertaActiva::TIPO_TRABAJADOR_EN_RIESGO,
+            AlertaActiva::TIPO_FIN_TURNO_PENDIENTES,
+            AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE,
+        ];
+        $filas = Database::fetchAll(
+            'SELECT id, tipo, contexto_json FROM #__alertas_activas WHERE tipo IN (?, ?, ?)',
+            $tipos
+        );
+        $resueltas = 0;
+        foreach ($filas as $f) {
+            $ctx = json_decode((string) ($f['contexto_json'] ?? ''), true);
+            $dedupe = is_array($ctx) ? (string) ($ctx['_dedupe'] ?? '') : '';
+            if (preg_match('/fecha:(\d{4}-\d{2}-\d{2})$/', $dedupe, $m) !== 1) {
+                continue;
+            }
+            $usuarioId = (int) ($ctx['usuario_id'] ?? 0);
+            // Solo días ANTERIORES: un recálculo manual de una fecha pasada (--fecha) no debe
+            // cerrar las alertas de hoy.
+            $vencida = $m[1] < $fecha
+                || ($m[1] === $fecha
+                    && $f['tipo'] !== AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE
+                    && !in_array($usuarioId, $conTurnoHoy, true));
+            if ($vencida) {
+                $this->alertas->resolver((int) $f['id'], 'auto');
+                $resueltas++;
+            }
+        }
+        return $resueltas;
     }
 
     private function contarHabitacionesRestantes(int $usuarioId, string $fecha): int

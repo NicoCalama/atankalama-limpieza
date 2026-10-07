@@ -27,7 +27,11 @@ final class NotificacionesController
         }
 
         $notificaciones = $this->service->listar($usuario->id);
-        $this->service->marcarTodasLeidas($usuario->id);
+        // En modo espía (solo lectura) el admin las ve sin marcarlas: si no, la trabajadora
+        // espiada perdía el aviso de sus rechazos y reasignaciones.
+        if ($request->espiaAdminId === null) {
+            $this->service->marcarTodasLeidas($usuario->id);
+        }
 
         return Response::ok([
             'notificaciones' => $notificaciones,

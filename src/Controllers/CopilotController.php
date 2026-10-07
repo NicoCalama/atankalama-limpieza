@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Controllers;
 
+use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\Copilot\CopilotService;
@@ -19,6 +20,11 @@ final class CopilotController
     {
         if ($request->usuario === null) {
             return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        // El flag no es solo de UI: con el copilot apagado la API tampoco conversa ni ejecuta
+        // tools (antes bastaba llamar al endpoint directo con el permiso de nivel 1).
+        if (!Config::getBool('COPILOT_HABILITADO', false)) {
+            return Response::error('COPILOT_DESHABILITADO', 'El asistente no está disponible por ahora.', 503);
         }
         $texto = $request->inputString('mensaje');
         if ($texto === '') {

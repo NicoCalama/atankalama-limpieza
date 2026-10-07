@@ -38,6 +38,16 @@ final class AlertasController
         ]);
     }
 
+    /**
+     * Acciones que cierran una alerta a mano, por tipo. Lista blanca: las demás alertas se cierran
+     * solas cuando la condición desaparece (docs/home-supervisora.md), y sus botones («Ver carga»,
+     * «Reasignar», «Ver habitación»…) solo navegan, no llegan acá. Antes bastaba con no mandar
+     * «descartar»: cualquier otro nombre de acción borraba cualquier alerta, incluida la P0.
+     */
+    private const ACCIONES_POR_TIPO = [
+        AlertaActiva::TIPO_TICKET_NUEVO => ['marcar_atendido'],
+    ];
+
     public function ejecutarAccion(Request $request): Response
     {
         if ($request->usuario === null) {
@@ -50,6 +60,22 @@ final class AlertasController
         $accion = $request->inputString('accion', '');
         if ($accion === '') {
             return Response::error('ACCION_REQUERIDA', 'accion es requerida.', 400);
+        }
+        // Las alertas no se descartan (docs/home-supervisora.md): se resuelven solas cuando la
+        // condición desaparece, o con su acción. «Reintentar» de la P0 de Cloudbeds tampoco pasa
+        // por acá: dispara un sync real (POST /api/cloudbeds/sync) y la alerta se cierra si
+        // funciona. Antes «descartar» y «reintentar» solo borraban la alerta.
+        $alerta = $this->svc->obtener($id);
+        if ($alerta === null) {
+            // Ya la cerró otra persona o se resolvió sola: idempotente, como resolver().
+            return Response::ok(['resuelta' => true]);
+        }
+        if (!in_array($accion, self::ACCIONES_POR_TIPO[$alerta->tipo] ?? [], true)) {
+            return Response::error(
+                'ACCION_NO_PERMITIDA',
+                'Esta alerta se cierra sola cuando se resuelve el problema.',
+                400
+            );
         }
 
         try {
@@ -92,9 +118,16 @@ final class AlertasController
         }
         // Lista blanca: solo las claves de Ajustes → Alertas. alertas_config también guarda datos de
         // otros módulos (p. ej. el interruptor de la inspección pre-entrega, que exige su propio permiso).
-        foreach (array_keys($payload) as $clave) {
+        foreach ($payload as $clave => $valor) {
             if (!array_key_exists((string) $clave, AlertasService::CONFIG_DEFAULTS)) {
                 return Response::error('CLAVE_INVALIDA', "No se puede cambiar «{$clave}» desde Ajustes → Alertas.", 400);
+            }
+            // Todos los umbrales son enteros no negativos (minutos, σ, %, piezas). Un margen de
+            // «-15» o un tiempo de 0 min por pieza rompían el algoritmo predictivo en silencio.
+            $texto = trim((string) (is_scalar($valor) ? $valor : ''));
+            $minimo = in_array($clave, ['tiempo_fallback_nueva_habitacion', 'recalculo_intervalo_minutos'], true) ? 1 : 0;
+            if (!ctype_digit($texto) || (int) $texto < $minimo || (int) $texto > 1000) {
+                return Response::error('VALOR_INVALIDO', "«{$clave}» debe ser un número entero entre {$minimo} y 1000.", 400);
             }
         }
         Database::transaction(function () use ($payload, $request): void {

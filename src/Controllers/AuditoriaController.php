@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Models\Auditoria;
 use Atankalama\Limpieza\Services\AuditoriaException;
 use Atankalama\Limpieza\Services\AuditoriaService;
+use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 
@@ -83,6 +84,12 @@ final class AuditoriaController
         }
 
         $itemsIds = is_array($items) ? array_values(array_map('intval', $items)) : [];
+        // Desmarcar ítems en una observación exige su propio permiso, igual que en la pantalla
+        // (en el rechazo los ítems fallidos son parte del veredicto). Antes solo lo revisaba el frontend.
+        if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsIds !== []
+            && !$request->usuario->tienePermiso('auditoria.editar_checklist_durante_auditoria')) {
+            return Response::error('PERMISO_INSUFICIENTE', 'Falta permiso auditoria.editar_checklist_durante_auditoria.', 403);
+        }
 
         try {
             $auditoria = $this->servicio()->emitirVeredicto(
@@ -92,7 +99,8 @@ final class AuditoriaController
                 $comentario === '' ? null : $comentario,
                 $itemsIds
             );
-        } catch (AuditoriaException $e) {
+        } catch (AuditoriaException | ChecklistException $e) {
+            // ChecklistException: ítems desmarcados que no son del checklist (400 ITEMS_DESMARCADOS_INVALIDO).
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 

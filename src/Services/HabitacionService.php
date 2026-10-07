@@ -672,9 +672,15 @@ final class HabitacionService
      */
     private function resolverAlertasAlAprobar(int $id): void
     {
-        foreach ([AlertaActiva::TIPO_APROBACION_DESHECHA, AlertaActiva::TIPO_HABITACION_RECHAZADA] as $tipo) {
+        // habitacion_saltada también: si la pieza saltada se aprueba por otro camino (Cloudbeds,
+        // «sin aseo»), nadie la va a terminar y la alerta quedaba colgada para siempre.
+        foreach ([
+            AlertaActiva::TIPO_APROBACION_DESHECHA => "habitacion:{$id}",
+            AlertaActiva::TIPO_HABITACION_RECHAZADA => "habitacion:{$id}",
+            AlertaActiva::TIPO_HABITACION_SALTADA => "saltada:{$id}",
+        ] as $tipo => $dedupe) {
             try {
-                $this->alertas->resolverPorDedupe($tipo, "habitacion:{$id}");
+                $this->alertas->resolverPorDedupe($tipo, $dedupe);
             } catch (\Throwable $e) {
                 Logger::warning('habitaciones', 'no se pudo resolver una alerta al aprobar la habitación', [
                     'habitacion_id' => $id,

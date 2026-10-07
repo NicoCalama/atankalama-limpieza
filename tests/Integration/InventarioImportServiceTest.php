@@ -221,6 +221,44 @@ final class InventarioImportServiceTest extends TestCase
         $this->assertSame(3, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones')['c']);
     }
 
+    /** Cloudbeds cambia el roomID de la 101 (p. ej. al moverla de tipo): se re-vincula, no desaparece. */
+    public function testCambioDeRoomIdReVinculaSinDesactivar(): void
+    {
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2)]);
+        $this->servicio->importar('1_sur');
+
+        $this->encolarRooms([$this->room('CB_R1_NUEVO', '101-A', 2)]);
+        $res = $this->servicio->importar('1_sur');
+
+        $this->assertSame(0, $res['totales']['desactivadas']);
+        $fila = Database::fetchOne("SELECT cloudbeds_room_id, activa FROM habitaciones WHERE numero = '101'");
+        $this->assertSame('CB_R1_NUEVO', $fila['cloudbeds_room_id']);
+        $this->assertSame(1, (int) $fila['activa'], 'antes quedaba vinculada Y desactivada');
+        $this->assertSame(1, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones')['c']);
+    }
+
+    /** Una página de getRooms que falla no puede leerse como «no hay más piezas». */
+    public function testPaginaQueFallaNoDaDeBajaLasPiezasQueFaltan(): void
+    {
+        $this->encolarRooms([$this->room('CB_R1', '101-A', 2), $this->room('CB_R2', '102-B', 2)]);
+        $this->servicio->importar('1_sur');
+
+        // Ahora Cloudbeds dice que hay 3, pero la página 2 responde 503 en los 4 intentos.
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'total' => 3,
+            'data' => [['propertyID' => 'CB_1SUR', 'rooms' => [$this->room('CB_R1', '101-A', 2)]]],
+        ]);
+        for ($i = 0; $i < 4; $i++) {
+            $this->transport->encolarFallo(503);
+        }
+        $res = $this->servicio->importar('1_sur');
+
+        $this->assertNotNull($res['hoteles'][0]['error']);
+        $this->assertSame(0, $res['totales']['desactivadas']);
+        $this->assertSame(2, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones WHERE activa = 1')['c']);
+    }
+
     public function testVinculaPiezaLegadaPorNumeroSinRoomId(): void
     {
         // Pieza preexistente con numero pero sin cloudbeds_room_id (dato legado), con un tipo viejo.
