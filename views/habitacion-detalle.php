@@ -659,6 +659,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         cola: [],
         errorPermanente: false,
         _procesandoCola: false,
+        _avisoInterrumpida: false,
         _reintentoProgramado: false,
         _reintentoMs: 5000,
 
@@ -1052,10 +1053,25 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     this.progreso = json.data.progreso;
                     return true;
                 }
+                if (this.esInterrumpida(json)) return true; // ya no hay nada que guardar
                 return false;
             } catch (e) {
                 return null;
             }
+        },
+
+        // La pieza se aprobó por otra vía («sin aseo», Cloudbeds) mientras la limpiaba: la limpieza
+        // quedó cerrada y lo marcado le cuenta. Reintentar no sirve; se avisa una vez y vuelve al Home.
+        esInterrumpida(json) {
+            if (!(json && json.error && json.error.codigo === 'EJECUCION_INTERRUMPIDA')) return false;
+            if (!this._avisoInterrumpida) {
+                this._avisoInterrumpida = true;
+                this.cola = [];
+                this.guardarColaLocal();
+                alert(json.error.mensaje);
+                window.location.href = u('/home');
+            }
+            return true;
         },
 
         recalcularProgresoLocal() {
@@ -1159,6 +1175,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         async enviarCompletar() {
             try {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
+                if (this.esInterrumpida(json)) return null; // ya navega al Home
                 return !!(json && json.ok);
             } catch (e) {
                 return null;
@@ -1247,6 +1264,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     window.location.href = u('/home');
                     return;
                 }
+                if (this.esInterrumpida(json)) return;
                 // Rechazo real del servidor (ej. checklist incompleto): sí hay que avisar.
                 alert((json && json.error && json.error.mensaje) || 'No pudimos completar.');
             } catch (e) {
@@ -1343,6 +1361,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             if (h.veredicto === 'rechazado') return 'Rechazada';
             if (h.estado === 'en_progreso') return 'En progreso';
             if (h.estado === 'completada') return 'Completada';
+            // Se aprobó por otra vía («sin aseo», Cloudbeds) a mitad de la limpieza: lo marcado da créditos.
+            if (h.estado === 'interrumpida') return 'Interrumpida';
             return 'Inspeccionada';
         },
 
@@ -1351,6 +1371,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             if (h.veredicto === 'aprobado_automatico') return 'chip-estado-aprobada_automatica';
             if (h.veredicto) return 'chip-estado-aprobada';
             if (h.estado === 'en_progreso') return 'chip-estado-en_progreso';
+            if (h.estado === 'interrumpida') return 'chip-estado-aprobada_automatica';
             return 'chip-estado-completada_pendiente_auditoria';
         }
     };

@@ -322,6 +322,8 @@ CREATE INDEX idx_items_checklist_template ON items_checklist(template_id);
 
 -- Ejecución concreta de un checklist (una por habitación × asignación)
 -- timestamp_inicio / timestamp_fin son OCULTOS al trabajador (tracking interno)
+-- estado 'interrumpida': la pieza quedó aprobada por otra vía («sin aseo», Cloudbeds) a medio limpiar;
+-- conserva los ítems marcados (créditos) pero no es pieza hecha ni se inspecciona (docs/checklist.md)
 CREATE TABLE ejecuciones_checklist (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     habitacion_id       INTEGER NOT NULL,
@@ -329,7 +331,7 @@ CREATE TABLE ejecuciones_checklist (
     usuario_id          INTEGER NOT NULL,                -- trabajador que la ejecuta
     template_id         INTEGER NOT NULL,
     estado              TEXT NOT NULL DEFAULT 'en_progreso' CHECK (estado IN (
-        'en_progreso', 'completada', 'auditada'
+        'en_progreso', 'completada', 'auditada', 'interrumpida'
     )),
     timestamp_inicio    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     timestamp_fin       TEXT,                            -- se setea al marcar "habitación terminada"

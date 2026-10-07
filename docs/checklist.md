@@ -102,7 +102,11 @@ Cuando el trabajador abre una habitación desde su Home:
 
 1. Si `habitacion.estado == 'sucia'` + no hay ejecución previa → POST `/api/habitaciones/{id}/iniciar` crea `ejecuciones_checklist` con `estado='en_progreso'`, `timestamp_inicio=now`. Habitación pasa a `en_progreso`.
 2. Si ya existe ejecución `en_progreso` para esa habitación/asignación → la reanuda (muestra checks ya marcados).
-3. Si esa ejecución existe pero la habitación **ya no está** `en_progreso` (la sacaron por «Marcar sucia», «Sin aseo» o el sync de Cloudbeds), la ejecución está **vencida**: se borra (queda `checklist.descartar_vencida` en `audit_log`) y se sigue como en el caso 1. Una ejecución vencida no cuenta para el candado, no es la "habitación actual" y no se puede saltar.
+3. Si esa ejecución existe pero la habitación **ya no está** `en_progreso` (la sacaron por «Marcar sucia», «Sin aseo» o el sync de Cloudbeds), la ejecución está **vencida**. Una ejecución vencida no cuenta para el candado, no es la "habitación actual" y no se puede saltar. Qué pasa con ella depende de cómo salió la pieza (decisión de Nicolás, 07/10/2026):
+   - **La pieza quedó aprobada** («Sin aseo» o Cloudbeds la dio limpia): la trabajadora hizo trabajo real, así que la ejecución se cierra como **`interrumpida`** en el mismo momento de la aprobación (`HabitacionService::cambiarEstado`, `audit_log` `checklist.interrumpir`). Conserva los ítems marcados: **dan créditos a quien los marcó** (sin inspección), pero la ejecución **no cuenta como pieza hecha**, ni en tiempos, ni en productividad, y no entra a inspección. Si la trabajadora sigue en la pantalla, marcar o tocar «Habitación terminada» responde `409 EJECUCION_INTERRUMPIDA`: *«Esta habitación ya quedó lista por otra vía. Lo que alcanzaste a marcar te cuenta igual.»* En el historial de la pieza aparece como «Interrumpida».
+   - **La pieza volvió a sucia** («Marcar sucia»: la supervisora decidió que hay que rehacerla): el avance parcial no vale. Al volver a empezar se borra con lo marcado (`checklist.descartar_vencida`, igual que saltar) y se sigue como en el caso 1.
+
+   El estado `interrumpida` necesita la migración `scripts/migrate-estado-ejecucion-interrumpida.php` (agrega el valor al CHECK de `ejecuciones_checklist.estado`). Sin ella nada se traba: la aprobación queda con un WARNING en el log y la ejecución se borra como antes al volver a empezar.
 
 **Candado "una habitación a la vez":** el trabajador no puede iniciar una habitación
 nueva mientras tenga **otra** en progreso. En ese caso `iniciar` responde `409`
@@ -180,6 +184,7 @@ Al tocarlo:
   - Setea `ejecuciones_checklist.estado='completada'`, `timestamp_fin=now`.
   - Setea `habitaciones.estado='completada_pendiente_auditoria'`.
   - Las dos escrituras van en una sola transacción: si la habitación ya no está `en_progreso` responde `409 HABITACION_NO_EN_PROGRESO` y no cierra la ejecución.
+  - Si la pieza se aprobó por otra vía mientras la limpiaba (ejecución `interrumpida`, §3.1), responde `409 EJECUCION_INTERRUMPIDA`.
   - Respuesta incluye redirect al Home con toast "Habitación lista para auditoría".
 
 ---

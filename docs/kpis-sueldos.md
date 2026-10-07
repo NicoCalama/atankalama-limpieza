@@ -85,7 +85,9 @@ rol están definidos.
   de ítem); ítems **no obligatorios**.
 - **Fórmula (créditos):** `SUM(items_checklist.creditos)` de ítems con
   `obligatorio = 1`, `ei.marcado = 1`, `ei.desmarcado_por_auditor = 0`, de
-  ejecuciones en estado `completada`/`auditada` y `(veredicto IS NULL OR veredicto <> 'rechazado')`.
+  ejecuciones en estado `completada`/`auditada` y `(veredicto IS NULL OR veredicto <> 'rechazado')`. Las
+  `interrumpida` (pieza aprobada por otra vía a medio limpiar, ver `docs/checklist.md` §3.1) suman créditos
+  pero no pieza.
   La partición A/B sale del estado/veredicto de la ejecución.
 - **Fuente:** `ejecuciones_items` (marcado, marcado_por, desmarcado_por_auditor) +
   `items_checklist` (creditos, obligatorio) + `auditorias` (veredicto) +

@@ -7,6 +7,7 @@ namespace Atankalama\Limpieza\Controllers;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Models\EjecucionChecklist;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\ChecklistService;
 use Atankalama\Limpieza\Services\HabitacionException;
@@ -204,8 +205,13 @@ final class ChecklistsController
             // Idempotencia: si ya quedó 'completada', es un reintento cuya respuesta
             // anterior se perdió por conexión inestable — no un error real. Ver
             // ChecklistService::ultimaEjecucionCompletadaPorUsuario().
-            if ($this->svc->ultimaEjecucionCompletadaPorUsuario($habitacionId, $request->usuario->id)) {
+            $estadoUltima = $this->svc->estadoUltimaEjecucionPorUsuario($habitacionId, $request->usuario->id);
+            if ($estadoUltima === EjecucionChecklist::ESTADO_COMPLETADA) {
                 return Response::ok(['completada' => true]);
+            }
+            // La pieza se aprobó por otra vía mientras la limpiaba («sin aseo», Cloudbeds).
+            if ($estadoUltima === EjecucionChecklist::ESTADO_INTERRUMPIDA) {
+                return Response::error('EJECUCION_INTERRUMPIDA', ChecklistService::MSG_INTERRUMPIDA, 409);
             }
             return Response::error('EJECUCION_NO_ENCONTRADA', 'No hay ejecución en progreso para esta habitación.', 404);
         }

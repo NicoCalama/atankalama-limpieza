@@ -9,6 +9,12 @@ final class EjecucionChecklist
     public const ESTADO_EN_PROGRESO = 'en_progreso';
     public const ESTADO_COMPLETADA = 'completada';
     public const ESTADO_AUDITADA = 'auditada';
+    /**
+     * La pieza quedó aprobada por otra vía («cliente no desea aseo», Cloudbeds) con la limpieza a
+     * medias: se cierra conservando los ítems marcados (créditos), pero no cuenta como pieza hecha
+     * ni pasa por inspección. Ver docs/checklist.md («Ejecución vencida»).
+     */
+    public const ESTADO_INTERRUMPIDA = 'interrumpida';
 
     public function __construct(
         public readonly int $id,

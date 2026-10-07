@@ -16,6 +16,9 @@ final class ChecklistService
     /** Tope del historial exportado a Excel — anti-catástrofe, no un límite de negocio real. */
     private const HISTORIAL_EXPORT_MAX = 5000;
 
+    /** Al marcar o terminar una limpieza cuya pieza se aprobó por otra vía (ejecución 'interrumpida'). */
+    public const MSG_INTERRUMPIDA = 'Esta habitación ya quedó lista por otra vía. Lo que alcanzaste a marcar te cuenta igual.';
+
     public function __construct(
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly AsignacionService $asignaciones = new AsignacionService(),
@@ -647,9 +650,9 @@ final class ChecklistService
             }
             // La pieza salió de 'en_progreso' por otro camino («Marcar sucia», «sin aseo», el
             // sync de Cloudbeds) y la ejecución quedó colgando de una asignación que sigue activa.
-            // Reanudarla dejaba a la trabajadora en un bucle; se descarta y se sigue como si no
+            // Reanudarla dejaba a la trabajadora en un bucle; se cierra y se sigue como si no
             // existiera.
-            $this->descartarEjecucionVencida((int) $existente['id'], $habitacionId, $habitacion->estado, $usuarioId);
+            $this->cerrarEjecucionVencida((int) $existente['id'], $habitacionId, $habitacion->estado, $usuarioId);
         }
 
         // Candado "una habitación a la vez": el trabajador no puede iniciar una
@@ -796,12 +799,38 @@ final class ChecklistService
     }
 
     /**
-     * Borra una ejecución 'en_progreso' cuya pieza ya no está 'en_progreso' (la sacaron por
-     * «Marcar sucia», «sin aseo» o el sync de Cloudbeds). Mismo criterio que saltar: el
-     * progreso parcial se descarta y el registro queda en audit_log.
+     * La pieza quedó aprobada por otra vía mientras la trabajadora la limpiaba: se lo decimos claro
+     * (y que lo marcado le cuenta), en vez del genérico «ejecución ya completada».
      */
-    private function descartarEjecucionVencida(int $ejecucionId, int $habitacionId, string $estadoHabitacion, int $usuarioId): void
+    private function exigirNoInterrumpida(EjecucionChecklist $ejec): void
     {
+        if ($ejec->estado === EjecucionChecklist::ESTADO_INTERRUMPIDA) {
+            throw new ChecklistException('EJECUCION_INTERRUMPIDA', self::MSG_INTERRUMPIDA, 409);
+        }
+    }
+
+    /**
+     * Cierra una ejecución 'en_progreso' cuya pieza ya no está 'en_progreso'. Si la pieza quedó
+     * aprobada («sin aseo», Cloudbeds), la trabajadora hizo trabajo real: se marca 'interrumpida' y
+     * conserva sus créditos (lo normal es que ya lo haya hecho HabitacionService::cambiarEstado al
+     * aprobarla; esto cubre las que quedaron colgando de antes). Si volvió a sucia («Marcar sucia»:
+     * la supervisora decidió que hay que rehacerla), se borra con lo marcado, igual que saltar.
+     * Decisión de Nicolás, 07/10/2026. Ver docs/checklist.md («Ejecución vencida»).
+     */
+    private function cerrarEjecucionVencida(int $ejecucionId, int $habitacionId, string $estadoHabitacion, int $usuarioId): void
+    {
+        if (in_array($estadoHabitacion, Habitacion::ESTADOS_APROBADOS, true)) {
+            try {
+                self::interrumpirEjecucionesEnCurso($habitacionId, $estadoHabitacion, $usuarioId);
+                return;
+            } catch (\PDOException $e) {
+                // BD sin la migración del estado 'interrumpida': se borra como antes, sin trabar a nadie.
+                Logger::warning('checklist', 'no se pudo cerrar como interrumpida una ejecución vencida; se descarta', [
+                    'ejecucion_id' => $ejecucionId,
+                    'error' => $e->getMessage(),
+                ], $usuarioId);
+            }
+        }
         Database::transaction(function () use ($ejecucionId): void {
             Database::execute('DELETE FROM #__ejecuciones_items WHERE ejecucion_id = ?', [$ejecucionId]);
             Database::execute(
@@ -813,6 +842,36 @@ final class ChecklistService
             'habitacion_id' => $habitacionId,
             'estado_habitacion' => $estadoHabitacion,
         ]);
+    }
+
+    /**
+     * La pieza quedó aprobada por otra vía con una limpieza a medias: cada ejecución 'en_progreso'
+     * de la pieza pasa a 'interrumpida' con lo que se alcanzó a marcar. Esos ítems siguen dando
+     * créditos a quien los marcó (ReportesService), pero la ejecución no cuenta como pieza hecha,
+     * ni en tiempos, ni entra a inspección. Estática para que HabitacionService la llame al aprobar
+     * sin depender de este servicio (que ya depende de él).
+     */
+    public static function interrumpirEjecucionesEnCurso(int $habitacionId, string $estadoHabitacion, ?int $usuarioId, string $origen = 'ui'): void
+    {
+        $ids = array_map(
+            static fn (array $f): int => (int) $f['id'],
+            Database::fetchAll(
+                "SELECT id FROM #__ejecuciones_checklist WHERE habitacion_id = ? AND estado = 'en_progreso'",
+                [$habitacionId]
+            )
+        );
+        foreach ($ids as $id) {
+            $cerradas = Database::execute(
+                "UPDATE #__ejecuciones_checklist SET estado = ?, timestamp_fin = ? WHERE id = ? AND estado = 'en_progreso'",
+                [EjecucionChecklist::ESTADO_INTERRUMPIDA, Database::now(), $id]
+            );
+            if ($cerradas === 1) {
+                Logger::audit($usuarioId, 'checklist.interrumpir', 'ejecucion_checklist', $id, [
+                    'habitacion_id' => $habitacionId,
+                    'estado_habitacion' => $estadoHabitacion,
+                ], $origen);
+            }
+        }
     }
 
     /**
@@ -839,13 +898,19 @@ final class ChecklistService
      */
     public function ultimaEjecucionCompletadaPorUsuario(int $habitacionId, int $usuarioId): bool
     {
+        return $this->estadoUltimaEjecucionPorUsuario($habitacionId, $usuarioId) === EjecucionChecklist::ESTADO_COMPLETADA;
+    }
+
+    /** Estado de la última ejecución de este usuario para la habitación, o null si nunca la empezó. */
+    public function estadoUltimaEjecucionPorUsuario(int $habitacionId, int $usuarioId): ?string
+    {
         $fila = Database::fetchOne(
             "SELECT estado FROM #__ejecuciones_checklist
               WHERE habitacion_id = ? AND usuario_id = ?
               ORDER BY id DESC LIMIT 1",
             [$habitacionId, $usuarioId]
         );
-        return $fila !== null && $fila['estado'] === EjecucionChecklist::ESTADO_COMPLETADA;
+        return $fila === null ? null : (string) $fila['estado'];
     }
 
     /**
@@ -989,6 +1054,7 @@ final class ChecklistService
         if ($ejec->usuarioId !== $usuarioId) {
             throw new ChecklistException('EJECUCION_AJENA', 'Esta ejecución no es tuya.', 403);
         }
+        $this->exigirNoInterrumpida($ejec);
         if ($ejec->estado !== EjecucionChecklist::ESTADO_EN_PROGRESO) {
             throw new ChecklistException('EJECUCION_NO_EDITABLE', 'No se puede modificar una ejecución ya completada.', 409);
         }
@@ -1063,6 +1129,7 @@ final class ChecklistService
         if ($ejec->usuarioId !== $usuarioId) {
             throw new ChecklistException('EJECUCION_AJENA', 'Esta ejecución no es tuya.', 403);
         }
+        $this->exigirNoInterrumpida($ejec);
         if ($ejec->estado !== EjecucionChecklist::ESTADO_EN_PROGRESO) {
             throw new ChecklistException('EJECUCION_NO_EDITABLE', 'Ejecución ya completada.', 409);
         }

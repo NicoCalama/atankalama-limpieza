@@ -1016,11 +1016,12 @@ final class ReportesService
         }
 
         // ── N1: créditos y habitaciones en dos etapas, por quien marcó el ítem (marcado_por), sobre
-        // ejecuciones NO rechazadas. Válido = obligatorio marcado y no desmarcado por el auditor
-        // (mismo criterio que resumenMensual). A = veredicto humano aprobado; B = sin auditoría real
-        // (NULL o cierre automático). Créditos por ejecución (cada limpieza suma); piezas una vez por
-        // ciclo. Los créditos totales incluyen áreas comunes (N1); `creditos_hab` y el conteo de piezas
-        // no (solo huésped): son la base de los ratios del N2, cuyo Esperado tampoco las incluye.
+        // ejecuciones NO rechazadas; las 'interrumpidas' dan créditos pero no pieza. Válido = obligatorio
+        // marcado y no desmarcado por el auditor (mismo criterio que resumenMensual). A = veredicto humano
+        // aprobado; B = sin auditoría real (NULL o cierre automático). Créditos por ejecución (cada
+        // limpieza suma); piezas una vez por ciclo. Los créditos totales incluyen áreas comunes (N1);
+        // `creditos_hab` y el conteo de piezas no (solo huésped): son la base de los ratios del N2, cuyo
+        // Esperado tampoco las incluye.
         // Regla 3 de la ficha + gradualidad de jefatura (16/09): si la persona rehace ELLA MISMA su
         // pieza rechazada en el mismo ciclo, esa re-limpieza no suma pieza (sigue rechazada) y sus
         // créditos se recuperan según el intento: 2° = 50 %, 3° o más = 0 % (RECUPERACION_TRAS_RECHAZO,
@@ -1032,7 +1033,7 @@ final class ReportesService
         $ciclosA = []; // uid → ciclo → true si alguna ejecución tuvo veredicto humano (A), false si solo B
         foreach (Database::fetchAll(
             "SELECT ei.marcado_por AS usuario_id, u.nombre, ec.id AS ejecucion_id, ec.usuario_id AS dueno_id,
-                    ec.habitacion_id, ec.timestamp_inicio, asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto,
+                    ec.habitacion_id, ec.timestamp_inicio, ec.estado, asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto,
                     SUM(CASE WHEN {$valido} THEN ic.creditos ELSE 0 END) AS creditos,
                     SUM(CASE WHEN {$valido} THEN 1 ELSE 0 END) AS items_validos
                FROM #__ejecuciones_items ei
@@ -1043,13 +1044,13 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
-              WHERE ec.estado IN ('completada', 'auditada')
+              WHERE ec.estado IN ('completada', 'auditada', 'interrumpida')
                 AND ei.marcado_por IS NOT NULL
                 AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
                 AND " . self::sinRelimpieza() . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$hc}
-              GROUP BY ei.marcado_por, u.nombre, ec.id, ec.usuario_id, ec.habitacion_id, ec.timestamp_inicio,
+              GROUP BY ei.marcado_por, u.nombre, ec.id, ec.usuario_id, ec.habitacion_id, ec.timestamp_inicio, ec.estado,
                        asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto
               ORDER BY ec.timestamp_inicio",
             $p
@@ -1082,7 +1083,9 @@ final class ReportesService
                 // La pieza cuenta como hecha solo para la DUEÑA de la limpieza: los ítems heredados de otra
                 // persona (marcado_por ≠ dueña) le dan créditos a quien los marcó, pero no una pieza aprobada —
                 // tras un rechazo la pieza sigue siendo rechazada para ella, la rehaga quien la rehaga y el día que sea.
-                if ($rechazosPrevios === 0 && (int) $f['dueno_id'] === $uid) {
+                // Una limpieza 'interrumpida' (la pieza se aprobó por otra vía a mitad de camino) da sus
+                // créditos pero no es pieza hecha (docs/checklist.md, «Ejecución vencida»).
+                if ($rechazosPrevios === 0 && (int) $f['dueno_id'] === $uid && $f['estado'] !== 'interrumpida') {
                     $ciclosA[$uid][$c] = ($ciclosA[$uid][$c] ?? false) || $humana;
                 }
             }

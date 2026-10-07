@@ -637,6 +637,9 @@ final class HabitacionService
 
         if (in_array($nuevoEstado, Habitacion::ESTADOS_APROBADOS, true)) {
             $this->resolverAlertasAlAprobar($id);
+            if ($habitacion->estado === Habitacion::ESTADO_EN_PROGRESO) {
+                $this->interrumpirLimpiezaEnCurso($id, $nuevoEstado, $usuarioId, $origen);
+            }
         }
 
         return new Habitacion(
@@ -654,6 +657,25 @@ final class HabitacionService
             esNochero: $habitacion->esNochero,
             nocheroHasta: $habitacion->nocheroHasta,
         );
+    }
+
+    /**
+     * Se aprobó una pieza que alguien estaba limpiando («cliente no desea aseo», Cloudbeds): su
+     * limpieza queda 'interrumpida' y conserva lo marcado para los créditos, en vez de quedar
+     * colgando hasta borrarse. Ver ChecklistService::interrumpirEjecucionesEnCurso().
+     * Mismo criterio que resolverAlertasAlAprobar: el estado ya cambió, un fallo (p. ej. la BD de
+     * producción todavía sin el CHECK nuevo) solo queda en el log y la ejecución sigue como vencida.
+     */
+    private function interrumpirLimpiezaEnCurso(int $id, string $nuevoEstado, ?int $usuarioId, string $origen): void
+    {
+        try {
+            ChecklistService::interrumpirEjecucionesEnCurso($id, $nuevoEstado, $usuarioId, $origen);
+        } catch (\Throwable $e) {
+            Logger::warning('checklist', 'no se pudo cerrar como interrumpida la limpieza en curso de una pieza aprobada', [
+                'habitacion_id' => $id,
+                'error' => $e->getMessage(),
+            ], $usuarioId);
+        }
     }
 
     /**

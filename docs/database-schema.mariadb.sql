@@ -302,7 +302,7 @@ CREATE TABLE #__ejecuciones_checklist (
     usuario_id          INT NOT NULL,
     template_id         INT NOT NULL,
     estado              VARCHAR(20) NOT NULL DEFAULT 'en_progreso' CHECK (estado IN (
-        'en_progreso', 'completada', 'auditada'
+        'en_progreso', 'completada', 'auditada', 'interrumpida'
     )),
     timestamp_inicio    VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     timestamp_fin       VARCHAR(30),
