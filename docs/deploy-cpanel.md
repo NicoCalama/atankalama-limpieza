@@ -1317,8 +1317,8 @@ Con correcciones de la revisión: anti-escalada con lista explícita (`RbacServi
 login, P0 propia por escritura fallida, lista blanca de acciones de alertas, push que de verdad no tumba la request,
 filas corridas y horas `HH:MM` en la importación de turnos.
 
-**Orden:** va encima de la v6.17.1 (§11.17). Si se suben juntas, sumar al ZIP `src/Controllers/HabitacionesController.php`
-y `views/habitaciones.php` (la lista sería `git diff --name-only eb3f7d2 HEAD`).
+**Orden:** va encima de la v6.17.1 (§11.17). **Decisión de Nicolás (07/10/2026): suben juntas, en un solo ZIP** (las dos
+filas del CHANGELOG fechadas ese día; el badge muestra v6.17.2).
 
 **Sin SQL de esquema, sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`).
 
@@ -1378,9 +1378,15 @@ SELECT tipo, COUNT(*) AS activas, MIN(created_at) AS la_mas_vieja
  ORDER BY tipo;
 ```
 
-**ZIP** `build/limpieza-v6172-delta.zip` (estructura `limpieza/…`), todo a `app_core/`: lista =
-`git diff --name-only 17a268a HEAD` menos `docs/` y `tests/` (45 archivos: `CHANGELOG.md`, un script, 9
-controladores, `Core/Kernel.php`, 2 helpers, 2 middleware, 21 servicios, `Support/Tours.php` y 7 vistas).
+**ZIP** `build/limpieza-v6172-delta.zip` (estructura `limpieza/…`), todo a `app_core/`, con la v6.17.1 y la v6.17.2:
+lista = `git diff --name-only eb3f7d2 HEAD` menos `docs/` y `tests/` (**47 archivos**, todos modificados, ninguno
+nuevo: `CHANGELOG.md`, un script, 10 controladores, `Core/Kernel.php`, 2 helpers, 2 middleware, 21 servicios,
+`Support/Tours.php` y 8 vistas).
+
+**Precheck** (como en la v6.17): bajar de prod por FileZilla, con su estructura, `app_core/src/`, `app_core/views/`,
+`app_core/scripts/` y `app_core/CHANGELOG.md` a `build/prod-antes-v6172/`, y comparar contra `eb3f7d2` normalizando
+`\r` (detecta cualquier cambio hecho en prod por fuera de git, no solo en los 47). ZIP de vuelta atrás:
+`build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`).
 
 **Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Toca servicios que usan el cierre de día y el sync; una
 pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien).
@@ -1391,4 +1397,5 @@ pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien
 - con una trabajadora: campanita visible y, con la cola vacía, «Estoy disponible»;
 - si una supervisora gestiona usuarios: editar a una trabajadora funciona (no 403).
 
-**Vuelta atrás:** volver a subir esos 45 archivos tal como están en `17a268a`.
+**Vuelta atrás:** subir `build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`, la
+v6.17 desplegada).
