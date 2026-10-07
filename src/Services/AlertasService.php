@@ -54,7 +54,13 @@ final class AlertasService
                     'UPDATE #__alertas_activas SET titulo = ?, descripcion = ?, contexto_json = ? WHERE id = ?',
                     [$titulo, $descripcion, $json, $existente->id]
                 );
-                return AlertaActiva::desdeFila(Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$existente->id]));
+                $fila = Database::fetchOne('SELECT * FROM #__alertas_activas WHERE id = ?', [$existente->id]);
+                if ($fila !== null) {
+                    return AlertaActiva::desdeFila($fila);
+                }
+                // Otra petición la resolvió entre la búsqueda y la relectura (el cron frente al
+                // recálculo al completar): se levanta de nuevo abajo. Antes desdeFila(null) lanzaba
+                // un TypeError y cortaba el recálculo del resto del equipo.
             }
         }
 

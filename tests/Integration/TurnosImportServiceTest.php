@@ -33,6 +33,32 @@ final class TurnosImportServiceTest extends TestCase
         $this->assertSame('16:00', $filas[0]['HORA TERMINO']);
     }
 
+    public function testUnaFilaConLasColumnasCorridasSeRechazaConSuMotivo(): void
+    {
+        // Un apellido con coma sin comillas corre las columnas: TIPO recibía la fecha y la fila se
+        // perdía sin aviso (la persona quedaba «sin turno» y nadie se enteraba).
+        $csv = self::ENCABEZADO . "\n11111111-1,Ana,Pérez, Soto,07/10/2026,TURNO,Mañana,08:00,16:00\n";
+
+        $preview = $this->svc->preview($this->svc->parsearCsv($csv));
+
+        $this->assertSame([], $preview['filas_importar']);
+        $this->assertSame([TurnosImportService::MOTIVO_COLUMNAS], array_column($preview['filas_rechazadas'], 'motivo'));
+    }
+
+    public function testLasHorasQuedanComoHhMm(): void
+    {
+        // «8:00» creaba un turno aparte de «08:00», y «16:00:00» no cabe en turnos.hora_fin de
+        // MariaDB (VARCHAR(5)).
+        $csv = self::ENCABEZADO . "\n11111111-1,Ana,Pérez,07/10/2026,TURNO,Mañana,8:00,16:00:00\n";
+
+        $preview = $this->svc->preview($this->svc->parsearCsv($csv));
+
+        $this->assertCount(1, $preview['filas_importar']);
+        $this->assertSame('08:00', $preview['filas_importar'][0]['hora_inicio']);
+        $this->assertSame('16:00', $preview['filas_importar'][0]['hora_fin']);
+        $this->assertSame([['nombre' => 'Mañana', 'hora_inicio' => '08:00', 'hora_fin' => '16:00']], $preview['turnos_nuevos']);
+    }
+
     public function testNormalizaLasFechasDelArchivo(): void
     {
         $this->assertSame('2026-10-07', TurnosImportService::normalizarFecha('2026-10-07'));

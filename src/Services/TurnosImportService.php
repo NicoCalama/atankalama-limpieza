@@ -30,7 +30,8 @@ final class TurnosImportService
             $linea = trim($linea);
             if ($linea === '') continue;
 
-            $campos = str_getcsv($linea, ',');
+            // Escape explícito (el de siempre): PHP 8.4 avisa que el valor por defecto va a cambiar.
+            $campos = str_getcsv($linea, ',', '"', '\\');
 
             if ($encabezado === null) {
                 $encabezado = array_map('trim', $campos);
@@ -40,11 +41,18 @@ final class TurnosImportService
             while (count($campos) < count($encabezado)) {
                 $campos[] = '';
             }
-            // Columnas de más (coma al final, un nombre con coma sin comillas): array_combine
-            // lanzaba ValueError y la carga respondía 500. Se descartan las sobrantes.
+            // Columnas de más: array_combine lanzaba ValueError y la carga respondía 500. Si las
+            // sobrantes vienen vacías (una coma al final) se descartan. Si traen algo (un nombre con
+            // coma sin comillas), las columnas quedaron corridas: la fila se marca para que el
+            // preview la rechace con su motivo, en vez de leer la fecha como TIPO y perderla sin aviso.
+            $sobrantes = array_slice($campos, count($encabezado));
             $campos = array_slice($campos, 0, count($encabezado));
 
-            $filas[] = array_combine($encabezado, array_map('trim', $campos));
+            $fila = array_combine($encabezado, array_map('trim', $campos));
+            if (array_filter($sobrantes, static fn ($v): bool => trim((string) $v) !== '') !== []) {
+                $fila[self::MARCA_COLUMNAS_DE_MAS] = '1';
+            }
+            $filas[] = $fila;
         }
 
         return $filas;
@@ -201,6 +209,18 @@ final class TurnosImportService
         $rechazadas          = [];
 
         foreach ($filas as $fila) {
+            // Antes que mirar TIPO: con las columnas corridas, TIPO trae otro dato y la fila se
+            // saltaba en silencio (la persona quedaba «sin turno» sin que nadie se enterara).
+            if (isset($fila[self::MARCA_COLUMNAS_DE_MAS])) {
+                $rechazadas[] = [
+                    'rut'    => $this->normalizarRut(trim($fila['DNI'] ?? '')),
+                    'nombre' => trim(($fila['NOMBRE'] ?? '') . ' ' . ($fila['APELLIDOS'] ?? '')),
+                    'fecha'  => trim($fila['FECHA'] ?? ''),
+                    'motivo' => self::MOTIVO_COLUMNAS,
+                ];
+                continue;
+            }
+
             $tipo = strtoupper(trim($fila['TIPO'] ?? ''));
 
             if ($tipo === 'PERMISO') {
@@ -243,6 +263,10 @@ final class TurnosImportService
                 $rechazadas[] = ['rut' => $rut, 'nombre' => $nombrePersona, 'fecha' => $fechaArchivo, 'motivo' => $motivo];
                 continue;
             }
+            // Horas al formato de la base (HH:MM): «8:00» creaba un turno aparte de «08:00», y
+            // «08:00:00» no cabe en turnos.hora_inicio de MariaDB (VARCHAR(5)).
+            $horaInicio = self::formatoHora((int) $minInicio);
+            $horaFin    = self::formatoHora((int) $minFin);
             $fechas[] = $fecha;
 
             $usuarioId = $rutsMapeados[$rut];
@@ -354,6 +378,10 @@ final class TurnosImportService
     public const MOTIVO_FECHA = 'Fecha que no se entiende (usa DD/MM/AAAA)';
     public const MOTIVO_HORA = 'Hora que no se entiende (usa HH:MM)';
     public const MOTIVO_MEDIANOCHE = 'El turno termina antes de empezar o cruza la medianoche';
+    public const MOTIVO_COLUMNAS = 'La fila tiene más columnas que el encabezado (¿un nombre con una coma sin comillas?)';
+
+    /** Clave interna con la que parsearCsv() marca una fila de columnas corridas (no es una columna del archivo). */
+    private const MARCA_COLUMNAS_DE_MAS = '__columnas_de_mas';
 
     /**
      * Fecha del archivo → 'Y-m-d', o null si no se entiende. Acepta 'Y-m-d', 'DD/MM/AAAA',
@@ -386,6 +414,12 @@ final class TurnosImportService
             return null;
         }
         return (int) $m[1] * 60 + (int) $m[2];
+    }
+
+    /** Minutos desde medianoche → 'HH:MM'. */
+    private static function formatoHora(int $minutos): string
+    {
+        return sprintf('%02d:%02d', intdiv($minutos, 60), $minutos % 60);
     }
 
     public function normalizarRut(string $rut): string

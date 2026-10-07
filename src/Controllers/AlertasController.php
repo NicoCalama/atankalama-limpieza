@@ -38,7 +38,15 @@ final class AlertasController
         ]);
     }
 
-    private const ACCIONES_QUE_NO_RESUELVEN = ['descartar', 'cloudbeds_retry'];
+    /**
+     * Acciones que cierran una alerta a mano, por tipo. Lista blanca: las demás alertas se cierran
+     * solas cuando la condición desaparece (docs/home-supervisora.md), y sus botones («Ver carga»,
+     * «Reasignar», «Ver habitación»…) solo navegan, no llegan acá. Antes bastaba con no mandar
+     * «descartar»: cualquier otro nombre de acción borraba cualquier alerta, incluida la P0.
+     */
+    private const ACCIONES_POR_TIPO = [
+        AlertaActiva::TIPO_TICKET_NUEVO => ['marcar_atendido'],
+    ];
 
     public function ejecutarAccion(Request $request): Response
     {
@@ -56,8 +64,13 @@ final class AlertasController
         // Las alertas no se descartan (docs/home-supervisora.md): se resuelven solas cuando la
         // condición desaparece, o con su acción. «Reintentar» de la P0 de Cloudbeds tampoco pasa
         // por acá: dispara un sync real (POST /api/cloudbeds/sync) y la alerta se cierra si
-        // funciona. Antes ambas solo borraban la alerta.
-        if (in_array($accion, self::ACCIONES_QUE_NO_RESUELVEN, true)) {
+        // funciona. Antes «descartar» y «reintentar» solo borraban la alerta.
+        $alerta = $this->svc->obtener($id);
+        if ($alerta === null) {
+            // Ya la cerró otra persona o se resolvió sola: idempotente, como resolver().
+            return Response::ok(['resuelta' => true]);
+        }
+        if (!in_array($accion, self::ACCIONES_POR_TIPO[$alerta->tipo] ?? [], true)) {
             return Response::error(
                 'ACCION_NO_PERMITIDA',
                 'Esta alerta se cierra sola cuando se resuelve el problema.',

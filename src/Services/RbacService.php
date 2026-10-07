@@ -80,12 +80,28 @@ final class RbacService
     public const MSG_USUARIO_SUPERIOR = 'No puedes modificar a un usuario con permisos de gestión de cuentas que tú no tienes.';
 
     /**
-     * Categorías del catálogo que dan control sobre cuentas y roles: las que la guardia
-     * anti-escalada compara. Solo estas, no todo el catálogo: si no, quien tuviera usuarios.crear
-     * tampoco podría crear trabajadoras (el rol Trabajador trae permisos de terreno que una
-     * supervisora no tiene), y eso no es escalar privilegios.
+     * Permisos que dan control sobre cuentas y roles: los que compara la guardia anti-escalada.
+     * Solo estos, no todo el catálogo: si no, quien tuviera usuarios.crear tampoco podría crear
+     * trabajadoras (el rol Trabajador trae permisos de terreno que una supervisora no tiene), y eso
+     * no es escalar privilegios. Lista explícita y no las categorías Usuarios y Roles enteras: esas
+     * también traen permisos sobre la propia cuenta (cambiar la propia contraseña, exportar mis
+     * datos) o de solo lectura, que no dan poder sobre nadie; compararlos bloqueaba a una
+     * supervisora frente a una trabajadora que los tuviera y ella no, y en producción los
+     * permisos se ajustan a mano.
      */
-    private const CATEGORIAS_GESTION = ['Usuarios', 'Roles'];
+    public const PERMISOS_GESTION = [
+        'usuarios.crear',
+        'usuarios.editar',
+        'usuarios.resetear_password',
+        'usuarios.activar_desactivar',
+        'usuarios.eliminar',
+        'usuarios.asignar_rol',
+        'usuarios.modo_espia',
+        'roles.crear',
+        'roles.editar',
+        'roles.eliminar',
+        'permisos.asignar_a_rol',
+    ];
 
     /**
      * ¿$actorId puede dar el rol $rolId? Solo si ya tiene todos los permisos de gestión de cuentas
@@ -99,7 +115,6 @@ final class RbacService
         $delRol = array_column(Database::fetchAll(
             'SELECT rp.permiso_codigo
                FROM #__rol_permisos rp
-               JOIN #__permisos p ON p.codigo = rp.permiso_codigo
               WHERE rp.rol_id = ? AND ' . self::condicionGestion($params),
             $params
         ), 'permiso_codigo');
@@ -128,17 +143,16 @@ final class RbacService
             'SELECT DISTINCT rp.permiso_codigo
                FROM #__usuarios_roles ur
                JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
-               JOIN #__permisos p ON p.codigo = rp.permiso_codigo
               WHERE ur.usuario_id = ? AND ' . self::condicionGestion($params),
             $params
         ), 'permiso_codigo');
     }
 
-    /** @param list<mixed> $params se le agregan las categorías, en el orden de los «?» */
+    /** @param list<mixed> $params se le agregan los permisos de gestión, en el orden de los «?» */
     private static function condicionGestion(array &$params): string
     {
-        array_push($params, ...self::CATEGORIAS_GESTION);
-        return 'p.categoria IN (' . implode(',', array_fill(0, count(self::CATEGORIAS_GESTION), '?')) . ')';
+        array_push($params, ...self::PERMISOS_GESTION);
+        return 'rp.permiso_codigo IN (' . implode(',', array_fill(0, count(self::PERMISOS_GESTION), '?')) . ')';
     }
 
     public function contarAdminsActivos(): int

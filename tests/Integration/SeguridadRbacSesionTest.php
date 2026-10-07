@@ -153,6 +153,23 @@ final class SeguridadRbacSesionTest extends TestCase
         $this->assertSame('Sofía P.', $usuarios->actualizar($this->supId, ['nombre' => 'Sofía P.'], $this->supId)->nombre);
     }
 
+    public function testLosPermisosSobreLaPropiaCuentaNoCuentanParaLaAntiEscalada(): void
+    {
+        // En producción los permisos se ajustan a mano: que el rol de la trabajadora traiga
+        // «exportar mis datos» o «cambiar mi contraseña» y el de la supervisora no, no la vuelve
+        // «superior». Antes se comparaban las categorías Usuarios y Roles enteras → 403.
+        $propios = ['usuarios.exportar_datos_propios', 'usuarios.cambiar_propia_contrasena', 'usuarios.ver', 'roles.ver'];
+        $marcas = implode(',', array_fill(0, count($propios), '?'));
+        Database::execute("DELETE FROM rol_permisos WHERE rol_id = ? AND permiso_codigo IN ({$marcas})", [$this->rolId('Supervisora'), ...$propios]);
+        foreach ($propios as $permiso) {
+            Database::execute('INSERT OR IGNORE INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)', [$this->rolId('Trabajador'), $permiso]);
+        }
+
+        $this->assertTrue((new RbacService())->puedeGestionarUsuario($this->supId, $this->anaId));
+        $this->assertSame('ana@ejemplo.cl', (new UsuarioService())->actualizar($this->anaId, ['email' => 'ana@ejemplo.cl'], $this->supId)->email);
+        $this->assertTrue((new RbacService())->puedeOtorgarRol($this->supId, $this->rolId('Trabajador')));
+    }
+
     public function testElAdminSigueGestionandoATodos(): void
     {
         (new RbacService())->asignarRolAUsuario($this->supId, $this->rolId('Admin'), $this->adminId);

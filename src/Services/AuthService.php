@@ -146,14 +146,22 @@ final class AuthService
         // Acotada: la clave se arma antes de validar el RUT, y un «RUT» de cientos de caracteres
         // no cabe en intentos_login.clave (VARCHAR(80) en MariaDB → 500 en vez de 400).
         // Un RUT real tiene a lo más 10 caracteres normalizado.
-        return substr($rutNorm, 0, 20) . '|' . substr($ip ?? 'sin_ip', 0, 45);
+        // mb_strcut y no substr: cortar por bytes en medio de una ñ o una tilde deja UTF-8 inválido,
+        // y MariaDB en modo estricto rechaza el INSERT (500 en vez de 400).
+        return mb_strcut($rutNorm, 0, 20, 'UTF-8') . '|' . mb_strcut($ip ?? 'sin_ip', 0, 45, 'UTF-8');
     }
 
-    /** Hash bcrypt de un valor al azar, para gastar el mismo tiempo cuando el RUT no existe. */
+    /**
+     * Hash bcrypt fijo (costo 12, el mismo de las contraseñas reales en PHP 8.4) de un valor al azar
+     * que no es la clave de nadie: con un RUT que no existe, el login hace una sola verificación,
+     * igual que con uno que existe. Antes se generaba en cada request (password_hash + verify: el
+     * doble de tiempo), y el RUT inexistente era el que tardaba más.
+     */
+    private const HASH_DE_RELLENO = '$2y$12$MQQdMKBp1pR7PC2qwYUpGenvLPJs0xziMd4C.PGeGj/JSMgVHwksO';
+
     private static function hashDeRelleno(): string
     {
-        static $hash = null;
-        return $hash ??= password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
+        return self::HASH_DE_RELLENO;
     }
 
     /**

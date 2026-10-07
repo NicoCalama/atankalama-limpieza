@@ -170,6 +170,22 @@ final class AlertasCicloVidaTest extends TestCase
         $this->assertNull(Database::fetchOne('SELECT 1 FROM alertas_activas WHERE id = ?', [$ticket->id]));
     }
 
+    public function testSoloLaAccionDeSuTipoCierraUnaAlerta(): void
+    {
+        $p0 = $this->alertas->levantar(AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED, 'Sincronización Cloudbeds falló', 'x', [], null, 'cloudbeds_sync');
+
+        // Antes bastaba con no mandar «descartar»: cualquier otro nombre de acción la borraba.
+        foreach (['x', 'marcar_atendido', 'ver_carga'] as $accion) {
+            $resp = $this->accion($p0->id, $accion);
+            $this->assertSame(400, $resp->status, $accion);
+            $this->assertSame('ACCION_NO_PERMITIDA', json_decode($resp->cuerpo, true)['error']['codigo'], $accion);
+        }
+        $this->assertNotNull(Database::fetchOne('SELECT 1 FROM alertas_activas WHERE id = ?', [$p0->id]), 'la P0 sigue ahí');
+
+        // Sobre una alerta que ya no está (la cerró otra persona): idempotente, sin error.
+        $this->assertSame(200, $this->accion(999999, 'marcar_atendido')->status);
+    }
+
     // --- P0 de Cloudbeds -------------------------------------------------------------------
 
     public function testLaP0SeLevantaConSyncParcialYSeCierraConUnSyncCompleto(): void
@@ -193,6 +209,35 @@ final class AlertasCicloVidaTest extends TestCase
         Database::execute("UPDATE hoteles SET activo = 0 WHERE codigo = 'inn'");
         $transport->encolarOk(200, ['success' => true, 'data' => [['roomID' => 'CB_R101', 'roomCondition' => 'dirty']]]);
         $sync->sincronizar(null, 'auto_cron');
+        $this->assertSame(0, (int) Database::fetchColumn("SELECT COUNT(*) FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'"));
+    }
+
+    public function testLaEscrituraFallidaNoLaCierraUnSyncDeLecturaSinoUnaEscrituraQueFunciona(): void
+    {
+        $id = $this->crearPieza('101', 'aprobada', 'CB_R101');
+        $hab = (new HabitacionService())->obtener($id);
+        $this->assertNotNull($hab);
+        $transport = new FakeHttpTransport();
+        $sync = new CloudbedsSyncService(new CloudbedsClient(
+            transport: $transport, baseUrl: 'https://cb.test', apiKey: 'k', backoffs: [0, 0, 0], dormir: static fn(int $s) => null,
+        ));
+
+        // El barrido de nocheros (o un «Marcar sucia») no llega a Cloudbeds: P0 con la pieza.
+        $transport->encolarOk(200, ['success' => false, 'message' => 'Room not found']);
+        $this->assertFalse($sync->escribirEstadoDirty($hab));
+        $p0 = Database::fetchOne("SELECT contexto_json FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'");
+        $this->assertNotNull($p0);
+        $this->assertSame($id, json_decode((string) $p0['contexto_json'], true)['habitacion_id']);
+
+        // Un sync de lectura sin errores ya no la cierra: no reintentó la escritura, y la pieza
+        // sigue desfasada en Cloudbeds. Antes la cerraba y la falla quedaba tapada.
+        $transport->encolarOk(200, ['success' => true, 'data' => [['roomID' => 'CB_R101', 'roomCondition' => 'clean']]]);
+        $sync->sincronizar(null, 'auto_cron');
+        $this->assertSame(1, (int) Database::fetchColumn("SELECT COUNT(*) FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'"));
+
+        // Una escritura de esa misma pieza que funciona, sí.
+        $transport->encolarOk(200, ['success' => true]);
+        $this->assertTrue($sync->escribirEstadoDirty($hab));
         $this->assertSame(0, (int) Database::fetchColumn("SELECT COUNT(*) FROM alertas_activas WHERE tipo = 'cloudbeds_sync_failed'"));
     }
 

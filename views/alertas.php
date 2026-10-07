@@ -205,8 +205,14 @@ function alertasApp() {
 
             var botones = [];
             if (al.tipo === 'cloudbeds_sync_failed') {
-                // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
-                if (this.puedeSincronizarCloudbeds) botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                if (al.contexto && al.contexto.habitacion_id) {
+                    // Escritura fallida de UNA pieza: se cierra cuando una escritura de esa pieza
+                    // funciona (rehacer la acción desde su ficha), no con un sync de lectura.
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                } else if (this.puedeSincronizarCloudbeds) {
+                    // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
+                    botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                }
             } else if (al.tipo === 'trabajador_en_riesgo' || al.tipo === 'fin_turno_pendientes') {
                 // Un solo botón: los dos llevaban a /asignaciones con la misma key (rompía el x-for).
                 botones.push({ accion: 'ir_asignaciones', etiqueta: this.puedeAsignar ? 'Reasignar' : 'Ver asignaciones', clase: btnPrimario });

@@ -70,10 +70,6 @@ final class UsuarioService
         );
     }
 
-    /**
-     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,jornada?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
-     * @return array{usuario:Usuario, password_temporal:string}
-     */
     /** 403 si el objetivo tiene permisos que quien actúa no tiene (ver RbacService::puedeGestionarUsuario). */
     private function exigirPuedeGestionar(int $actorId, int $objetivoId): void
     {
@@ -82,6 +78,10 @@ final class UsuarioService
         }
     }
 
+    /**
+     * @param array{rut:string,nombre:string,email?:?string,hotel_default?:?string,jornada?:?string,roles?:mixed} $datos  roles llega crudo del JSON del cliente, se valida abajo
+     * @return array{usuario:Usuario, password_temporal:string}
+     */
     public function crear(array $datos, int $creadoPor, PasswordService $passwords): array
     {
         // El shape del array no se aplica en runtime; el fallback protege ante un futuro

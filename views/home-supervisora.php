@@ -660,8 +660,14 @@ function homeSupervisora() {
             } else if (al.tipo === 'trabajador_disponible') {
                 if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario });
             } else if (al.tipo === 'cloudbeds_sync_failed') {
-                // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
-                if (this.data && this.data.permisos && this.data.permisos.cloudbeds_forzar_sincronizacion) botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                if (al.contexto && al.contexto.habitacion_id) {
+                    // Escritura fallida de UNA pieza: se cierra cuando una escritura de esa pieza
+                    // funciona (rehacer la acción desde su ficha), no con un sync de lectura.
+                    botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnPrimario });
+                } else if (this.data && this.data.permisos && this.data.permisos.cloudbeds_forzar_sincronizacion) {
+                    // Sin el permiso no hay botón: la alerta se cierra con el próximo sync que funcione.
+                    botones.push({ accion: 'cloudbeds_retry', etiqueta: 'Reintentar ahora', clase: btnPrimario });
+                }
             } else if (al.tipo === 'ticket_nuevo') {
                 botones.push({ accion: 'marcar_atendido', etiqueta: 'Marcar atendido', clase: btnPrimario });
             }

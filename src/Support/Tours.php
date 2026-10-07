@@ -910,13 +910,15 @@ final class Tours
                         ],
                     ],
 
-                    // ── 2. Avisar que estás libre (cuando no hay piezas). ──
+                    // ── 2. Avisar que estás libre (cuando no hay piezas). Solo con el permiso: sin él,
+                    //       el botón no aparece y el recorrido apuntaría a nada. ──
                     [
-                        'id'       => 'avisar',
-                        'v'        => 1,
-                        'titulo'   => 'Avisar que estás libre',
-                        'pregunta' => '¿Y si no tengo piezas hoy?',
-                        'requiere' => [],
+                        'id'        => 'avisar',
+                        'v'         => 1,
+                        'titulo'    => 'Avisar que estás libre',
+                        'pregunta'  => '¿Y si no tengo piezas hoy?',
+                        'capacidad' => 'disponibilidad.notificar_supervisora',
+                        'requiere'  => [],
                         'pasos' => [
                             [
                                 'sel'    => '[data-tour="htr.disponible"]',
