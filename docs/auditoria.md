@@ -53,6 +53,7 @@ Una vez una habitación recibe veredicto (cualquiera de los 3), **NO puede ser r
   ```json
   { "ok": false, "error": { "codigo": "AUDITORIA_YA_EXISTE", "mensaje": "Esta habitación ya fue auditada." } }
   ```
+- El veredicto se escribe en una sola transacción (INSERT en `auditorias` → ítems desmarcados → ejecución `auditada` → estado de la habitación), con la habitación y la ejecución releídas con bloqueo. Si dos veredictos llegan casi juntos (dos auditoras, o una auditora y el cierre de día), el segundo recibe el mismo 409 y no deja nada escrito. La escritura `clean` a Cloudbeds va después del commit.
 
 ### 3.2 Frontend
 

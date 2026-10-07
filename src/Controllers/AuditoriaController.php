@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Models\Auditoria;
 use Atankalama\Limpieza\Services\AuditoriaException;
 use Atankalama\Limpieza\Services\AuditoriaService;
+use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 
@@ -92,7 +93,8 @@ final class AuditoriaController
                 $comentario === '' ? null : $comentario,
                 $itemsIds
             );
-        } catch (AuditoriaException $e) {
+        } catch (AuditoriaException | ChecklistException $e) {
+            // ChecklistException: ítems desmarcados que no son del checklist (400 ITEMS_DESMARCADOS_INVALIDO).
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 

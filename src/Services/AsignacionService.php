@@ -561,14 +561,16 @@ final class AsignacionService
         }
         // en_curso_propia: la pieza tiene una ejecución en progreso del mismo trabajador, colgando
         // de esta asignación activa. Es la misma condición del candado "una a la vez" de
-        // ChecklistService::iniciarEjecucion, y la usa elegirHabitacionActual().
+        // ChecklistService::iniciarEjecucion, y la usa elegirHabitacionActual(). Exige además que
+        // la pieza siga 'en_progreso': si la sacaron por otro camino («Marcar sucia», «sin aseo»,
+        // Cloudbeds), esa ejecución está vencida y no debe ganarle a las pendientes.
         $filas = Database::fetchAll(
             "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
                     h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
-                    EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
+                    (h.estado = 'en_progreso' AND EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
                              WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id
-                               AND ec.estado = 'en_progreso') AS en_curso_propia
+                               AND ec.estado = 'en_progreso')) AS en_curso_propia
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id

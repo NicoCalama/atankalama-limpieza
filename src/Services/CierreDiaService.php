@@ -54,12 +54,15 @@ final class CierreDiaService
                     self::COMENTARIO,
                 );
                 $aprobadas++;
-            } catch (AuditoriaException $e) {
+            } catch (\Throwable $e) {
+                // Cualquier error de UNA pieza (no solo AuditoriaException: un choque con una
+                // auditora que la inspeccionaba en ese instante, un fallo de BD) se registra y se
+                // sigue con las demás. Antes cortaba el loop y el resto quedaba sin cerrar.
                 $fallidas++;
                 Logger::error('auditoria', 'cierre de día automático: fallo al auto-aprobar', [
                     'habitacion_id' => $fila['id'],
                     'numero' => $fila['numero'],
-                    'codigo' => $e->codigo,
+                    'codigo' => $e instanceof AuditoriaException ? $e->codigo : get_class($e),
                     'mensaje' => $e->getMessage(),
                 ]);
             }
