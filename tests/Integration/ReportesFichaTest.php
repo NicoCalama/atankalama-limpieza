@@ -370,20 +370,24 @@ final class ReportesFichaTest extends TestCase
 
     public function testSiOtraPersonaRehaceLaPiezaEllaSumaEsperadoYCreditos(): void
     {
-        // Ana rehace la 104 de Berta (marca todos los ítems ella) y Sofía la aprueba:
-        // Ana E+1, A+1 y +N créditos; Berta queda igual (pegajoso: la 104 sigue en su esperado y como R).
+        // Ana rehace la 104 de Berta e intenta marcar TODOS los ítems (también los heredados, por
+        // API: la pantalla no lo deja) y Sofía la aprueba. Ana E+1, A+1; los heredados siguen a nombre
+        // de Berta (docs/creditos-rework.md: solo lectura, el backend lo exige desde el 07/10/2026),
+        // así que Ana suma solo los dos que Sofía había desmarcado. Berta: pegajoso, la 104 sigue en
+        // su esperado y como R.
+        $pendientes = $this->itemsObligatorios('104', 2);
         $this->limpiarEnFecha('104', $this->ana, date('Y-m-d'));
         (new AuditoriaService())->emitirVeredicto($this->hab['104'], $this->sofia, Auditoria::VEREDICTO_APROBADO);
 
         $a = $this->filaDe('Ana');
         $this->assertSame(4, $a['esperado_hab']);
         $this->assertSame(3, $a['habitaciones']);
-        $this->assertSame(3 * $this->n, $a['creditos']);
+        $this->assertSame(2 * $this->n + $pendientes['creditos'], $a['creditos'], 'los heredados no se los lleva');
 
         $b = $this->filaDe('Berta');
         $this->assertSame(2, $b['esperado_hab']);
         $this->assertSame(1, $b['rechazadas_hab']);
-        $this->assertSame($this->n, $b['creditos'], 'solo la 103');
+        $this->assertSame($this->n + ($this->n - $pendientes['creditos']), $b['creditos'], 'la 103 y sus ítems heredados de la 104');
     }
 
     public function testAprobadaConObservacionNoChocaConLaRecuperacionGradual(): void

@@ -38,6 +38,8 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 2. "Ver detalle" → abre log.
 **Resolución automática:** cuando el sync manual o el próximo cron tenga éxito.
 
+**Implementación (07/10/2026):** una sola alerta activa (dedupe `cloudbeds_sync`) cuyo texto se actualiza con la última falla. Se levanta con cualquier sync entrante que tenga errores, también los `parcial` (un hotel falla y el otro actualiza piezas), y nombra el hotel. Se resuelve sola con el siguiente sync **de todos los hoteles** sin errores. «Reintentar ahora» llama a `POST /api/cloudbeds/sync` (permiso `cloudbeds.forzar_sincronizacion`; sin él no se muestra el botón); ya no borra la alerta.
+
 ### 3.2 P1 — `trabajador_en_riesgo`
 
 **Disparador:** el algoritmo predictivo (§4) estima que un trabajador no alcanzará a terminar su turno.
@@ -47,7 +49,7 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 **Botones:**
 1. "Ver carga" → abre vista de trabajador.
 2. "Reasignar" → abre modal para mover habitaciones a otro.
-**Resolución automática:** cuando el recálculo determina que ya no está en riesgo (terminó habitaciones, se reasignó, etc.).
+**Resolución automática:** cuando el recálculo determina que ya no está en riesgo (terminó habitaciones, se reasignó, etc.). También cuando su turno ya terminó (sale de los cálculos, ver [turnos.md](turnos.md) §5.2), cuando ya no tiene turno hoy, y las de días anteriores en el primer recálculo del día siguiente.
 
 ### 3.3 P1 — `habitacion_rechazada`
 
@@ -79,7 +81,8 @@ El sistema **predice** problemas antes de que ocurran (trabajador no alcanza a t
 **Descripción:** "Terminó su cola y puede recibir más habitaciones."
 **Botones:**
 1. "Asignar habitaciones" → abre bandeja.
-**Resolución automática:** cuando se le asigna al menos 1 habitación más.
+**Resolución automática:** cuando se le asigna al menos 1 habitación más (cualquier asignación de ese día, vía `AsignacionService::asignarManual`), o al día siguiente.
+**Dedupe:** `disponible:{usuario_id}:fecha:{fecha}`. Implementada el 07/10/2026: antes el aviso solo quedaba en `notificaciones_disponibilidad` y no le llegaba a nadie.
 
 ### 3.6 P2 — `ticket_nuevo`
 
@@ -185,6 +188,8 @@ Supervisora cuenta todas.
 - INSERT en `alertas_activas`.
 - INSERT en `bitacora_alertas` con `levantada_at=now`, `resuelta_at=NULL`.
 
+Si ya existe una alerta activa con el mismo tipo + dedupe, no se crea otra: se le actualizan título, descripción y contexto con los datos del momento.
+
 ### 6.2 Al resolver
 
 - DELETE de `alertas_activas`.
@@ -194,7 +199,7 @@ Supervisora cuenta todas.
 
 - `auto` — la condición desapareció (recálculo lo determina).
 - `accion_usuario` — botón presionado (reasignar, asignar, ver ticket).
-- `descartada` — (NO se usa en MVP — las alertas no tienen botón descartar; se resuelven solas o con acción).
+- `descartada` — (NO se usa en MVP — las alertas no tienen botón descartar; se resuelven solas o con acción). `POST /api/alertas/{id}/accion` rechaza `descartar` con 400 `ACCION_NO_PERMITIDA`. `habitacion_saltada` se resuelve al terminar la pieza **o al aprobarla por cualquier camino** (Cloudbeds, «sin aseo»).
 
 ---
 

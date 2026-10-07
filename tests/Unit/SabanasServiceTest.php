@@ -62,6 +62,13 @@ final class SabanasServiceTest extends TestCase
         $this->assertFalse($this->svc->tocaCambioSabanas('stayover', '2026-07-06', 3, '2026-07-10')); // 4
     }
 
+    /** America/Santiago adelanta la hora en septiembre: ese día dura 23 h y antes restaba una noche. */
+    public function testElCambioDeHorarioNoRestaUnaNoche(): void
+    {
+        $this->assertSame(9, $this->svc->nochesEstadia('2026-09-01', '2026-09-10'));
+        $this->assertSame(9, $this->svc->nochesEstadia('2026-03-30', '2026-04-08'), 'ni en abril');
+    }
+
     public function testNochesEstadia(): void
     {
         $this->assertSame(4, $this->svc->nochesEstadia('2026-07-06', '2026-07-10'));

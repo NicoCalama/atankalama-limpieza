@@ -127,7 +127,7 @@ if ($hora < 12) {
                     <i data-lucide="coffee" class="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500"></i>
                     <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No tienes habitaciones asignadas todavía</h2>
                     <p class="text-base text-gray-600 dark:text-gray-400 max-w-xs mx-auto mb-6">Espera a que tu supervisora te asigne, o avísale que estás disponible.</p>
-                    <button @click="avisarDisponibilidad()" data-tour="htr.disponible"
+                    <button x-show="data.puede_avisar_disponibilidad" @click="avisarDisponibilidad()" data-tour="htr.disponible"
                             :disabled="data.aviso_disponibilidad_enviado_hoy || enviandoAviso"
                             class="min-h-[44px] px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100
                                    border border-gray-300 dark:border-gray-600 rounded-lg font-medium transition

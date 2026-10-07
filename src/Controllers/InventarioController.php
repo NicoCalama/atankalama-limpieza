@@ -56,6 +56,16 @@ final class InventarioController
         } catch (\Throwable $e) {
             return Response::error('IMPORT_FALLIDO', 'No pudimos actualizar el inventario. Intenta de nuevo en un momento.', 502);
         }
+        // importarHotel() no lanza si Cloudbeds falla: lo deja en 'error'. Antes se respondía
+        // «Inventario actualizado» y se cerraba la alerta sin haber aplicado nada.
+        $conError = array_filter($resultado['hoteles'], static fn(array $h): bool => ($h['error'] ?? null) !== null);
+        if ($conError !== []) {
+            return Response::error(
+                'IMPORT_FALLIDO',
+                'No pudimos leer el inventario de Cloudbeds de ' . implode(', ', array_column($conError, 'nombre')) . '. Intenta de nuevo en un momento.',
+                502
+            );
+        }
 
         if ($alertaId !== null) {
             $this->alertas->resolver($alertaId, BitacoraAlerta::RESOLUCION_ACCION_USUARIO, $request->usuario->id, 'aceptar');

@@ -75,6 +75,72 @@ final class RbacService
         return $ids;
     }
 
+    /** Mensajes del 403 anti-escalada (ver puedeOtorgarRol / puedeGestionarUsuario). */
+    public const MSG_ROL_SUPERIOR = 'No puedes asignar un rol con permisos de gestión de cuentas que tú no tienes.';
+    public const MSG_USUARIO_SUPERIOR = 'No puedes modificar a un usuario con permisos de gestión de cuentas que tú no tienes.';
+
+    /**
+     * Categorías del catálogo que dan control sobre cuentas y roles: las que la guardia
+     * anti-escalada compara. Solo estas, no todo el catálogo: si no, quien tuviera usuarios.crear
+     * tampoco podría crear trabajadoras (el rol Trabajador trae permisos de terreno que una
+     * supervisora no tiene), y eso no es escalar privilegios.
+     */
+    private const CATEGORIAS_GESTION = ['Usuarios', 'Roles'];
+
+    /**
+     * ¿$actorId puede dar el rol $rolId? Solo si ya tiene todos los permisos de gestión de cuentas
+     * que el rol trae. Sin esto, quien podía editar usuarios se asignaba el rol Admin a sí mismo
+     * (o creaba una cuenta Admin y recibía su contraseña temporal). RBAC dinámico: se comparan
+     * permisos, nunca nombres de rol.
+     */
+    public function puedeOtorgarRol(int $actorId, int $rolId): bool
+    {
+        $params = [$rolId];
+        $delRol = array_column(Database::fetchAll(
+            'SELECT rp.permiso_codigo
+               FROM #__rol_permisos rp
+               JOIN #__permisos p ON p.codigo = rp.permiso_codigo
+              WHERE rp.rol_id = ? AND ' . self::condicionGestion($params),
+            $params
+        ), 'permiso_codigo');
+        return array_diff($delRol, $this->permisosDeGestion($actorId)) === [];
+    }
+
+    /**
+     * ¿$actorId puede modificar a $objetivoId (editar datos o email, resetear su contraseña,
+     * quitarle roles, activarlo/desactivarlo, eliminarlo)? Solo si el objetivo no tiene permisos de
+     * gestión de cuentas que el actor no tenga: cambiarle el email a un Admin y pedir «recuperar
+     * contraseña» era otra forma de quedarse con su cuenta. Sobre sí mismo siempre puede.
+     */
+    public function puedeGestionarUsuario(int $actorId, int $objetivoId): bool
+    {
+        if ($actorId === $objetivoId) {
+            return true;
+        }
+        return array_diff($this->permisosDeGestion($objetivoId), $this->permisosDeGestion($actorId)) === [];
+    }
+
+    /** @return list<string> permisos de gestión de cuentas que el usuario tiene por sus roles */
+    private function permisosDeGestion(int $usuarioId): array
+    {
+        $params = [$usuarioId];
+        return array_column(Database::fetchAll(
+            'SELECT DISTINCT rp.permiso_codigo
+               FROM #__usuarios_roles ur
+               JOIN #__rol_permisos rp ON rp.rol_id = ur.rol_id
+               JOIN #__permisos p ON p.codigo = rp.permiso_codigo
+              WHERE ur.usuario_id = ? AND ' . self::condicionGestion($params),
+            $params
+        ), 'permiso_codigo');
+    }
+
+    /** @param list<mixed> $params se le agregan las categorías, en el orden de los «?» */
+    private static function condicionGestion(array &$params): string
+    {
+        array_push($params, ...self::CATEGORIAS_GESTION);
+        return 'p.categoria IN (' . implode(',', array_fill(0, count(self::CATEGORIAS_GESTION), '?')) . ')';
+    }
+
     public function contarAdminsActivos(): int
     {
         return (int) Database::fetchColumn(
@@ -257,6 +323,9 @@ final class RbacService
         if (Database::fetchOne('SELECT id FROM #__roles WHERE id = ?', [$rolId]) === null) {
             throw new RbacException('ROL_NO_ENCONTRADO', 'Rol no encontrado.', 404);
         }
+        if (!$this->puedeOtorgarRol($adminId, $rolId)) {
+            throw new RbacException('PRIVILEGIOS_INSUFICIENTES', self::MSG_ROL_SUPERIOR, 403);
+        }
         Database::execute(
             'INSERT OR IGNORE INTO #__usuarios_roles (usuario_id, rol_id) VALUES (?, ?)',
             [$usuarioId, $rolId]
@@ -266,6 +335,9 @@ final class RbacService
 
     public function quitarRolAUsuario(int $usuarioId, int $rolId, int $adminId): void
     {
+        if (!$this->puedeGestionarUsuario($adminId, $usuarioId)) {
+            throw new RbacException('PRIVILEGIOS_INSUFICIENTES', self::MSG_USUARIO_SUPERIOR, 403);
+        }
         // Guard anti-bloqueo: si este rol le daba la capacidad admin al último admin activo,
         // quitarlo dejaría al sistema sin administrador → 409.
         $this->conGuardiaDeAdmin(

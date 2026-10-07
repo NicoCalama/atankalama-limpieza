@@ -168,6 +168,9 @@ final class UsuariosController
         $esPropio = $id === $request->usuario->id;
         $puedeVerOtros = $request->usuario->tienePermiso('usuarios.editar');
 
+        if ($esPropio && !$request->usuario->tienePermiso('usuarios.exportar_datos_propios')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para exportar tus datos.', 403);
+        }
         if (!$esPropio && !$puedeVerOtros) {
             return Response::error(
                 'SIN_PERMISO',

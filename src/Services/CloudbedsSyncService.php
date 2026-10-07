@@ -264,8 +264,20 @@ final class CloudbedsSyncService
         $resultado = $errores === 0 ? 'exito' : ($actualizadas > 0 ? 'parcial' : 'error');
         $this->cerrarHistorial($syncId, $resultado, $actualizadas, $errores, $detalle);
 
-        if ($resultado === 'error') {
-            $this->crearAlertaP0('cloudbeds_sync_failed', 'Sincronización Cloudbeds falló', 'Revisar credenciales y logs.');
+        // P0 también con 'parcial': un hotel que falla mientras el otro actualiza piezas dejaba de
+        // sincronizar horas sin que nadie se enterara. Un sync completo la resuelve sola
+        // (docs/alertas-predictivas.md §3.1).
+        if ($errores > 0) {
+            $hotelesConError = implode(', ', array_unique(array_column($detalle, 'hotel')));
+            $this->crearAlertaP0(
+                'cloudbeds_sync_failed',
+                'Sincronización Cloudbeds falló',
+                ($hotelesConError !== '' ? "Hotel: {$hotelesConError}. " : '') . 'Revisar credenciales y logs.'
+            );
+        } elseif ($hotelIdFiltro === null) {
+            // Solo un sync de todos los hoteles la resuelve: uno filtrado a un hotel no dice nada
+            // del otro, que puede ser el que falló.
+            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_CLOUDBEDS_SYNC_FAILED, 'cloudbeds_sync');
         }
 
         return $syncId;

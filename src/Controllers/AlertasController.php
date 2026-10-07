@@ -38,6 +38,8 @@ final class AlertasController
         ]);
     }
 
+    private const ACCIONES_QUE_NO_RESUELVEN = ['descartar', 'cloudbeds_retry'];
+
     public function ejecutarAccion(Request $request): Response
     {
         if ($request->usuario === null) {
@@ -50,6 +52,17 @@ final class AlertasController
         $accion = $request->inputString('accion', '');
         if ($accion === '') {
             return Response::error('ACCION_REQUERIDA', 'accion es requerida.', 400);
+        }
+        // Las alertas no se descartan (docs/home-supervisora.md): se resuelven solas cuando la
+        // condición desaparece, o con su acción. «Reintentar» de la P0 de Cloudbeds tampoco pasa
+        // por acá: dispara un sync real (POST /api/cloudbeds/sync) y la alerta se cierra si
+        // funciona. Antes ambas solo borraban la alerta.
+        if (in_array($accion, self::ACCIONES_QUE_NO_RESUELVEN, true)) {
+            return Response::error(
+                'ACCION_NO_PERMITIDA',
+                'Esta alerta se cierra sola cuando se resuelve el problema.',
+                400
+            );
         }
 
         try {
@@ -89,6 +102,20 @@ final class AlertasController
         $payload = $request->input('config');
         if (!is_array($payload) || $payload === []) {
             return Response::error('PAYLOAD_INVALIDO', 'config debe ser objeto no vacío.', 400);
+        }
+        // Lista blanca: solo las claves de Ajustes → Alertas (alertas_config puede guardar datos de
+        // otros módulos, que tienen su propia pantalla y su propio permiso).
+        foreach ($payload as $clave => $valor) {
+            if (!array_key_exists((string) $clave, AlertasService::CONFIG_DEFAULTS)) {
+                return Response::error('CLAVE_INVALIDA', "No se puede cambiar «{$clave}» desde Ajustes → Alertas.", 400);
+            }
+            // Todos los umbrales son enteros no negativos (minutos, σ, %, piezas). Un margen de
+            // «-15» o un tiempo de 0 min por pieza rompían el algoritmo predictivo en silencio.
+            $texto = trim((string) (is_scalar($valor) ? $valor : ''));
+            $minimo = in_array($clave, ['tiempo_fallback_nueva_habitacion', 'recalculo_intervalo_minutos'], true) ? 1 : 0;
+            if (!ctype_digit($texto) || (int) $texto < $minimo || (int) $texto > 1000) {
+                return Response::error('VALOR_INVALIDO', "«{$clave}» debe ser un número entero entre {$minimo} y 1000.", 400);
+            }
         }
         Database::transaction(function () use ($payload, $request): void {
             foreach ($payload as $clave => $valor) {

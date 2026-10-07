@@ -86,12 +86,12 @@ Ver [roles-permisos.md](roles-permisos.md), [ajustes.md](ajustes.md) §3.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/roles` | `roles.ver` | Lista con sus permisos |
+| GET | `/api/roles` | `roles.ver` **o** `permisos.asignar_a_rol` **o** `usuarios.asignar_rol` **o** `usuarios.crear` | Lista con sus permisos (los dos últimos la necesitan para elegir el rol de un usuario) |
 | POST | `/api/roles` | `roles.crear` | Crear rol |
 | PUT | `/api/roles/{id}` | `roles.editar` | Renombrar / descripción |
 | DELETE | `/api/roles/{id}` | `roles.eliminar` | Eliminar (si sin usuarios) |
 | PUT | `/api/roles/{id}/permisos/{codigo}` | `permisos.asignar_a_rol` | Asignar/desasignar |
-| GET | `/api/permisos` | `roles.ver` | Catálogo completo |
+| GET | `/api/permisos` | `roles.ver` **o** `permisos.asignar_a_rol` | Catálogo completo |
 
 ---
 

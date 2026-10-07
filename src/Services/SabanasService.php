@@ -68,8 +68,11 @@ final class SabanasService
 
     private function diasEntre(string $desde, string $hasta): int
     {
-        $d1 = strtotime($desde . ' 00:00:00');
-        $d2 = strtotime($hasta . ' 00:00:00');
+        // En UTC: en America/Santiago el día del cambio de horario de septiembre dura 23 h, y
+        // con la hora local toda estadía que lo cruzaba contaba una noche menos (el aviso salía
+        // un día tarde durante toda la estadía).
+        $d1 = strtotime($desde . ' 00:00:00 UTC');
+        $d2 = strtotime($hasta . ' 00:00:00 UTC');
         if ($d1 === false || $d2 === false) {
             return 0;
         }

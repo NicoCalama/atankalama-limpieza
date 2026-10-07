@@ -157,6 +157,7 @@ final class InventarioImportService
         }
 
         $roomIdsVistos = [];
+        $idsVinculados = [];
         $acciones = [];
 
         foreach ($rooms as $room) {
@@ -219,6 +220,7 @@ final class InventarioImportService
             // No existe por room_id: ¿hay una pieza legada con ese numero pero sin room_id?
             if (isset($actualesPorNumero[$numero])) {
                 $fila = $actualesPorNumero[$numero];
+                $idsVinculados[(int) $fila['id']] = true;
                 $acciones[] = [
                     'tipo' => 'update',
                     'id' => (int) $fila['id'],
@@ -253,8 +255,11 @@ final class InventarioImportService
         }
 
         // Desactivar piezas cuyo room_id ya no viene de Cloudbeds (nunca borrar).
+        // Salvo las recién vinculadas a un roomID nuevo: si Cloudbeds cambió el roomID de la 101
+        // (p. ej. al moverla de tipo), la misma fila se vinculaba al nuevo Y se desactivaba por el
+        // viejo, y la pieza desaparecía de la app.
         foreach ($actualesPorRoomId as $roomId => $fila) {
-            if (!isset($roomIdsVistos[$roomId]) && (int) $fila['activa'] === 1) {
+            if (!isset($roomIdsVistos[$roomId]) && (int) $fila['activa'] === 1 && !isset($idsVinculados[(int) $fila['id']])) {
                 $acciones[] = ['tipo' => 'desactivar', 'id' => (int) $fila['id']];
                 $res['cambios'][] = ['accion' => 'desactivar', 'numero' => (string) $fila['numero'], 'room_id' => (string) $roomId];
                 $res['desactivadas']++;

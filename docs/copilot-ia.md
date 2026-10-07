@@ -44,7 +44,9 @@ Las capacidades del copilot para cada usuario se derivan **dinámicamente** de s
 
 **Flag global `COPILOT_HABILITADO`** (default `false`): oculta el FAB en TODA la UI,
 independientemente del permiso. Permite trabajar y capacitar al equipo en la app sin el
-copilot hasta conectar Claude API. El backend (endpoints) sigue gateado por permiso. Se
+copilot hasta conectar Claude API. Desde el 07/10/2026 el backend también lo respeta:
+`POST /api/copilot/mensaje` responde `503 COPILOT_DESHABILITADO` con el flag apagado (antes bastaba
+llamarlo directo con el permiso de nivel 1). Con el flag prendido sigue gateado por permiso. Se
 reactiva poniendo `COPILOT_HABILITADO=true` en el `.env` (la condición real en
 `views/layout.php` es `COPILOT_HABILITADO=true` **y** el permiso del usuario).
 
