@@ -111,7 +111,7 @@ final class RolApoyoTest extends TestCase
         $this->assertSame($creditosAna, $equipo['creditos']['valor'], 'los créditos del equipo son solo los de Ana');
         $this->assertSame(0.0, $equipo['tasa_rechazo']['valor'], 'el rechazo de Pedro no ensucia el del equipo');
         $this->assertSame('0 de 1 inspeccionadas', $equipo['tasa_rechazo']['contexto']);
-        $this->assertSame('1 hab · 1 trabaj. · 1 día(s)', $equipo['productividad']['contexto']);
+        $this->assertSame('1 hab · 1 trabaj. · 1 día(s) · 1 jornada(s)', $equipo['productividad']['contexto']);
 
         // Pedirle a Reportes los KPIs de Pedro no inventa números.
         $suyos = $this->rep->kpis($this->hoy, $this->hoy, 'ambos', $this->pedro);

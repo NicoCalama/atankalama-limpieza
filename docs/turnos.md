@@ -99,6 +99,8 @@ MVP soporta turnos que cruzan medianoche (ej: 22:00-06:00) solo si se modela com
 
 **Para atankalama MVP:** los dos turnos están dentro de un mismo día, no hay overnight shifts.
 
+**Import de turnos (CSV de Breik y calendario .xlsx), 07/10/2026:** las filas con un turno que termina antes de empezar o cruza la medianoche se **rechazan** (no se crea el turno), igual que la creación manual. La fecha del archivo se normaliza a `YYYY-MM-DD` (acepta `DD/MM/AAAA`, `DD-MM-AAAA` y el número de serie de Excel); una fecha u hora que no se entiende también rechaza la fila. El preview las lista con su motivo en «Filas con problemas, se omiten». Soportar turnos nocturnos de verdad queda para cuando exista el caso (decisión de Nicolás).
+
 ---
 
 ## 6. Endpoints

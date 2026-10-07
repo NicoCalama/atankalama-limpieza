@@ -659,6 +659,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         cola: [],
         errorPermanente: false,
         _procesandoCola: false,
+        _reintentoProgramado: false,
+        _reintentoMs: 5000,
 
         // 'rechazada' NO es un estado cerrado: el mismo trabajador puede reabrirla y
         // volver a cerrarla (iniciarEjecucion() la acepta igual que 'sucia'). Solo
@@ -825,6 +827,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
 
                 // Cargar cola offline
                 this.cargarColaLocal();
+                this.aplicarColaAItems();
                 if (this.cola.length > 0 && !this.sinConexion) {
                     this.procesarCola();
                 }
@@ -1008,7 +1011,6 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         toggleItem(item, nuevoValor) {
             if (!this.puedeEditar || this.esHeredado(item)) return;
             // Optimistic update
-            var previo = item.marcado == 1;
             item.marcado = nuevoValor ? 1 : 0;
             item._error = null;
 
@@ -1024,16 +1026,22 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             item._guardando = true;
             this.enviarMarca(item.id, nuevoValor).then((exito) => {
                 item._guardando = false;
-                if (!exito) {
-                    // Rollback
-                    item.marcado = previo ? 1 : 0;
-                    item._error = 'No se guardó';
-                    this.recalcularProgresoLocal();
+                if (exito === true) {
+                    // Un valor viejo de este ítem que esperaba en la cola ya no sirve: si se
+                    // reenviaba después, pisaba este en el servidor.
+                    this.quitarDeCola(item.id);
+                } else {
+                    // Queda como la trabajadora lo dejó y se reintenta solo. Antes se revertía en
+                    // pantalla pero se encolaba el valor nuevo: lo que se veía no era lo que iba a
+                    // quedar guardado, y la cola no se reintentaba hasta recargar.
+                    item._error = 'Pendiente de guardar';
                     this.encolarMarca(item.id, nuevoValor);
+                    this.programarReintento();
                 }
             });
         },
 
+        // true = guardado · false = el servidor lo rechazó · null = sin respuesta (red).
         async enviarMarca(itemId, marcado) {
             try {
                 var json = await apiPut(
@@ -1046,7 +1054,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 }
                 return false;
             } catch (e) {
-                return false;
+                return null;
             }
         },
 
@@ -1071,6 +1079,42 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         },
 
         // --- Cola offline ---
+
+        quitarDeCola(itemId) {
+            var antes = this.cola.length;
+            this.cola = this.cola.filter(function (c) { return !(c.tipo !== 'completar' && c.item_id === itemId); });
+            if (this.cola.length !== antes) this.guardarColaLocal();
+        },
+
+        // Reintento automático de la cola mientras haya conexión (antes solo la disparaban el
+        // evento 'online' o recargar la ficha).
+        // Espera creciente (5 s, 10 s, 20 s… hasta 1 min) para no martillar con mala señal.
+        programarReintento() {
+            if (this._reintentoProgramado) return;
+            this._reintentoProgramado = true;
+            var self = this;
+            var espera = this._reintentoMs;
+            this._reintentoMs = Math.min(this._reintentoMs * 2, 60000);
+            setTimeout(function () {
+                self._reintentoProgramado = false;
+                if (!self.sinConexion) self.procesarCola();
+            }, espera);
+        },
+
+        // Al reabrir la ficha, lo que quedó en la cola es lo último que hizo la trabajadora:
+        // se muestra así (docs/checklist.md §3.4), aunque el servidor todavía no lo tenga.
+        aplicarColaAItems() {
+            var self = this;
+            this.cola.forEach(function (c) {
+                if (c.tipo === 'completar') return;
+                var item = self.items.find(function (it) { return it.id === c.item_id; });
+                if (item) {
+                    item.marcado = c.marcado ? 1 : 0;
+                    item._error = 'Pendiente de guardar';
+                }
+            });
+            if (this.cola.length > 0) this.recalcularProgresoLocal();
+        },
 
         cargarColaLocal() {
             if (!this.colaKey) return;
@@ -1111,12 +1155,13 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             this.guardarColaLocal();
         },
 
+        // Igual que enviarMarca: null = sin respuesta (red), no gasta intentos.
         async enviarCompletar() {
             try {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
                 return !!(json && json.ok);
             } catch (e) {
-                return false;
+                return null;
             }
         },
 
@@ -1128,12 +1173,21 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             var pendientes = this.cola.slice();
             for (var i = 0; i < pendientes.length; i++) {
                 var entrada = pendientes[i];
+                // Si mientras tanto un toque directo ya la guardó (y la quitó de la cola), no se
+                // reenvía: era un valor viejo.
+                if (!this.cola.some(function (c) { return c.timestamp_local === entrada.timestamp_local; })) continue;
                 var tipo = entrada.tipo || 'item';
-                var exito = tipo === 'completar'
+                var resultado = tipo === 'completar'
                     ? await this.enviarCompletar()
                     : await this.enviarMarca(entrada.item_id, entrada.marcado);
+                var exito = resultado === true;
 
+                if (resultado === null) {
+                    // Sin respuesta (red): queda en la cola sin gastar intentos; se reintenta solo.
+                    continue;
+                }
                 if (exito) {
+                    this._reintentoMs = 5000;
                     // Quitar de la cola real
                     this.cola = this.cola.filter(function (c) { return c.timestamp_local !== entrada.timestamp_local; });
                     this.guardarColaLocal();
@@ -1141,6 +1195,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                         // Recién confirmada por el servidor: ahora sí se navega.
                         window.location.href = u('/home');
                         return;
+                    }
+                    var itemOk = this.items.find(function (it) { return it.id === entrada.item_id; });
+                    if (itemOk) {
+                        itemOk.marcado = entrada.marcado ? 1 : 0;
+                        itemOk._error = null;
                     }
                 } else {
                     // Incrementar intentos
@@ -1158,6 +1217,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 }
             }
             this._procesandoCola = false;
+            // Lo que falló (o lo que se encoló mientras tanto) se vuelve a intentar solo.
+            if (this.cola.length > 0) this.programarReintento();
         },
 
         iniciarListeners() {

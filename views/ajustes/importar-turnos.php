@@ -199,15 +199,37 @@
                                 <div class="flex items-center justify-between px-4 py-2.5">
                                     <div>
                                         <p class="text-sm text-blue-800 dark:text-blue-200" x-text="t.nombre"></p>
-                                        <template x-if="t.cruza_medianoche">
-                                            <span class="text-xs text-blue-600 dark:text-blue-400">↪ Cruza medianoche</span>
-                                        </template>
                                     </div>
                                     <span class="text-xs font-mono text-blue-700 dark:text-blue-300"
                                           x-text="t.hora_inicio + ' → ' + t.hora_fin"></span>
                                 </div>
                             </template>
                         </div>
+                    </div>
+                </template>
+
+                <!-- Filas que no se importan: fecha u hora que no se entiende, o turno que cruza la medianoche -->
+                <template x-if="preview.filas_rechazadas && preview.filas_rechazadas.length > 0">
+                    <div class="bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-700 overflow-hidden">
+                        <div class="px-4 py-3 border-b border-amber-200 dark:border-amber-700 flex items-center gap-2">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
+                            <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                Filas con problemas, se omiten
+                                <span class="ml-1 text-xs font-normal"
+                                      x-text="'(' + preview.filas_rechazadas.length + ')'"></span>
+                            </h3>
+                        </div>
+                        <div class="divide-y divide-amber-100 dark:divide-amber-800 max-h-48 overflow-y-auto">
+                            <template x-for="(f, i) in preview.filas_rechazadas" :key="i">
+                                <div class="px-4 py-2">
+                                    <p class="text-sm text-amber-800 dark:text-amber-200" x-text="f.nombre + ' — ' + f.fecha"></p>
+                                    <p class="text-xs text-amber-700 dark:text-amber-300" x-text="f.motivo"></p>
+                                </div>
+                            </template>
+                        </div>
+                        <p class="px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+                            Corrige esas filas en el archivo y vuelve a subirlo si necesitas importarlas.
+                        </p>
                     </div>
                 </template>
 

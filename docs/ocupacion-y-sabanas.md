@@ -95,6 +95,7 @@ toca_sabanas = (noches > 0) AND (noches % N == 0)      -- avisa los días N, 2N,
 ```
 
 - **N configurable por hotel** (`hoteles.sabanas_cada_n_dias`, default **4**, por Rodrigo).
+- Las noches se cuentan en días calendario (en UTC): con la hora de Chile, el día del cambio de horario de septiembre dura 23 h y toda estadía que lo cruzaba contaba una noche menos (corregido el 07/10/2026).
 - Es literal a "cada N días avisa". **No rastrea el cambio real** (arrival-based): no toca la
   obligatoriedad del checklist ni, por lo tanto, el conteo de créditos.
 - Solo aplica a `stayover`. En check-in/check-out/turnover el aseo ya trae sábanas frescas.

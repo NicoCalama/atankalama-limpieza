@@ -141,7 +141,7 @@ Respuesta:
 ```
 
 - Se hace `INSERT OR REPLACE` en `ejecuciones_items` (UNIQUE por `(ejecucion_id, item_id)`).
-- NO se espera respuesta para animar el check en UI (optimistic update). Si falla, se revierte.
+- NO se espera respuesta para animar el check en UI (optimistic update). Si falla, **no se revierte**: queda como la trabajadora lo dejó, con la marca «Pendiente de guardar», y entra a la cola (§3.3). Un toque que sí se guarda quita de la cola cualquier valor viejo de ese ítem.
 - Logging: cada tap va a `audit_log` con `accion='checklist.marcar_item'` (o `desmarcar`). Útil para detectar patrones anómalos.
 
 ### 3.3 Offline
@@ -149,9 +149,9 @@ Respuesta:
 Si `navigator.onLine === false` o el PUT falla por red:
 
 1. El check se guarda en **cola local** (`localStorage` key `checklist_queue_{ejecucion_id}`).
-2. Cuando vuelve conexión (evento `online` del browser), la cola se procesa en orden.
+2. Cuando vuelve conexión (evento `online` del browser), la cola se procesa en orden. Con conexión, además, se reintenta sola con espera creciente (5 s, 10 s, 20 s… hasta 1 min). Una entrada que ya no está en la cola (porque un toque directo la reemplazó) no se reenvía.
 3. Mientras haya items en cola: badge visual "Sincronizando X items..." en el top de la pantalla.
-4. Si un item falla definitivamente (ej. 500 repetido) tras 3 reintentos → mostrar banner rojo "Algunos cambios no se guardaron. Intenta más tarde o contacta soporte.".
+4. Si el servidor **rechaza** un item 3 veces (responde con error) → se descarta y se muestra el banner rojo "Algunos cambios no se guardaron. Intenta más tarde o contacta soporte.". Las fallas de **red** (sin respuesta) no gastan intentos: el cambio se queda en la cola hasta que se pueda guardar.
 
 Estructura de item en cola:
 ```json
@@ -165,7 +165,7 @@ Cuando el PUT se procesa con éxito, se elimina de la cola.
 Si el trabajador cierra la app y vuelve a entrar:
 - Su Home muestra la habitación como "Continuar" (no "Iniciar").
 - Al abrirla, GET `/api/ejecuciones/{id}` trae el estado actual de cada item.
-- Los items en la cola local tienen prioridad (optimismo local) hasta que el sync los confirme.
+- Los items en la cola local tienen prioridad (optimismo local) hasta que el sync los confirme: al abrir la ficha, la cola se aplica sobre los ítems y el progreso, y cada entrada que se sincroniza actualiza su ítem.
 
 ### 3.5 Botón "Habitación terminada"
 

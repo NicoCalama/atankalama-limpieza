@@ -788,28 +788,35 @@ final class ReportesService
             $params
         );
 
+        // Denominador = pares (trabajadora, día) que de verdad trabajaron. Antes era
+        // trabajadoras × días del equipo: con días libres rotativos el equipo tiene actividad
+        // los 30 días pero cada una trabaja ~22, y la productividad salía ~27 % más baja.
         $diasLocales   = [];
         $trabajadorIds = [];
+        $personaDias   = [];
         foreach ($filas as $f) {
-            $diasLocales[Fechas::fechaLocalDeUtc((string) $f['timestamp_inicio'])] = true;
+            $dia = Fechas::fechaLocalDeUtc((string) $f['timestamp_inicio']);
+            $diasLocales[$dia] = true;
             $trabajadorIds[(int) $f['usuario_id']] = true;
+            $personaDias[(int) $f['usuario_id'] . '|' . $dia] = true;
         }
 
         $trabajadoras = count($trabajadorIds);
         $dias         = count($diasLocales);
+        $jornadas     = count($personaDias);
         $completadas  = count($filas);
 
-        if ($trabajadoras === 0 || $dias === 0) {
+        if ($jornadas === 0) {
             return ['valor' => null, 'unidad' => 'hab/día', 'meta' => null, 'contexto' => '0 completadas', 'estado' => 'sin_datos'];
         }
 
-        $valor = round($completadas / ($trabajadoras * $dias), 1);
+        $valor = round($completadas / $jornadas, 1);
 
         return [
             'valor'    => $valor,
             'unidad'   => 'hab/día',
             'meta'     => null,
-            'contexto' => "{$completadas} hab · {$trabajadoras} trabaj. · {$dias} día(s)",
+            'contexto' => "{$completadas} hab · {$trabajadoras} trabaj. · {$dias} día(s) · {$jornadas} jornada(s)",
             'estado'   => 'informativo',
         ];
     }
@@ -822,11 +829,15 @@ final class ReportesService
         $u = $this->userCond($usuarioId, $params, 'ec');
         $x = ' AND ' . RbacService::sqlSinPermiso('ec.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $params);
 
+        // Denominador = ítems inspeccionados: los que quedaron marcados MÁS los que el auditor
+        // desmarcó (desmarcarPorAuditor deja marcado = 0, así que antes salían del total). Y solo
+        // inspecciones humanas: el cierre automático no revisó nada y diluía la tasa.
         $fila = Database::fetchOne(
-            "SELECT SUM(CASE WHEN ei.marcado = 1 THEN 1 ELSE 0 END)                AS marcados,
+            "SELECT SUM(CASE WHEN ei.marcado = 1 OR ei.desmarcado_por_auditor = 1 THEN 1 ELSE 0 END) AS marcados,
                     SUM(CASE WHEN ei.desmarcado_por_auditor = 1 THEN 1 ELSE 0 END) AS desmarcados
                FROM #__ejecuciones_items ei
                JOIN #__ejecuciones_checklist ec ON ec.id = ei.ejecucion_id
+               JOIN #__auditorias a ON a.ejecucion_id = ec.id AND a.veredicto IN " . self::VEREDICTOS_HUMANOS . "
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
@@ -1144,8 +1155,14 @@ final class ReportesService
         // Créditos = checklist obligatorio vigente: el de la ejecución si la hubo (exacto), si no
         // el que la app elegiría hoy (templateParaHabitacion).
         // asignaciones.fecha es DATE local: se compara contra desde/hasta sin pasar por UTC.
-        $pX = [$desde, $hasta];
-        $hX = $this->hotelCond($hotel, $pX);
+        // Solo hasta HOY (decisión de Nicolás, 07/10/2026): las asignaciones planificadas para días
+        // que todavía no llegan no son trabajo ni piezas asignadas; antes el resumen del mes en curso
+        // ya las sumaba (y cambiaba si se autocancelaban al llegar el día).
+        // Áreas comunes incluidas (hotelCondCreditos): cuentan para «días trabajados» (KPI 1.4);
+        // para Asignadas (E) se saltan más abajo.
+        $hastaE = min($hasta, date('Y-m-d'));
+        $pX = [$desde, $hastaE];
+        $hX = $this->hotelCondCreditos($hotel, $pX);
         $ejecucionesDe = []; // asignacion_id → sus ejecuciones
         foreach (Database::fetchAll(
             "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado,
@@ -1162,10 +1179,11 @@ final class ReportesService
         ) as $x) {
             $ejecucionesDe[(int) $x['asignacion_id']][] = $x;
         }
-        $pE = [$desde, $hasta];
-        $hE = $this->hotelCond($hotel, $pE);
+        $pE = [$desde, $hastaE];
+        $hE = $this->hotelCondCreditos($hotel, $pE);
         $esperado = Database::fetchAll(
             "SELECT asg.id, asg.usuario_id, u.nombre, asg.habitacion_id, asg.fecha, asg.franja, asg.activa,
+                    h.es_espacio_comun,
                     CASE WHEN EXISTS (SELECT 1 FROM #__revisiones_entrega rla WHERE rla.relimpieza_asignacion_id = asg.id)
                          THEN 1 ELSE 0 END AS es_relimpieza,
                     (SELECT COUNT(*) FROM #__asignaciones o
@@ -1209,6 +1227,10 @@ final class ReportesService
             }
             if ($trabajadas !== [] || $relimpio || (!$soloAtajo && (int) $f['activa'] === 1)) {
                 $diasTrabajados[$uid][(string) $f['fecha']] = (string) $f['nombre'];
+            }
+            // Las áreas comunes cuentan para el día trabajado, pero no son piezas asignadas (E).
+            if ((int) $f['es_espacio_comun'] === 1) {
+                continue;
             }
             if ($trabajadas === []) {
                 // La asignación que creó «Re-limpiar» (o una que solo tuvo esa re-limpieza) tampoco es

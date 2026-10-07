@@ -155,6 +155,34 @@ final class ReportesDiasTrabajadosTest extends TestCase
 
     // ─── Helpers ───────────────────────────────────────────────────────────
 
+    /** KPI 1.4: «aunque sea de una sola pieza (o área común)». Antes el filtro de piezas la sacaba. */
+    public function testUnAreaComunCuentaComoDiaTrabajadoPeroNoComoPiezaAsignada(): void
+    {
+        [$eli] = TestDatabase::crearUsuario('66666666-6', 'Eli', 'Trabajador');
+        $sur = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
+        Database::execute(
+            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado, es_espacio_comun) VALUES (?, 'Piscina', ?, 'sucia', 1)",
+            [$sur, $this->tipoId]
+        );
+        (new AsignacionService())->asignarManual(Database::lastInsertId(), $eli, $this->hoy);
+
+        $fila = $this->filaDe('Eli', $this->hoy, $this->hoy);
+        $this->assertSame(1, $fila['dias_trabajados']);
+        $this->assertSame(0, $fila['esperado_hab'], 'el área común no es una pieza asignada');
+    }
+
+    /** Decisión de Nicolás (07/10/2026): lo planificado para días que no llegan no cuenta. */
+    public function testLoPlanificadoParaDiasQueNoLleganNoCuenta(): void
+    {
+        $manana = date('Y-m-d', strtotime('+1 day'));
+        $antes = $this->filaDe('Ana', $this->hoy, $this->hoy);
+        (new AsignacionService())->asignarManual($this->hab['104'], (int) Database::fetchOne("SELECT id FROM usuarios WHERE nombre = 'Ana'")['id'], $manana);
+
+        $fila = $this->filaDe('Ana', $this->hoy, $manana);
+        $this->assertSame(1, $fila['dias_trabajados'], 'mañana todavía no se trabaja');
+        $this->assertSame($antes['esperado_hab'], $fila['esperado_hab'], 'ni suma piezas asignadas');
+    }
+
     private function limpiarCompleta(AsignacionService $asig, ChecklistService $chk, string $numero, int $usuario): void
     {
         $habId = $this->hab[$numero];
