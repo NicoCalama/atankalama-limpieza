@@ -1400,3 +1400,90 @@ pasada del cron con archivos a medio subir puede fallar (la siguiente corre bien
 
 **Vuelta atrás:** subir `build/limpieza-v617-vuelta-atras.zip` (los 47 archivos tal como están en `eb3f7d2`, la
 v6.17 desplegada).
+
+### 11.19 Release "tarjeta y cierre del día de las áreas comunes" → v6.17.3
+
+Pedido de jefatura (07/10/2026) y decisiones de Nicolás: la tarjeta de Áreas comunes pasa a ser la ficha de
+Habitaciones (franja de estado al pie con los textos y colores de las habitaciones, a quién está asignada hoy; sin
+asignación hoy, sin franja, salvo en progreso, por inspeccionar o rechazada), y la pasada de la noche del cierre de
+día (23:55) cierra también el día de las áreas: la que quedó en progreso sigue mañana primera en la cola de la misma
+persona, y de esa y de las rechazadas que nadie volvió a pedir se avisa por campanita a quienes tienen
+`espacios.pedir_limpieza`. Detalle en `docs/areas-comunes.md` («Tarjeta y cierre del día»).
+
+**Orden:** va encima de la v6.17.2 (rama `v6.17.3-areas-comunes`, desde `v6.17.2-rescate`; no lleva la v7).
+
+**Sin SQL de esquema, sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`).
+**Sin cambios en los cron:** el cierre de las áreas va dentro de `aprobar-pendientes-cierre-dia.php`, que ya corre a
+las 23:55 (y a las 15:50, pasada que no toca las áreas: el script mira la hora).
+
+**ANTES de subir** (consultas de solo lectura en phpMyAdmin, con `cat6852_australia` elegida):
+
+A) Quiénes van a recibir los avisos (vacío = nadie; darle `espacios.pedir_limpieza` a su rol si falta alguien):
+
+```sql
+SELECT u.nombre, GROUP_CONCAT(DISTINCT r.nombre ORDER BY r.nombre SEPARATOR ', ') AS roles
+  FROM limpieza_usuarios u
+  JOIN limpieza_usuarios_roles ur ON ur.usuario_id = u.id
+  JOIN limpieza_roles r ON r.id = ur.rol_id
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id AND rp.permiso_codigo = 'espacios.pedir_limpieza'
+ WHERE u.activo = 1 AND u.rut <> 'SISTEMA-CRON'
+ GROUP BY u.id, u.nombre
+ ORDER BY u.nombre;
+```
+
+B) Áreas que hoy están en progreso o rechazadas, con su última asignación:
+
+```sql
+SELECT h.numero, ho.nombre AS hotel, h.estado, a.fecha, u.nombre AS asignada_a, a.activa
+  FROM limpieza_habitaciones h
+  JOIN limpieza_hoteles ho ON ho.id = h.hotel_id
+  LEFT JOIN limpieza_asignaciones a
+         ON a.id = (SELECT MAX(a2.id) FROM limpieza_asignaciones a2 WHERE a2.habitacion_id = h.id)
+  LEFT JOIN limpieza_usuarios u ON u.id = a.usuario_id
+ WHERE h.es_espacio_comun = 1 AND h.activa = 1 AND h.estado IN ('en_progreso', 'rechazada')
+ ORDER BY h.estado, ho.nombre, h.numero;
+```
+
+Las `rechazada` salen en el aviso de la primera noche. Una `en_progreso` con `fecha` de hoy pasa a la cola de mañana
+esa noche; con una `fecha` anterior **no** se arrastra (quedó colgada de antes): va a mostrar EN PROGRESO sin nadie
+asignado hasta que alguien pida su limpieza, así que conviene decidir cada una antes (pedirla de nuevo o dejarla).
+
+**ZIP** `build/limpieza-v6173-delta.zip` (estructura `limpieza/…`), todo a `app_core/`: lista =
+`git diff --name-only 5c67afc HEAD` menos `docs/` y `tests/` (**7 archivos**, todos modificados, ninguno nuevo:
+`CHANGELOG.md`, `scripts/aprobar-pendientes-cierre-dia.php`, `src/Services/AsignacionService.php`,
+`src/Services/CierreDiaService.php`, `src/Services/EspacioService.php`, `src/Support/Tours.php` y
+`views/espacios.php`).
+
+**Precheck** (como en la v6.17.2): bajar de prod esos 7 archivos a `build/prod-antes-v6173/` y compararlos contra
+`5c67afc` normalizando `\r`; con eso, armar `build/limpieza-v6172-vuelta-atras.zip` (los 7 tal como están en
+`5c67afc`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (el script del cierre de día está en el ZIP).
+
+**Smoke:**
+- badge **v6.17.3** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- Áreas comunes: un área sin pedir no tiene franja; al pedirla para hoy aparece PENDIENTE y el nombre de la persona;
+  el encabezado sigue diciendo el hotel elegido; la vista de tabla muestra «Asignada hoy».
+
+**Verificación a la mañana siguiente** (la primera noche con la versión):
+
+```sql
+SELECT n.created_at, u.nombre, n.titulo, n.cuerpo
+  FROM limpieza_notificaciones n
+  JOIN limpieza_usuarios u ON u.id = n.usuario_id
+ WHERE n.tipo IN ('areas_en_progreso_cierre', 'areas_rechazadas_sin_resolver')
+ ORDER BY n.id DESC
+ LIMIT 20;
+
+SELECT created_at, entidad_id AS asignacion_id, detalles_json
+  FROM limpieza_audit_log
+ WHERE accion = 'asignacion.arrastrada_cierre_dia'
+ ORDER BY id DESC
+ LIMIT 20;
+```
+
+Vacías está bien si esa noche no quedó ningún área en progreso ni rechazada (comparar con la consulta B del día
+anterior). Las horas de `created_at` están en UTC.
+
+**Vuelta atrás:** subir `build/limpieza-v6172-vuelta-atras.zip`. Las asignaciones que el cierre ya pasó al día
+siguiente quedan así (son de una limpieza en curso que sigue en la cola de la misma persona).

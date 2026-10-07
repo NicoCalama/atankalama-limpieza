@@ -63,7 +63,8 @@ aprobada (auto-cierre, sin auditoría)        ← vuelve a idle; listo para el p
 ```
 
 - **Reusa el estado `aprobada`** como terminal "listo/idle" — no se agrega un estado nuevo. En la UI
-  de espacios se rotula como "Listo", no como "Aprobada".
+  de espacios se rotulaba como "Listo", no como "Aprobada" (desde la v6.17.3 la tarjeta usa los textos
+  de las habitaciones; ver «Tarjeta y cierre del día»).
 - La transición `en_progreso → aprobada` se agrega a la matriz de `EstadoHabitacionService`
   **solo la ejercita el auto-cierre de espacios** (`ChecklistService::completar` bifurca por
   `es_espacio_comun`; las piezas siguen yendo a `completada_pendiente_auditoria`).
@@ -91,6 +92,51 @@ limpieza planificada.
 Antes las áreas pasaban por la misma regla que las habitaciones: se cancelaban «porque no necesitaron
 limpieza» o, si las había aprobado el sistema, quedaban en la cola sin poder empezarse. En producción,
 de 31 preasignaciones de áreas entre el 07/09 y el 06/10/2026, solo una se limpió.
+
+### Tarjeta y cierre del día (v6.17.3)
+
+Decisiones de Nicolás del 07/10/2026. Las asignaciones son por día, así que «no asignada» **no es un
+estado nuevo**: es un área sin asignación activa para hoy. El estado guardado no cambia.
+
+**Tarjeta** (`views/espacios.php`): la misma ficha que Habitaciones (borde del hotel, nombre grande, a
+quién está asignada hoy) con la franja de estado al pie, con los textos y colores de las habitaciones
+(Ajustes → Colores). Qué franja muestra lo decide `EspacioService::franjaVisible()`:
+
+| Estado guardado | Con asignación hoy | Sin asignación hoy |
+|---|---|---|
+| `sucia` | PENDIENTE | sin franja |
+| `en_progreso` | EN PROGRESO | EN PROGRESO |
+| `completada_pendiente_auditoria` | POR INSPECCIONAR | POR INSPECCIONAR |
+| `aprobada`, `aprobada_con_observacion`, `aprobada_automatica` | APROBADA / C/OBS. / AUTO. | sin franja |
+| `rechazada` | RECHAZADA | RECHAZADA (hasta que alguien vuelva a pedir la limpieza) |
+
+«C/obs.» y «auto.» solo para quien tiene `habitaciones.ver_todas`, como en Habitaciones. El filtro de la
+pantalla suma «Sin asignar» y la tabla y el Excel, la columna «Asignada hoy». Al listar se ponen al día
+las preasignaciones de hoy (`AsignacionService::ponerAlDiaPreasignaciones`), para que un área preasignada
+no muestre la aprobación de su limpieza anterior si nadie abrió todavía una cola ni el tablero.
+
+**Cierre del día** (`CierreDiaService::cerrarAreasComunes`): lo corre el cron del cierre de día
+(`scripts/aprobar-pendientes-cierre-dia.php`, 23:55) **solo en la pasada de la noche** (desde las 20:00;
+la de las 15:50 no toca las áreas), después de aprobar las pendientes de inspección:
+
+- **Aprobada o pendiente:** nada que hacer. Desde las 00:00 no tiene asignación para el día nuevo y la
+  tarjeta queda sin franja.
+- **Por inspeccionar:** el mismo cron la aprueba (`aprobada_automatica`) y desde las 00:00 queda sin franja.
+- **En progreso:** la asignación de hoy pasa a mañana con la misma persona y primera en su cola
+  (`orden_cola = 0`). La limpieza en curso sigue colgando de ella, así que se retoma con lo que ya estaba
+  marcado (antes quedaba en progreso en la cola de nadie y, si se volvía a pedir, partía de cero). Si el
+  área ya estaba preasignada para mañana, esa preasignación se cancela: gana la limpieza empezada. Queda
+  en el audit log (`asignacion.arrastrada_cierre_dia`) y se avisa con una campanita.
+- **Rechazada:** sigue rechazada (con su franja) y se avisa con una campanita que no se volvió a limpiar.
+  Se repite cada noche mientras siga así (una por persona y por día).
+
+Las campanitas (tipos `areas_en_progreso_cierre` y `areas_rechazadas_sin_resolver`, bandeja + push a
+quien tenga turno activo) les llegan a las personas activas con `espacios.pedir_limpieza` (Supervisora y
+Admin por defecto), sin el usuario «Sistema». Una sola por noche y por tipo, con todas las áreas.
+
+Áreas que ya estaban en progreso desde antes de hoy (sin asignación de hoy) no se arrastran: siguen con
+su franja EN PROGRESO y sin nadie asignado hasta que alguien pida su limpieza. Para mover un área en
+progreso a otra persona se necesita `asignaciones.mover_en_progreso` (solo Admin por defecto, ver §5).
 
 ---
 
