@@ -445,6 +445,17 @@ final class AuditoriaServiceTest extends TestCase
         }
     }
 
+    /** El orden manual es de esta vuelta: si no se limpia, la pieza vuelve arriba en su próxima inspección. */
+    public function testElVeredictoLimpiaElOrdenManualDeLaBandeja(): void
+    {
+        $this->svc->reordenarBandeja([$this->habitacionId], $this->auditorId);
+        $this->assertNotNull(Database::fetchColumn('SELECT auditoria_orden FROM habitaciones WHERE id = ?', [$this->habitacionId]));
+
+        $this->svc->emitirVeredicto($this->habitacionId, $this->auditorId, Auditoria::VEREDICTO_APROBADO);
+
+        $this->assertNull(Database::fetchColumn('SELECT auditoria_orden FROM habitaciones WHERE id = ?', [$this->habitacionId]));
+    }
+
     public function testBandejaPendientes(): void
     {
         $pendientes = $this->svc->bandejaPendientes('1_sur');

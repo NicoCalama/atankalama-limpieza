@@ -1184,7 +1184,9 @@ function asignacionesApp() {
                 });
                 if (r && r.ok) {
                     var n = (r.data.asignaciones || []).length;
-                    this.mostrarToast('exito', 'Round-robin: ' + n + ' habitaciones asignadas.');
+                    var sinNadie = r.data.sin_trabajadora || 0;
+                    this.mostrarToast('exito', 'Round-robin: ' + n + ' habitaciones asignadas.'
+                        + (sinNadie > 0 ? ' ' + sinNadie + ' quedaron sin asignar: nadie con turno trabaja en ese hotel.' : ''));
                     this.seleccionadas = [];
                     this.cargar();
                 } else {

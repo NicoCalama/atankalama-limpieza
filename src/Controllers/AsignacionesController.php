@@ -64,6 +64,7 @@ final class AsignacionesController
             'asignaciones' => array_map(fn($a) => $a->toArray(), $resultado['asignaciones']),
             'habitaciones' => $resultado['habitaciones'],
             'trabajadores' => $resultado['trabajadores'],
+            'sin_trabajadora' => $resultado['sin_trabajadora'],
         ], 201);
     }
 

@@ -147,7 +147,7 @@ final class AsignacionService
     /**
      * Round-robin: reparte habitaciones sucias entre trabajadores con turno para esa fecha.
      *
-     * @return array{asignaciones: list<Asignacion>, habitaciones: int, trabajadores: int}
+     * @return array{asignaciones: list<Asignacion>, habitaciones: int, trabajadores: int, sin_trabajadora: int}
      */
     public function autoAsignar(string $hotelCodigo, string $fecha): array
     {
@@ -155,7 +155,7 @@ final class AsignacionService
 
         $filtroHotel = ($hotelCodigo === 'ambos') ? null : $hotelCodigo;
 
-        $sqlHab = 'SELECT h.id
+        $sqlHab = 'SELECT h.id, ho.codigo AS hotel_codigo
                      FROM #__habitaciones h
                      JOIN #__hoteles ho ON ho.id = h.hotel_id
                 LEFT JOIN #__asignaciones a
@@ -170,12 +170,12 @@ final class AsignacionService
             $paramsHab[] = $filtroHotel;
         }
         $sqlHab .= ' ORDER BY ho.codigo, h.numero';
-        $habitaciones = array_map(static fn(array $f) => (int) $f['id'], Database::fetchAll($sqlHab, $paramsHab));
+        $habitaciones = Database::fetchAll($sqlHab, $paramsHab);
 
         // Trabajadores con turno ese día. Filtrar por hotel_default compatible. El personal de apoyo
         // (asignaciones.excluir_auto, 01/10/2026) no entra al reparto: la supervisora le asigna a mano.
         $paramsUsr = [$fecha];
-        $sqlUsr = 'SELECT u.id
+        $sqlUsr = 'SELECT u.id, u.hotel_default
                      FROM #__usuarios u
                      JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
                     WHERE ut.fecha = ?
@@ -186,28 +186,54 @@ final class AsignacionService
             $paramsUsr[] = $filtroHotel;
         }
         $sqlUsr .= ' ORDER BY u.id';
-        $trabajadores = array_map(static fn(array $f) => (int) $f['id'], Database::fetchAll($sqlUsr, $paramsUsr));
+        $trabajadores = Database::fetchAll($sqlUsr, $paramsUsr);
 
         if ($trabajadores === []) {
             throw new AsignacionException('SIN_TRABAJADORES', 'No hay trabajadores con turno asignado para la fecha.', 409);
         }
+        $n = count($trabajadores);
         if ($habitaciones === []) {
-            return ['asignaciones' => [], 'habitaciones' => 0, 'trabajadores' => count($trabajadores)];
+            return ['asignaciones' => [], 'habitaciones' => 0, 'trabajadores' => $n, 'sin_trabajadora' => 0];
         }
 
+        // Con 'ambos' se reparte hotel por hotel, cada uno solo entre quienes trabajan en él
+        // (hotel_default de ese hotel, 'ambos' o sin preferencia). Antes se mezclaban las piezas de
+        // los dos hoteles en un solo round-robin y una trabajadora del 1 Sur recibía piezas del INN.
+        $porHotel = [];
+        foreach ($habitaciones as $h) {
+            $porHotel[(string) $h['hotel_codigo']][] = (int) $h['id'];
+        }
         $creadas = [];
-        $n = count($trabajadores);
-        foreach ($habitaciones as $i => $habitacionId) {
-            $usuarioId = $trabajadores[$i % $n];
-            $creadas[] = $this->asignarManual($habitacionId, $usuarioId, $fecha, null);
+        $sinTrabajadora = 0;
+        foreach ($porHotel as $codigo => $ids) {
+            $elegibles = $filtroHotel !== null
+                ? array_column($trabajadores, 'id')
+                : array_column(array_values(array_filter(
+                    $trabajadores,
+                    static fn(array $t): bool => in_array($t['hotel_default'], [$codigo, 'ambos', null, ''], true)
+                )), 'id');
+            if ($elegibles === []) {
+                $sinTrabajadora += count($ids);
+                continue;
+            }
+            $m = count($elegibles);
+            foreach ($ids as $i => $habitacionId) {
+                $creadas[] = $this->asignarManual($habitacionId, (int) $elegibles[$i % $m], $fecha, null);
+            }
         }
 
         Logger::info('asignaciones', 'round-robin ejecutado', [
             'fecha' => $fecha, 'hotel' => $hotelCodigo,
-            'habitaciones' => count($habitaciones), 'trabajadores' => $n,
+            'habitaciones' => count($creadas), 'sin_trabajadora' => $sinTrabajadora, 'trabajadores' => $n,
         ]);
 
-        return ['asignaciones' => $creadas, 'habitaciones' => count($habitaciones), 'trabajadores' => $n];
+        return [
+            'asignaciones' => $creadas,
+            'habitaciones' => count($creadas),
+            'trabajadores' => $n,
+            // Piezas de un hotel donde hoy no trabaja nadie con turno: quedan sin asignar.
+            'sin_trabajadora' => $sinTrabajadora,
+        ];
     }
 
     /**
@@ -644,7 +670,7 @@ final class AsignacionService
 
     /**
      * Autocancela preasignaciones de HOY que dejaron de tener sentido: la habitación llegó al
-     * día con estado "ya limpia" (aprobada / aprobada_con_observacion) sin que nadie la haya
+     * día con estado "ya limpia" (aprobada / aprobada_con_observacion / aprobada_automatica) sin que nadie la haya
      * trabajado mediante esa asignación (sin fila en #__ejecuciones_checklist ligada a su id) —
      * la pieza no necesitó la limpieza que se había planificado con anticipación.
      *
@@ -660,7 +686,9 @@ final class AsignacionService
                JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.fecha = ?
                 AND a.activa = 1
-                AND h.estado IN ('aprobada', 'aprobada_con_observacion')
+                -- aprobada_automatica también (la deja el cierre de las 23:55): sin ella la asignación
+                -- quedaba colgada en la cola, sin poder empezarse y contada como «completada».
+                AND h.estado IN ('aprobada', 'aprobada_con_observacion', 'aprobada_automatica')
                 AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)",
             [$fecha]
         );

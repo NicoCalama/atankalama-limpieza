@@ -37,6 +37,9 @@ final class PushController
         if (!is_string($endpoint) || !is_string($p256dh) || !is_string($auth)) {
             return Response::error('DATOS_INVALIDOS', 'Faltan campos de la suscripción.', 400);
         }
+        if (!PushService::suscripcionValida($endpoint, $p256dh, $auth)) {
+            return Response::error('SUSCRIPCION_INVALIDA', 'No pudimos activar las notificaciones en este dispositivo.', 400);
+        }
 
         $this->push->suscribir($usuario->id, $endpoint, $p256dh, $auth);
         return Response::ok(['suscrito' => true]);

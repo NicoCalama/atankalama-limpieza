@@ -136,6 +136,15 @@ parejo por cantidad, sin mirar carga/tiempo/tipo. Después se afina a mano (arra
 en el tablero). *Mejora pendiente de este reparto: repartir por carga/tiempo real,
 créditos por tipo, franjas y cercanía.*
 
+Con **«ambos»** (07/10/2026) se reparte hotel por hotel: las piezas de cada hotel solo entre
+quienes trabajan en él (`hotel_default` de ese hotel, `ambos` o sin preferencia). Antes se
+mezclaban en un solo round-robin y una trabajadora del 1 Sur recibía piezas del INN. Las piezas
+de un hotel sin nadie con turno quedan sin asignar y la respuesta lo informa en `sin_trabajadora`.
+
+**Preasignaciones:** al abrir la cola de hoy se autocancelan las asignaciones sin trabajo cuya
+pieza llegó ya limpia (`aprobada`, `aprobada_con_observacion` o `aprobada_automatica`, esta
+última desde el 07/10/2026: la deja el cierre de las 23:55).
+
 ## 7. Vista Guiada (botón «?»)
 
 El catálogo de recorridos de esta pantalla vive en `src/Support/Tours.php`

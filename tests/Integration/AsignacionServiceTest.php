@@ -111,6 +111,59 @@ final class AsignacionServiceTest extends TestCase
         $this->assertCount(2, $u2Cola);
     }
 
+    /** Con 'ambos' cada hotel se reparte entre quienes trabajan en él (antes se mezclaban). */
+    public function testAutoAsignarConAmbosRepartePorHotel(): void
+    {
+        $innId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='inn'")['id'];
+        $this->crearHabitacion('101');
+        $this->crearHabitacion('102');
+        Database::execute(
+            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, '301', ?, 'sucia'), (?, '302', ?, 'sucia')",
+            [$innId, $this->tipoId, $innId, $this->tipoId]
+        );
+        $ana = $this->crearTrabajador('11111111-1', 'Ana', '2026-04-14');
+        $bea = $this->crearTrabajador('22222222-2', 'Bea', '2026-04-14');
+        Database::execute("UPDATE usuarios SET hotel_default = '1_sur' WHERE id = ?", [$ana]);
+        Database::execute("UPDATE usuarios SET hotel_default = 'inn' WHERE id = ?", [$bea]);
+
+        $resultado = $this->svc->autoAsignar('ambos', '2026-04-14');
+
+        $this->assertSame(4, $resultado['habitaciones']);
+        $this->assertSame(0, $resultado['sin_trabajadora']);
+        $numeros = fn(int $u): array => array_column($this->svc->colaDelTrabajador($u, '2026-04-14'), 'numero');
+        $this->assertSame(['101', '102'], $numeros($ana));
+        $this->assertSame(['301', '302'], $numeros($bea));
+    }
+
+    public function testAutoAsignarConAmbosDejaSinAsignarElHotelSinTrabajadoras(): void
+    {
+        $innId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='inn'")['id'];
+        $this->crearHabitacion('101');
+        Database::execute("INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, '301', ?, 'sucia')", [$innId, $this->tipoId]);
+        $ana = $this->crearTrabajador('11111111-1', 'Ana', '2026-04-14');
+        Database::execute("UPDATE usuarios SET hotel_default = '1_sur' WHERE id = ?", [$ana]);
+
+        $resultado = $this->svc->autoAsignar('ambos', '2026-04-14');
+
+        $this->assertSame(1, $resultado['habitaciones']);
+        $this->assertSame(1, $resultado['sin_trabajadora']);
+    }
+
+    /** La pieza que el cierre de las 23:55 aprobó llega «ya limpia»: su preasignación se cancela. */
+    public function testPreasignacionDeUnaPiezaAprobadaPorElCierreSeAutocancela(): void
+    {
+        $hoy = date('Y-m-d');
+        $hab = $this->crearHabitacion('101', 'aprobada_automatica');
+        $ana = $this->crearTrabajador('11111111-1', 'Ana', $hoy);
+        Database::execute(
+            'INSERT INTO asignaciones (habitacion_id, usuario_id, orden_cola, fecha, activa) VALUES (?, ?, 1, ?, 1)',
+            [$hab, $ana, $hoy]
+        );
+
+        $this->assertSame([], $this->svc->colaDelTrabajador($ana, $hoy));
+        $this->assertSame(0, (int) Database::fetchColumn('SELECT activa FROM asignaciones WHERE habitacion_id = ?', [$hab]));
+    }
+
     public function testRoundRobinSinTrabajadoresLanza(): void
     {
         $this->crearHabitacion('101');

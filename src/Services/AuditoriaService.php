@@ -127,6 +127,10 @@ final class AuditoriaService
                 "UPDATE #__ejecuciones_checklist SET estado = 'auditada' WHERE id = ?",
                 [$ejecucion->id]
             );
+            // El orden manual de la bandeja es de ESTA vuelta: si no se limpia, la pieza que se
+            // arrastró al primer lugar el lunes vuelve arriba el jueves, por sobre nocheros y
+            // «se va hoy», y con el tiempo la prioridad automática deja de funcionar.
+            Database::execute('UPDATE #__habitaciones SET auditoria_orden = NULL WHERE id = ?', [$habitacionId]);
 
             $this->habitaciones->cambiarEstado($habitacionId, $nuevoEstadoHab, $auditorId, $origenCambio);
 
