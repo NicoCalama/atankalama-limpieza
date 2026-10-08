@@ -1555,7 +1555,9 @@ cron:** el cierre sigue en `aprobar-pendientes-cierre-dia.php` (23:55 y 15:50; l
 flag manual `--areas` pasa a llamarse `--noche` (el viejo sigue sirviendo).
 
 **ZIP** `build/limpieza-v619-delta.zip` (estructura `limpieza/…`, armado con `git -c core.autocrlf=false archive`),
-todo a `app_core/`:
+todo a `app_core/`. **La fila de la v6.19 del `CHANGELOG.md` tiene que ir fechada** («v6.19 · 08/10/2026»): el badge
+muestra la última versión **publicada**, y con «sin publicar» sigue diciendo v6.18. El primer ZIP del 08/10 salió sin
+fecha (subido así, el badge no cambió) y se rearmó con la fila fechada.
 
 - `src/Services/CierreDiaService.php`, `src/Services/ReportesService.php`, `src/Services/HomeService.php`,
   `src/Services/AlertasPredictivasService.php`;
