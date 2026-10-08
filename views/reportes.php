@@ -526,6 +526,7 @@
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechaz.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Minutos promedio desde que abre la pieza hasta que da el veredicto. Solo inspecciones desde que se activó la medición.">T. por insp.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Lo que ella inspeccionó sobre todo lo limpiado en la sección.">Aporte cobert.</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -547,6 +548,9 @@
                                                 <span class="text-gray-700 dark:text-gray-300" x-text="fmtPct(i.aporte_cobertura_pct)"></span>
                                                 <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.aporte_cobertura_pct, ' pts')"></span>
                                             </td>
+                                            <td class="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                                                <span class="font-semibold text-emerald-700 dark:text-emerald-400" x-text="i.recepcion_aprobadas"></span><span class="text-gray-400 dark:text-gray-500"> / </span><span class="font-semibold text-red-700 dark:text-red-400" x-text="i.recepcion_rechazadas"></span>
+                                            </td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -557,6 +561,7 @@
                                         <td class="px-3 py-2" colspan="3"></td>
                                         <td class="px-3 py-2 text-right" x-text="ficha.supervisoras.comparativa.tiempo_auditacion.promedio === null ? '—' : (ficha.supervisoras.comparativa.tiempo_auditacion.promedio + ' min')"></td>
                                         <td class="px-3 py-2 text-right" x-text="fmtPct(ficha.supervisoras.comparativa.aporte_cobertura_pct.promedio)"></td>
+                                        <td class="px-3 py-2"></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -738,6 +743,7 @@
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Casillas del checklist que desmarcó al inspeccionar (en aprobadas con observación y en rechazadas). Es lo mismo que «Observ.» de los trabajadores, contado desde quien inspecciona.">Observaciones</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -749,6 +755,9 @@
                                     <td class="px-4 py-3 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="a.aprobadas_observacion"></td>
                                     <td class="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold" x-text="a.rechazadas"></td>
                                     <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-semibold" x-text="a.observaciones"></td>
+                                    <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">
+                                        <span class="font-semibold text-emerald-700 dark:text-emerald-400" x-text="a.recepcion_aprobadas"></span><span class="text-gray-400 dark:text-gray-500"> / </span><span class="font-semibold text-red-700 dark:text-red-400" x-text="a.recepcion_rechazadas"></span>
+                                    </td>
                                 </tr>
                             </template>
                         </tbody>
@@ -845,6 +854,152 @@
             </template>
         </section>
 
+        <!-- Inspección pre-entrega de Recepción (v6.18, docs/revision-entrega.md). Por ahora no entra en
+             ningún KPI (los datos quedan guardados para el de calidad de supervisoras). Mismo período y
+             hotel que arriba; ignora la trabajadora. -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.revision_entrega">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="clipboard-check" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspección pre-entrega (Recepción)</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            SÍ / NO que registró Recepción antes de entregar cada pieza. No cambia los indicadores de arriba. Mismo período y hotel que arriba.
+                        </p>
+                    </div>
+                </div>
+                <button @click="cargarRevisionEntrega()" :disabled="revEntregaCargando"
+                        class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                        aria-label="Refrescar">
+                    <span :class="revEntregaCargando ? 'animate-spin' : ''" class="inline-flex">
+                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                    </span>
+                </button>
+            </header>
+
+            <template x-if="revEntregaCargando && !revEntrega">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="revEntregaError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="revEntregaError"></p>
+                    <button @click="cargarRevisionEntrega()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!revEntregaError && revEntrega">
+                <div class="p-4 space-y-5">
+                    <!-- Tarjetas -->
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Revisadas</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="revEntrega.resumen.total"></p>
+                        </div>
+                        <div class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+                            <p class="text-xs text-emerald-700 dark:text-emerald-300">Aprobadas (SÍ)</p>
+                            <p class="text-2xl font-bold text-emerald-800 dark:text-emerald-200" x-text="revEntrega.resumen.si"></p>
+                        </div>
+                        <div class="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                            <p class="text-xs text-red-700 dark:text-red-300">No aprobadas (NO)</p>
+                            <p class="text-2xl font-bold text-red-800 dark:text-red-200" x-text="revEntrega.resumen.no"></p>
+                            <p class="text-xs text-red-700 dark:text-red-300" x-show="revEntrega.resumen.pct_no !== null"
+                               x-text="revEntrega.resumen.pct_no + ' % de las revisadas'"></p>
+                            <p class="text-xs text-red-700 dark:text-red-300" x-show="revEntrega.resumen.a_sucia > 0"
+                               x-text="revEntrega.resumen.a_sucia + ' volvieron a sucia'"></p>
+                        </div>
+                    </div>
+
+                    <!-- NO por motivo -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">NO por motivo</h3>
+                        <template x-if="revEntrega.por_motivo.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Sin NO en el período.</p>
+                        </template>
+                        <template x-if="revEntrega.por_motivo.length > 0">
+                            <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Motivo</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Cantidad</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">% de los NO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        <template x-for="m in revEntrega.por_motivo" :key="m.motivo_id">
+                                            <tr>
+                                                <td class="px-3 py-2 text-gray-900 dark:text-gray-100">
+                                                    <span x-text="m.nombre"></span>
+                                                    <span x-show="!m.activo" class="text-xs text-gray-500 dark:text-gray-400">(inactivo)</span>
+                                                </td>
+                                                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="m.cantidad"></td>
+                                                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="m.pct !== null ? m.pct + ' %' : '—'"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Historial -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Historial</h3>
+                        <template x-if="revEntrega.historial.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Recepción no registró revisiones en este período.</p>
+                        </template>
+                        <template x-if="revEntrega.historial.length > 0">
+                            <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Fecha</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hotel</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Pieza</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Resultado</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Motivo</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Comentario</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Revisó</th>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Foto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        <template x-for="r in revEntrega.historial" :key="r.id">
+                                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                <td class="px-3 py-2 whitespace-nowrap text-gray-700 dark:text-gray-300" x-text="fechaDiaMes(r.fecha_local) + ' ' + r.hora_local"></td>
+                                                <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="hotelLabelCodigo(r.hotel_codigo)"></td>
+                                                <td class="px-3 py-2 font-semibold">
+                                                    <a :href="u('/habitaciones/' + r.habitacion_id)" class="text-blue-600 dark:text-blue-400 hover:underline" x-text="r.numero"></a>
+                                                </td>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    <span :class="r.resultado === 'si' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'"
+                                                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                                                          x-text="r.resultado === 'si' ? 'Aprobada' : 'No aprobada'"></span>
+                                                    <span x-show="r.paso_a_sucia" class="text-xs text-red-700 dark:text-red-300">→ sucia</span>
+                                                </td>
+                                                <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="r.motivo_nombre || '—'"></td>
+                                                <td class="px-3 py-2 text-gray-700 dark:text-gray-300 max-w-xs truncate" :title="r.comentario || ''" x-text="r.comentario || '—'"></td>
+                                                <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="r.usuario_nombre"></td>
+                                                <td class="px-3 py-2">
+                                                    <template x-if="r.foto_url">
+                                                        <a :href="r.foto_url" target="_blank" rel="noopener" class="text-blue-600 dark:text-blue-400 hover:underline">Ver</a>
+                                                    </template>
+                                                    <template x-if="!r.foto_url"><span class="text-gray-400">—</span></template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
+                        <p x-show="revEntrega.truncado" class="mt-2 text-xs text-gray-500 dark:text-gray-400">Mostrando las últimas 500 revisiones del período.</p>
+                    </div>
+                </div>
+            </template>
+        </section>
+
     </main>
 </div>
 
@@ -931,6 +1086,12 @@ function reportes() {
         auditPendError:      '',
         auditPendSeq:        0,
 
+        // Inspección pre-entrega de Recepción (v6.18): mismo período y hotel que los KPIs.
+        revEntrega:          null,
+        revEntregaCargando:  false,
+        revEntregaError:     '',
+        revEntregaSeq:       0,
+
         presets: [
             { valor: 'hoy',          label: 'Hoy' },
             { valor: 'semana',       label: 'Últimos 7 días' },
@@ -978,6 +1139,7 @@ function reportes() {
                 if (elegida) this.usuarioNombre = elegida.nombre;
             }
             this.cargarFicha(); // en paralelo, con los mismos filtros; no bloquea los KPIs clásicos
+            this.cargarRevisionEntrega(); // idem: misma fecha y hotel (v6.18)
             var resp = null;
             try {
                 var params = new URLSearchParams({
@@ -1252,6 +1414,38 @@ function reportes() {
                     this.$nextTick(() => lucide.createIcons());
                 }
             }
+        },
+
+        async cargarRevisionEntrega() {
+            var seq = ++this.revEntregaSeq;
+            this.revEntregaCargando = true;
+            this.revEntregaError = '';
+            var resp = null;
+            try {
+                var params = new URLSearchParams({ desde: this.desde, hasta: this.hasta, hotel: this.hotel });
+                resp = await fetch(u('/api/reportes/revision-entrega?' + params.toString()));
+                var json = await resp.json();
+                if (seq !== this.revEntregaSeq) return;
+                if (json.ok) {
+                    this.revEntrega = json.data;
+                } else {
+                    this.revEntrega = null;
+                    this.revEntregaError = this.mensajeError(resp, json);
+                }
+            } catch (e) {
+                if (seq === this.revEntregaSeq) { this.revEntrega = null; this.revEntregaError = this.mensajeError(resp, null); }
+            } finally {
+                if (seq === this.revEntregaSeq) {
+                    this.revEntregaCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        },
+
+        // 'YYYY-MM-DD' → 'DD/MM' sin pasar por Date() (fecha local ya calculada en el servidor).
+        fechaDiaMes(iso) {
+            var p = String(iso || '').split('-');
+            return p.length === 3 ? p[2] + '/' + p[1] : (iso || '');
         },
 
         // ── Ficha de KPIs ──────────────────────────────────────────────────────

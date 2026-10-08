@@ -116,8 +116,8 @@ final class AlertasController
         if (!is_array($payload) || $payload === []) {
             return Response::error('PAYLOAD_INVALIDO', 'config debe ser objeto no vacío.', 400);
         }
-        // Lista blanca: solo las claves de Ajustes → Alertas (alertas_config puede guardar datos de
-        // otros módulos, que tienen su propia pantalla y su propio permiso).
+        // Lista blanca: solo las claves de Ajustes → Alertas. alertas_config también guarda datos de
+        // otros módulos (p. ej. el interruptor de la inspección pre-entrega, que exige su propio permiso).
         foreach ($payload as $clave => $valor) {
             if (!array_key_exists((string) $clave, AlertasService::CONFIG_DEFAULTS)) {
                 return Response::error('CLAVE_INVALIDA', "No se puede cambiar «{$clave}» desde Ajustes → Alertas.", 400);

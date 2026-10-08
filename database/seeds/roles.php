@@ -34,6 +34,7 @@ return [
             'habitaciones.marcar_limpia_manual',
             'habitaciones.marcar_nochero',
             'habitaciones.agregar_nota',
+            'habitaciones.gestionar_edificios',
             'asignaciones.asignar_manual',
             'asignaciones.auto_asignar',
             'asignaciones.reordenar_cola_trabajador',
@@ -58,6 +59,10 @@ return [
             'kpis.ver_operativas',
             'alertas.recibir_predictivas',
             'apariencia.editar',
+            // DEFAULT APLICADO (aprobado por el usuario, 04/10/2026): el catálogo de motivos y el
+            // interruptor de la inspección pre-entrega los maneja supervisión, no Recepción (que cubre lo
+            // imprevisto con «Otro» + observaciones). Se cambia desde Ajustes → Roles sin tocar código.
+            'revision_entrega.configurar',
             'usuarios.cambiar_propia_contrasena',
             'usuarios.exportar_datos_propios',
             'notificaciones.ver',
@@ -80,6 +85,9 @@ return [
             'auditoria.rechazar',
             'auditoria.editar_checklist_durante_auditoria',
             'auditoria.reordenar_bandeja',
+            // Inspección pre-entrega (04/10/2026): revisa la pieza antes de entregarla al huésped, desde
+            // su tarjeta en Habitaciones. Sin habitaciones.gestionar_edificios (decisión de Nicolás, 05/10).
+            'revision_entrega.registrar',
             'tickets.crear',
             'tickets.ver_todos',
             'copilot.usar_nivel_1_consultas',

@@ -9,8 +9,8 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 
 /**
- * Sirve las fotos de tickets (ImagenAdjuntoService) vía PHP en vez de como
- * archivo estático de Apache.
+ * Sirve las fotos de tickets y de la revisión de entrega (ImagenAdjuntoService) vía PHP
+ * en vez de como archivo estático de Apache.
  *
  * Por qué existe: los adjuntos se guardan físicamente en app_core/public/uploads/
  * (Config::basePath() . '/public/uploads/'), pero app_core/ está denegado por web
@@ -23,8 +23,11 @@ use Atankalama\Limpieza\Core\Response;
  */
 final class UploadsController
 {
-    /** Único patrón que ImagenAdjuntoService::rutaDestino() produce — allowlist estricta. */
-    private const PATRON_RUTA = '#^tickets/\d{4}/\d{2}/[a-f0-9]{16}\.webp$#';
+    /**
+     * Único patrón que ImagenAdjuntoService::rutaDestino() produce — allowlist estricta.
+     * Subcarpetas: tickets (v5) y revision-entrega (v6.18, RevisionEntregaService::SUBCARPETA_FOTO).
+     */
+    private const PATRON_RUTA = '#^(tickets|revision-entrega)/\d{4}/\d{2}/[a-f0-9]{16}\.webp$#';
 
     public function servir(Request $request): Response
     {

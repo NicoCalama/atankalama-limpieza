@@ -97,6 +97,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('ajustes.turnos', 'ajustes-turnos');
     }
 
+    public function test_anclas_de_ajustes_revision_entrega(): void
+    {
+        // /ajustes/revision-entrega → 'ajustes.revision_entrega' (v6.18, ruta fija en MAP).
+        $this->verificarAnclas('ajustes.revision_entrega', 'ajustes-revision-entrega');
+    }
+
     public function test_anclas_de_home_trabajador(): void
     {
         // /home incluye home-trabajador.php para el encargado (fallback de
@@ -248,6 +254,8 @@ final class ToursAnchorTest extends TestCase
                 'turnos.ver',
                 'turnos.crear_editar',
                 'turnos.asignar_a_usuario',
+                'revision_entrega.registrar',
+                'revision_entrega.configurar',
             ],
             roles: ['Supervisora'],
         );

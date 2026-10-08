@@ -656,5 +656,54 @@ CREATE INDEX idx_notificaciones_usuario ON #__notificaciones(usuario_id, leida);
 CREATE INDEX idx_notificaciones_created ON #__notificaciones(created_at);
 
 -- ============================================================================
--- FIN DEL SCHEMA — 32 tablas (paridad con database-schema.sql)
+-- BLOQUE 10 — INSPECCIÓN PRE-ENTREGA (Recepción, 04/10/2026; en código «revision_entrega»; ver docs/revision-entrega.md)
+-- ============================================================================
+
+-- Catálogo de motivos de un NO. Nunca se borra: se desactiva (FK RESTRICT).
+CREATE TABLE #__motivos_revision_entrega (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    nombre      VARCHAR(60) NOT NULL UNIQUE,
+    activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Inspección pre-entrega: una fila por cada SÍ/NO de Recepción. Solo-append. estado_pieza /
+-- ejecucion_id / auditoria_id = foto del momento para el KPI de calidad de las supervisoras.
+-- Índices DENTRO del CREATE: si phpMyAdmin corta en un error, no quedan índices sin crear.
+CREATE TABLE #__revisiones_entrega (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    habitacion_id    INT NOT NULL,
+    usuario_id       INT NOT NULL,
+    resultado        VARCHAR(2) NOT NULL CHECK (resultado IN ('si', 'no')),
+    motivo_id        INT NULL,
+    comentario       VARCHAR(300) NULL,
+    foto_ruta        VARCHAR(500) NULL,
+    paso_a_sucia     TINYINT NOT NULL DEFAULT 0 CHECK (paso_a_sucia IN (0, 1)),
+    estado_pieza     VARCHAR(40) NOT NULL,
+    ejecucion_id     INT NULL,
+    auditoria_id     INT NULL,
+    idempotency_key  VARCHAR(64) NULL,
+    relimpieza_asignacion_id INT NULL,
+    relimpieza_pedida_por    INT NULL,
+    relimpieza_pedida_at     VARCHAR(30) NULL,
+    relimpieza_ejecucion_id  INT NULL,
+    created_at       VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY idx_revisiones_entrega_idem (idempotency_key),
+    KEY idx_revisiones_entrega_hab_fecha (habitacion_id, created_at),
+    KEY idx_revisiones_entrega_created (created_at),
+    KEY idx_revisiones_entrega_auditoria (auditoria_id),
+    KEY idx_revisiones_entrega_relimpieza (relimpieza_ejecucion_id),
+    KEY idx_revisiones_entrega_relimp_asig (relimpieza_asignacion_id),
+    FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (motivo_id) REFERENCES #__motivos_revision_entrega(id) ON DELETE RESTRICT,
+    FOREIGN KEY (ejecucion_id) REFERENCES #__ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (auditoria_id) REFERENCES #__auditorias(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_asignacion_id) REFERENCES #__asignaciones(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_pedida_por) REFERENCES #__usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (relimpieza_ejecucion_id) REFERENCES #__ejecuciones_checklist(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- FIN DEL SCHEMA — 34 tablas (paridad con database-schema.sql)
 -- ============================================================================

@@ -101,9 +101,10 @@ Ver [habitaciones.md](habitaciones.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/habitaciones` | `habitaciones.ver_todas` | Lista (filtros hotel/estado/fecha) |
+| GET | `/api/habitaciones` | `habitaciones.ver_todas` | Lista (filtros hotel/estado/fecha). Desde v6.18 cada fila trae `revision_vigente` (última inspección pre-entrega de la pieza mientras no haya cambiado de estado, o `null`) para el botón de la tarjeta — ver §19 |
+| PUT | `/api/habitaciones/{id}/estructura` | `habitaciones.gestionar_edificios` | Edificio y piso de la pieza (Edificios y Mapeo). Hasta v6.18 alcanzaba con `habitaciones.ver_todas` |
 | GET | `/api/habitaciones/asignadas` | `habitaciones.ver_asignadas_propias` | Mis asignaciones hoy |
-| GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle |
+| GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle. Desde v6.18 incluye `revision_entrega` (última inspección pre-entrega de Recepción con `vigente`, `relimpiable`, `relimpieza_trabajador`, `relimpieza_iniciada`, o `null`) solo si el usuario tiene `habitaciones.ver_todas` — ver §19 — y `asignado_a_nombre` (a quién está asignada hoy) |
 | GET | `/api/habitaciones/{id}/historial` | `habitaciones.ver_historial` | Historial completo |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso`. 409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso. 409 `NO_ES_TU_HABITACION_ACTUAL` si el trabajador (sin `habitaciones.ver_todas`) intenta iniciar una que no es su habitación actual (orden de cola) |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` + asignada | → `completada_pendiente_auditoria` |
@@ -284,18 +285,40 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/api/reportes/kpis` | `reportes.ver` | KPIs del equipo y detalle por trabajador para el período |
-| GET | `/api/reportes/ficha` | `reportes.ver` | **Ficha de KPIs (v6.4)**: `config` (umbrales σ, min datos, meta cobertura), `trabajadores` (dos etapas A/B, asignadas, cobertura/realización/cumplimiento/calidad, créditos por hab, ritmo), `comparativa` (Δ, z y semáforo vs el grupo) y `supervisoras` (sección vs meta + tendencia, con `por_turno` según el calendario de Turnos del trabajador; inspectoras con tiempo por auditación y aporte a cobertura). **`supervisoras` viaja `null` si el usuario no tiene `reportes.ver_supervisoras`** (privacidad jerárquica de tiempos: nadie ve sus propios tiempos, solo el nivel de arriba) |
+| GET | `/api/reportes/ficha` | `reportes.ver` | **Ficha de KPIs (v6.4)**: `config` (umbrales σ, min datos, meta cobertura), `trabajadores` (dos etapas A/B, asignadas, cobertura/realización/cumplimiento/calidad, créditos por hab, ritmo), `comparativa` (Δ, z y semáforo vs el grupo) y `supervisoras` (sección vs meta + tendencia, con `por_turno` según el calendario de Turnos del trabajador; inspectoras con tiempo por auditación, aporte a cobertura y, desde v6.18, `recepcion_aprobadas` / `recepcion_rechazadas` de la inspección pre-entrega). Desde v6.18 las re-limpiezas por un NO de Recepción no cuentan en ningún KPI de aseo ni de inspección. **`supervisoras` viaja `null` si el usuario no tiene `reportes.ver_supervisoras`** (privacidad jerárquica de tiempos: nadie ve sus propios tiempos, solo el nivel de arriba) |
 | GET | `/api/reportes/exportar` | `reportes.ver` | Excel con los KPIs del período (desde v6.16.1 incluye «Habitaciones limpiadas») |
 | GET | `/api/reportes/resumen-mensual` | `reportes.ver` | Resumen del mes por trabajador = la ficha del mes: `habitaciones`, `rechazadas`, `creditos`, `creditos_asignados`, `eficiencia_pct` (desde v6.15; antes `creditos_maximos`), `limpiadas` (= `habitaciones` + `rechazadas`). Desde v6.15.1 también `rut`, `jornada`, `dias_trabajados`, `observaciones` (casillas del checklist desmarcadas por el auditor) y `bono` (columnas de la planilla «KPI ASEO» de RRHH: `base`, `act_dia`, `observadas_pct`, `eficacia_pct`, `logro_pct`, `factor_peso`, `resultado_pct`, `extras`), más `corte` del mes (`{valor, mes_origen, propio}`) |
 | PUT | `/api/reportes/corte-hab-dia` | `reportes.editar_corte` | Fija el corte de habitaciones diarias (jornada completa) del bono de aseo para un mes: `{anio, mes, valor}` (1–100, un decimal). Los meses siguientes sin valor propio lo heredan. 400 `CORTE_INVALIDO` |
 | GET | `/api/reportes/exportar-mensual` | `reportes.ver` | `.xlsx` del mes con dos pestañas: «Trabajadores» (resumen por trabajador del hotel elegido, con RUT, «Hab. limpiadas» y las columnas del bono de aseo de RRHH) y «Supervisores» (inspecciones por inspector, un bloque por hotel y uno con el total, siempre los dos hoteles). Hasta el 04/10/2026 era un CSV solo de trabajadores |
-| GET | `/api/reportes/resumen-mensual-auditores` | `reportes.ver` | Resumen del mes de inspecciones por inspector: `total`, `aprobadas`, `aprobadas_observacion`, `rechazadas` y `observaciones` (casillas que desmarcó) |
+| GET | `/api/reportes/resumen-mensual-auditores` | `reportes.ver` | Resumen del mes de inspecciones por inspector: `total`, `aprobadas`, `aprobadas_observacion`, `rechazadas`, `observaciones` (casillas que desmarcó) y, desde v6.18, `recepcion_aprobadas` / `recepcion_rechazadas` (de las piezas que aprobó, lo que Recepción aprobó y no aprobó para entregar en el mes) |
 | GET | `/api/reportes/auditorias-pendientes` | `reportes.ver` | Piezas limpiadas hoy sin veredicto, por turno |
 | GET | `/api/reportes/exportar-auditorias-pendientes` | `reportes.ver` | Excel de las inspecciones pendientes de hoy |
+| GET | `/api/reportes/revision-entrega` | `reportes.ver` | Sección «Inspección pre-entrega (Recepción)» (v6.18): `resumen {total, si, no, pct_no, a_sucia}`, `por_motivo` (solo NO), `historial` (máx. 500, `truncado`) y `filtros`. Lee solo `revisiones_entrega`: ningún KPI cambia. Ignora `usuario_id` |
 
 ---
 
-## 19. Rate limiting
+## 19. Inspección pre-entrega (v6.18; en código «revision_entrega»)
+
+Ver [revision-entrega.md](revision-entrega.md). Recepción revisa una pieza antes de entregarla al huésped. Nunca escribe `auditorias`. La re-limpieza que pide la supervisora por un NO no cuenta en los KPIs de aseo ni de inspección; el NO se ve por supervisora en la columna «Recepción» de Reportes (§18).
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/revision-entrega/formulario` | `revision_entrega.registrar` | Lo que necesita la ventana del NO: `motivos` activos y `no_ensucia` (interruptor). La inspección vigente de cada pieza viaja en `GET /api/habitaciones` (`revision_vigente`) |
+| POST | `/api/revision-entrega` | `revision_entrega.registrar` | Multipart (o JSON sin foto): `habitacion_id`, `resultado` (`si`/`no`), `motivo_id` (obligatorio si `no`), `comentario` (≤300), `foto` (opcional, solo con `no`), `idempotency_key` (≤64). 201 `{revision, repetida: false, foto_fallida}`; misma clave → 200 `{repetida: true}` sin re-avisar. La foto nunca hace fallar el NO: si no se guardó, `foto_fallida` dice por qué. Con el interruptor prendido, un NO sobre una pieza aprobada la pasa a `sucia` y avisa `dirty` a Cloudbeds (`revision.paso_a_sucia`). Errores: 400 `PARAMETROS_INVALIDOS`/`RESULTADO_INVALIDO`/`MOTIVO_REQUERIDO`/`COMENTARIO_LARGO`, 404 `HABITACION_NO_ENCONTRADA`/`MOTIVO_NO_ENCONTRADO`, 413 `CUERPO_MUY_GRANDE` (superó `post_max_size`) |
+| GET | `/api/revision-entrega/motivos?todos=1` | `revision_entrega.configurar` | Catálogo de motivos (`todos=1` incluye inactivos) |
+| POST | `/api/revision-entrega/motivos` | `revision_entrega.configurar` | `{nombre}` (2–60). 201 `{id}`. 409 `MOTIVO_DUPLICADO` (sin distinguir mayúsculas ni «Ñ») |
+| PUT | `/api/revision-entrega/motivos/{id}` | `revision_entrega.configurar` | `{nombre?, activo?}`. No hay borrado: un motivo inactivo deja de aparecer en el NO y el historial lo conserva |
+| GET | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}` (default `false`) |
+| PUT | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}`: si un NO devuelve la pieza aprobada a sucia (guardado en `alertas_config` `revision_entrega_no_ensucia`) |
+| POST | `/api/revision-entrega/{id}/relimpiar` | `asignaciones.asignar_manual` | «Re-limpiar» de la supervisora: `{trabajador_id, prioridad}` (`prioridad: true` exige además `asignaciones.reordenar_cola_trabajador`, si no 403 `SIN_PERMISO`). Asigna hoy la pieza de un NO vigente sobre una pieza aprobada (como reasignar: pasa a sucia + `dirty` a Cloudbeds, aviso a la trabajadora con el motivo) y, con prioridad, la deja primera en su cola. 200 `{revision}` (con `relimpieza_trabajador`). Errores: 400 `PARAMETROS_INVALIDOS`, 404 `REVISION_NO_ENCONTRADA`/`TRABAJADOR_NO_ENCONTRADO`, 409 `RELIMPIEZA_NO_APLICA` (no es un NO sobre una pieza aprobada)/`REVISION_NO_VIGENTE` (la pieza cambió de estado). La limpieza que la rehace no cuenta en los KPIs |
+
+No hay pantalla aparte: se inspecciona desde la tarjeta de cada pieza en `GET /habitaciones`. Página de configuración: `GET /ajustes/revision-entrega` (`revision_entrega.configurar`, si no → `/ajustes`). Las fotos se sirven por `GET /uploads/revision-entrega/AAAA/MM/{hex16}.webp`. Una clave de idempotencia vale como reintento solo si es la misma pieza, la misma respuesta y sigue siendo la última revisión de esa pieza; si no, la revisión se guarda como nueva.
+
+Edificios (v6.18): `GET /api/edificios` sigue con `habitaciones.ver_todas` (filtros de Habitaciones); `POST`/`PUT`/`DELETE /api/edificios*` y la página `GET /edificios` exigen `habitaciones.gestionar_edificios` (sin permiso, la página redirige a `/ajustes`). `PUT /api/alertas/config` acepta solo las claves de Ajustes → Alertas (400 `CLAVE_INVALIDA`).
+
+---
+
+## 20. Rate limiting
 
 **Fuera del MVP.** Post-MVP: rate limit por IP:
 - 5 intentos de login / 15 min.
@@ -303,6 +326,6 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 
 ---
 
-## 20. Referencias cruzadas
+## 21. Referencias cruzadas
 
 Cada sección enlaza al doc de detalle correspondiente. Este índice es la fuente maestra — si un endpoint no aparece aquí, no existe en el backend.
