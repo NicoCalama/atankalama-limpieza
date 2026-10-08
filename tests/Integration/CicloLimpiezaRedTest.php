@@ -62,7 +62,11 @@ final class CicloLimpiezaRedTest extends TestCase
         $this->sincronizar();
         $this->assertEstado('101', 'aprobada', 'conserva la aprobación todo el día (pieza 706, 22/09)');
 
+        // Al día siguiente el huésped ya no «llega»: sigue (stayover), y en la madrugada Cloudbeds
+        // marca sucias las piezas ocupadas. Desde la v6.20 la llegada sobre una aprobación de un día
+        // anterior se conserva, así que el escenario tiene que cambiar el día también en Cloudbeds.
         $this->pasarDia();
+        $this->cb->madrugada();
         $this->sincronizar();
         $this->assertEstado('101', 'sucia', 'al día siguiente entra al aseo del día');
         $this->assertSinAlertasDeshechas();
