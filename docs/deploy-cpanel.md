@@ -1496,6 +1496,43 @@ anterior). Las horas de `created_at` están en UTC.
 **Vuelta atrás:** subir `build/limpieza-v6172-vuelta-atras.zip`. Las asignaciones que el cierre ya pasó al día
 siguiente quedan así (son de una limpieza en curso que sigue en la cola de la misma persona).
 
+### 11.20 Release "borde por hotel" → v6.20.1 (ex v6.18.1)
+
+Arreglo visual (08/10/2026): en las tarjetas de Habitaciones y de Áreas comunes, el borde izquierdo con el color del
+hotel (`.hotel-border-*`, el color de Ajustes → Colores) salía gris. La tarjeta lleva además `border border-gray-200
+dark:border-gray-700`: el `<style>` del Tailwind CDN se inyecta al final del `<head>`, así que en claro gana el empate
+de especificidad, y en oscuro su selector (`.dark\:border-gray-700:is(.dark *)`) pesa más que `.hotel-border-*`.
+Arreglo: `!important` en las dos reglas de `custom.css` (no se subió la especificidad porque el CDN no tiene versión
+fija y su selector puede cambiar).
+
+**Número:** se armó como v6.18.1 sobre la v6.18 (de ahí la referencia de §11.21), pero no subió antes de la v6.19 ni de
+la v6.20, así que sale como **v6.20.1**. Rama `v6.20.1-borde-hotel`, desde `62d4952` (lo que está en prod; no lleva la
+v7 de `main`). Al integrarla a `main`, su fila del CHANGELOG va debajo de la de la v7.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin PHP, sin cambios en los cron.** **Sin bump de `CACHE_VERSION`:**
+`layout.php` pide `custom.css?v=<filemtime>` y el service worker busca en su caché por la URL completa (con el `?v=`),
+así que el archivo nuevo se baja solo, siempre que suba también la copia de `app_core/` (de esa sale el `filemtime`).
+
+**Precheck** (como en la v6.19): bajar de prod las dos copias de `custom.css` y el `CHANGELOG.md` y compararlas contra
+`62d4952` normalizando `\r`; con eso, armar `build/limpieza-v6201-vuelta-atras.zip`.
+
+**ZIP** `build/limpieza-v6201-delta.zip`, armado en `build/stage/` con `scripts/zip-stage.ps1` (se extrae en
+`public_html/`), con **la fila de la v6.20.1 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3 archivos:
+
+- `limpieza/assets/css/custom.css` (docroot: la que ve el navegador);
+- `limpieza/app_core/public/assets/css/custom.css` (el mismo archivo; de este sale el `?v=`);
+- `limpieza/app_core/CHANGELOG.md`.
+
+**Cuándo subir:** a cualquier hora (no toca el cierre de la noche ni el sync).
+
+**Smoke:** badge **v6.20.1** (incógnito); `/api/health` 200; en Habitaciones y en Áreas comunes, el borde izquierdo de
+cada tarjeta en verde agua (Atankalama) o violeta (INN), o en el color que tenga cada hotel en Ajustes → Colores, en
+claro y en oscuro.
+
+**Vuelta atrás:** subir `build/limpieza-v6201-vuelta-atras.zip` (los mismos tres archivos en la v6.20, `62d4952`).
+
+**Sin tocar:** `.hotel-accent-*` (borde y tinte) tiene el mismo problema, pero hoy no la usa ninguna vista.
+
 ### 11.21 Release "limpiezas sin terminar y menú ⋮ de áreas" → v6.19
 
 Origen: audio de la supervisora del 08/10/2026 (un área «en progreso» desde el día anterior, sin ningún botón para
