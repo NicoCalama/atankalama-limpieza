@@ -4,6 +4,8 @@
  *
  * Espacios que no son habitaciones de huésped (piscina, pasillos, patio, bodega…), con checklist
  * propio, servicio on-demand. Pasan por la misma auditoría que las habitaciones de huésped.
+ * La tarjeta es la ficha de Habitaciones: franja de estado al pie (`franja` del backend, null =
+ * sin franja) y quién la tiene asignada hoy (`asignado_a_nombre`).
  *
  * Endpoints:
  *  - GET    /api/espacios?hotel=              { espacios, trabajadores, fecha }
@@ -12,6 +14,7 @@
  *  - PUT    /api/espacios/{id}                { nombre, items:[{descripcion, creditos}] }
  *  - DELETE /api/espacios/{id}
  *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha }
+ *  - POST   /api/habitaciones/{id}/marcar-limpia | marcar-sucia  (menú ⋮, v6.19: los mismos de Habitaciones)
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
@@ -189,19 +192,47 @@
                 </div>
             </template>
 
-            <!-- Lista (tarjetas) -->
+            <!-- Lista (tarjetas): misma ficha que Habitaciones — borde del color del hotel y franja
+                 de estado al pie con el color de Ajustes → Colores. Sin nadie asignado hoy no hay
+                 franja (salvo en progreso, por inspeccionar o rechazada): ver EspacioService::franjaVisible. -->
             <template x-if="vista === 'tarjetas' && espaciosFiltrados.length > 0">
-                <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2">
+                <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <template x-for="esp in espaciosFiltrados" :key="esp.id">
-                        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="min-w-0">
-                                    <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="esp.numero"></p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="esp.hotel_nombre + ' · ' + esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden shadow-sm flex flex-col bg-white dark:bg-gray-800"
+                             :class="colorHotelBorde(esp.hotel_codigo)">
+                            <div class="p-4 flex flex-col gap-1">
+                                <div class="flex items-start justify-between gap-2">
+                                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100 min-w-0 break-words" x-text="esp.numero"></span>
+                                    <div class="flex items-start gap-1 flex-shrink-0">
+                                        <span class="text-xs uppercase tracking-wide font-semibold mt-1"
+                                              :class="colorEtiquetaHotel(esp.hotel_codigo)"
+                                              x-text="hotelCorto(esp.hotel_codigo)"></span>
+                                        <!-- ⋮ en la esquina, como en Habitaciones (v6.19) -->
+                                        <template x-if="tieneMenuEstado(esp)">
+                                            <button @click="abrirMenuEstado(esp)" aria-label="Más opciones" title="Más opciones"
+                                                    class="-mt-2 -mr-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-blue-600 transition">
+                                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                            </button>
+                                        </template>
+                                    </div>
                                 </div>
-                                <span class="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0" :class="claseBadge(esp.estado)" x-text="etiquetaEstado(esp.estado)"></span>
+                                <p class="text-sm text-gray-600 dark:text-gray-400" x-text="esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
+                                <template x-if="esp.asignado_a_nombre">
+                                    <p class="text-xs text-gray-500 dark:text-gray-500 inline-flex items-center gap-1">
+                                        <span class="inline-flex shrink-0"><i data-lucide="user" class="w-3 h-3"></i></span>
+                                        <span x-text="esp.asignado_a_nombre"></span>
+                                    </p>
+                                </template>
                             </div>
-                            <div class="flex items-center gap-2 flex-wrap">
+
+                            <template x-if="esp.franja">
+                                <div class="mt-auto px-4 py-2.5 flex items-center gap-2" :class="claseBannerEstado(esp.franja)">
+                                    <span class="font-oswald text-sm font-semibold uppercase tracking-wide text-white" x-text="textoEstado(esp.franja)"></span>
+                                </div>
+                            </template>
+
+                            <div class="px-4 py-3 flex items-center gap-2 flex-wrap"
+                                 :class="esp.franja ? '' : 'mt-auto border-t border-gray-100 dark:border-gray-700'">
                                 <template x-if="puedePedir">
                                     <button @click="abrirPedir(esp)"
                                             class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center gap-1.5">
@@ -252,8 +283,14 @@
                                         <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100" x-text="esp.numero"></td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.hotel_nombre"></td>
                                         <td class="px-3 py-2">
-                                            <span class="text-[11px] px-2 py-0.5 rounded-full" :class="claseBadge(esp.estado)" x-text="etiquetaEstado(esp.estado)"></span>
+                                            <template x-if="esp.franja">
+                                                <span class="text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap" :class="claseBadge(esp.franja)" x-text="textoEstado(esp.franja)"></span>
+                                            </template>
+                                            <template x-if="!esp.franja">
+                                                <span class="text-gray-400 dark:text-gray-500">—</span>
+                                            </template>
                                         </td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.asignado_a_nombre || '—'"></td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.items_count"></td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.creditos_total || 0"></td>
                                         <td class="px-3 py-2">
@@ -274,6 +311,12 @@
                                                     <button @click="archivar(esp)" aria-label="Archivar"
                                                             class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400">
                                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="tieneMenuEstado(esp)">
+                                                    <button @click="abrirMenuEstado(esp)" aria-label="Más opciones" title="Más opciones"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
                                                     </button>
                                                 </template>
                                             </div>
@@ -403,6 +446,40 @@
             </template>
         </div>
     </div>
+
+    <!-- Modal: más opciones (⋮) — marcar limpia o sucia, igual que en Habitaciones y con los mismos
+         endpoints y permiso (habitaciones.marcar_limpia_manual). Modal y no dropdown: la tarjeta
+         tiene overflow-hidden y recortaría un menú que se salga de sus bordes. -->
+    <template x-if="modalEstado.abierto">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cerrarMenuEstado()">
+            <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl relative">
+                <button @click="cerrarMenuEstado()" aria-label="Cerrar"
+                        class="absolute top-3 right-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 pr-10" x-text="modalEstado.espacio.numero"></h3>
+
+                <div class="space-y-2">
+                    <template x-if="puedeMarcarLimpia(modalEstado.espacio)">
+                        <button type="button" @click="marcarLimpia(modalEstado.espacio)" :disabled="accionEstadoEnCurso"
+                                class="w-full min-h-[44px] text-left px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                            Marcar limpia
+                        </button>
+                    </template>
+                    <template x-if="puedeMarcarSucia(modalEstado.espacio)">
+                        <button type="button" @click="marcarSucia(modalEstado.espacio)" :disabled="accionEstadoEnCurso"
+                                class="w-full min-h-[44px] text-left px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                            Marcar sucia
+                        </button>
+                    </template>
+                </div>
+
+                <button type="button" @click="cerrarMenuEstado()" class="w-full min-h-[44px] mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </template>
 </div>
 
 <script>
@@ -423,23 +500,29 @@ function espaciosApp() {
         modalForm: { abierto: false, enviando: false },
         form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
         modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '' },
+        modalEstado: { abierto: false, espacio: null },
+        accionEstadoEnCurso: false,
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
             { valor: '1_sur', etiqueta: 'Atankalama' },
             { valor: 'inn', etiqueta: 'Atankalama Inn' }
         ],
+        // Filtro por lo que muestra la tarjeta (ver coincideFiltro): sin asignar o la franja de estado.
         estadoOpciones: [
             { valor: '', etiqueta: 'Todos' },
-            { valor: 'aprobada', etiqueta: 'Listo' },
+            { valor: 'sin_asignar', etiqueta: 'Sin asignar' },
             { valor: 'sucia', etiqueta: 'Pendiente' },
-            { valor: 'en_progreso', etiqueta: 'En limpieza' },
-            { valor: 'completada_pendiente_auditoria', etiqueta: 'Por inspeccionar' }
+            { valor: 'en_progreso', etiqueta: 'En progreso' },
+            { valor: 'completada_pendiente_auditoria', etiqueta: 'Por inspeccionar' },
+            { valor: 'aprobada', etiqueta: 'Aprobada' },
+            { valor: 'rechazada', etiqueta: 'Rechazada' }
         ],
         columnas: [
             { clave: 'numero', etiqueta: 'Nombre' },
             { clave: 'hotel_nombre', etiqueta: 'Hotel' },
-            { clave: 'estado', etiqueta: 'Estado' },
+            { clave: 'franja', etiqueta: 'Estado' },
+            { clave: 'asignado_a_nombre', etiqueta: 'Asignada hoy' },
             { clave: 'items_count', etiqueta: 'Ítems' },
             { clave: 'creditos_total', etiqueta: 'Créditos' }
         ],
@@ -452,6 +535,16 @@ function espaciosApp() {
             var a = Alpine.store('auth');
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('espacios.pedir_limpieza'));
         },
+        // Menú ⋮ (marcar limpia/sucia): mismo permiso que el de Habitaciones (ver Kernel.php).
+        get puedeGestionarEstado() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('habitaciones.marcar_limpia_manual'));
+        },
+        // Mismo criterio que Habitaciones: «c/obs.» y «auto.» solo para quien ve todas las piezas.
+        get puedeVerTodas() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('habitaciones.ver_todas'));
+        },
         get fechaHoy() {
             return window.hoyServidor();
         },
@@ -460,23 +553,35 @@ function espaciosApp() {
             var q = this.busqueda.trim().toLowerCase();
             var self = this;
             return this.data.espacios.filter(function (e) {
-                if (self.filtroEstado && e.estado !== self.filtroEstado) return false;
+                if (self.filtroEstado && !self.coincideFiltro(e, self.filtroEstado)) return false;
                 if (q && !(e.numero || '').toLowerCase().includes(q)) return false;
                 return true;
             });
+        },
+        coincideFiltro(e, filtro) {
+            if (filtro === 'sin_asignar') return !e.asignada_hoy;
+            if (filtro === 'aprobada') return ['aprobada', 'aprobada_con_observacion', 'aprobada_automatica'].indexOf(e.franja) !== -1;
+            return e.franja === filtro;
         },
         // Solo para la vista de tabla: espaciosFiltrados ordenado por ordenCol/ordenDir.
         // La vista de tarjetas mantiene el orden original (por hotel, nombre) del backend.
         get espaciosOrdenados() {
             var col = this.ordenCol, dir = this.ordenDir === 'asc' ? 1 : -1;
+            var self = this;
             return this.espaciosFiltrados.slice().sort(function (a, b) {
-                var va = a[col], vb = b[col];
+                var va = self.valorOrden(a, col), vb = self.valorOrden(b, col);
                 if (typeof va === 'string') va = va.toLowerCase();
                 if (typeof vb === 'string') vb = vb.toLowerCase();
                 if (va < vb) return -1 * dir;
                 if (va > vb) return 1 * dir;
                 return 0;
             });
+        },
+        // Estado y asignada: se ordena por lo que se ve (texto de la franja / nombre; vacío al final).
+        valorOrden(e, col) {
+            if (col === 'franja') return e.franja ? this.textoEstado(e.franja) : '￿';
+            if (col === 'asignado_a_nombre') return e.asignado_a_nombre || '￿';
+            return e[col];
         },
 
         setVista(v) {
@@ -556,19 +661,38 @@ function espaciosApp() {
             return op ? op.etiqueta : 'Ambos hoteles';
         },
 
-        // Ahora que las áreas pasan por auditoría (ver docs/areas-comunes.md), pueden llegar a
-        // cualquiera de los 7 estados de Habitacion — mismo mapeo que asignaciones.php/habitaciones.php.
-        etiquetaEstado(estado) {
-            var map = {
-                'aprobada': 'Listo',
-                'sucia': 'Limpieza pendiente',
-                'en_progreso': 'En limpieza',
+        // Textos de la franja: los de habitaciones.php (decisión de Nicolás, 07/10/2026). Un área sin
+        // nadie asignado hoy no llega acá: no tiene franja (EspacioService::franjaVisible).
+        textoEstado(estado) {
+            var textos = {
+                'sucia': 'Pendiente',
+                'en_progreso': 'En progreso',
                 'completada_pendiente_auditoria': 'Por inspeccionar',
-                'aprobada_con_observacion': 'Listo c/obs.',
-                'aprobada_automatica': 'Listo (auto)',
+                'aprobada': 'Aprobada',
+                'aprobada_con_observacion': this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada',
+                'aprobada_automatica': this.puedeVerTodas ? 'Aprobada auto.' : 'Aprobada',
                 'rechazada': 'Rechazada'
             };
-            return map[estado] || 'Listo';
+            return textos[estado] || estado;
+        },
+        // Franja al pie de la tarjeta: clase .banner-estado-* de custom.css (colores de Ajustes → Colores).
+        claseBannerEstado(estado) {
+            var validos = ['sucia', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'];
+            return validos.indexOf(estado) !== -1 ? 'banner-estado-' + estado : 'bg-gray-400 dark:bg-gray-600';
+        },
+        // Borde izquierdo y etiqueta del hotel, igual que en la ficha de habitación.
+        colorHotelBorde(codigo) {
+            if (codigo === '1_sur' || codigo === 'inn') return 'hotel-border-' + codigo;
+            return 'border-l-gray-200 dark:border-l-gray-700';
+        },
+        colorEtiquetaHotel(codigo) {
+            if (codigo === '1_sur' || codigo === 'inn') return 'hotel-chip-' + codigo;
+            return 'text-gray-500 dark:text-gray-400';
+        },
+        hotelCorto(codigo) {
+            if (codigo === '1_sur') return 'Atankalama';
+            if (codigo === 'inn') return 'Atankalama INN';
+            return codigo || '';
         },
         claseBadge(estado) {
             // Colores por estado: clases semánticas .chip-estado-* (editables en Ajustes → Colores).
@@ -715,6 +839,62 @@ function espaciosApp() {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             } finally {
                 this.modalPedir.enviando = false;
+            }
+        },
+
+        // --- Más opciones (⋮): marcar limpia o sucia, como en Habitaciones ---
+        // Los estados válidos son los de los endpoints (ChecklistService::marcarLimpiaManual y
+        // HabitacionesController::marcarSuciaManual), mismos que la pantalla de Habitaciones.
+        puedeMarcarLimpia(esp) {
+            return !!esp && ['sucia', 'en_progreso', 'rechazada'].indexOf(esp.estado) !== -1;
+        },
+        puedeMarcarSucia(esp) {
+            return !!esp && ['en_progreso', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'].indexOf(esp.estado) !== -1;
+        },
+        tieneMenuEstado(esp) {
+            return this.puedeGestionarEstado && (this.puedeMarcarLimpia(esp) || this.puedeMarcarSucia(esp));
+        },
+        abrirMenuEstado(esp) {
+            this.modalEstado = { abierto: true, espacio: esp };
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+        cerrarMenuEstado() {
+            this.modalEstado = { abierto: false, espacio: null };
+        },
+        marcarLimpia(esp) {
+            var texto = '¿Marcar el área ' + esp.numero + ' como limpia? Quedará pendiente de inspección.';
+            if (esp.estado === 'en_progreso') {
+                texto += ' Quien la estaba limpiando conserva lo que alcanzó a marcar.';
+            }
+            if (!confirm(texto)) return;
+            this.ejecutarAccionEstado(esp, '/marcar-limpia', 'Quedó por inspeccionar.', 'No pudimos marcar el área como limpia.');
+        },
+        marcarSucia(esp) {
+            if (!confirm('¿Marcar el área ' + esp.numero + ' como sucia?')) return;
+            // Sin nadie asignado hoy, un área sucia no entra a ninguna cola: hay que pedir su limpieza.
+            var exito = esp.asignado_a_nombre
+                ? 'Quedó pendiente para ' + esp.asignado_a_nombre + '.'
+                : 'Quedó sucia. Para que alguien la limpie, usa «Pedir limpieza».';
+            this.ejecutarAccionEstado(esp, '/marcar-sucia', exito, 'No pudimos marcar el área como sucia.');
+        },
+        async ejecutarAccionEstado(esp, ruta, mensajeExito, mensajeError) {
+            this.cerrarMenuEstado();
+            if (this.accionEstadoEnCurso) return;
+            this.accionEstadoEnCurso = true;
+            try {
+                var r = await apiPost('/api/habitaciones/' + esp.id + ruta, {});
+                if (r && r.ok) {
+                    this.mostrarToast('exito', mensajeExito);
+                    this.cargar();
+                } else if (r && r.encolado) {
+                    this.mostrarToast('exito', 'Sin conexión: se hará apenas vuelva internet.');
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || mensajeError);
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.accionEstadoEnCurso = false;
             }
         },
 

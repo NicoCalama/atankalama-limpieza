@@ -182,6 +182,30 @@ Al tocarlo:
   - Las dos escrituras van en una sola transacción: si la habitación ya no está `en_progreso` responde `409 HABITACION_NO_EN_PROGRESO` y no cierra la ejecución.
   - Respuesta incluye redirect al Home con toast "Habitación lista para auditoría".
 
+### 3.7 Limpieza sin terminar al cierre de la noche (v6.19)
+
+Decisión de Nicolás (08/10/2026). Si nadie apretó «Habitación terminada», el cierre de la noche
+(`scripts/aprobar-pendientes-cierre-dia.php`, 23:55; la pasada de las 15:50 no lo hace) termina **toda**
+limpieza que siga `en_progreso`, de habitaciones y de áreas comunes, de cualquier día
+(`CierreDiaService::cerrarSinTerminar`):
+
+- La ejecución pasa a `completada` con `timestamp_fin` = la hora del cierre y **`cerrada_por_sistema = 1`**.
+- Si la pieza seguía `en_progreso`, pasa a `completada_pendiente_auditoria` y la misma corrida la aprueba
+  (`aprobado_automatico`, comentario «Sin terminar…»; a una habitación se le avisa `clean` a Cloudbeds como
+  a toda aprobación). Así la pieza queda libre para el día siguiente, también si se dejó a medias.
+- Si la pieza ya siguió su ciclo (la limpió otra persona, la marcaron sucia, Cloudbeds la dio por limpia),
+  la ejecución colgada solo se cierra: la pieza no se toca.
+- **Quien no la cerró no recibe créditos de ella** (decisión de Nicolás: «no siguieron las instrucciones»):
+  la marca la saca de los créditos, de las piezas hechas (bono), de los tiempos, de «Habitaciones
+  limpiadas» y de «Inspecciones pendientes al corte» (`ReportesService::NO_CERRADA_POR_SISTEMA`) y del
+  tiempo promedio de las alertas predictivas. Sí le sigue contando como **asignada y no hecha** (Asignadas,
+  días trabajados).
+- Las supervisoras (`espacios.pedir_limpieza`) reciben una campanita con las piezas y de quién eran
+  (tipo `cerradas_sin_terminar`).
+
+A esa hora no hay nadie trabajando: los turnos van de 08:00 a 22:00 y ninguno cruza la medianoche
+([turnos.md](turnos.md)). Reemplaza el arrastre de las áreas en progreso de la v6.18.
+
 ---
 
 ## 4. Tracking de tiempo (oculto)

@@ -153,21 +153,41 @@ nuevo una pieza recién hecha y ocupada. El caso testigo: la pieza **706** se ap
 escritura a Cloudbeds respondió `success: true`, entró un huésped, y a las 11:41 el sync la devolvió
 a sucia. La limpiaron dos veces. Ese día le pasó a ~8 piezas; en la semana previa, a varias por día.
 
-**La regla** (`CloudbedsSyncService::aprobadaHoy()` + `conservarAprobacionDelDia()`, al día de
-la v6.16):
+**La regla** (`CloudbedsSyncService::aprobadaHoy()` + `motivoParaConservarAprobacion()`, al día de
+la v6.20):
 
 ```
 Cloudbeds dice 'dirty' y la pieza está en estado terminal:
-  ¿Está APROBADA y su último cambio de estado (audit_log) fue HOY, día de Chile?
-    ├─ NO → revertir, sin alerta         (ciclo normal del día siguiente, o una rechazada — v6.11/v6.16)
-    └─ SÍ → ¿frontdesk 'turnover'?       (se va un huésped y entra otro: hay que limpiar entremedio — v6.11)
-              ├─ SÍ → revertir + WARNING + alerta P1
+  ¿Rechazada, o su última limpieza la cerró el cierre de la noche sin terminar (v6.19)?
+    └─ SÍ → revertir                     (no la aprobó nadie / no se puede dar por limpia)
+  ¿Su último cambio de estado (audit_log) fue HOY, día de Chile?
+    ├─ NO → ¿frontdesk 'check-in' y ya ocupada?   (llega un huésped a una pieza aprobada antes — v6.20)
+    │         ├─ SÍ → NO revertir, INFO al log    (queda aprobada hasta el aseo de mañana)
+    │         └─ NO → revertir, sin alerta        (ciclo normal: el aseo diario 'stayover', el check-out)
+    └─ SÍ → ¿frontdesk 'turnover'?                (se va un huésped y entra otro el mismo día)
+              ├─ SÍ → ¿ya ocupada y la limpieza se TERMINÓ con la pieza vacía? (R1, v6.20)
+              │         ├─ SÍ → NO revertir, INFO al log   (se limpió entre un huésped y otro)
+              │         └─ NO → revertir + WARNING + alerta P1   (se limpió con el anterior adentro, o sin dato)
               └─ NO → ¿ocupada, o frontdesk 'check-in'/'stayover'?
                         ├─ SÍ → NO revertir, INFO al log
                         └─ NO → revertir + WARNING + alerta P1
 ```
 
 La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a quedar aprobada.
+
+**«Se terminó con la pieza vacía» (v6.20).** Al pasar a `completada_pendiente_auditoria`,
+`HabitacionService::cambiarEstado()` anota en el detalle del historial (`audit_log`) la ocupación de
+la última lectura de Cloudbeds: `cb_ocupada` (0/1), `cb_frontdesk` y `cb_leida_at`. La sincronización
+mira la última limpieza terminada de la pieza (`limpiezaTerminadaVaciaHoy()`): tiene que ser de hoy y
+con `cb_ocupada = 0`. Sin la anotación (limpiezas anteriores a la v6.20) o si el sync no alcanzó a leer
+la salida del huésped antes de que terminara la limpieza, vuelve a la cola como antes: nunca queda peor.
+Depende de que Cloudbeds reporte la pieza vacía entre un huésped y otro (consulta Q2 del documento
+«Ciclo de limpieza y Cloudbeds»); si no lo hace, el dato hay que sacarlo de las reservas (plan B, con SQL).
+
+Pedidos que la originaron (08/10/2026): la supervisora contó que el turnover ya limpiado volvía a la
+cola de la misma trabajadora al llegar el huésped nuevo; y Nicolás decidió que la pieza aprobada un día
+anterior que recibe un huésped hoy se queda aprobada hasta el aseo de mañana. Si Recepción la marca
+sucia antes de que llegue el huésped (la pieza todavía vacía), se respeta y vuelve a la cola.
 
 **Qué NO rompe:**
 - La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con

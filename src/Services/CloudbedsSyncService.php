@@ -210,12 +210,14 @@ final class CloudbedsSyncService
                         // Se pregunta ANTES de tocar el estado: revertir es un cambio de estado
                         // nuevo, de hoy, y desde ese momento toda pieza parecería «aprobada hoy».
                         $aprobadaHoy = $this->aprobadaHoy($hab);
-                        if ($this->conservarAprobacionDelDia($aprobadaHoy, $frontdesk, $ocupada)) {
-                            Logger::info('cloudbeds', 'aprobación del día conservada: Cloudbeds la marcó sucia con huésped adentro', [
+                        $motivo = $this->motivoParaConservarAprobacion($hab, $aprobadaHoy, $frontdesk, $ocupada);
+                        if ($motivo !== null) {
+                            Logger::info('cloudbeds', 'aprobación conservada: Cloudbeds la marcó sucia con huésped adentro', [
                                 'habitacion_id' => $hab->id,
                                 'numero' => $hab->numero,
                                 'estado' => $hab->estado,
                                 'frontdesk' => $frontdesk,
+                                'motivo' => $motivo,
                             ]);
                         } else {
                             $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
@@ -343,39 +345,49 @@ final class CloudbedsSyncService
     }
 
     /**
-     * ¿Hay que conservar la aprobación de hoy aunque Cloudbeds diga 'dirty'?
+     * ¿Hay que conservar la aprobación aunque Cloudbeds diga 'dirty'? Devuelve el motivo, o null
+     * si la pieza vuelve a la cola.
      *
      * Cloudbeds marca una pieza 'dirty' apenas entra un huésped: para ellos es la marca del
      * servicio del día SIGUIENTE, no una limpieza pendiente. Si la app le hace caso sin
-     * distinguir, deshace la aprobación del día y manda a limpiar de nuevo una pieza recién
-     * hecha y ocupada.
+     * distinguir, deshace la aprobación y manda a limpiar de nuevo una pieza limpia y ocupada.
+     * Pasó de verdad: el 22/09/2026 la pieza 706 se aprobó a las 11:15 y 25 minutos después el
+     * sync la devolvió a sucia porque había entrado un huésped. Ese día le pasó a ~8 piezas.
      *
-     * Pasó de verdad: el 22/09/2026 la pieza 706 se aprobó a las 11:15, la escritura a
-     * Cloudbeds respondió `success: true`, y 25 minutos después el sync la devolvió a sucia
-     * porque había entrado un huésped. La limpiaron dos veces. Ese día le pasó a ~8 piezas.
+     * Se conserva en tres casos; en todo lo demás vuelve a la cola como siempre:
+     *  - Aprobada HOY y con huésped adentro (o llegando / siguiendo), salvo turnover (v6.10).
+     *  - Turnover aprobado HOY cuya limpieza se terminó con la pieza VACÍA según Cloudbeds, y ya
+     *    llegó el huésped nuevo (R1, v6.20): se limpió entre un huésped y otro. Si se limpió con el
+     *    anterior adentro, o no hay dato, vuelve a la cola: ahí sí hace falta aseo entremedio (es
+     *    lo que se cuidó desde el 23/09/2026, piezas 710 y 107). Pedido de la supervisora del
+     *    08/10/2026: el turnover limpiado volvía a la cola de la misma trabajadora.
+     *  - Aprobada un día ANTERIOR, vacía, y hoy llega un huésped (frontdesk 'check-in', ya
+     *    ocupada): queda aprobada hasta el aseo de mañana (decisión de Nicolás, 08/10/2026). Si
+     *    Recepción la marca sucia antes de que llegue el huésped, se respeta.
      *
-     * La re-limpieza LEGÍTIMA del mismo día (se fue un huésped y entra otro) llega con la
-     * pieza DESOCUPADA y frontdesk 'check-out'/'turnover', así que sigue revirtiendo igual
-     * que antes. Y los nocheros no dependen de esta rama: los revierte su propio barrido de
-     * las 16:00 (ver scripts/sync-cloudbeds.php).
+     * Nunca se conserva una rechazada (no la aprobó nadie), ni una pieza cuya última limpieza la
+     * terminó el cierre de la noche porque nadie apretó «terminar» (v6.19): quedó aprobada para
+     * liberarla, no porque esté limpia. El aseo diario de los que siguen ('stayover', cada
+     * madrugada) y el check-out siguen volviendo a la cola. Los nocheros no dependen de esta
+     * rama: los revierte su propio barrido de las 16:00 (ver scripts/sync-cloudbeds.php).
      */
-    private function conservarAprobacionDelDia(bool $aprobadaHoy, ?string $frontdesk, ?bool $ocupada): bool
+    private function motivoParaConservarAprobacion(Habitacion $hab, bool $aprobadaHoy, ?string $frontdesk, ?bool $ocupada): ?string
     {
-        // Rechazada, o aprobación de otro día: manda el ciclo normal, se revierte como
-        // siempre. Ver aprobadaHoy().
+        if (!$hab->estaAprobada() || $this->habitaciones->ultimaLimpiezaLaCerroElSistema($hab->id)) {
+            return null;
+        }
+
         if (!$aprobadaHoy) {
-            return false;
+            return $frontdesk === 'check-in' && $ocupada === true ? 'llegada_sobre_aprobacion_anterior' : null;
         }
 
-        // 'turnover' = se va un huésped y entra otro el MISMO día. Cloudbeds la reporta
-        // ocupada, pero justamente ahí la pieza necesita aseo entremedio: es el caso que
-        // menos podemos saltarnos. Detectado el 23/09/2026 en las piezas 710 y 107, que
-        // quedaron conservadas todo el día.
         if ($frontdesk === 'turnover') {
-            return false;
+            return $ocupada === true && $this->habitaciones->limpiezaTerminadaVaciaHoy($hab->id)
+                ? 'turnover_limpiado_vacio'
+                : null;
         }
 
-        return $ocupada === true || in_array($frontdesk, ['check-in', 'stayover'], true);
+        return $ocupada === true || in_array($frontdesk, ['check-in', 'stayover'], true) ? 'aprobada_hoy_ocupada' : null;
     }
 
     /**

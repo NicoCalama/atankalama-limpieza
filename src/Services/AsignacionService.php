@@ -643,6 +643,18 @@ final class AsignacionService
     }
 
     /**
+     * Pone al día las preasignaciones de $fecha si es hoy (ver reconciliarPreasignaciones). Lo
+     * llama la pantalla de Áreas comunes, que muestra quién tiene cada área hoy sin pasar por una
+     * cola ni por el tablero.
+     */
+    public function ponerAlDiaPreasignaciones(string $fecha): void
+    {
+        if ($fecha === date('Y-m-d')) {
+            $this->reconciliarPreasignaciones($fecha);
+        }
+    }
+
+    /**
      * Pone al día las preasignaciones de HOY que llegaron al día con la pieza ya aprobada
      * (aprobada, con observación o automática) sin que nadie la haya trabajado mediante esa
      * asignación (sin fila en #__ejecuciones_checklist ligada a su id):

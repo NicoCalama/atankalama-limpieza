@@ -472,7 +472,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
                                 'titulo' => 'También se inspeccionan',
-                                'texto'  => 'El badge te dice si está lista, pendiente, en limpieza o por inspeccionar. Igual que las habitaciones, un supervisor revisa el área antes de darla por aprobada.',
+                                'texto'  => 'La franja de abajo dice en qué va el área: pendiente, en progreso, por inspeccionar, aprobada o rechazada. Sin franja, nadie la tiene asignada hoy. Como las habitaciones, un supervisor la revisa antes de aprobarla.',
                             ],
                         ],
                     ],
@@ -493,7 +493,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.tabla"]',
                                 'titulo' => 'Vista de tabla',
-                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (número, estado, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
+                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.exportar"]',
