@@ -1493,3 +1493,114 @@ anterior). Las horas de `created_at` están en UTC.
 
 **Vuelta atrás:** subir `build/limpieza-v6172-vuelta-atras.zip`. Las asignaciones que el cierre ya pasó al día
 siguiente quedan así (son de una limpieza en curso que sigue en la cola de la misma persona).
+
+### 11.21 Release "limpiezas sin terminar y menú ⋮ de áreas" → v6.19
+
+Origen: audio de la supervisora del 08/10/2026 (un área «en progreso» desde el día anterior, sin ningún botón para
+marcarla limpia o sucia) y el diagnóstico de esa mañana en producción (`build/areas-en-progreso-diagnostico*.sql`):
+entre el 14/09 y el 08/10, **17 de 626 limpiezas de áreas** quedaron a medias (9 las rehízo otra persona desde
+cero y lo marcado por la primera nunca contó), y en 16 la persona había marcado todo en menos de 20 segundos: no
+apretó «terminar» porque todavía no se cumplían los 3 minutos mínimos. Además hubo **un cobro doble** (Casilleros
+trabajado, 25/09: un reintento de «terminar» cerró también una limpieza vieja de la misma persona); esa vía ya la
+había cerrado la v6.17.2.
+
+**Decisiones de Nicolás (08/10/2026):**
+
+- En la pasada de la noche (23:55), **toda limpieza sin terminar**, de habitaciones y de áreas, se termina y la
+  pieza queda **aprobada** (también una habitación a medias, con su `clean` a Cloudbeds): hay que liberarla para
+  el día siguiente.
+- **Quien no la cerró no recibe créditos de ella**, ni le cuenta como habitación hecha («no siguieron las
+  instrucciones»). Sí le sigue contando como asignada (Asignadas, días trabajados).
+- Áreas comunes: menú ⋮ con «Marcar limpia» y «Marcar sucia», como en Habitaciones.
+- Reemplaza el arrastre de las áreas en progreso de la v6.18 (§11.19). El mínimo de 3 minutos no cambia.
+
+Detalle en `docs/checklist.md` §3.7, `docs/areas-comunes.md` («Tarjeta y cierre del día») y el registro de
+decisiones de `docs/kpis-sueldos.md`.
+
+**Orden:** va encima de la v6.18.1 (§11.20, borde por hotel) si esa sube antes; si no, encima de la v6.18. No
+comparte código con la v6.18.1; solo `CHANGELOG.md` (subir el del commit más nuevo).
+
+**SQL de esquema, ANTES de extraer el ZIP** (phpMyAdmin, base `cat6852_australia`). El código nuevo lee la columna:
+sin ella fallan Reportes, el Inicio y el cierre de la noche.
+
+```sql
+ALTER TABLE limpieza_ejecuciones_checklist
+  ADD COLUMN cerrada_por_sistema TINYINT NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1))
+  AFTER auditoria_iniciada_at;
+
+-- Comprobación: la columna existe y está en 0 en todas las filas.
+SELECT COUNT(*) AS limpiezas, SUM(cerrada_por_sistema) AS cerradas_por_sistema
+  FROM limpieza_ejecuciones_checklist;
+```
+
+(Equivale a `scripts/migrate-add-cerrada-por-sistema.php`, idempotente, si se corre por consola.)
+
+**Antes de subir, qué va a cerrar la primera noche** (solo lee). La primera pasada cierra también las limpiezas
+colgadas de días anteriores: las de piezas que ya siguieron su ciclo solo se cierran (sin créditos, la pieza no se
+toca); las de piezas que siguen en progreso se aprueban y salen en la campanita.
+
+```sql
+SELECT IF(h.es_espacio_comun = 1, 'Área común', 'Habitación') AS tipo,
+       IF(h.estado = 'en_progreso', 'se aprueba', CONCAT('solo se cierra (pieza ', h.estado, ')')) AS que_pasa,
+       COUNT(*) AS limpiezas_sin_terminar
+  FROM limpieza_ejecuciones_checklist ec
+  JOIN limpieza_habitaciones h ON h.id = ec.habitacion_id
+ WHERE ec.estado = 'en_progreso'
+ GROUP BY tipo, que_pasa
+ ORDER BY tipo, que_pasa;
+```
+
+**Sin `.env`, sin `vendor/`, sin estáticos** (nada al docroot, sin bump de `CACHE_VERSION`). **Sin cambios en los
+cron:** el cierre sigue en `aprobar-pendientes-cierre-dia.php` (23:55 y 15:50; la de las 15:50 solo aprueba). El
+flag manual `--areas` pasa a llamarse `--noche` (el viejo sigue sirviendo).
+
+**ZIP** `build/limpieza-v619-delta.zip` (estructura `limpieza/…`, armado con `git -c core.autocrlf=false archive`),
+todo a `app_core/`:
+
+- `src/Services/CierreDiaService.php`, `src/Services/ReportesService.php`, `src/Services/HomeService.php`,
+  `src/Services/AlertasPredictivasService.php`;
+- `scripts/aprobar-pendientes-cierre-dia.php`, `scripts/migrate-add-cerrada-por-sistema.php` (nuevo);
+- `views/espacios.php`;
+- `docs/database-schema.sql` y `docs/database-schema.mariadb.sql` (los lee el verificador de esquema);
+- `CHANGELOG.md`.
+
+**Precheck** (como en la v6.18): bajar de prod esos archivos (menos el script nuevo) y compararlos contra la base
+de la rama normalizando `\r`; con eso, armar `build/limpieza-v619-vuelta-atras.zip`.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (el script del cierre está en el ZIP).
+
+**Smoke:**
+
+- badge **v6.19** (incógnito); `/api/health` 200 con `checks.esquema.ok: true`;
+- Áreas comunes: un área en progreso o aprobada muestra el botón ⋮ con «Marcar limpia» / «Marcar sucia» (en la
+  tarjeta y en la tabla); una sin limpieza ni aprobación (pendiente sin empezar) solo «Marcar limpia»;
+- Reportes abre y la ficha muestra créditos (la columna nueva está en 0 en todo lo anterior: nada cambia hacia atrás).
+
+**Verificación a la mañana siguiente** (la primera noche con la versión):
+
+```sql
+-- Debe dar 0 (o solo las que alguien empezó esa mañana).
+SELECT COUNT(*) AS sin_terminar FROM limpieza_ejecuciones_checklist WHERE estado = 'en_progreso';
+
+-- Lo que cerró el sistema esa noche (horas en UTC).
+SELECT al.created_at, u.nombre AS de, h.numero, al.detalles_json
+  FROM limpieza_audit_log al
+  JOIN limpieza_ejecuciones_checklist ec ON ec.id = al.entidad_id
+  JOIN limpieza_usuarios u ON u.id = ec.usuario_id
+  JOIN limpieza_habitaciones h ON h.id = ec.habitacion_id
+ WHERE al.accion = 'checklist.cerrar_sin_terminar'
+ ORDER BY al.id DESC
+ LIMIT 60;
+
+-- La campanita a las supervisoras.
+SELECT n.created_at, u.nombre, n.titulo, n.cuerpo
+  FROM limpieza_notificaciones n
+  JOIN limpieza_usuarios u ON u.id = n.usuario_id
+ WHERE n.tipo = 'cerradas_sin_terminar'
+ ORDER BY n.id DESC
+ LIMIT 10;
+```
+
+**Vuelta atrás:** subir `build/limpieza-v619-vuelta-atras.zip`. La columna puede quedar (default 0, el código viejo
+no la lee). Ojo: las limpiezas que el sistema ya cerró quedan cerradas y, con el código viejo, **sí** sumarían
+créditos (no conoce la marca).

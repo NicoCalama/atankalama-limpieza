@@ -115,28 +115,37 @@ pantalla suma «Sin asignar» y la tabla y el Excel, la columna «Asignada hoy»
 las preasignaciones de hoy (`AsignacionService::ponerAlDiaPreasignaciones`), para que un área preasignada
 no muestre la aprobación de su limpieza anterior si nadie abrió todavía una cola ni el tablero.
 
-**Cierre del día** (`CierreDiaService::cerrarAreasComunes`): lo corre el cron del cierre de día
-(`scripts/aprobar-pendientes-cierre-dia.php`, 23:55) **solo en la pasada de la noche** (desde las 20:00;
-la de las 15:50 no toca las áreas), después de aprobar las pendientes de inspección:
+**Cierre del día** (`scripts/aprobar-pendientes-cierre-dia.php`, 23:55, **solo en la pasada de la
+noche**: desde las 20:00; la de las 15:50 solo aprueba):
 
 - **Aprobada o pendiente:** nada que hacer. Desde las 00:00 no tiene asignación para el día nuevo y la
   tarjeta queda sin franja.
 - **Por inspeccionar:** el mismo cron la aprueba (`aprobada_automatica`) y desde las 00:00 queda sin franja.
-- **En progreso:** la asignación de hoy pasa a mañana con la misma persona y primera en su cola
-  (`orden_cola = 0`). La limpieza en curso sigue colgando de ella, así que se retoma con lo que ya estaba
-  marcado (antes quedaba en progreso en la cola de nadie y, si se volvía a pedir, partía de cero). Si el
-  área ya estaba preasignada para mañana, esa preasignación se cancela: gana la limpieza empezada. Queda
-  en el audit log (`asignacion.arrastrada_cierre_dia`) y se avisa con una campanita.
-- **Rechazada:** sigue rechazada (con su franja) y se avisa con una campanita que no se volvió a limpiar.
-  Se repite cada noche mientras siga así (una por persona y por día).
+- **En progreso (v6.19):** la limpieza se termina y el área queda aprobada, **sin créditos para quien no
+  apretó «terminar»** (`CierreDiaService::cerrarSinTerminar`, igual que las habitaciones: ver
+  [checklist.md](checklist.md) §3.7). Vale también para las que venían colgadas de días anteriores.
+  Se avisa con una campanita (tipo `cerradas_sin_terminar`).
+- **Rechazada:** sigue rechazada (con su franja) y se avisa con una campanita que no se volvió a limpiar
+  (`CierreDiaService::avisarAreasRechazadas`). Se repite cada noche mientras siga así (una por persona y por día).
 
-Las campanitas (tipos `areas_en_progreso_cierre` y `areas_rechazadas_sin_resolver`, bandeja + push a
-quien tenga turno activo) les llegan a las personas activas con `espacios.pedir_limpieza` (Supervisora y
-Admin por defecto), sin el usuario «Sistema». Una sola por noche y por tipo, con todas las áreas.
+Las campanitas (bandeja + push a quien tenga turno activo) les llegan a las personas activas con
+`espacios.pedir_limpieza` (Supervisora y Admin por defecto), sin el usuario «Sistema». Una sola por noche
+y por tipo, con todas las piezas.
 
-Áreas que ya estaban en progreso desde antes de hoy (sin asignación de hoy) no se arrastran: siguen con
-su franja EN PROGRESO y sin nadie asignado hasta que alguien pida su limpieza. Para mover un área en
-progreso a otra persona se necesita `asignaciones.mover_en_progreso` (solo Admin por defecto, ver §5).
+**Hasta la v6.18** el área en progreso se arrastraba cada noche a la cola de la misma persona
+(`asignacion.arrastrada_cierre_dia` en el audit log), sin límite y sin mirar si esa persona tenía turno; y
+la que venía de antes de hoy quedaba en progreso sin nadie. En producción, 17 de 626 limpiezas de áreas
+entre el 14/09 y el 08/10/2026 quedaron así, y en 16 la persona había marcado todo en menos de 20
+segundos: no apretó «terminar» porque todavía no se cumplían los 3 minutos mínimos.
+
+**Menú ⋮ (v6.19, pedido de la supervisora):** la tarjeta y la tabla tienen «Marcar limpia» y «Marcar
+sucia», los mismos de Habitaciones, con los mismos endpoints y el mismo permiso
+(`habitaciones.marcar_limpia_manual`). «Marcar limpia» deja el área por inspeccionar y quien la estaba
+limpiando conserva lo que marcó (`ChecklistService::marcarLimpiaManual`). «Marcar sucia» la deja
+pendiente para quien la tenga hoy; sin nadie asignado hoy no tiene franja y hay que pedir su limpieza.
+Marcarla sucia también destraba un área en progreso: ya no está en progreso, así que la supervisora puede
+pedírsela a otra persona sin el permiso de Admin. Para mover un área **en progreso** a otra persona se
+sigue necesitando `asignaciones.mover_en_progreso` (solo Admin por defecto, ver §5).
 
 ---
 
