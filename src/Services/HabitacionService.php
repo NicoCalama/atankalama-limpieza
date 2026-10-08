@@ -575,6 +575,71 @@ final class HabitacionService
         ) !== null;
     }
 
+    /**
+     * ¿La última limpieza terminada de la pieza se terminó HOY con la pieza vacía según Cloudbeds?
+     *
+     * Sale de la anotación que deja cambiarEstado() al pasar a completada_pendiente_auditoria
+     * (cb_ocupada de la última lectura de Cloudbeds). Responde que no si no hay dato: la anotación
+     * existe desde la v6.20, o la pieza nunca tuvo lectura de Cloudbeds. Lo usa la sincronización
+     * para no mandar a limpiar de nuevo un turnover que se limpió entre un huésped y otro (R1).
+     */
+    public function limpiezaTerminadaVaciaHoy(int $id, ?string $hoyLocal = null): bool
+    {
+        $hoyLocal ??= date('Y-m-d');
+        $filas = Database::fetchAll(
+            "SELECT detalles_json, created_at FROM #__audit_log
+              WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'
+              ORDER BY id DESC LIMIT 20",
+            [$id]
+        );
+        foreach ($filas as $f) {
+            $detalles = json_decode((string) $f['detalles_json'], true);
+            if (!is_array($detalles) || ($detalles['hasta'] ?? null) !== Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
+                continue;
+            }
+            // La última vez que se terminó una limpieza de esta pieza decide.
+            return Fechas::fechaLocalDeUtc((string) $f['created_at']) === $hoyLocal
+                && array_key_exists('cb_ocupada', $detalles)
+                && $detalles['cb_ocupada'] === 0;
+        }
+        return false;
+    }
+
+    /**
+     * ¿La última limpieza de la pieza la terminó el cierre de la noche porque nadie apretó
+     * «terminar» (v6.19)? Esa pieza quedó aprobada para liberarla, pero no se puede dar por limpia.
+     */
+    public function ultimaLimpiezaLaCerroElSistema(int $id): bool
+    {
+        $marca = Database::fetchColumn(
+            'SELECT cerrada_por_sistema FROM #__ejecuciones_checklist WHERE habitacion_id = ? ORDER BY id DESC LIMIT 1',
+            [$id]
+        );
+        return (int) $marca === 1;
+    }
+
+    /**
+     * Ocupación según la última lectura de Cloudbeds, para anotarla en el historial. Vacío si la
+     * pieza no tiene lectura (un área común, o una pieza que el sync todavía no leyó).
+     *
+     * @return array{cb_ocupada?: ?int, cb_frontdesk?: ?string, cb_leida_at?: string}
+     */
+    private function ocupacionCloudbedsActual(int $id): array
+    {
+        $fila = Database::fetchOne(
+            'SELECT cb_ocupada, cb_frontdesk_status, cb_ocupacion_sync_at FROM #__habitaciones WHERE id = ?',
+            [$id]
+        );
+        if ($fila === null || $fila['cb_ocupacion_sync_at'] === null) {
+            return [];
+        }
+        return [
+            'cb_ocupada'   => $fila['cb_ocupada'] === null ? null : (int) $fila['cb_ocupada'],
+            'cb_frontdesk' => $fila['cb_frontdesk_status'] === null ? null : (string) $fila['cb_frontdesk_status'],
+            'cb_leida_at'  => (string) $fila['cb_ocupacion_sync_at'],
+        ];
+    }
+
     public function buscarPorCloudbedsRoomId(int $hotelId, string $cloudbedsRoomId): ?Habitacion
     {
         $fila = Database::fetchOne(
@@ -630,10 +695,13 @@ final class HabitacionService
 
         Logger::info('habitaciones', 'cambio de estado', $contexto, $usuarioId);
 
-        Logger::audit($usuarioId, 'habitacion.cambiar_estado', 'habitacion', $id, [
-            'desde' => $habitacion->estado,
-            'hasta' => $nuevoEstado,
-        ], $origen);
+        $detalles = ['desde' => $habitacion->estado, 'hasta' => $nuevoEstado];
+        // Al terminarse una limpieza queda anotado cómo veía Cloudbeds la pieza en ese momento:
+        // con eso la sincronización sabe si se limpió vacía, entre un huésped y otro (R1, v6.20).
+        if ($nuevoEstado === Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
+            $detalles += $this->ocupacionCloudbedsActual($id);
+        }
+        Logger::audit($usuarioId, 'habitacion.cambiar_estado', 'habitacion', $id, $detalles, $origen);
 
         if (in_array($nuevoEstado, Habitacion::ESTADOS_APROBADOS, true)) {
             $this->resolverAlertasAlAprobar($id);

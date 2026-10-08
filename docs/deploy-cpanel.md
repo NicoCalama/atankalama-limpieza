@@ -407,6 +407,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-07 | **Preasignaciones + rescate de la auditoría del 07/10** → **v6.17.1 + v6.17.2** (v6.17.1 `14335e8` + `17a268a`; v6.17.2 `733b1af` + `59786d3` + `f3f6e66`; CHANGELOG fechado y runbook `8dc4df6`) | Deploy combinado (decisión de Nicolás). **v6.17.1** (§11.17): las áreas comunes preasignadas pasan a sucia al llegar el día (preasignar un área es un pedido firme de limpieza; de 31 entre el 07/09 y el 06/10 solo una se había limpiado), las habitaciones preasignadas que amanecen «aprobada automática» salen de la cola con aviso, y «Marcar sucia» acepta las aprobadas por el sistema. **v6.17.2** (§11.18): lo útil de la auditoría de código de una sesión en la nube (rama `ccr-d58d9709-6vgn0f`, sin la v7 y sin sus cambios de KPIs, la limpieza «interrumpida», el reparto por hotel ni la cola offline), con las correcciones de la revisión. Sin SQL. **Antes de subir:** consultas de permisos de §11.18 (todo en orden: `notificaciones.ver` en todos los roles, `disponibilidad.notificar_supervisora` en Trabajador, Apoyo y Admin, `usuarios.asignar_rol` ya en Supervisora, el correo de las 23:50 le llega a las mismas personas) y precheck: los 231 archivos de `src/`, `views/` y `scripts/` y el `CHANGELOG.md` bajados de prod, idénticos a `eb3f7d2`. ZIP de 47 archivos a `app_core/` y `build/limpieza-v617-vuelta-atras.zip` de respaldo. Subido el 07/10 antes de las 08:00. Smoke: badge **v6.17.2** (Nicolás), `/api/health` 200 con `checks.esquema.ok: true` y `/login` 200 (07:59). Alertas activas al subir: 48 `trabajador_en_riesgo` (las de días anteriores las cierra el primer recálculo), 47 `ticket_nuevo` desde el 29/09, 12 `aprobacion_deshecha` desde el 06/10 18:10 y 1 de inventario. |
 | 2026-10-07 | **Tarjeta y cierre del día de las áreas comunes** → **v6.18** (feat `fa01cc6`, docs `12a051b`, número y CHANGELOG fechado `35d5ed3`; rama `v6.18-areas-comunes`, desde `v6.17.2-rescate`) | Pedido de jefatura del mismo día. La tarjeta de Áreas comunes pasa a ser la ficha de Habitaciones (franja de estado con los textos y colores de las habitaciones; sin asignación hoy, sin franja, salvo en progreso, por inspeccionar o rechazada) y la pasada de la noche del cierre de día cierra también el día de las áreas (la que queda en progreso sigue mañana primera en la cola de la misma persona; campanita a quienes tienen `espacios.pedir_limpieza` por esas y por las rechazadas sin resolver). Se armó como v6.17.3; **Nicolás decidió publicarla como v6.18** (en `main` la fila «v6.18 · sin publicar» de la inspección pre-entrega pasa a v7 al integrar). Runbook §11.19: **sin SQL**, sin cambios en los cron, ZIP de 7 archivos a `app_core/` (`build/limpieza-v618-delta.zip`, idénticos a `35d5ed3`; el primer armado salió con CRLF por `core.autocrlf` y se rehízo con `git -c core.autocrlf=false archive`) y `build/limpieza-v6172-vuelta-atras.zip`. Subido el 07/10 en la tarde. Smoke (Nicolás): badge **v6.18** y franjas funcionando en producción (PENDIENTE sale roja: es el color de `sucia` configurado en Ajustes → Colores, el mismo de las habitaciones). Consulta B antes del primer cierre: 3 áreas en progreso del 07/10 (Pasillo 300 Atan, Pasillo 700 Atan y Piscina Atan Inn), las 3 personas con turno el 08/10; COSTURA en progreso desde el 06/10 (no se arrastra: hay que ver si se terminó); ninguna rechazada. **Primer cierre verificado el 08/10:** solo se arrastró la Piscina Atan Inn (Rafael, que la terminó el 08/10 a las 06:17) y la campanita les llegó a 8 personas; el Pasillo 700 lo terminó Limberg el 07/10, y el Pasillo 300 no se arrastró porque su limpieza (Elvira) quedó sin asignación vigente cuando un Admin se lo pasó a Judith. El arrastre lo reemplazó la v6.19 ese mismo día. |
 | 2026-10-08 | **Limpiezas sin terminar y menú ⋮ de áreas** → **v6.19** (feat `dd22c1a`, docs `f1740d4`, CHANGELOG fechado `8774c47`, armado del ZIP `97f967f`; rama `v6.19-cierre-sin-terminar`, desde `1e612b4`) | Audio de la supervisora (área «en progreso» desde el día anterior, sin botones) y diagnóstico en prod: 17 de 626 limpiezas de áreas a medias desde el 14/09, 16 con todo marcado en menos de 20 s (los 3 minutos mínimos). **Decisión de Nicolás:** en la pasada de la noche toda limpieza sin terminar (habitaciones y áreas, de cualquier día) se termina y la pieza queda aprobada, pero quien no apretó «terminar» no recibe créditos (sí le cuenta como asignada); campanita a las supervisoras; menú ⋮ («Marcar limpia» / «Marcar sucia») en Áreas comunes. Runbook §11.21. **SQL corrido antes del ZIP** (columna `limpieza_ejecuciones_checklist.cerrada_por_sistema`). **Dos errores del armado:** el primer ZIP salió con la fila «sin publicar» y con las rutas `limpieza/…` sin `app_core/`; extraído en `public_html/`, quedó en el docroot y prod siguió en la v6.18 (sin ⋮ y con el badge viejo). Se rearmó con la fecha y con `limpieza/app_core/…` (10 archivos, idénticos a `8774c47`) y `build/limpieza-v619-vuelta-atras.zip`. Subido el 08/10 ~17:15. Smoke: botón ⋮ en Áreas comunes (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (17:19). **Pendiente:** borrar del docroot los archivos sueltos de las dos primeras subidas (`CHANGELOG.md`, `docs/`, `scripts/`, `src/`, `views/`; el `.htaccess` ya los bloqueaba con 403) y verificar el primer cierre (23:55 del 08/10) con las consultas de §11.21: también cierra las limpiezas colgadas de días anteriores. |
+| 2026-10-08 | **Turnover y llegadas sobre piezas aprobadas** → **v6.20** (feat `5d24c95`, docs y CHANGELOG fechado `6b825bf`; rama `v6.20-turnover`, desde `fdd661c`) | La supervisora contó que las habitaciones aprobadas vuelven solas a la cola de la trabajadora cuando llega el huésped: causa **R1** del documento «Ciclo de limpieza y Cloudbeds». Al terminar cada limpieza queda anotada en el historial la ocupación que veía Cloudbeds; un turnover limpiado con la pieza vacía ya no vuelve a la cola cuando llega el huésped nuevo, y **por decisión de Nicolás** una pieza aprobada un día anterior que recibe un huésped hoy queda aprobada hasta el aseo de mañana (si Recepción la marca sucia antes de que llegue, se respeta). Nunca se conserva una rechazada ni una cerrada por el cierre de la noche sin terminar. Runbook §11.22: **sin SQL**, ZIP de 3 archivos con las rutas bajo `limpieza/app_core/` (`build/limpieza-v620-delta.zip`, idénticos a `6b825bf`) y `build/limpieza-v620-vuelta-atras.zip`. La Q2 (¿Cloudbeds marca vacía la pieza entre huéspedes?) no se alcanzó a correr antes: se sube igual porque sin ese dato todo sigue como antes. Subido el 08/10 ~18:05. Smoke: badge **v6.20** (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (18:07). **Pendiente:** el 09/10, la Q2 entre las 13 y las 15 h y la verificación de §11.22. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -1775,3 +1776,68 @@ SELECT n.created_at, u.nombre, n.titulo, n.cuerpo
 **Vuelta atrás:** subir `build/limpieza-v619-vuelta-atras.zip`. La columna puede quedar (default 0, el código viejo
 no la lee). Ojo: las limpiezas que el sistema ya cerró quedan cerradas y, con el código viejo, **sí** sumarían
 créditos (no conoce la marca).
+
+### 11.22 Release "turnover y llegadas sobre piezas aprobadas" → v6.20
+
+Origen: la supervisora contó el 08/10/2026 que las habitaciones aprobadas vuelven solas a la cola de la trabajadora
+cuando llega el huésped. Es la causa **R1** del documento «Ciclo de limpieza y Cloudbeds»: Cloudbeds marca `dirty` al
+llegar un huésped (aviso del aseo de **mañana**) y la regla de la v6.10 nunca conservaba un `turnover`, porque no sabía si
+la limpieza se había hecho antes o después de que saliera el huésped anterior.
+
+**Qué cambia** (`CloudbedsSyncService::motivoParaConservarAprobacion()`, detalle en `docs/cloudbeds.md` §4.x):
+
+- Al terminar cada limpieza, `HabitacionService::cambiarEstado()` anota en el historial la ocupación que veía Cloudbeds
+  (`cb_ocupada`, `cb_frontdesk`, `cb_leida_at` en el `detalles_json` del paso a `completada_pendiente_auditoria`).
+- **Turnover del mismo día:** si la limpieza se terminó con la pieza **vacía** y el `dirty` llega con el huésped nuevo
+  adentro, se conserva la aprobación. Con el anterior adentro, o sin dato, vuelve a la cola como antes.
+- **Decisión de Nicolás (08/10/2026):** una pieza aprobada un día anterior que recibe un huésped hoy (`check-in`, ya
+  ocupada) queda aprobada hasta el aseo de mañana. Si Recepción la marca sucia antes de que llegue (todavía vacía),
+  se respeta.
+- Nunca se conserva una rechazada ni una pieza cuya última limpieza la cerró el cierre de la noche sin terminar (v6.19).
+- El aseo diario de los que siguen (`stayover`, cada madrugada) y el check-out vuelven a la cola como siempre.
+
+**Antes de subir — consulta Q2** (`build/r1-turnover-diagnostico.sql`, consulta 3), **entre las 13 y las 15 h**: si
+alguna fila `turnover` con `todavia_falta_que_llegue = 1` sale con `ocupada = 0`, la parte del turnover funciona desde
+el primer día. Si todas salen con `ocupada = 1`, Cloudbeds no marca la pieza vacía entre huéspedes: esa parte queda
+inerte (todo sigue como hoy) y hace falta el plan B (dato de las reservas, con SQL). La parte de la llegada sobre una
+pieza aprobada antes funciona igual.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos, sin cambios en los cron.**
+
+**ZIP** `build/limpieza-v620-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v6.20 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3
+archivos: `src/Services/CloudbedsSyncService.php`, `src/Services/HabitacionService.php` y `CHANGELOG.md`. Vuelta atrás:
+`build/limpieza-v620-vuelta-atras.zip` (los mismos tres en la v6.19, `fdd661c`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v6.20** (incógnito) y `/api/health` 200.
+
+**Verificación al día siguiente** (horas en UTC):
+
+```sql
+-- Aprobaciones que el sync conservó, por motivo (desde el deploy).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.motivo')) AS motivo, COUNT(*) AS veces
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n conservada:%'
+   AND created_at >= '2026-10-09T00:00'
+ GROUP BY motivo;
+
+-- Las que todavía volvieron a la cola, por frontdesk (comparar con la consulta 1 del diagnóstico).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.frontdesk')) AS frontdesk, COUNT(*) AS veces
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n deshecha:%'
+   AND created_at >= '2026-10-09T00:00'
+ GROUP BY frontdesk;
+
+-- Las limpiezas terminadas después del deploy traen la anotación de ocupación.
+SELECT created_at, entidad_id AS habitacion_id, detalles_json
+  FROM limpieza_audit_log
+ WHERE accion = 'habitacion.cambiar_estado'
+   AND detalles_json LIKE '%"hasta":"completada_pendiente_auditoria"%'
+ ORDER BY id DESC
+ LIMIT 10;
+```
+
+**Vuelta atrás:** subir `build/limpieza-v620-vuelta-atras.zip`. La anotación que ya quedó en el historial no molesta: el
+código viejo no la lee.

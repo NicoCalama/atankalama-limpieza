@@ -130,7 +130,7 @@ editar la estructura, y con eso una aprobación de ayer pasaba por «de hoy».
 > **Por qué existe.** Antes esto pasaba **mudo**: la rama de al lado (Cloudbeds la aprueba sola)
 > sí registraba un WARNING, pero deshacer una aprobación no dejaba rastro. El 22/09/2026 costó
 > horas entender por qué la pieza 706 se limpió dos veces. Ver la regla en
-> `CloudbedsSyncService::conservarAprobacionDelDia()`.
+> `CloudbedsSyncService::motivoParaConservarAprobacion()` (docs/cloudbeds.md §4.x).
 
 ---
 
