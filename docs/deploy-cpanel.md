@@ -1613,3 +1613,68 @@ SELECT n.created_at, u.nombre, n.titulo, n.cuerpo
 **Vuelta atrás:** subir `build/limpieza-v619-vuelta-atras.zip`. La columna puede quedar (default 0, el código viejo
 no la lee). Ojo: las limpiezas que el sistema ya cerró quedan cerradas y, con el código viejo, **sí** sumarían
 créditos (no conoce la marca).
+
+### 11.22 Release "turnover y llegadas sobre piezas aprobadas" → v6.20
+
+Origen: la supervisora contó el 08/10/2026 que las habitaciones aprobadas vuelven solas a la cola de la trabajadora
+cuando llega el huésped. Es la causa **R1** del documento «Ciclo de limpieza y Cloudbeds»: Cloudbeds marca `dirty` al
+llegar un huésped (aviso del aseo de **mañana**) y la regla de la v6.10 nunca conservaba un `turnover`, porque no sabía si
+la limpieza se había hecho antes o después de que saliera el huésped anterior.
+
+**Qué cambia** (`CloudbedsSyncService::motivoParaConservarAprobacion()`, detalle en `docs/cloudbeds.md` §4.x):
+
+- Al terminar cada limpieza, `HabitacionService::cambiarEstado()` anota en el historial la ocupación que veía Cloudbeds
+  (`cb_ocupada`, `cb_frontdesk`, `cb_leida_at` en el `detalles_json` del paso a `completada_pendiente_auditoria`).
+- **Turnover del mismo día:** si la limpieza se terminó con la pieza **vacía** y el `dirty` llega con el huésped nuevo
+  adentro, se conserva la aprobación. Con el anterior adentro, o sin dato, vuelve a la cola como antes.
+- **Decisión de Nicolás (08/10/2026):** una pieza aprobada un día anterior que recibe un huésped hoy (`check-in`, ya
+  ocupada) queda aprobada hasta el aseo de mañana. Si Recepción la marca sucia antes de que llegue (todavía vacía),
+  se respeta.
+- Nunca se conserva una rechazada ni una pieza cuya última limpieza la cerró el cierre de la noche sin terminar (v6.19).
+- El aseo diario de los que siguen (`stayover`, cada madrugada) y el check-out vuelven a la cola como siempre.
+
+**Antes de subir — consulta Q2** (`build/r1-turnover-diagnostico.sql`, consulta 3), **entre las 13 y las 15 h**: si
+alguna fila `turnover` con `todavia_falta_que_llegue = 1` sale con `ocupada = 0`, la parte del turnover funciona desde
+el primer día. Si todas salen con `ocupada = 1`, Cloudbeds no marca la pieza vacía entre huéspedes: esa parte queda
+inerte (todo sigue como hoy) y hace falta el plan B (dato de las reservas, con SQL). La parte de la llegada sobre una
+pieza aprobada antes funciona igual.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos, sin cambios en los cron.**
+
+**ZIP** `build/limpieza-v620-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v6.20 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3
+archivos: `src/Services/CloudbedsSyncService.php`, `src/Services/HabitacionService.php` y `CHANGELOG.md`. Vuelta atrás:
+`build/limpieza-v620-vuelta-atras.zip` (los mismos tres en la v6.19, `fdd661c`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v6.20** (incógnito) y `/api/health` 200.
+
+**Verificación al día siguiente** (horas en UTC):
+
+```sql
+-- Aprobaciones que el sync conservó, por motivo (desde el deploy).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.motivo')) AS motivo, COUNT(*) AS veces
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n conservada:%'
+   AND created_at >= '2026-10-09T00:00'
+ GROUP BY motivo;
+
+-- Las que todavía volvieron a la cola, por frontdesk (comparar con la consulta 1 del diagnóstico).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.frontdesk')) AS frontdesk, COUNT(*) AS veces
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n deshecha:%'
+   AND created_at >= '2026-10-09T00:00'
+ GROUP BY frontdesk;
+
+-- Las limpiezas terminadas después del deploy traen la anotación de ocupación.
+SELECT created_at, entidad_id AS habitacion_id, detalles_json
+  FROM limpieza_audit_log
+ WHERE accion = 'habitacion.cambiar_estado'
+   AND detalles_json LIKE '%"hasta":"completada_pendiente_auditoria"%'
+ ORDER BY id DESC
+ LIMIT 10;
+```
+
+**Vuelta atrás:** subir `build/limpieza-v620-vuelta-atras.zip`. La anotación que ya quedó en el historial no molesta: el
+código viejo no la lee.
