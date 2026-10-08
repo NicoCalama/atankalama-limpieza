@@ -1554,10 +1554,16 @@ SELECT IF(h.es_espacio_comun = 1, 'Área común', 'Habitación') AS tipo,
 cron:** el cierre sigue en `aprobar-pendientes-cierre-dia.php` (23:55 y 15:50; la de las 15:50 solo aprueba). El
 flag manual `--areas` pasa a llamarse `--noche` (el viejo sigue sirviendo).
 
-**ZIP** `build/limpieza-v619-delta.zip` (estructura `limpieza/…`, armado con `git -c core.autocrlf=false archive`),
-todo a `app_core/`. **La fila de la v6.19 del `CHANGELOG.md` tiene que ir fechada** («v6.19 · 08/10/2026»): el badge
-muestra la última versión **publicada**, y con «sin publicar» sigue diciendo v6.18. El primer ZIP del 08/10 salió sin
-fecha (subido así, el badge no cambió) y se rearmó con la fila fechada.
+**ZIP** `build/limpieza-v619-delta.zip`, armado con
+`git -c core.autocrlf=false archive --prefix=limpieza/app_core/`: **adentro todo va bajo `limpieza/app_core/…`**
+(la estructura del servidor, §10), y se extrae en `public_html/` como siempre. **La fila de la v6.19 del
+`CHANGELOG.md` va fechada** («v6.19 · 08/10/2026», §10 paso 0): el badge muestra la última versión **publicada**.
+
+> **Lo que pasó el 08/10:** el primer ZIP salió con la fila «sin publicar» y con las rutas como `limpieza/src/…`
+> (sin `app_core/`). Extraído en `public_html/`, los 10 archivos quedaron en el docroot `public_html/limpieza/`
+> en vez de `app_core/`: la app siguió en la v6.18 (sin el botón ⋮) y el badge también. Se rearmó con la fecha y
+> con `limpieza/app_core/…`; los archivos que quedaron sueltos en el docroot (`CHANGELOG.md`, `docs/`, `scripts/`,
+> `src/`, `views/`) se borran. El `.htaccess` del docroot ya los bloqueaba (`/limpieza/docs/…` daba 403).
 
 - `src/Services/CierreDiaService.php`, `src/Services/ReportesService.php`, `src/Services/HomeService.php`,
   `src/Services/AlertasPredictivasService.php`;
