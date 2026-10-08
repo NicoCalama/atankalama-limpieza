@@ -322,6 +322,7 @@ final class HomeService
         )['c'] ?? 0);
 
         // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel, sin el personal de apoyo
+        // ni las que terminó el cierre de la noche porque nadie apretó «terminar» (v6.19).
         $paramsTiempo = [$hotelId, $diaDesde, $diaHasta];
         $sinApoyoTiempo = RbacService::sqlSinPermiso('e.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $paramsTiempo);
         $tiempoProm = Database::fetchOne(
@@ -330,6 +331,7 @@ final class HomeService
                JOIN #__habitaciones h ON h.id = e.habitacion_id
               WHERE h.hotel_id = ?
                 AND h.es_espacio_comun = 0
+                AND e.cerrada_por_sistema = 0
                 AND e.timestamp_fin IS NOT NULL
                 AND e.timestamp_fin >= ? AND e.timestamp_fin < ?
                 AND ' . $sinApoyoTiempo,

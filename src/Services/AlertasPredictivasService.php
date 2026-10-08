@@ -218,6 +218,7 @@ final class AlertasPredictivasService
                FROM #__ejecuciones_checklist
               WHERE usuario_id = ?
                 AND estado IN ('completada', 'auditada')
+                AND cerrada_por_sistema = 0
                 AND timestamp_fin IS NOT NULL
               ORDER BY id DESC LIMIT 20",
             [$usuarioId]

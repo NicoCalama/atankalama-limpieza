@@ -16,10 +16,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Cierre del día de las áreas comunes (v6.18, decisión de Nicolás del 07/10/2026): la que queda
- * en progreso sigue mañana en la cola de la misma persona, con lo que ya marcó; de la rechazada que
- * nadie volvió a pedir se avisa cada noche; y la tarjeta muestra la franja solo de lo que está en
- * curso o pasó hoy. Ver CierreDiaService::cerrarAreasComunes() y EspacioService::franjaVisible().
+ * Áreas comunes al cierre del día (v6.18, decisión de Nicolás del 07/10/2026): de la rechazada que
+ * nadie volvió a pedir se avisa cada noche, y la tarjeta muestra la franja solo de lo que está en
+ * curso o pasó hoy. Ver CierreDiaService::avisarAreasRechazadas() y EspacioService::franjaVisible().
+ * El área que quedaba en progreso ya no se arrastra al día siguiente: desde la v6.19 la termina el
+ * cierre de la noche, sin créditos (CierreSinTerminarTest).
  */
 final class CierreAreasComunesTest extends TestCase
 {
@@ -48,87 +49,15 @@ final class CierreAreasComunesTest extends TestCase
         $this->cierre    = new CierreDiaService();
     }
 
-    public function testAreaEnProgresoSigueMananaPrimeraEnLaColaYConLoMarcado(): void
-    {
-        $area = $this->espacios->crear('Piscina', '1_sur', ['Barrer', 'Vidrios', 'Cloro']);
-        $this->espacios->pedirLimpieza($area, $this->ana, $this->hoy);
-        $ejecucion = $this->checklist->iniciarEjecucion($area, $this->ana, $this->hoy);
-        $primerItem = (int) $this->checklist->estadoEjecucion($ejecucion->id)['items'][0]['id'];
-        $this->checklist->marcarItem($ejecucion->id, $primerItem, true, $this->ana);
-        // Ana ya tiene una habitación para mañana: el área tiene que quedar antes.
-        $pieza = $this->crearHabitacion('305');
-        $this->asig->asignarManual($pieza, $this->ana, $this->manana);
-
-        $r = $this->cierre->cerrarAreasComunes($this->hoy, $this->manana);
-
-        $this->assertSame(['arrastradas' => 1, 'rechazadas' => 0], $r);
-        $this->assertSame([], $this->asig->colaDelTrabajador($this->ana, $this->hoy));
-        $cola = $this->asig->colaDelTrabajador($this->ana, $this->manana);
-        $this->assertSame([$area, $pieza], array_map(static fn(array $f): int => (int) $f['habitacion_id'], $cola));
-        $actual = AsignacionService::elegirHabitacionActual($cola);
-        $this->assertNotNull($actual);
-        $this->assertSame($area, (int) $actual['habitacion_id']);
-
-        // Retoma la misma limpieza, con el ítem que había marcado.
-        $retomada = $this->checklist->iniciarEjecucion($area, $this->ana, $this->manana);
-        $this->assertSame($ejecucion->id, $retomada->id);
-        $items = $this->checklist->estadoEjecucion($retomada->id)['items'];
-        $this->assertSame(1, (int) $items[0]['marcado']);
-        $this->assertSame('en_progreso', $this->estado($area));
-
-        $avisos = $this->avisos($this->sofia, CierreDiaService::NOTIF_AREAS_EN_PROGRESO);
-        $this->assertCount(1, $avisos);
-        $this->assertStringContainsString('Piscina (1 Sur) con Ana', $avisos[0]['cuerpo']);
-        $this->assertStringContainsString('Sigue primera en su cola del ' . date('d/m', strtotime($this->manana)), $avisos[0]['cuerpo']);
-        $this->assertSame([], $this->avisos($this->ana, CierreDiaService::NOTIF_AREAS_EN_PROGRESO), 'la trabajadora no recibe el aviso');
-    }
-
-    public function testLaPreasignacionDeMananaDeOtraPersonaSeCancela(): void
-    {
-        [$beto] = TestDatabase::crearUsuario('33333333-3', 'Beto', 'Trabajador');
-        $area = $this->espacios->crear('Patio', '1_sur', ['Barrer']);
-        $this->espacios->pedirLimpieza($area, $this->ana, $this->hoy);
-        $this->checklist->iniciarEjecucion($area, $this->ana, $this->hoy);
-        $preasignada = $this->asig->asignarManual($area, $beto, $this->manana);
-
-        $this->cierre->cerrarAreasComunes($this->hoy, $this->manana);
-
-        $this->assertSame(0, (int) Database::fetchColumn('SELECT activa FROM asignaciones WHERE id = ?', [$preasignada->id]));
-        $this->assertSame([], $this->asig->colaDelTrabajador($beto, $this->manana));
-        $this->assertCount(1, $this->asig->colaDelTrabajador($this->ana, $this->manana));
-        $aviso = $this->avisos($this->sofia, CierreDiaService::NOTIF_AREAS_EN_PROGRESO)[0];
-        $this->assertStringContainsString('se canceló la preasignación de mañana a Beto', $aviso['cuerpo']);
-    }
-
-    public function testAreasAprobadasOPendientesYHabitacionesNoSeTocan(): void
-    {
-        $pendiente = $this->espacios->crear('Bodega', '1_sur', ['Ordenar']);
-        $asigPendiente = $this->espacios->pedirLimpieza($pendiente, $this->ana, $this->hoy);
-        $libre = $this->espacios->crear('Terraza', '1_sur', ['Barrer']);
-        // Una habitación de huésped en progreso no es asunto de este cierre (su ciclo es Cloudbeds).
-        $pieza = $this->crearHabitacion('410');
-        $asigPieza = $this->asig->asignarManual($pieza, $this->ana, $this->hoy);
-        $this->checklist->iniciarEjecucion($pieza, $this->ana, $this->hoy);
-
-        $r = $this->cierre->cerrarAreasComunes($this->hoy, $this->manana);
-
-        $this->assertSame(['arrastradas' => 0, 'rechazadas' => 0], $r);
-        $this->assertSame($this->hoy, $this->fechaAsignacion($asigPendiente->id));
-        $this->assertSame($this->hoy, $this->fechaAsignacion($asigPieza->id));
-        $this->assertSame('sucia', $this->estado($pendiente));
-        $this->assertSame('aprobada', $this->estado($libre));
-        $this->assertSame(0, (int) Database::fetchColumn('SELECT COUNT(*) FROM notificaciones WHERE usuario_id = ?', [$this->sofia]));
-    }
-
     public function testAreaRechazadaSeAvisaUnaVezPorNoche(): void
     {
         $area = $this->espacios->crear('Baño recepción', '1_sur', ['Lavamanos']);
         $this->limpiarYRechazar($area);
 
-        $r = $this->cierre->cerrarAreasComunes($this->hoy, $this->manana);
-        $this->cierre->cerrarAreasComunes($this->hoy, $this->manana); // una segunda corrida a mano
+        $r = $this->cierre->avisarAreasRechazadas($this->hoy);
+        $this->cierre->avisarAreasRechazadas($this->hoy); // una segunda corrida a mano
 
-        $this->assertSame(['arrastradas' => 0, 'rechazadas' => 1], $r);
+        $this->assertSame(1, $r);
         $this->assertSame('rechazada', $this->estado($area));
         $avisos = $this->avisos($this->sofia, CierreDiaService::NOTIF_AREAS_RECHAZADAS);
         $this->assertCount(1, $avisos);
@@ -140,7 +69,7 @@ final class CierreAreasComunesTest extends TestCase
         $this->assertSame([], $this->avisos($this->ana, CierreDiaService::NOTIF_AREAS_RECHAZADAS));
     }
 
-    public function testSoloLaPasadaDeLaNocheCierraLasAreas(): void
+    public function testSoloLaPasadaDeLaNocheTerminaLoQueSigueEnCurso(): void
     {
         $this->assertFalse(CierreDiaService::esPasadaNocturna(15)); // el cron de las 15:50
         $this->assertFalse(CierreDiaService::esPasadaNocturna(19));
@@ -214,24 +143,9 @@ final class CierreAreasComunesTest extends TestCase
         (new AuditoriaService())->emitirVeredicto($area, $this->sofia, Auditoria::VEREDICTO_RECHAZADO, 'Quedó sucio', [$items[0]]);
     }
 
-    private function crearHabitacion(string $numero): int
-    {
-        Database::execute(
-            "INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado)
-             VALUES ((SELECT id FROM hoteles WHERE codigo = '1_sur'), ?, (SELECT id FROM tipos_habitacion WHERE nombre = 'Doble'), 'sucia')",
-            [$numero]
-        );
-        return Database::lastInsertId();
-    }
-
     private function estado(int $habitacionId): string
     {
         return (string) Database::fetchColumn('SELECT estado FROM habitaciones WHERE id = ?', [$habitacionId]);
-    }
-
-    private function fechaAsignacion(int $asignacionId): string
-    {
-        return (string) Database::fetchColumn('SELECT fecha FROM asignaciones WHERE id = ?', [$asignacionId]);
     }
 
     /** @return list<array<string, mixed>> */

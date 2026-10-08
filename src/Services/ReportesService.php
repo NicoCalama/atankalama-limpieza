@@ -440,6 +440,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND ec.timestamp_fin IS NOT NULL
                 AND ec.timestamp_fin >= ? AND ec.timestamp_fin < ?
                     {$h}
@@ -695,6 +696,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}{$x}",
             $p
@@ -812,6 +814,7 @@ final class ReportesService
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE ec.estado = 'auditada'
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$u}{$x}",
             $params
@@ -860,9 +863,17 @@ final class ReportesService
      * rechazos ni Asignadas. Tampoco cuenta una re-limpieza que solo trae ítems HEREDADOS de otra
      * persona y se cerró con el atajo sin que la dueña marcara nada. marcado_por sobrevive al
      * desmarcado del auditor, así que un rechazo con todos los ítems desmarcados sigue contando.
-     * Requiere el alias `ec`.
+     * Tampoco cuenta la que terminó el cierre de la noche porque nadie apretó «terminar» (v6.19,
+     * NO_CERRADA_POR_SISTEMA). Requiere el alias `ec`.
      */
-    private const CON_TRABAJO = 'EXISTS (SELECT 1 FROM #__ejecuciones_items eit WHERE eit.ejecucion_id = ec.id AND eit.marcado_por = ec.usuario_id)';
+    private const CON_TRABAJO = '(ec.cerrada_por_sistema = 0 AND EXISTS (SELECT 1 FROM #__ejecuciones_items eit WHERE eit.ejecucion_id = ec.id AND eit.marcado_por = ec.usuario_id))';
+    /**
+     * La terminó la persona: no la cerró el cierre de la noche (v6.19, decisión de Nicolás del
+     * 08/10/2026). La pieza quedó aprobada para liberarla al día siguiente, pero quien no apretó
+     * «terminar» no recibe créditos de ella ni cuenta como limpieza hecha ni en los tiempos; sí
+     * sigue contando como asignada (Asignadas y días trabajados). Requiere el alias `ec`.
+     */
+    private const NO_CERRADA_POR_SISTEMA = 'ec.cerrada_por_sistema = 0';
     /** Antifraude del tiempo por auditación: fuera de [30 s, 4 h] se considera ruido (pausas, aperturas accidentales). */
     private const AUDITACION_MIN_MINUTOS = 0.5;
     private const AUDITACION_MAX_MINUTOS = 240.0;
@@ -994,6 +1005,7 @@ final class ReportesService
                JOIN #__hoteles ho ON ho.id = h.hotel_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND ei.marcado_por IS NOT NULL
                 AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
@@ -1111,7 +1123,7 @@ final class ReportesService
         $hX = $this->hotelCond($hotel, $pX);
         $ejecucionesDe = []; // asignacion_id → sus ejecuciones
         foreach (Database::fetchAll(
-            "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado,
+            "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado, ec.cerrada_por_sistema,
                     CASE WHEN " . self::CON_TRABAJO . " THEN 1 ELSE 0 END AS con_trabajo
                FROM #__ejecuciones_checklist ec
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
@@ -1153,8 +1165,10 @@ final class ReportesService
             $trabajadas = []; // vuelta → template de su limpieza
             $soloAtajo  = false;
             foreach ($ejecucionesDe[(int) $f['id']] ?? [] as $x) {
-                // Una limpieza recién empezada (en curso, aún sin ítems) también es trabajo suyo.
-                if ((int) $x['con_trabajo'] === 1 || $x['estado'] === 'en_progreso') {
+                // Una limpieza recién empezada (en curso, aún sin ítems) también es trabajo suyo, y la
+                // que nadie terminó y cerró el sistema de noche (v6.19) le sigue contando como asignada:
+                // no suma créditos ni pieza hecha, así que le queda como asignada y no hecha.
+                if ((int) $x['con_trabajo'] === 1 || $x['estado'] === 'en_progreso' || (int) $x['cerrada_por_sistema'] === 1) {
                     $trabajadas[$vueltas[(int) $x['id']] ?? 0] ??= (int) $x['template_id'];
                 } else {
                     $soloAtajo = true;
@@ -1281,6 +1295,7 @@ final class ReportesService
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
           LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND asg.fecha BETWEEN ? AND ?
               ORDER BY ec.timestamp_inicio, ec.id",
             [date('Y-m-d', strtotime($desde . ' -1 day')), date('Y-m-d', strtotime($hasta . ' +1 day'))]
@@ -1528,6 +1543,7 @@ final class ReportesService
           LEFT JOIN #__usuarios_turnos ut ON ut.usuario_id = ec.usuario_id AND ut.fecha = asg.fecha
           LEFT JOIN #__turnos t ON t.id = ut.turno_id
               WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
                 AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
                     {$h}{$x}
               GROUP BY t.nombre, t.hora_inicio",

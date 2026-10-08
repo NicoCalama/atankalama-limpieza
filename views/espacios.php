@@ -14,6 +14,7 @@
  *  - PUT    /api/espacios/{id}                { nombre, items:[{descripcion, creditos}] }
  *  - DELETE /api/espacios/{id}
  *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha }
+ *  - POST   /api/habitaciones/{id}/marcar-limpia | marcar-sucia  (menú ⋮, v6.19: los mismos de Habitaciones)
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
@@ -202,9 +203,18 @@
                             <div class="p-4 flex flex-col gap-1">
                                 <div class="flex items-start justify-between gap-2">
                                     <span class="text-xl font-bold text-gray-900 dark:text-gray-100 min-w-0 break-words" x-text="esp.numero"></span>
-                                    <span class="text-xs uppercase tracking-wide font-semibold flex-shrink-0 mt-1"
-                                          :class="colorEtiquetaHotel(esp.hotel_codigo)"
-                                          x-text="hotelCorto(esp.hotel_codigo)"></span>
+                                    <div class="flex items-start gap-1 flex-shrink-0">
+                                        <span class="text-xs uppercase tracking-wide font-semibold mt-1"
+                                              :class="colorEtiquetaHotel(esp.hotel_codigo)"
+                                              x-text="hotelCorto(esp.hotel_codigo)"></span>
+                                        <!-- ⋮ en la esquina, como en Habitaciones (v6.19) -->
+                                        <template x-if="tieneMenuEstado(esp)">
+                                            <button @click="abrirMenuEstado(esp)" aria-label="Más opciones" title="Más opciones"
+                                                    class="-mt-2 -mr-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-blue-600 transition">
+                                                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                                            </button>
+                                        </template>
+                                    </div>
                                 </div>
                                 <p class="text-sm text-gray-600 dark:text-gray-400" x-text="esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
                                 <template x-if="esp.asignado_a_nombre">
@@ -301,6 +311,12 @@
                                                     <button @click="archivar(esp)" aria-label="Archivar"
                                                             class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400">
                                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="tieneMenuEstado(esp)">
+                                                    <button @click="abrirMenuEstado(esp)" aria-label="Más opciones" title="Más opciones"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
                                                     </button>
                                                 </template>
                                             </div>
@@ -430,6 +446,40 @@
             </template>
         </div>
     </div>
+
+    <!-- Modal: más opciones (⋮) — marcar limpia o sucia, igual que en Habitaciones y con los mismos
+         endpoints y permiso (habitaciones.marcar_limpia_manual). Modal y no dropdown: la tarjeta
+         tiene overflow-hidden y recortaría un menú que se salga de sus bordes. -->
+    <template x-if="modalEstado.abierto">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cerrarMenuEstado()">
+            <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl relative">
+                <button @click="cerrarMenuEstado()" aria-label="Cerrar"
+                        class="absolute top-3 right-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 pr-10" x-text="modalEstado.espacio.numero"></h3>
+
+                <div class="space-y-2">
+                    <template x-if="puedeMarcarLimpia(modalEstado.espacio)">
+                        <button type="button" @click="marcarLimpia(modalEstado.espacio)" :disabled="accionEstadoEnCurso"
+                                class="w-full min-h-[44px] text-left px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                            Marcar limpia
+                        </button>
+                    </template>
+                    <template x-if="puedeMarcarSucia(modalEstado.espacio)">
+                        <button type="button" @click="marcarSucia(modalEstado.espacio)" :disabled="accionEstadoEnCurso"
+                                class="w-full min-h-[44px] text-left px-4 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                            Marcar sucia
+                        </button>
+                    </template>
+                </div>
+
+                <button type="button" @click="cerrarMenuEstado()" class="w-full min-h-[44px] mt-4 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </template>
 </div>
 
 <script>
@@ -450,6 +500,8 @@ function espaciosApp() {
         modalForm: { abierto: false, enviando: false },
         form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
         modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '' },
+        modalEstado: { abierto: false, espacio: null },
+        accionEstadoEnCurso: false,
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -482,6 +534,11 @@ function espaciosApp() {
         get puedePedir() {
             var a = Alpine.store('auth');
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('espacios.pedir_limpieza'));
+        },
+        // Menú ⋮ (marcar limpia/sucia): mismo permiso que el de Habitaciones (ver Kernel.php).
+        get puedeGestionarEstado() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('habitaciones.marcar_limpia_manual'));
         },
         // Mismo criterio que Habitaciones: «c/obs.» y «auto.» solo para quien ve todas las piezas.
         get puedeVerTodas() {
@@ -782,6 +839,62 @@ function espaciosApp() {
                 this.mostrarToast('error', 'No pudimos conectar con el servidor.');
             } finally {
                 this.modalPedir.enviando = false;
+            }
+        },
+
+        // --- Más opciones (⋮): marcar limpia o sucia, como en Habitaciones ---
+        // Los estados válidos son los de los endpoints (ChecklistService::marcarLimpiaManual y
+        // HabitacionesController::marcarSuciaManual), mismos que la pantalla de Habitaciones.
+        puedeMarcarLimpia(esp) {
+            return !!esp && ['sucia', 'en_progreso', 'rechazada'].indexOf(esp.estado) !== -1;
+        },
+        puedeMarcarSucia(esp) {
+            return !!esp && ['en_progreso', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'].indexOf(esp.estado) !== -1;
+        },
+        tieneMenuEstado(esp) {
+            return this.puedeGestionarEstado && (this.puedeMarcarLimpia(esp) || this.puedeMarcarSucia(esp));
+        },
+        abrirMenuEstado(esp) {
+            this.modalEstado = { abierto: true, espacio: esp };
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+        cerrarMenuEstado() {
+            this.modalEstado = { abierto: false, espacio: null };
+        },
+        marcarLimpia(esp) {
+            var texto = '¿Marcar el área ' + esp.numero + ' como limpia? Quedará pendiente de inspección.';
+            if (esp.estado === 'en_progreso') {
+                texto += ' Quien la estaba limpiando conserva lo que alcanzó a marcar.';
+            }
+            if (!confirm(texto)) return;
+            this.ejecutarAccionEstado(esp, '/marcar-limpia', 'Quedó por inspeccionar.', 'No pudimos marcar el área como limpia.');
+        },
+        marcarSucia(esp) {
+            if (!confirm('¿Marcar el área ' + esp.numero + ' como sucia?')) return;
+            // Sin nadie asignado hoy, un área sucia no entra a ninguna cola: hay que pedir su limpieza.
+            var exito = esp.asignado_a_nombre
+                ? 'Quedó pendiente para ' + esp.asignado_a_nombre + '.'
+                : 'Quedó sucia. Para que alguien la limpie, usa «Pedir limpieza».';
+            this.ejecutarAccionEstado(esp, '/marcar-sucia', exito, 'No pudimos marcar el área como sucia.');
+        },
+        async ejecutarAccionEstado(esp, ruta, mensajeExito, mensajeError) {
+            this.cerrarMenuEstado();
+            if (this.accionEstadoEnCurso) return;
+            this.accionEstadoEnCurso = true;
+            try {
+                var r = await apiPost('/api/habitaciones/' + esp.id + ruta, {});
+                if (r && r.ok) {
+                    this.mostrarToast('exito', mensajeExito);
+                    this.cargar();
+                } else if (r && r.encolado) {
+                    this.mostrarToast('exito', 'Sin conexión: se hará apenas vuelva internet.');
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || mensajeError);
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.accionEstadoEnCurso = false;
             }
         },
 
