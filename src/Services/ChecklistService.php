@@ -949,6 +949,15 @@ final class ChecklistService
             [$ejecucionId, $ejec->templateId]
         );
 
+        // Re-limpieza de un rechazo: la vista muestra el motivo arriba del checklist y en rojo
+        // los ítems que la supervisora desmarcó (v6.21).
+        $rechazo = $this->rechazoQueSeRehace($ejec);
+        $rechazados = $rechazo === null ? [] : array_flip($rechazo['items']);
+        foreach ($items as &$item) {
+            $item['rechazado_por_supervisora'] = isset($rechazados[(int) $item['id']]) ? 1 : 0;
+        }
+        unset($item);
+
         $progreso = $this->calcularProgreso($ejecucionId, $ejec->templateId);
 
         // No va dentro de toArrayPublico() (ese método oculta timestamps al trabajador
@@ -960,6 +969,75 @@ final class ChecklistService
             'items' => $items,
             'progreso' => $progreso,
             'delay_restante_segundos' => $delayRestante,
+            'rechazo' => $rechazo,
+        ];
+    }
+
+    /**
+     * Si la ejecución es la re-limpieza de un rechazo: el motivo que escribió la supervisora, su
+     * nombre y los ítems de ESTA ejecución que ella desmarcó. Es la misma regla con que
+     * heredarItemsSiEsRelimpieza() pasa los ítems que quedaron bien: el último intento
+     * inspeccionado de la pieza antes de este fue rechazado y es del mismo ciclo (misma fecha de
+     * turno y misma franja). Un rechazo de ayer que nadie rehízo no se muestra: hoy es otro aseo y
+     * el checklist parte de cero (R4, v6.17). Vale también para quien recibe la pieza reasignada.
+     *
+     * Los ítems se emparejan por descripción, como en la herencia: si alguien editó el checklist
+     * entre el rechazo y la re-limpieza, los ids cambian. Si a la pieza le cambiaron el checklist
+     * (otra raíz), queda el motivo sin ítems en rojo.
+     *
+     * @return array{comentario: ?string, auditor_nombre: ?string, items: list<int>}|null
+     */
+    private function rechazoQueSeRehace(EjecucionChecklist $ejec): ?array
+    {
+        $anterior = Database::fetchOne(
+            "SELECT ec.id, ec.template_id, a.veredicto, a.comentario, u.nombre AS auditor_nombre,
+                    asg.fecha, asg.franja
+               FROM #__ejecuciones_checklist ec
+               JOIN #__auditorias a ON a.ejecucion_id = ec.id
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+          LEFT JOIN #__usuarios u ON u.id = a.auditor_id
+              WHERE ec.habitacion_id = ? AND ec.estado = 'auditada' AND ec.id < ?
+              ORDER BY ec.id DESC LIMIT 1",
+            [$ejec->habitacionId, $ejec->id]
+        );
+        if ($anterior === null || $anterior['veredicto'] !== 'rechazado') {
+            return null;
+        }
+
+        $actual = Database::fetchOne('SELECT fecha, franja FROM #__asignaciones WHERE id = ?', [$ejec->asignacionId]);
+        if ($actual === null
+            || (string) $anterior['fecha'] !== (string) $actual['fecha']
+            || ($anterior['franja'] ?? null) !== ($actual['franja'] ?? null)) {
+            return null;
+        }
+
+        $items = [];
+        if ($this->raizDeTemplate((int) $anterior['template_id']) === $this->raizDeTemplate($ejec->templateId)) {
+            $porDescripcion = [];
+            foreach ($this->itemsDelTemplate($ejec->templateId) as $item) {
+                $porDescripcion[$item['descripcion']] ??= (int) $item['id'];
+            }
+            $desmarcados = Database::fetchAll(
+                'SELECT ic.descripcion
+                   FROM #__ejecuciones_items ei
+                   JOIN #__items_checklist ic ON ic.id = ei.item_id
+                  WHERE ei.ejecucion_id = ? AND ei.desmarcado_por_auditor = 1',
+                [(int) $anterior['id']]
+            );
+            foreach ($desmarcados as $d) {
+                $destino = $porDescripcion[$d['descripcion']] ?? null;
+                if ($destino !== null) {
+                    $items[$destino] = $destino;
+                }
+            }
+        }
+
+        $comentario = $anterior['comentario'] === null ? null : trim((string) $anterior['comentario']);
+
+        return [
+            'comentario' => $comentario === '' ? null : $comentario,
+            'auditor_nombre' => $anterior['auditor_nombre'] === null ? null : (string) $anterior['auditor_nombre'],
+            'items' => array_values($items),
         ];
     }
 

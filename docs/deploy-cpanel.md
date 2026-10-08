@@ -1496,7 +1496,7 @@ anterior). Las horas de `created_at` están en UTC.
 **Vuelta atrás:** subir `build/limpieza-v6172-vuelta-atras.zip`. Las asignaciones que el cierre ya pasó al día
 siguiente quedan así (son de una limpieza en curso que sigue en la cola de la misma persona).
 
-### 11.20 Release "borde por hotel" → v6.20.1 (ex v6.18.1)
+### 11.20 Release "borde por hotel" → dentro de la v6.21 (ex v6.18.1, ex v6.20.1)
 
 Arreglo visual (08/10/2026): en las tarjetas de Habitaciones y de Áreas comunes, el borde izquierdo con el color del
 hotel (`.hotel-border-*`, el color de Ajustes → Colores) salía gris. La tarjeta lleva además `border border-gray-200
@@ -1505,31 +1505,13 @@ de especificidad, y en oscuro su selector (`.dark\:border-gray-700:is(.dark *)`)
 Arreglo: `!important` en las dos reglas de `custom.css` (no se subió la especificidad porque el CDN no tiene versión
 fija y su selector puede cambiar).
 
-**Número:** se armó como v6.18.1 sobre la v6.18 (de ahí la referencia de §11.21), pero no subió antes de la v6.19 ni de
-la v6.20, así que sale como **v6.20.1**. Rama `v6.20.1-borde-hotel`, desde `62d4952` (lo que está en prod; no lleva la
-v7 de `main`). Al integrarla a `main`, su fila del CHANGELOG va debajo de la de la v7.
+**Número:** se armó como v6.18.1 sobre la v6.18 (de ahí la referencia de §11.21) y no subió antes de la v6.19 ni de la
+v6.20. Se rehízo como v6.20.1 (commit `f33900c`, desde `62d4952`) y, por decisión de Nicolás (08/10/2026), **sale
+dentro de la v6.21** (una sola fila en el CHANGELOG). El ZIP, el precheck, el smoke y la vuelta atrás están en §11.23.
 
-**Sin SQL, sin `.env`, sin `vendor/`, sin PHP, sin cambios en los cron.** **Sin bump de `CACHE_VERSION`:**
-`layout.php` pide `custom.css?v=<filemtime>` y el service worker busca en su caché por la URL completa (con el `?v=`),
-así que el archivo nuevo se baja solo, siempre que suba también la copia de `app_core/` (de esa sale el `filemtime`).
-
-**Precheck** (como en la v6.19): bajar de prod las dos copias de `custom.css` y el `CHANGELOG.md` y compararlas contra
-`62d4952` normalizando `\r`; con eso, armar `build/limpieza-v6201-vuelta-atras.zip`.
-
-**ZIP** `build/limpieza-v6201-delta.zip`, armado en `build/stage/` con `scripts/zip-stage.ps1` (se extrae en
-`public_html/`), con **la fila de la v6.20.1 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3 archivos:
-
-- `limpieza/assets/css/custom.css` (docroot: la que ve el navegador);
-- `limpieza/app_core/public/assets/css/custom.css` (el mismo archivo; de este sale el `?v=`);
-- `limpieza/app_core/CHANGELOG.md`.
-
-**Cuándo subir:** a cualquier hora (no toca el cierre de la noche ni el sync).
-
-**Smoke:** badge **v6.20.1** (incógnito); `/api/health` 200; en Habitaciones y en Áreas comunes, el borde izquierdo de
-cada tarjeta en verde agua (Atankalama) o violeta (INN), o en el color que tenga cada hotel en Ajustes → Colores, en
-claro y en oscuro.
-
-**Vuelta atrás:** subir `build/limpieza-v6201-vuelta-atras.zip` (los mismos tres archivos en la v6.20, `62d4952`).
+**Sin bump de `CACHE_VERSION`:** `layout.php` pide `custom.css?v=<filemtime>` y el service worker busca en su caché
+por la URL completa (con el `?v=`), así que el archivo nuevo se baja solo, siempre que suba también la copia de
+`app_core/` (de esa sale el `filemtime`). Por eso `custom.css` va **dos veces** en el ZIP.
 
 **Sin tocar:** `.hotel-accent-*` (borde y tinte) tiene el mismo problema, pero hoy no la usa ninguna vista.
 
@@ -1716,3 +1698,48 @@ SELECT created_at, entidad_id AS habitacion_id, detalles_json
 
 **Vuelta atrás:** subir `build/limpieza-v620-vuelta-atras.zip`. La anotación que ya quedó en el historial no molesta: el
 código viejo no la lee.
+
+### 11.23 Release "motivo del rechazo en la re-limpieza + borde por hotel" → v6.21
+
+Pedido de Nicolás (08/10/2026): cuando la trabajadora vuelve a limpiar una pieza rechazada, arriba del checklist tiene
+que ver el motivo que escribió la supervisora, y abajo el checklist con los ítems que ella desmarcó en rojo. Antes el
+motivo solo llegaba en el texto de la campanita y la ficha no lo mostraba. Lo ve también quien recibe la pieza
+reasignada, y solo en la re-limpieza del mismo día y franja (decisión de Nicolás: un rechazo de ayer que nadie rehízo no
+se muestra; esa limpieza parte de cero, R4 de la v6.17). Detalle en `docs/checklist.md` §3.8.
+
+Va junto con el borde por hotel (§11.20), en una sola versión (decisión de Nicolás). Rama `v6.21-motivo-rechazo`, desde
+`62d4952` (lo que está en prod; no lleva la v7 de `main`). Al integrarla a `main`, su fila del CHANGELOG va debajo de la
+de la v7.
+
+**Sin SQL de esquema** (sale de `auditorias` y de `ejecuciones_items.desmarcado_por_auditor`, que ya existen), **sin
+`.env`, sin `vendor/`, sin permisos nuevos, sin cambios en los cron, sin bump de `CACHE_VERSION`** (ver §11.20).
+
+**Precheck** (como en la v6.19): bajar de prod los archivos que el ZIP va a pisar y compararlos contra `62d4952`
+normalizando `\r`; con eso, armar `build/limpieza-v621-vuelta-atras.zip`.
+
+**ZIP** `build/limpieza-v621-delta.zip`, armado en `build/stage/` con `scripts/zip-stage.ps1` (mezcla docroot y
+`app_core/`, así que no sale de un solo `git archive`; se extrae en `public_html/`), con **la fila de la v6.21 del
+`CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 5 archivos:
+
+- `limpieza/assets/css/custom.css` (docroot: la que ve el navegador);
+- `limpieza/app_core/public/assets/css/custom.css` (el mismo archivo; de este sale el `?v=`);
+- `limpieza/app_core/src/Services/ChecklistService.php`;
+- `limpieza/app_core/views/habitacion-detalle.php`;
+- `limpieza/app_core/CHANGELOG.md`.
+
+Si antes del deploy se suma algo más a la v6.21, actualizar esta lista con `git diff --name-only 62d4952`.
+
+**Cuándo subir:** a cualquier hora (no toca el cierre de la noche ni el sync).
+
+**Smoke:**
+
+- badge **v6.21** (incógnito); `/api/health` 200;
+- en Habitaciones y en Áreas comunes, el borde izquierdo de cada tarjeta en verde agua (Atankalama) o violeta (INN), o
+  en el color que tenga cada hotel en Ajustes → Colores, en claro y en oscuro;
+- una trabajadora con una pieza en progreso la sigue viendo igual (sin recuadro rojo si no viene de un rechazo).
+
+**Verificación con la primera re-limpieza real** (o con una test room: limpiar, rechazar desmarcando un ítem, «Volver a
+limpiar»): arriba del checklist el recuadro «Motivo del rechazo» con el texto y el nombre de la supervisora, y los ítems
+desmarcados en rojo con «La supervisora lo desmarcó».
+
+**Vuelta atrás:** subir `build/limpieza-v621-vuelta-atras.zip` (los mismos cinco archivos en la v6.20, `62d4952`).

@@ -206,6 +206,32 @@ limpieza que siga `en_progreso`, de habitaciones y de áreas comunes, de cualqui
 A esa hora no hay nadie trabajando: los turnos van de 08:00 a 22:00 y ninguno cruza la medianoche
 ([turnos.md](turnos.md)). Reemplaza el arrastre de las áreas en progreso de la v6.18.
 
+### 3.8 Re-limpieza de un rechazo: motivo e ítems en rojo (v6.21)
+
+Pedido de Nicolás (08/10/2026). Cuando la trabajadora aprieta «Volver a limpiar» (o «Comenzar limpieza», si
+la supervisora le pasó la pieza rechazada), el checklist muestra:
+
+- **Arriba, el motivo del rechazo:** el comentario que escribió la supervisora al rechazar (obligatorio, mínimo
+  10 caracteres) y su nombre, en un recuadro rojo.
+- **Abajo, el checklist**, con los ítems que la supervisora desmarcó **en rojo** (fondo, texto y la etiqueta
+  «La supervisora lo desmarcó»). Al volver a marcarlo queda tachado como los demás y conserva la etiqueta.
+
+Lo arma `ChecklistService::rechazoQueSeRehace()` y viaja en `GET /api/ejecuciones/{id}` (`rechazo` y
+`items[].rechazado_por_supervisora`). La regla es la misma de la herencia (§2.5): el último intento
+inspeccionado de la pieza antes de esta ejecución fue rechazado y es del **mismo ciclo** (misma fecha de turno
+y franja). Por eso:
+
+- Lo ve también quien recibe la pieza reasignada (los ítems que pasaron le salen como «Ya limpiado»).
+- Un rechazo de ayer que nadie rehízo **no se muestra** hoy (decisión de Nicolás): es otro aseo y el
+  checklist parte de cero (R4, v6.17).
+- Tras aprobarse la re-limpieza, la limpieza siguiente de la pieza ya no lo trae.
+- Los ítems se emparejan por descripción; si a la pieza le cambiaron el checklist, queda el motivo sin
+  ítems en rojo.
+
+Sin columnas nuevas: sale de `auditorias` (comentario, auditor) y de `ejecuciones_items.desmarcado_por_auditor`
+del intento rechazado. El aviso de la campanita que recibe la trabajadora al rechazarse la pieza
+(`AuditoriaService::crearAlertaRechazo`, con el comentario en el texto) no cambia.
+
 ---
 
 ## 4. Tracking de tiempo (oculto)

@@ -305,23 +305,51 @@ require_once __DIR__ . '/componentes/badge-estado.php';
             <!-- Checklist (en_progreso o completada_pendiente_auditoria o auditada con ejecución) -->
             <template x-if="ejecucion && items.length > 0">
                 <div class="space-y-3">
+                    <!-- Motivo del rechazo (v6.21): en la re-limpieza del mismo día, lo que escribió
+                         la supervisora va arriba del checklist, y abajo, en rojo, los ítems que
+                         desmarcó (ChecklistService::rechazoQueSeRehace). -->
+                    <template x-if="rechazo">
+                        <div class="rounded-xl p-4 border bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700">
+                            <div class="flex items-start gap-3">
+                                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-semibold text-red-900 dark:text-red-200 uppercase tracking-wide">Motivo del rechazo</p>
+                                    <p class="text-base text-red-900 dark:text-red-100 mt-1 whitespace-pre-wrap break-words"
+                                       x-text="rechazo.comentario || 'La supervisora no dejó un comentario.'"></p>
+                                    <template x-if="rechazo.auditor_nombre">
+                                        <p class="text-sm text-red-700 dark:text-red-300 mt-1" x-text="'— ' + rechazo.auditor_nombre"></p>
+                                    </template>
+                                    <template x-if="rechazo.items.length > 0">
+                                        <p class="text-sm text-red-700 dark:text-red-300 mt-2">Abajo, en rojo, lo que hay que volver a hacer.</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
                     <?php include __DIR__ . '/componentes/progreso-checklist.php'; ?>
 
                     <!-- Lista de items -->
                     <div data-tour="hab.checklist" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <template x-for="item in items" :key="item.id">
                             <label class="flex items-start gap-3 px-4 py-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-                                   :class="puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default'">
+                                   :class="claseFilaItem(item)">
                                 <input type="checkbox"
                                        :checked="item.marcado == 1"
                                        :disabled="!puedeEditar || item._guardando || esHeredado(item)"
                                        @change="toggleItem(item, $event.target.checked)"
                                        class="mt-1 w-6 h-6 rounded border-2 border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-60 flex-shrink-0">
                                 <div class="flex-1 min-w-0">
+                                    <!-- El rojo va con ! porque compite con el gris fijo de class. -->
                                     <p class="text-base text-gray-900 dark:text-gray-100"
-                                       :class="item.marcado == 1 ? 'line-through text-gray-400 dark:text-gray-500' : ''"
+                                       :class="item.marcado == 1 ? 'line-through text-gray-400 dark:text-gray-500' : (item.rechazado_por_supervisora == 1 ? 'font-medium !text-red-700 dark:!text-red-300' : '')"
                                        x-text="item.descripcion"></p>
-                                    <div class="flex items-center gap-2 mt-1">
+                                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                                        <template x-if="item.rechazado_por_supervisora == 1">
+                                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-300">
+                                                <i data-lucide="x-circle" class="w-3 h-3"></i> La supervisora lo desmarcó
+                                            </span>
+                                        </template>
                                         <template x-if="item.obligatorio == 0">
                                             <span class="text-xs text-gray-500 dark:text-gray-400">Opcional</span>
                                         </template>
@@ -576,6 +604,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         habitacion: null,
         ejecucion: null,
         items: [],
+        // Re-limpieza de un rechazo: { comentario, auditor_nombre, items } o null (v6.21).
+        rechazo: null,
         progreso: { marcados: 0, total: 0, porcentaje: 0, obligatorios_total: 0, obligatorios_marcados: 0, obligatorios_pendientes: 0 },
         estaAsignada: false,
         puedeVerTodas: false,
@@ -778,6 +808,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                     var rEjec = await apiFetch('/api/ejecuciones/' + ejecId);
                     if (rEjec && rEjec.ok) {
                         this.ejecucion = rEjec.data.ejecucion;
+                        this.rechazo = rEjec.data.rechazo || null;
                         this.items = (rEjec.data.items || []).map(function (it) {
                             it._guardando = false;
                             it._error = null;
@@ -935,6 +966,17 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         esHeredado(item) {
             // Ítem ya limpiado por otro trabajador en un intento previo (re-limpieza): solo lectura.
             return item.marcado == 1 && item.marcado_por && Number(item.marcado_por) !== Number(this.usuarioId);
+        },
+
+        // Fila del checklist: la que desmarcó la supervisora va en rojo mientras falte volver a
+        // hacerla (v6.21); al marcarla queda como las demás, con la etiqueta roja.
+        claseFilaItem(item) {
+            var pendienteRechazado = item.rechazado_por_supervisora == 1 && item.marcado != 1;
+            if (pendienteRechazado) {
+                return 'bg-red-50 dark:bg-red-900/20 '
+                    + (this.puedeEditar ? 'cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30' : 'cursor-default');
+            }
+            return this.puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default';
         },
 
         toggleItem(item, nuevoValor) {
