@@ -30,9 +30,13 @@
 .hotel-chip-inn { color: var(--ch-inn-texto, #6141ac); }
 
 /* Solo el borde izquierdo por hotel (sin tinte de fondo): usado en la tarjeta de
-   habitaciones, que va con fondo blanco y la franja de estado al pie (ver .banner-estado-*). */
-.hotel-border-1_sur { border-left-color: var(--ch-1_sur-borde, #14b8a6); }
-.hotel-border-inn { border-left-color: var(--ch-inn-borde, #8b5cf6); }
+   habitaciones, que va con fondo blanco y la franja de estado al pie (ver .banner-estado-*).
+   !important porque la tarjeta también lleva border-gray-200 / dark:border-gray-700: el
+   <style> del Tailwind CDN se inyecta al final del <head> y gana el empate en claro, y en
+   oscuro su selector (.dark\:border-gray-700:is(.dark *)) pesa más que el nuestro. Sin
+   esto el borde izquierdo salía gris (v6.20.1). */
+.hotel-border-1_sur { border-left-color: var(--ch-1_sur-borde, #14b8a6) !important; }
+.hotel-border-inn { border-left-color: var(--ch-inn-borde, #8b5cf6) !important; }
 
 /* Botón de filtro "Estado" cuando está seleccionado: relleno sólido con el color
    exacto de Ajustes → Colores (--ce-*-solid no cambia entre claro/oscuro). */

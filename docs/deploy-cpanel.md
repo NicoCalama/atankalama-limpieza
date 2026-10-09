@@ -408,6 +408,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-07 | **Tarjeta y cierre del día de las áreas comunes** → **v6.18** (feat `fa01cc6`, docs `12a051b`, número y CHANGELOG fechado `35d5ed3`; rama `v6.18-areas-comunes`, desde `v6.17.2-rescate`) | Pedido de jefatura del mismo día. La tarjeta de Áreas comunes pasa a ser la ficha de Habitaciones (franja de estado con los textos y colores de las habitaciones; sin asignación hoy, sin franja, salvo en progreso, por inspeccionar o rechazada) y la pasada de la noche del cierre de día cierra también el día de las áreas (la que queda en progreso sigue mañana primera en la cola de la misma persona; campanita a quienes tienen `espacios.pedir_limpieza` por esas y por las rechazadas sin resolver). Se armó como v6.17.3; **Nicolás decidió publicarla como v6.18** (en `main` la fila «v6.18 · sin publicar» de la inspección pre-entrega pasa a v7 al integrar). Runbook §11.19: **sin SQL**, sin cambios en los cron, ZIP de 7 archivos a `app_core/` (`build/limpieza-v618-delta.zip`, idénticos a `35d5ed3`; el primer armado salió con CRLF por `core.autocrlf` y se rehízo con `git -c core.autocrlf=false archive`) y `build/limpieza-v6172-vuelta-atras.zip`. Subido el 07/10 en la tarde. Smoke (Nicolás): badge **v6.18** y franjas funcionando en producción (PENDIENTE sale roja: es el color de `sucia` configurado en Ajustes → Colores, el mismo de las habitaciones). Consulta B antes del primer cierre: 3 áreas en progreso del 07/10 (Pasillo 300 Atan, Pasillo 700 Atan y Piscina Atan Inn), las 3 personas con turno el 08/10; COSTURA en progreso desde el 06/10 (no se arrastra: hay que ver si se terminó); ninguna rechazada. **Primer cierre verificado el 08/10:** solo se arrastró la Piscina Atan Inn (Rafael, que la terminó el 08/10 a las 06:17) y la campanita les llegó a 8 personas; el Pasillo 700 lo terminó Limberg el 07/10, y el Pasillo 300 no se arrastró porque su limpieza (Elvira) quedó sin asignación vigente cuando un Admin se lo pasó a Judith. El arrastre lo reemplazó la v6.19 ese mismo día. |
 | 2026-10-08 | **Limpiezas sin terminar y menú ⋮ de áreas** → **v6.19** (feat `dd22c1a`, docs `f1740d4`, CHANGELOG fechado `8774c47`, armado del ZIP `97f967f`; rama `v6.19-cierre-sin-terminar`, desde `1e612b4`) | Audio de la supervisora (área «en progreso» desde el día anterior, sin botones) y diagnóstico en prod: 17 de 626 limpiezas de áreas a medias desde el 14/09, 16 con todo marcado en menos de 20 s (los 3 minutos mínimos). **Decisión de Nicolás:** en la pasada de la noche toda limpieza sin terminar (habitaciones y áreas, de cualquier día) se termina y la pieza queda aprobada, pero quien no apretó «terminar» no recibe créditos (sí le cuenta como asignada); campanita a las supervisoras; menú ⋮ («Marcar limpia» / «Marcar sucia») en Áreas comunes. Runbook §11.21. **SQL corrido antes del ZIP** (columna `limpieza_ejecuciones_checklist.cerrada_por_sistema`). **Dos errores del armado:** el primer ZIP salió con la fila «sin publicar» y con las rutas `limpieza/…` sin `app_core/`; extraído en `public_html/`, quedó en el docroot y prod siguió en la v6.18 (sin ⋮ y con el badge viejo). Se rearmó con la fecha y con `limpieza/app_core/…` (10 archivos, idénticos a `8774c47`) y `build/limpieza-v619-vuelta-atras.zip`. Subido el 08/10 ~17:15. Smoke: botón ⋮ en Áreas comunes (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (17:19). **Pendiente:** borrar del docroot los archivos sueltos de las dos primeras subidas (`CHANGELOG.md`, `docs/`, `scripts/`, `src/`, `views/`; el `.htaccess` ya los bloqueaba con 403) y verificar el primer cierre (23:55 del 08/10) con las consultas de §11.21: también cierra las limpiezas colgadas de días anteriores. |
 | 2026-10-08 | **Turnover y llegadas sobre piezas aprobadas** → **v6.20** (feat `5d24c95`, docs y CHANGELOG fechado `6b825bf`; rama `v6.20-turnover`, desde `fdd661c`) | La supervisora contó que las habitaciones aprobadas vuelven solas a la cola de la trabajadora cuando llega el huésped: causa **R1** del documento «Ciclo de limpieza y Cloudbeds». Al terminar cada limpieza queda anotada en el historial la ocupación que veía Cloudbeds; un turnover limpiado con la pieza vacía ya no vuelve a la cola cuando llega el huésped nuevo, y **por decisión de Nicolás** una pieza aprobada un día anterior que recibe un huésped hoy queda aprobada hasta el aseo de mañana (si Recepción la marca sucia antes de que llegue, se respeta). Nunca se conserva una rechazada ni una cerrada por el cierre de la noche sin terminar. Runbook §11.22: **sin SQL**, ZIP de 3 archivos con las rutas bajo `limpieza/app_core/` (`build/limpieza-v620-delta.zip`, idénticos a `6b825bf`) y `build/limpieza-v620-vuelta-atras.zip`. La Q2 (¿Cloudbeds marca vacía la pieza entre huéspedes?) no se alcanzó a correr antes: se sube igual porque sin ese dato todo sigue como antes. Subido el 08/10 ~18:05. Smoke: badge **v6.20** (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (18:07). **Pendiente:** el 09/10, la Q2 entre las 13 y las 15 h y la verificación de §11.22. |
+| 2026-10-09 | **Motivo del rechazo en la re-limpieza + borde por hotel** → **v6.21** (borde `f33900c`, feat `f48ffeb`, CHANGELOG fechado `fea3544`; rama `v6.21-motivo-rechazo`, desde `62d4952`) | Pedido de Nicolás: al volver a limpiar una pieza rechazada, arriba del checklist el motivo que escribió la supervisora (con su nombre) y en rojo los ítems que ella desmarcó; antes el motivo solo iba en el texto de la campanita y quien recibía la pieza reasignada nunca lo veía. **Decisiones de Nicolás:** solo en la re-limpieza del mismo día y franja (un rechazo de ayer no se muestra), y una sola versión con el arreglo del borde por hotel (que se había armado como v6.18.1 y v6.20.1, §11.20). Runbook §11.23: **sin SQL**, ZIP de 5 archivos (`custom.css` al docroot y a `app_core/public/assets/css/`, `ChecklistService.php`, `habitacion-detalle.php`, `CHANGELOG.md`; `build/limpieza-v621-delta.zip`, idénticos a `fea3544`) y `build/limpieza-v621-vuelta-atras.zip` (los mismos en `62d4952`). Subido el 09/10 ~08:20 (de noche en Australia). **El precheck no se comparó:** los archivos bajados de prod se borraron antes; el riesgo es bajo porque prod quedó en `62d4952` el día anterior. Smoke: `/api/health` 200, el `custom.css` del docroot ya trae el `!important` y la captura de Áreas comunes en prod muestra el borde de color por hotel. **Pendiente:** badge **v6.21** en incógnito (Nicolás) y ver la primera re-limpieza real con el motivo arriba. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -1658,6 +1659,25 @@ anterior). Las horas de `created_at` están en UTC.
 **Vuelta atrás:** subir `build/limpieza-v6172-vuelta-atras.zip`. Las asignaciones que el cierre ya pasó al día
 siguiente quedan así (son de una limpieza en curso que sigue en la cola de la misma persona).
 
+### 11.20 Release "borde por hotel" → dentro de la v6.21 (ex v6.18.1, ex v6.20.1)
+
+Arreglo visual (08/10/2026): en las tarjetas de Habitaciones y de Áreas comunes, el borde izquierdo con el color del
+hotel (`.hotel-border-*`, el color de Ajustes → Colores) salía gris. La tarjeta lleva además `border border-gray-200
+dark:border-gray-700`: el `<style>` del Tailwind CDN se inyecta al final del `<head>`, así que en claro gana el empate
+de especificidad, y en oscuro su selector (`.dark\:border-gray-700:is(.dark *)`) pesa más que `.hotel-border-*`.
+Arreglo: `!important` en las dos reglas de `custom.css` (no se subió la especificidad porque el CDN no tiene versión
+fija y su selector puede cambiar).
+
+**Número:** se armó como v6.18.1 sobre la v6.18 (de ahí la referencia de §11.21) y no subió antes de la v6.19 ni de la
+v6.20. Se rehízo como v6.20.1 (commit `f33900c`, desde `62d4952`) y, por decisión de Nicolás (08/10/2026), **sale
+dentro de la v6.21** (una sola fila en el CHANGELOG). El ZIP, el precheck, el smoke y la vuelta atrás están en §11.23.
+
+**Sin bump de `CACHE_VERSION`:** `layout.php` pide `custom.css?v=<filemtime>` y el service worker busca en su caché
+por la URL completa (con el `?v=`), así que el archivo nuevo se baja solo, siempre que suba también la copia de
+`app_core/` (de esa sale el `filemtime`). Por eso `custom.css` va **dos veces** en el ZIP.
+
+**Sin tocar:** `.hotel-accent-*` (borde y tinte) tiene el mismo problema, pero hoy no la usa ninguna vista.
+
 ### 11.21 Release "limpiezas sin terminar y menú ⋮ de áreas" → v6.19
 
 Origen: audio de la supervisora del 08/10/2026 (un área «en progreso» desde el día anterior, sin ningún botón para
@@ -1841,3 +1861,48 @@ SELECT created_at, entidad_id AS habitacion_id, detalles_json
 
 **Vuelta atrás:** subir `build/limpieza-v620-vuelta-atras.zip`. La anotación que ya quedó en el historial no molesta: el
 código viejo no la lee.
+
+### 11.23 Release "motivo del rechazo en la re-limpieza + borde por hotel" → v6.21
+
+Pedido de Nicolás (08/10/2026): cuando la trabajadora vuelve a limpiar una pieza rechazada, arriba del checklist tiene
+que ver el motivo que escribió la supervisora, y abajo el checklist con los ítems que ella desmarcó en rojo. Antes el
+motivo solo llegaba en el texto de la campanita y la ficha no lo mostraba. Lo ve también quien recibe la pieza
+reasignada, y solo en la re-limpieza del mismo día y franja (decisión de Nicolás: un rechazo de ayer que nadie rehízo no
+se muestra; esa limpieza parte de cero, R4 de la v6.17). Detalle en `docs/checklist.md` §3.8.
+
+Va junto con el borde por hotel (§11.20), en una sola versión (decisión de Nicolás). Rama `v6.21-motivo-rechazo`, desde
+`62d4952` (lo que está en prod; no lleva la v7 de `main`). Al integrarla a `main`, su fila del CHANGELOG va debajo de la
+de la v7.
+
+**Sin SQL de esquema** (sale de `auditorias` y de `ejecuciones_items.desmarcado_por_auditor`, que ya existen), **sin
+`.env`, sin `vendor/`, sin permisos nuevos, sin cambios en los cron, sin bump de `CACHE_VERSION`** (ver §11.20).
+
+**Precheck** (como en la v6.19): bajar de prod los archivos que el ZIP va a pisar y compararlos contra `62d4952`
+normalizando `\r`; con eso, armar `build/limpieza-v621-vuelta-atras.zip`.
+
+**ZIP** `build/limpieza-v621-delta.zip`, armado en `build/stage/` con `scripts/zip-stage.ps1` (mezcla docroot y
+`app_core/`, así que no sale de un solo `git archive`; se extrae en `public_html/`), con **la fila de la v6.21 del
+`CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 5 archivos:
+
+- `limpieza/assets/css/custom.css` (docroot: la que ve el navegador);
+- `limpieza/app_core/public/assets/css/custom.css` (el mismo archivo; de este sale el `?v=`);
+- `limpieza/app_core/src/Services/ChecklistService.php`;
+- `limpieza/app_core/views/habitacion-detalle.php`;
+- `limpieza/app_core/CHANGELOG.md`.
+
+Si antes del deploy se suma algo más a la v6.21, actualizar esta lista con `git diff --name-only 62d4952`.
+
+**Cuándo subir:** a cualquier hora (no toca el cierre de la noche ni el sync).
+
+**Smoke:**
+
+- badge **v6.21** (incógnito); `/api/health` 200;
+- en Habitaciones y en Áreas comunes, el borde izquierdo de cada tarjeta en verde agua (Atankalama) o violeta (INN), o
+  en el color que tenga cada hotel en Ajustes → Colores, en claro y en oscuro;
+- una trabajadora con una pieza en progreso la sigue viendo igual (sin recuadro rojo si no viene de un rechazo).
+
+**Verificación con la primera re-limpieza real** (o con una test room: limpiar, rechazar desmarcando un ítem, «Volver a
+limpiar»): arriba del checklist el recuadro «Motivo del rechazo» con el texto y el nombre de la supervisora, y los ítems
+desmarcados en rojo con «La supervisora lo desmarcó».
+
+**Vuelta atrás:** subir `build/limpieza-v621-vuelta-atras.zip` (los mismos cinco archivos en la v6.20, `62d4952`).

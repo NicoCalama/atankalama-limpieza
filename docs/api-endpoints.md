@@ -140,7 +140,7 @@ Ver [checklist.md](checklist.md).
 | PUT | `/api/checklists/config` | `checklists.editar` | Activa/desactiva el toggle. Body `{ tipos_por_hotel: bool }` → `{ tipos_por_hotel }` |
 | POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
 | PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems: descripción, orden, `obligatorio`, peso de `creditos`, `es_cambio_sabanas`. Body `{ nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}], hotel_codigo? }`. Con `hotel_codigo` (y el toggle activo) el guardado crea/actualiza el **override de ese hotel** sin tocar el compartido. **Copy-on-write:** no muta el template enviado — crea la versión siguiente y responde `{ template_id, version, items }` con el id **nuevo** (el cliente debe descartar el viejo) |
-| GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución |
+| GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución: `{ ejecucion, items, progreso, delay_restante_segundos, rechazo }`. En la re-limpieza de un rechazo del mismo ciclo, `rechazo` = `{ comentario, auditor_nombre, items: [item_id] }` (si no, `null`) y cada ítem trae `rechazado_por_supervisora` 0/1 (v6.21, ver [checklist.md](checklist.md) §3.8) |
 | PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada | Tap-a-tap |
 
 ---
