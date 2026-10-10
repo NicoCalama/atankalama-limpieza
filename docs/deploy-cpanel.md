@@ -1238,7 +1238,34 @@ Nunca escribe `auditorias`. Cada revisión guarda estado de la pieza, última li
 calidad de las supervisoras. La supervisora puede mandar a **«Re-limpiar»** una pieza aprobada que recibió un NO (la asigna
 con prioridad); esa re-limpieza no cuenta en los KPIs, y Reportes suma la columna **«Recepción»** por supervisora. En
 código se llama `revision_entrega`. Spec: [revision-entrega.md](revision-entrega.md).
-Rama `v6.18-revision-entrega`, nace de `main` (la v6.17 va aparte).
+Rama `v6.18-revision-entrega` (PR #8, en `main` desde el 05/10). **Visto bueno de gerencia el 10/10/2026, tal cual**
+(flujo, «solo avisar» al partir y los 8 motivos), con la fórmula de calidad de las supervisoras: columna **«Calidad»** =
+(aprobadas − no aprobadas) ÷ las que Recepción revisó, mínimo 0 % (KPI S2.4 de [kpis-sueldos.md](kpis-sueldos.md)).
+Sale desde `main` encima de la v6.22 (`5b70ff8`): entre los dos no hay otro código que el de la v7.
+
+**Precheck (antes del SQL):**
+
+1. Bajar de prod por FileZilla los **29 archivos que el ZIP pisa** (los de la lista de abajo que no dicen «nuevo») a
+   `build/prod-antes-v7/` y compararlos con `5b70ff8` normalizando `\r` (§10). Si alguno difiere, parar: alguien tocó
+   prod a mano. Los 11 «nuevo» no deberían existir en el servidor.
+2. Quién se queda sin «Inicio» con la v7 (`Support\PantallaInicio`): debe salir **solo gente de Recepción**. Si sale una
+   supervisora u otro rol, revisar sus permisos en Ajustes → Roles antes de subir.
+
+```sql
+-- Usuarios activos cuyo Inicio pasa a ser Habitaciones: tienen auditoria.ver_bandeja pero no ajustes.acceder
+-- ni (alertas.recibir_predictivas + asignaciones.asignar_manual). Esperado: solo Recepción.
+SELECT u.nombre, GROUP_CONCAT(DISTINCT r.nombre ORDER BY r.nombre) AS roles
+  FROM limpieza_usuarios u
+  JOIN limpieza_usuarios_roles ur ON ur.usuario_id = u.id
+  JOIN limpieza_roles r ON r.id = ur.rol_id
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id
+ WHERE u.activo = 1
+ GROUP BY u.id, u.nombre
+HAVING SUM(rp.permiso_codigo = 'auditoria.ver_bandeja') > 0
+   AND SUM(rp.permiso_codigo = 'ajustes.acceder') = 0
+   AND NOT (SUM(rp.permiso_codigo = 'alertas.recibir_predictivas') > 0
+            AND SUM(rp.permiso_codigo = 'asignaciones.asignar_manual') > 0);
+```
 
 **Orden: SQL en phpMyAdmin ANTES del ZIP** (§10 paso 2). Es aditivo: el código viejo ignora las tablas; el nuevo las exige
 y `/api/health` da 503 si faltan. Ojo: sin el SQL, **nadie puede entrar a Edificios y Mapeo** (el código nuevo pide
@@ -1334,20 +1361,33 @@ SELECT COUNT(*) AS motivos FROM limpieza_motivos_revision_entrega;
 El interruptor no se siembra: sin la fila `revision_entrega_no_ensucia` en `limpieza_alertas_config`, un NO solo avisa.
 (`PUT /api/alertas/config` ya no puede escribirla: acepta solo las claves de Ajustes → Alertas.)
 
-**ZIP delta** `build/limpieza-v618-delta.zip` (FileZilla en **Binario**), todo a `app_core/`, **sin estáticos al docroot**
-(el JS nuevo va en `views/recursos/` y lo sirve PHP; no se toca `public/assets/` ni `sw.js`, sin bump de `CACHE_VERSION`).
-Lista = `git diff --name-only <commit del ZIP de la v6.16.1> HEAD` menos `docs/` (salvo los dos `database-schema*.sql`),
-`tests/` y `.claude/`:
+**ZIP delta** `build/limpieza-v7-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` y **la
+fila de la v7 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0): se descomprime en el PC y se arrastra
+`limpieza/` sobre `public_html/` en FileZilla (en **Binario**). Todo va a `app_core/`, **sin estáticos al docroot** (el JS
+nuevo va en `views/recursos/` y lo sirve PHP; no se toca `public/` ni `sw.js`, sin bump de `CACHE_VERSION`); sin
+`.env`, sin `vendor/`, sin cambios en los cron. Lista = `git diff --name-only 5b70ff8 HEAD` menos `docs/` (salvo los dos
+`database-schema*.sql`), `tests/` y `.claude/`: **40 archivos, 11 nuevos**:
 
-- `src/Core/Kernel.php`; `src/Controllers/{PaginasController,ReportesController,HabitacionesController,UploadsController,AlertasController,RevisionEntregaController}.php`;
-- `src/Services/{RevisionEntregaService,RevisionEntregaException,ImagenAdjuntoService,ReportesService,AsignacionService,ChecklistService,HabitacionService}.php`;
-  `src/Support/{Tours,TourResolver,PantallaInicio}.php`;
-- `views/{home,habitaciones,ajustes,ajustes-revision-entrega,habitacion-detalle,reportes,layout}.php`;
-  `views/componentes/{bottom-nav,sidebar,notificaciones-popup,modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.php`;
-  `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.js`;
-- `database/seeds/{permisos,roles,motivos_revision_entrega}.php`; `scripts/{seed,migrate-add-revision-entrega,lint-prefix-tokens}.php`;
+- `src/Core/Kernel.php`; `src/Controllers/{PaginasController,ReportesController,HabitacionesController,UploadsController,AlertasController}.php`
+  y `src/Controllers/RevisionEntregaController.php` (nuevo);
+- `src/Services/{ImagenAdjuntoService,ReportesService,AsignacionService,ChecklistService,HabitacionService}.php` y
+  `src/Services/{RevisionEntregaService,RevisionEntregaException}.php` (nuevos);
+  `src/Support/{Tours,TourResolver}.php` y `src/Support/PantallaInicio.php` (nuevo);
+- `views/{home,habitaciones,ajustes,habitacion-detalle,reportes,layout}.php` y `views/ajustes-revision-entrega.php` (nuevo);
+  `views/componentes/{bottom-nav,sidebar,notificaciones-popup}.php` y
+  `views/componentes/{modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.php` (nuevos);
+  `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-relimpiar-entrega}.js` (nuevos);
+- `database/seeds/{permisos,roles}.php` y `database/seeds/motivos_revision_entrega.php` (nuevo);
+  `scripts/{seed,lint-prefix-tokens}.php` y `scripts/migrate-add-revision-entrega.php` (nuevo);
 - `docs/database-schema.sql`, `docs/database-schema.mariadb.sql` (los lee el verificador de esquema);
-- `CHANGELOG.md` (v7 con la fecha real).
+- `CHANGELOG.md` (v7 · 10/10/2026).
+
+**Vuelta atrás:** `build/limpieza-v7-vuelta-atras.zip` = los 29 archivos que el ZIP pisa, tal como están en la v6.22
+(`5b70ff8`), con la misma estructura. Los 11 nuevos pueden quedar en el servidor (el código viejo no los llama) y las
+tablas y permisos del SQL también (el código viejo los ignora). Con la vuelta atrás, Edificios y Mapeo vuelve a abrirse
+con `habitaciones.ver_todas`.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
 
 **Smoke** (con una **test room**, nunca una pieza real; avisar antes a las supervisoras de turno que les llegará un aviso de prueba):
 
