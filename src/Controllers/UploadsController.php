@@ -25,7 +25,7 @@ final class UploadsController
 {
     /**
      * Único patrón que ImagenAdjuntoService::rutaDestino() produce — allowlist estricta.
-     * Subcarpetas: tickets (v5) y revision-entrega (v6.18, RevisionEntregaService::SUBCARPETA_FOTO).
+     * Subcarpetas: tickets (v5) y revision-entrega (v7, RevisionEntregaService::SUBCARPETA_FOTO).
      */
     private const PATRON_RUTA = '#^(tickets|revision-entrega)/\d{4}/\d{2}/[a-f0-9]{16}\.webp$#';
 

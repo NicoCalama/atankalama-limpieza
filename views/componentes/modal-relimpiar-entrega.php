@@ -1,6 +1,6 @@
 <?php
 /**
- * Ventana «Re-limpiar» (v6.18): la supervisora manda a re-limpiar una pieza aprobada que Recepción no
+ * Ventana «Re-limpiar» (v7): la supervisora manda a re-limpiar una pieza aprobada que Recepción no
  * aprobó para entregar (inspección pre-entrega). Spec: docs/revision-entrega.md §«Re-limpieza».
  * La incluye layout.php solo si el usuario tiene asignaciones.asignar_manual.
  *

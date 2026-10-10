@@ -51,7 +51,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `habitaciones.ver_asignadas_propias` | Ver solo las habitaciones asignadas al propio usuario | Habitaciones | propio |
 | `habitaciones.marcar_completada` | Marcar una habitación propia como terminada (pasa a auditoría) | Habitaciones | propio |
 | `habitaciones.ver_historial` | Ver historial completo de una habitación (quién la limpió, auditorías previas) | Habitaciones | global |
-| `habitaciones.gestionar_edificios` | Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo). v6.18: antes alcanzaba con `habitaciones.ver_todas`, así que Recepción veía la pantalla y podía crear y borrar edificios. Supervisora y Admin; en prod lo conserva todo rol que tenía `ver_todas` menos Recepción (decisión de Nicolás, 05/10/2026) | Habitaciones | global |
+| `habitaciones.gestionar_edificios` | Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo). v7: antes alcanzaba con `habitaciones.ver_todas`, así que Recepción veía la pantalla y podía crear y borrar edificios. Supervisora y Admin; en prod lo conserva todo rol que tenía `ver_todas` menos Recepción (decisión de Nicolás, 05/10/2026) | Habitaciones | global |
 
 ### 2.2 Checklists (templates)
 
@@ -81,7 +81,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `auditoria.rechazar` | Dar veredicto "rechazada" (requiere re-limpieza) | Auditoría | global |
 | `auditoria.editar_checklist_durante_auditoria` | Desmarcar items del checklist como parte de una auditoría con observación | Auditoría | global |
 
-### 2.4.1 Inspección pre-entrega (v6.18; en código «revision_entrega»)
+### 2.4.1 Inspección pre-entrega (v7; en código «revision_entrega»)
 
 Recepción revisa la pieza antes de entregarla al huésped (SÍ / NO), desde el botón de su tarjeta en Habitaciones. No es la inspección de las supervisoras: nunca escribe `auditorias`. Cada revisión guarda una foto del momento para el KPI de calidad de las supervisoras (que se arma después). Ver [revision-entrega.md](revision-entrega.md).
 
@@ -90,9 +90,9 @@ Recepción revisa la pieza antes de entregarla al huésped (SÍ / NO), desde el 
 | `revision_entrega.registrar` | Registrar la inspección pre-entrega de una habitación (SÍ / NO con motivo, observaciones y foto) desde su tarjeta en Habitaciones | Inspección pre-entrega | global |
 | `revision_entrega.configurar` | Configurar la inspección pre-entrega: motivos de un NO y si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Por defecto Supervisora y Admin, no Recepción (decisión de Nicolás, 04/10/2026) | Inspección pre-entrega | global |
 
-Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpanel.md` §11.15): crea las tablas y los tres permisos de la v6.18 (estos dos + `habitaciones.gestionar_edificios`) y los concede por rol y a todo rol con `permisos.asignar_a_rol`.
+Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpanel.md` §11.15): crea las tablas y los tres permisos de la v7 (estos dos + `habitaciones.gestionar_edificios`) y los concede por rol y a todo rol con `permisos.asignar_a_rol`.
 
-**«Inicio» del menú (v6.18):** se decide por permisos en `Support\PantallaInicio` (única fuente; la usan `views/home.php`, el menú y la vista guiada). Quien tiene `auditoria.ver_bandeja` sin `ajustes.acceder` ni (`alertas.recibir_predictivas` + `asignaciones.asignar_manual`) no tiene Inicio propio: su Inicio es Habitaciones y el menú no muestra «Inicio» (Recepción, pedido de Nicolás 05/10/2026).
+**«Inicio» del menú (v7):** se decide por permisos en `Support\PantallaInicio` (única fuente; la usan `views/home.php`, el menú y la vista guiada). Quien tiene `auditoria.ver_bandeja` sin `ajustes.acceder` ni (`alertas.recibir_predictivas` + `asignaciones.asignar_manual`) no tiene Inicio propio: su Inicio es Habitaciones y el menú no muestra «Inicio» (Recepción, pedido de Nicolás 05/10/2026).
 
 ### 2.5 Tickets
 
@@ -252,8 +252,8 @@ Permisos por defecto (incluye todo lo del Trabajador excepto los `_propios` reem
 - `copilot.ver_historial_propio`
 - `kpis.ver_operativas`
 - `alertas.recibir_predictivas` (también recibe el aviso de un NO de la inspección pre-entrega)
-- `revision_entrega.configurar` (v6.18: motivos y qué hace un NO de la inspección pre-entrega)
-- `habitaciones.gestionar_edificios` (v6.18: Ajustes → Edificios y Mapeo)
+- `revision_entrega.configurar` (v7: motivos y qué hace un NO de la inspección pre-entrega)
+- `habitaciones.gestionar_edificios` (v7: Ajustes → Edificios y Mapeo)
 - `usuarios.cambiar_propia_contrasena`
 - `notificaciones.ver`
 
@@ -261,7 +261,7 @@ Permisos por defecto (incluye todo lo del Trabajador excepto los `_propios` reem
 
 ### 3.3 Recepción
 
-**Propósito:** audita habitaciones terminadas y, desde la v6.18, hace la inspección pre-entrega (SÍ / NO antes de entregar la pieza al huésped) desde Habitaciones, que es su pantalla principal: no tiene «Inicio» ni Edificios y Mapeo. Marca nocheros y deja notas a la mucama desde ahí mismo. Cloudbeds es su herramienta principal para el estado de habitaciones.
+**Propósito:** audita habitaciones terminadas y, desde la v7, hace la inspección pre-entrega (SÍ / NO antes de entregar la pieza al huésped) desde Habitaciones, que es su pantalla principal: no tiene «Inicio» ni Edificios y Mapeo. Marca nocheros y deja notas a la mucama desde ahí mismo. Cloudbeds es su herramienta principal para el estado de habitaciones.
 
 Permisos por defecto:
 - `habitaciones.ver_todas` (solo lectura, contexto durante auditoría)
@@ -270,7 +270,7 @@ Permisos por defecto:
 - `auditoria.aprobar_con_observacion`
 - `auditoria.rechazar`
 - `auditoria.editar_checklist_durante_auditoria`
-- `revision_entrega.registrar` (v6.18)
+- `revision_entrega.registrar` (v7)
 - `copilot.usar_nivel_1_consultas`
 - `copilot.usar_nivel_2_acciones`
 - `copilot.ver_historial_propio`

@@ -1,4 +1,4 @@
-# Inspección pre-entrega (v6.18)
+# Inspección pre-entrega (v7; se armó como v6.18)
 
 Recepción revisa una habitación **antes de entregársela al huésped** y registra si está en condiciones de
 entregarse: **SÍ** o **NO**. Gerencia la llama «inspección visión cliente» (cómo la vería el cliente).
@@ -169,11 +169,11 @@ re-limpieza, quien la pidió). DDL en
   propio (`Support\PantallaInicio`, por permisos: inspecciona sin administrar ni supervisar); `/home` lo lleva a
   Habitaciones en el servidor.
 - **Ajustes → Inspección pre-entrega** (`revision_entrega.configurar`): el interruptor y el catálogo de motivos.
-- **Ajustes → Edificios y Mapeo:** desde la v6.18 exige `habitaciones.gestionar_edificios` (antes alcanzaba con
+- **Ajustes → Edificios y Mapeo:** desde la v7 exige `habitaciones.gestionar_edificios` (antes alcanzaba con
   `habitaciones.ver_todas`, así que Recepción la veía y podía crear y borrar edificios).
 - **Detalle de la pieza:** tarjeta verde o roja con la última revisión (con `vigente`). Solo con
   `habitaciones.ver_todas`. Un NO vigente sobre una pieza aprobada trae «Re-limpiar» (o «Cambiar quién la re-limpia»)
-  para quien puede asignar. Desde la v6.18 el detalle dice «Asignada hoy a …» en vez de «pendiente de asignación»
+  para quien puede asignar. Desde la v7 el detalle dice «Asignada hoy a …» en vez de «pendiente de asignación»
   cuando la pieza está en la cola de otra persona.
 - **Reportes → Inspección pre-entrega (Recepción):** Revisadas / Aprobadas (SÍ) / No aprobadas (NO), NO por motivo e
   historial (máx. 500 filas). Mismo período y hotel que los KPIs; no cambia los indicadores.

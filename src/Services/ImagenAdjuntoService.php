@@ -38,7 +38,7 @@ final class ImagenAdjuntoService
     public function guardarComoWebp(string $tmpPath, int $tamanoOriginalBytes, string $subcarpeta = 'tickets'): array
     {
         // Sin GD (o sin WebP), imagecreatefrom*() no existe y PHP lanza \Error, que nadie esperaba:
-        // el ticket o la inspección se caían con un 500 en vez de guardarse sin la foto (v6.18).
+        // el ticket o la inspección se caían con un 500 en vez de guardarse sin la foto (v7).
         if (!function_exists('imagecreatefromjpeg') || !function_exists('imagewebp')) {
             throw new ImagenException('SIN_GD', 'El servidor no puede procesar fotos en este momento.');
         }

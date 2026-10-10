@@ -16,7 +16,7 @@ use Atankalama\Limpieza\Services\RevisionEntregaException;
 use Atankalama\Limpieza\Services\RevisionEntregaService;
 
 /**
- * Inspección pre-entrega (v6.18; en código «revision_entrega»). Se registra desde la tarjeta de la pieza
+ * Inspección pre-entrega (v7; en código «revision_entrega»). Se registra desde la tarjeta de la pieza
  * en Habitaciones. Las rutas llevan PermissionCheck en Kernel; acá se re-chequea el permiso como
  * cinturón (igual que ReportesController). Ver docs/revision-entrega.md.
  */
@@ -54,7 +54,7 @@ final class RevisionEntregaController
     /**
      * POST /api/revision-entrega — multipart desde la pantalla (JSON también sirve, sin foto).
      *
-     * DEFAULT APLICADO (plan v6.18 aprobado por el usuario): veredicto y foto en UN solo request.
+     * DEFAULT APLICADO (plan v7 aprobado por el usuario): veredicto y foto en UN solo request.
      * La foto nunca hace fallar la revisión: si no se pudo guardar, el NO queda igual y la
      * respuesta lo dice en `foto_fallida`.
      */

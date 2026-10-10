@@ -10,7 +10,7 @@ use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
 
 /**
- * scripts/migrate-add-revision-entrega.php sobre una base que todavía no tiene la v6.18 (la de prod):
+ * scripts/migrate-add-revision-entrega.php sobre una base que todavía no tiene la v7 (la de prod):
  * crea las dos tablas, los tres permisos, los grants por rol y los motivos iniciales, y correrla de
  * nuevo no duplica nada. Al final el verificador de esquema (lo mismo que mira /api/health) queda ok.
  */
@@ -21,7 +21,7 @@ final class MigracionRevisionEntregaTest extends TestCase
     protected function setUp(): void
     {
         TestDatabase::recrear();
-        // Simula la base de prod antes de la v6.18.
+        // Simula la base de prod antes de la v7.
         Database::pdo()->exec('DROP TABLE revisiones_entrega');
         Database::pdo()->exec('DROP TABLE motivos_revision_entrega');
         Database::execute('DELETE FROM rol_permisos WHERE permiso_codigo IN ' . self::PERMISOS);

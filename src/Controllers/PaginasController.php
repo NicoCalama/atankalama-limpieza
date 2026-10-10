@@ -72,7 +72,7 @@ final class PaginasController
         if ($request->usuario === null) {
             return self::redirect('/login');
         }
-        // v6.18: permiso propio (antes alcanzaba con habitaciones.ver_todas, así que Recepción también entraba).
+        // v7: permiso propio (antes alcanzaba con habitaciones.ver_todas, así que Recepción también entraba).
         // Sin permiso, de vuelta a Ajustes como el resto de sus páginas: la vista 'error' que se usaba acá no
         // existe y respondía un 500 (bug previo, visible al sacarle el permiso a Recepción).
         if (!$request->usuario->tienePermiso('habitaciones.gestionar_edificios')) {

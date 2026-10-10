@@ -99,7 +99,7 @@ final class ToursAnchorTest extends TestCase
 
     public function test_anclas_de_ajustes_revision_entrega(): void
     {
-        // /ajustes/revision-entrega → 'ajustes.revision_entrega' (v6.18, ruta fija en MAP).
+        // /ajustes/revision-entrega → 'ajustes.revision_entrega' (v7, ruta fija en MAP).
         $this->verificarAnclas('ajustes.revision_entrega', 'ajustes-revision-entrega');
     }
 

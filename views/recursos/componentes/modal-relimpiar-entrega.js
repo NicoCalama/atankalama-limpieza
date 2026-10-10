@@ -1,4 +1,4 @@
-// «Re-limpiar» (v6.18) — la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó
+// «Re-limpiar» (v7) — la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó
 // para entregar. Spec: docs/revision-entrega.md. Servido por PaginasController::servirRecurso.
 //
 // Lista las trabajadoras con turno hoy en el hotel de la pieza (la misma vista de Asignaciones) y

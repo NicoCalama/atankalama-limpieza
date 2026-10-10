@@ -214,7 +214,7 @@ final class ReportesService
      * contado desde quien inspecciona (pedido de Nicolás, 04/10/2026). Una ejecución tiene una sola
      * auditoría (inmutable), así que cada casilla desmarcada se le cuenta a un solo auditor.
      *
-     * recepcion_aprobadas / recepcion_rechazadas = inspección pre-entrega (v6.18): de las piezas que aprobó,
+     * recepcion_aprobadas / recepcion_rechazadas = inspección pre-entrega (v7): de las piezas que aprobó,
      * las que Recepción aprobó y no aprobó para entregar en el mes (recepcionPorSupervisora()). Las
      * re-limpiezas de un NO no cuentan como inspecciones (sinRelimpieza()).
      *
@@ -261,7 +261,7 @@ final class ReportesService
             'observaciones'         => (int) $f['observaciones'],
         ], $filas);
 
-        // Columna «Recepción» (inspección pre-entrega, v6.18): de las piezas que aprobó, cuántas aprobó y
+        // Columna «Recepción» (inspección pre-entrega, v7): de las piezas que aprobó, cuántas aprobó y
         // cuántas rechazó Recepción en el mes. Quien solo tiene eso en el mes entra igual (ordenado por nombre).
         $filas = $this->conRecepcion($filas, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
             'total' => 0, 'aprobadas' => 0, 'aprobadas_observacion' => 0, 'rechazadas' => 0, 'observaciones' => 0,
@@ -299,7 +299,7 @@ final class ReportesService
             $rows[] = [$titulo];
             $rows[] = [
                 'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
-                // Inspección pre-entrega (v6.18): de las piezas que aprobó, lo que aprobó y rechazó Recepción.
+                // Inspección pre-entrega (v7): de las piezas que aprobó, lo que aprobó y rechazó Recepción.
                 'Recepción: aprobadas', 'Recepción: rechazadas',
             ];
 
@@ -900,7 +900,7 @@ final class ReportesService
     private const NO_CERRADA_POR_SISTEMA = 'ec.cerrada_por_sistema = 0';
 
     /**
-     * La limpieza NO es la re-limpieza de un NO de la inspección pre-entrega (v6.18, decisión de Nicolás
+     * La limpieza NO es la re-limpieza de un NO de la inspección pre-entrega (v7, decisión de Nicolás
      * 05/10/2026): esa re-limpieza no suma ni resta en los KPIs de aseo (piezas, créditos, tiempos,
      * productividad, rechazos, Asignadas, bono) ni en los de inspección (cobertura, rechazo, aprobación a la
      * primera, inspecciones por inspectora). El NO le cuenta a la supervisora que había aprobado la pieza
@@ -1561,7 +1561,7 @@ final class ReportesService
         }
         unset($i);
 
-        // ── Inspección pre-entrega (v6.18): de las piezas que ELLA aprobó, cuántas aprobó y cuántas rechazó
+        // ── Inspección pre-entrega (v7): de las piezas que ELLA aprobó, cuántas aprobó y cuántas rechazó
         // Recepción en el período (columna «Recepción»). Quien solo tiene resultados de Recepción (aprobó en
         // el período anterior y en este no inspeccionó) va al final, fuera del promedio.
         $inspectoras = $this->conRecepcion($inspectoras, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
@@ -1578,7 +1578,7 @@ final class ReportesService
     }
 
     /**
-     * Inspección pre-entrega por supervisora (v6.18, pedido de Nicolás 05/10/2026: su bono de calidad se
+     * Inspección pre-entrega por supervisora (v7, pedido de Nicolás 05/10/2026: su bono de calidad se
      * ve afectado por las piezas que aprobó y Recepción aprobó o rechazó para entregar). Cuenta cada
      * inspección APROBADA por una persona (no el cierre automático) que Recepción revisó en el período:
      * rechazada si Recepción le dio al menos un NO, aprobada si solo SÍ. Ventana = fecha de la revisión de

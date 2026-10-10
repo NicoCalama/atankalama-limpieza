@@ -57,7 +57,7 @@ $secciones = [
         'label' => 'Edificios',
         'letra_indice' => 2, // Ed[i]ficios
         'descripcion' => 'CRUD de edificios y asignación drag-and-drop',
-        // v6.18: permiso propio (antes alcanzaba con habitaciones.ver_todas y Recepción también la veía).
+        // v7: permiso propio (antes alcanzaba con habitaciones.ver_todas y Recepción también la veía).
         'visible' => $usuario->tienePermiso('habitaciones.gestionar_edificios'),
     ],
     [

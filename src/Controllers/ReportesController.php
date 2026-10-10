@@ -22,7 +22,7 @@ final class ReportesController
 
     /**
      * GET /api/reportes/revision-entrega?desde&hasta&hotel — SÍ / NO de Recepción antes de entregar
-     * (v6.18). Lee solo revisiones_entrega: ningún KPI cambia. Ignora la trabajadora del filtro.
+     * (v7). Lee solo revisiones_entrega: ningún KPI cambia. Ignora la trabajadora del filtro.
      */
     public function revisionEntrega(Request $request): Response
     {

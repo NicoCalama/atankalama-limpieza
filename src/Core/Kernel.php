@@ -148,7 +148,7 @@ final class Kernel
         $router->get('/api/habitaciones/{id}', [$habitaciones, 'obtener'], [$authCheck]);
         $router->put('/api/habitaciones/{id}/estructura', [$habitaciones, 'actualizarEstructura'], [
             $authCheck,
-            // v6.18: antes alcanzaba con habitaciones.ver_todas (Recepción también podía).
+            // v7: antes alcanzaba con habitaciones.ver_todas (Recepción también podía).
             new PermissionCheck('habitaciones.gestionar_edificios'),
         ]);
         $router->get('/api/habitaciones/{id}/historial', [$habitaciones, 'historial'], [
@@ -203,7 +203,7 @@ final class Kernel
         // Edificios
         $edificiosCtrl = new EdificiosController();
         // Leer edificios lo necesita la lista de Habitaciones (filtros edificio/piso): ver_todas.
-        // Crear/editar/borrar es de Ajustes → Edificios y Mapeo (v6.18: permiso propio; antes alcanzaba ver_todas).
+        // Crear/editar/borrar es de Ajustes → Edificios y Mapeo (v7: permiso propio; antes alcanzaba ver_todas).
         $router->get('/api/edificios', [$edificiosCtrl, 'listar'], [$authCheck, new PermissionCheck('habitaciones.ver_todas')]);
         $router->post('/api/edificios', [$edificiosCtrl, 'crear'], [$authCheck, new PermissionCheck('habitaciones.gestionar_edificios')]);
         $router->put('/api/edificios/{id}', [$edificiosCtrl, 'actualizar'], [$authCheck, new PermissionCheck('habitaciones.gestionar_edificios')]);
@@ -518,7 +518,7 @@ final class Kernel
             new PermissionCheck('turnos.asignar_a_usuario'),
         ]);
 
-        // Inspección pre-entrega (v6.18, docs/revision-entrega.md; en código «revision_entrega»). Se
+        // Inspección pre-entrega (v7, docs/revision-entrega.md; en código «revision_entrega»). Se
         // registra desde la tarjeta de la pieza en Habitaciones (GET /api/habitaciones trae la revisión
         // vigente). La ventana del NO pide /formulario; /motivos y /config quedan solo para Ajustes.
         // «Re-limpiar» es una asignación: la usa quien asigna (Supervisora), no Recepción.

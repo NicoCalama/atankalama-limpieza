@@ -14,7 +14,7 @@ use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Inspección pre-entrega (v6.18; en código «revision_entrega»): Recepción registra SÍ / NO antes de
+ * Inspección pre-entrega (v7; en código «revision_entrega»): Recepción registra SÍ / NO antes de
  * entregar la pieza. Validaciones, aviso a supervisoras, idempotencia, revisión vigente (hasta que la pieza
  * cambia de estado), catálogo de motivos y reporte. Lo que toca Cloudbeds, el estado de la pieza y la foto para el KPI de supervisoras
  * está en RevisionEntregaCicloTest.
@@ -157,7 +157,7 @@ final class RevisionEntregaServiceTest extends TestCase
     }
 
     /**
-     * Revisión de la v6.18: una clave que quedó pegada de un envío viejo no puede «tragarse» una revisión
+     * Revisión de la v7: una clave que quedó pegada de un envío viejo no puede «tragarse» una revisión
      * posterior. Solo es reintento si es la misma pieza, la misma respuesta y sigue siendo la última.
      */
     public function testUnaClaveViejaNoSeTragaUnaRevisionNueva(): void

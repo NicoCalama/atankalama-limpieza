@@ -136,12 +136,12 @@
             <?php include __DIR__ . '/componentes/modal-turno-editor.php'; ?>
         <?php endif; ?>
 
-        <!-- Ventana de la inspección pre-entrega (se abre desde la tarjeta en Habitaciones, v6.18) -->
+        <!-- Ventana de la inspección pre-entrega (se abre desde la tarjeta en Habitaciones, v7) -->
         <?php if ($usuario->tienePermiso('revision_entrega.registrar')): ?>
             <?php include __DIR__ . '/componentes/modal-inspeccion-pre-entrega.php'; ?>
         <?php endif; ?>
 
-        <!-- Ventana «Re-limpiar» de una pieza que Recepción no aprobó (v6.18): es una asignación -->
+        <!-- Ventana «Re-limpiar» de una pieza que Recepción no aprobó (v7): es una asignación -->
         <?php if ($usuario->tienePermiso('asignaciones.asignar_manual')): ?>
             <?php include __DIR__ . '/componentes/modal-relimpiar-entrega.php'; ?>
         <?php endif; ?>

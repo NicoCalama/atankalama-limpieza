@@ -546,7 +546,7 @@ final class Tours
             // ════════════════════════════════════════════════════════════
             'edificios' => [
                 'nombre'    => 'Edificios y Mapeo',
-                'capacidad' => 'habitaciones.gestionar_edificios', // v6.18: antes alcanzaba con ver_todas
+                'capacidad' => 'habitaciones.gestionar_edificios', // v7: antes alcanzaba con ver_todas
                 'recorridos' => [
 
                     // ── 1. Dar de alta un edificio (el paso previo a mapear). ──
@@ -824,7 +824,7 @@ final class Tours
                         ],
                     ],
 
-                    // ── 3. Inspección pre-entrega (v6.18). Solo quien inspecciona (Recepción): la vista
+                    // ── 3. Inspección pre-entrega (v7). Solo quien inspecciona (Recepción): la vista
                     //       emite la bandera inspecciona_entrega en data-vg-context. ──
                     [
                         'id'       => 'inspeccionar',
@@ -1206,7 +1206,7 @@ final class Tours
                         ],
                     ],
                     [
-                        // v3 (v6.18): suma la sección «Inspección pre-entrega» (la pantalla ya tiene 4 recorridos, el tope).
+                        // v3 (v7): suma la sección «Inspección pre-entrega» (la pantalla ya tiene 4 recorridos, el tope).
                         'id' => 'pendientes', 'v' => 3,
                         'titulo' => 'Inspecciones y entregas',
                         'pregunta' => '¿Qué quedó sin inspeccionar o sin entregar?',
@@ -1221,7 +1221,7 @@ final class Tours
                 ],
             ],
 
-            // Ajustes → Inspección pre-entrega (v6.18; en código «revision_entrega»). La inspección en sí se
+            // Ajustes → Inspección pre-entrega (v7; en código «revision_entrega»). La inspección en sí se
             // hace desde la tarjeta de la pieza en Habitaciones (recorrido «inspeccionar» de 'habitaciones').
             'ajustes.revision_entrega' => [
                 'nombre' => 'Inspección pre-entrega',

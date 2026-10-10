@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Migración v6.18: inspección pre-entrega (en código «revision_entrega»): Recepción revisa la pieza
+ * Migración v7: inspección pre-entrega (en código «revision_entrega»): Recepción revisa la pieza
  * antes de entregarla al huésped, desde su tarjeta en Habitaciones.
  *
  * Agrega a una BD existente:

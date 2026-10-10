@@ -21,7 +21,7 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
 
 $root = dirname(__DIR__);
 
-// Tablas de docs/database-schema.sql (la lista quedó incompleta desde antes; la v6.18 suma
+// Tablas de docs/database-schema.sql (la lista quedó incompleta desde antes; la v7 suma
 // solo las de la revisión de entrega).
 $tables = [
     'permisos', 'roles', 'rol_permisos', 'usuarios', 'usuarios_roles', 'sesiones',

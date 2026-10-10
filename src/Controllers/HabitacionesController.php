@@ -43,7 +43,7 @@ final class HabitacionesController
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
-        // Inspección pre-entrega vigente de cada pieza (v6.18): la tarjeta la muestra en su botón hasta que
+        // Inspección pre-entrega vigente de cada pieza (v7): la tarjeta la muestra en su botón hasta que
         // la pieza cambia de estado. Protegido: si la revisión falla (p. ej. falta su tabla en prod), la
         // lista igual carga.
         $revisiones = [];
@@ -89,7 +89,7 @@ final class HabitacionesController
             }
         }
 
-        // Última inspección pre-entrega de Recepción (v6.18): solo para quien ve todas las piezas; la
+        // Última inspección pre-entrega de Recepción (v7): solo para quien ve todas las piezas; la
         // trabajadora no la recibe. `vigente` = la pieza no cambió de estado desde entonces (el botón
         // «Re-limpiar» solo se ofrece así). Protegido: una falla de la revisión no tumba el detalle.
         if ($puedeVerTodas) {

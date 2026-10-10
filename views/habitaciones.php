@@ -18,12 +18,12 @@ $puedeGestionarEstado = $usuario->tienePermiso('habitaciones.marcar_limpia_manua
 // Mensaje de alerta a la mucama (nota_recepcion): mismo permiso que ya gatea la nota
 // en el detalle de la habitación. Recepción lo tiene aunque no tenga marcar_limpia_manual.
 $puedeAgregarNota = $usuario->tienePermiso('habitaciones.agregar_nota');
-// Inspección pre-entrega (v6.18): botón grande al pie de cada tarjeta (Recepción). Quien ve todas las
+// Inspección pre-entrega (v7): botón grande al pie de cada tarjeta (Recepción). Quien ve todas las
 // piezas sin poder inspeccionar ve el resultado de hoy como franja, sin botón.
 $puedeInspeccionar = $usuario->tienePermiso('revision_entrega.registrar');
-// Editar edificio/piso de la pieza (el lápiz de la tarjeta): v6.18, permiso propio.
+// Editar edificio/piso de la pieza (el lápiz de la tarjeta): v7, permiso propio.
 $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edificios');
-// «Re-limpiar» una pieza que Recepción no aprobó (v6.18): es una asignación.
+// «Re-limpiar» una pieza que Recepción no aprobó (v7): es una asignación.
 $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
 ?>
 
@@ -328,7 +328,7 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                             </template>
                         </div>
 
-                        <!-- Inspección pre-entrega (v6.18): botón del mismo tamaño que la franja de estado. Abre la
+                        <!-- Inspección pre-entrega (v7): botón del mismo tamaño que la franja de estado. Abre la
                              ventana SÍ / NO (componentes/modal-inspeccion-pre-entrega.php) y muestra el resultado
                              vigente (hasta que la pieza cambia de estado). Es un <button>: el clic no abre el
                              detalle de la pieza. Solo se escribe en el
@@ -743,7 +743,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             }
         },
 
-        // ── Inspección pre-entrega (v6.18) ──
+        // ── Inspección pre-entrega (v7) ──
         // hab.revision_vigente = la última inspección de la pieza mientras no haya cambiado de estado
         // (la calcula el servidor); si la pieza cambia de estado, el botón vuelve a «Inspección pre-entrega».
         abrirInspeccion(hab) {
@@ -793,7 +793,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             return r.comentario ? base + ' — ' + r.comentario : base;
         },
 
-        // ── Re-limpiar (v6.18): la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó ──
+        // ── Re-limpiar (v7): la supervisora manda a re-limpiar una pieza aprobada que Recepción no aprobó ──
         tieneNoVigente(hab) {
             return !!hab.revision_vigente && hab.revision_vigente.resultado === 'no';
         },

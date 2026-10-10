@@ -747,7 +747,7 @@ final class ChecklistService
         // conserva a nombre de quién lo hizo (reparto de créditos). Ver docs/creditos-rework.md.
         $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId, $asignacion->fecha, $asignacion->franja);
 
-        // Re-limpieza por un NO de la inspección pre-entrega (v6.18): si es esa, queda vinculada y no cuenta
+        // Re-limpieza por un NO de la inspección pre-entrega (v7): si es esa, queda vinculada y no cuenta
         // en los KPIs. Nunca puede impedir que la trabajadora empiece: si falla, solo queda en el log.
         try {
             RevisionEntregaService::vincularRelimpieza($habitacionId, $id, $fecha);

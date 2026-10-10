@@ -306,7 +306,7 @@ Una columna sin CHECK en la base, o con una lista más ancha que el schema, no s
      el `?v=` miente. (Pasó en el deploy de la v6.12, 24/09/2026: los badges
      nuevos no aparecían porque `app.js` había ido solo a `app_core/`.)
    - **`app_core/public/uploads/` es contenido de los usuarios, no código:** ahí guarda la
-     app las fotos de los tickets y, desde la v6.18, las de la inspección pre-entrega
+     app las fotos de los tickets y, desde la v7, las de la inspección pre-entrega
      (`uploads/{tickets,revision-entrega}/`), y PHP las sirve por la ruta `/uploads/…`. El
      `uploads/` del docroot queda vacío. Nunca va en un delta, y hay que preservarlo en un
      deploy con ZIP completo (ver el gotcha de §11).
@@ -422,7 +422,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 > rutas NUEVAS (no solo `/api/health`), y recién ahí borrar `limpieza_old`.
 >
 > **⚠️ Y las fotos de los tickets (desde v5, anotado el 27/09/2026) y de la inspección pre-entrega
-> (desde v6.18, en `uploads/revision-entrega/`):** viven en
+> (desde la v7, en `uploads/revision-entrega/`):** viven en
 > `app_core/public/uploads/`, que el ZIP trae vacío (solo `.gitkeep`), y el backup del cron
 > respalda la base, no los archivos. Antes de borrar `limpieza_old`, copiar también
 > `limpieza_old/app_core/public/uploads/` al nuevo `app_core/public/` y abrir un ticket viejo

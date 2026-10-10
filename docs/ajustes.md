@@ -32,8 +32,8 @@ Header común: breadcrumb "Ajustes > {sección}", botón volver (móvil).
 | Usuarios | `usuarios.ver` | delega a [usuarios.md](usuarios.md) |
 | Turnos | `turnos.ver` | delega a [turnos.md](turnos.md) |
 | Checklists | `checklists.ver` | delega a [checklist.md](checklist.md) §2 |
-| Inspección pre-entrega | `revision_entrega.configurar` | Qué hace un NO de Recepción (solo avisar / además devolver la pieza aprobada a sucia) y el catálogo de motivos (crear, renombrar, activar/desactivar). Delega a [revision-entrega.md](revision-entrega.md) (v6.18) |
-| Edificios y Mapeo | `habitaciones.gestionar_edificios` | Edificios y edificio/piso de cada pieza. Hasta la v6.18 se veía con `habitaciones.ver_todas` (Recepción incluida) |
+| Inspección pre-entrega | `revision_entrega.configurar` | Qué hace un NO de Recepción (solo avisar / además devolver la pieza aprobada a sucia) y el catálogo de motivos (crear, renombrar, activar/desactivar). Delega a [revision-entrega.md](revision-entrega.md) (v7) |
+| Edificios y Mapeo | `habitaciones.gestionar_edificios` | Edificios y edificio/piso de cada pieza. Antes de la v7 se veía con `habitaciones.ver_todas` (Recepción incluida) |
 | Colores | `apariencia.editar` | Colores de tarjetas por estado y hotel: la supervisora elige un color base por concepto (key-value en `ui_config`); el backend deriva variantes claro/oscuro (`Helpers\Colores`) y el layout las inyecta como CSS vars para las clases `.chip-estado-*` / `.hotel-accent-*` de custom.css. Endpoints en [api-endpoints.md](api-endpoints.md) |
 | Alertas | `alertas.configurar_umbrales` | §4 |
 | Cloudbeds | `cloudbeds.configurar_credenciales` | §5 |

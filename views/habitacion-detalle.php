@@ -173,7 +173,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                 </template>
 
-                <!-- Última inspección pre-entrega de Recepción (v6.18, docs/revision-entrega.md).
+                <!-- Última inspección pre-entrega de Recepción (v7, docs/revision-entrega.md).
                      La clave solo viene con habitaciones.ver_todas: la trabajadora nunca la ve. -->
                 <template x-if="habitacion.revision_entrega">
                     <div class="mt-3 rounded-lg p-3 border"
@@ -198,7 +198,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                     </div>
                                 </template>
                                 <p class="text-xs opacity-80 mt-0.5" x-text="textoRevisionEntrega(habitacion.revision_entrega)"></p>
-                                <!-- «Re-limpiar» (v6.18): un NO vigente sobre una pieza aprobada, para quien puede asignar. -->
+                                <!-- «Re-limpiar» (v7): un NO vigente sobre una pieza aprobada, para quien puede asignar. -->
                                 <template x-if="puedeAsignar && habitacion.revision_entrega.relimpiable && habitacion.revision_entrega.vigente">
                                     <button type="button" @click="abrirRelimpiar()"
                                             class="mt-2 min-h-[44px] px-4 inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold">
@@ -289,7 +289,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </template>
 
                 <!-- Sucia y no está en MI cola: o la tiene otra persona hoy, o falta asignarla. (Antes decía
-                     «pendiente de asignación» aunque estuviera asignada a otra; arreglado en la v6.18.) -->
+                     «pendiente de asignación» aunque estuviera asignada a otra; arreglado en la v7.) -->
                 <template x-if="habitacion.estado === 'sucia' && !estaAsignada && puedeVerTodas">
                     <p class="text-sm text-gray-500 dark:text-gray-400 mt-2"
                        x-text="habitacion.asignado_a_nombre
@@ -747,7 +747,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             return p[2] + '/' + p[1] + '/' + p[0];
         },
 
-        // «Re-limpiar» (v6.18): abre la ventana compartida (componentes/modal-relimpiar-entrega.php).
+        // «Re-limpiar» (v7): abre la ventana compartida (componentes/modal-relimpiar-entrega.php).
         abrirRelimpiar() {
             var h = this.habitacion;
             if (!h || !h.revision_entrega) return;

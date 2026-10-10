@@ -255,7 +255,7 @@ Si detectas un problema en una habitación (ej. lámpara rota, fuga de agua):
 
 ### Inspección pre-entrega (antes de entregar la pieza al huésped)
 
-Desde la v6.18, la pantalla principal de Recepción es **Habitaciones** (ya no hay «Inicio»). Lo ideal es revisar cada pieza antes de entregarla, pero no es obligatorio.
+Desde la v7, la pantalla principal de Recepción es **Habitaciones** (ya no hay «Inicio»). Lo ideal es revisar cada pieza antes de entregarla, pero no es obligatorio.
 
 1. En **Habitaciones**, busca la pieza (buscador por número o filtros de hotel y estado).
 2. Toca el botón **«Inspección pre-entrega»** al pie de su tarjeta.

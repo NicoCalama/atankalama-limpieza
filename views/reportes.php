@@ -854,7 +854,7 @@
             </template>
         </section>
 
-        <!-- Inspección pre-entrega de Recepción (v6.18, docs/revision-entrega.md). Por ahora no entra en
+        <!-- Inspección pre-entrega de Recepción (v7, docs/revision-entrega.md). Por ahora no entra en
              ningún KPI (los datos quedan guardados para el de calidad de supervisoras). Mismo período y
              hotel que arriba; ignora la trabajadora. -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.revision_entrega">
@@ -1086,7 +1086,7 @@ function reportes() {
         auditPendError:      '',
         auditPendSeq:        0,
 
-        // Inspección pre-entrega de Recepción (v6.18): mismo período y hotel que los KPIs.
+        // Inspección pre-entrega de Recepción (v7): mismo período y hotel que los KPIs.
         revEntrega:          null,
         revEntregaCargando:  false,
         revEntregaError:     '',
@@ -1139,7 +1139,7 @@ function reportes() {
                 if (elegida) this.usuarioNombre = elegida.nombre;
             }
             this.cargarFicha(); // en paralelo, con los mismos filtros; no bloquea los KPIs clásicos
-            this.cargarRevisionEntrega(); // idem: misma fecha y hotel (v6.18)
+            this.cargarRevisionEntrega(); // idem: misma fecha y hotel (v7)
             var resp = null;
             try {
                 var params = new URLSearchParams({

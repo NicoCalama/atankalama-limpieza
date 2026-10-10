@@ -1,6 +1,6 @@
 <?php
 /**
- * Ajustes → Inspección pre-entrega (v6.18; en código «revision_entrega»): qué hace un NO de Recepción (interruptor) y el catálogo
+ * Ajustes → Inspección pre-entrega (v7; en código «revision_entrega»): qué hace un NO de Recepción (interruptor) y el catálogo
  * de motivos. Spec: docs/revision-entrega.md. Permiso: revision_entrega.configurar (lo chequea
  * PaginasController). Motivos: crear, renombrar, activar/desactivar. No se borran ni se reordenan.
  *

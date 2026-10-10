@@ -11,7 +11,7 @@ return [
     ['habitaciones.marcar_limpia_manual', 'Marcar una habitación como limpia sin checklist (queda pendiente de auditoría)', 'Habitaciones', 'global'],
     ['habitaciones.marcar_nochero', 'Marcar/desmarcar una habitación como nochero (aseo doble por turno minero)', 'Habitaciones', 'global'],
     ['habitaciones.agregar_nota', 'Dejar/quitar la nota de Recepción para la mucama en una habitación', 'Habitaciones', 'global'],
-    // v6.18: antes alcanzaba con habitaciones.ver_todas, así que Recepción también podía crear y borrar edificios.
+    // v7: antes alcanzaba con habitaciones.ver_todas, así que Recepción también podía crear y borrar edificios.
     ['habitaciones.gestionar_edificios', 'Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo)', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],

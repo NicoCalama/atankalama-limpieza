@@ -108,7 +108,7 @@ final class RevisionEntregaControllerTest extends TestCase
     }
 
     /**
-     * «Re-limpiar» (v6.18): es una asignación (asignaciones.asignar_manual); la prioridad exige además
+     * «Re-limpiar» (v7): es una asignación (asignaciones.asignar_manual); la prioridad exige además
      * reordenar la cola. Lo de fondo (cola, KPIs) está en RevisionEntregaRelimpiezaTest.
      */
     public function testRelimpiarExigePermisosDeAsignarYDeReordenarParaLaPrioridad(): void
@@ -200,7 +200,7 @@ final class RevisionEntregaControllerTest extends TestCase
     }
 
     /**
-     * Revisión de la v6.18: si la tabla de la inspección no existe (código subido antes que el SQL),
+     * Revisión de la v7: si la tabla de la inspección no existe (código subido antes que el SQL),
      * la lista y el detalle de Habitaciones, que son pantallas centrales, igual cargan.
      */
     public function testSinLaTablaNuevaHabitacionesIgualCarga(): void

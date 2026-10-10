@@ -21,7 +21,7 @@ use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
 
 /**
- * «Re-limpiar» de la inspección pre-entrega (v6.18, decisiones de Nicolás del 05/10/2026):
+ * «Re-limpiar» de la inspección pre-entrega (v7, decisiones de Nicolás del 05/10/2026):
  *  - la supervisora asigna la re-limpieza de una pieza aprobada que Recepción no aprobó, con prioridad;
  *  - la re-limpieza no suma ni resta en los KPIs de aseo ni de inspección (tampoco con el interruptor);
  *  - el NO le cuenta a la supervisora que aprobó la pieza (columna «Recepción» de Reportes).

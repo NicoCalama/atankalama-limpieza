@@ -10,7 +10,7 @@ use Atankalama\Limpieza\Core\Request;
 use PHPUnit\Framework\TestCase;
 
 /**
- * GET /uploads/{ruta}: la allowlist acepta las fotos de tickets y, desde la v6.18, las de la
+ * GET /uploads/{ruta}: la allowlist acepta las fotos de tickets y, desde la v7, las de la
  * revisión de entrega. Cualquier otra carpeta sigue siendo 404.
  */
 final class UploadsControllerTest extends TestCase

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ventana de la inspección pre-entrega (v6.18; en código «revision_entrega»). Spec: docs/revision-entrega.md.
+ * Ventana de la inspección pre-entrega (v7; en código «revision_entrega»). Spec: docs/revision-entrega.md.
  * La incluye layout.php solo si el usuario tiene revision_entrega.registrar.
  *
  * Se abre desde el botón grande de la tarjeta de la pieza en Habitaciones:

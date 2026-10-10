@@ -17,7 +17,7 @@ use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Inspección pre-entrega y la pantalla de Recepción (v6.18), por el router REAL (con sus middlewares):
+ * Inspección pre-entrega y la pantalla de Recepción (v7), por el router REAL (con sus middlewares):
  * ninguna API queda sin sesión ni sin PermissionCheck, el modo espía no escribe, el Inicio de Recepción
  * es Habitaciones (sin «Inicio» en el menú), Edificios y Mapeo exige su permiso propio y quitar un
  * permiso en caliente corta el acceso.

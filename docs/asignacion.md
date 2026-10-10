@@ -14,7 +14,7 @@ una pantalla propia y más completa.
   **`asignaciones.asignar_manual`** (la tiene la Supervisora y el Admin).
 - Permisos relacionados: `asignaciones.auto_asignar` (botón Auto) y
   `asignaciones.reordenar_cola_trabajador` (reordenar la cola de un trabajador).
-- **Fuera de esta pantalla (v6.18):** «Re-limpiar» de la inspección pre-entrega
+- **Fuera de esta pantalla (v7):** «Re-limpiar» de la inspección pre-entrega
   (`docs/revision-entrega.md` §3b) asigna desde la tarjeta de Habitaciones por el
   mismo camino que reasignar (`AsignacionService::reasignar`, con una frase extra en
   el aviso a la trabajadora) y, con prioridad, deja la pieza primera en su cola

@@ -11,7 +11,7 @@ use Atankalama\Limpieza\Helpers\Fechas;
 use Atankalama\Limpieza\Models\Habitacion;
 
 /**
- * Inspección pre-entrega (v6.18, pedido de gerencia 04/10/2026; «visión cliente»; en código
+ * Inspección pre-entrega (v7, pedido de gerencia 04/10/2026; «visión cliente»; en código
  * «revision_entrega»): Recepción revisa una pieza antes de entregársela al huésped y registra SÍ o NO,
  * desde la tarjeta de la pieza en Habitaciones. No es obligatoria; cualquier pieza, en cualquier estado.
  *
@@ -33,7 +33,7 @@ final class RevisionEntregaService
     public const SUBCARPETA_FOTO = 'revision-entrega';
     public const CLAVE_CONFIG_NO_ENSUCIA = 'revision_entrega_no_ensucia';
 
-    // DEFAULT APLICADO (plan v6.18 aprobado por el usuario): topes de texto y del historial de Reportes.
+    // DEFAULT APLICADO (plan v7 aprobado por el usuario): topes de texto y del historial de Reportes.
     public const MAX_COMENTARIO = 300;
     public const MAX_NOMBRE_MOTIVO = 60;
     public const MAX_HISTORIAL = 500;
@@ -762,7 +762,7 @@ final class RevisionEntregaService
     // ───────────────────────────── Catálogo de motivos ─────────────────────────────
 
     /**
-     * DEFAULT APLICADO (plan v6.18 aprobado por el usuario): orden alfabético, sin reordenar.
+     * DEFAULT APLICADO (plan v7 aprobado por el usuario): orden alfabético, sin reordenar.
      *
      * @return list<array{id: int, nombre: string, activo: bool}>
      */

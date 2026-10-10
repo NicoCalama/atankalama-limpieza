@@ -1,4 +1,4 @@
-// Inspección pre-entrega (v6.18) — ventana que se abre desde el botón de la tarjeta en Habitaciones.
+// Inspección pre-entrega (v7) — ventana que se abre desde el botón de la tarjeta en Habitaciones.
 // Spec: docs/revision-entrega.md. Servido por PaginasController::servirRecurso (nada va al docroot).
 //
 // Paso 1: «¿La habitación está en condiciones para entregarse a un cliente?» SÍ / NO.

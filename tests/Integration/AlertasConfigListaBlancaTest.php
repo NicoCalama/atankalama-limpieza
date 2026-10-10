@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * PUT /api/alertas/config (Ajustes → Alertas) solo escribe sus propias claves. alertas_config también
  * guarda datos de otros módulos: el interruptor de la inspección pre-entrega exige
- * revision_entrega.configurar y no se puede cambiar por esta puerta (revisión de la v6.18).
+ * revision_entrega.configurar y no se puede cambiar por esta puerta (revisión de la v7).
  */
 final class AlertasConfigListaBlancaTest extends TestCase
 {

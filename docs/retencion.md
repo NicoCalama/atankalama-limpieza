@@ -16,7 +16,7 @@ define cuánto tiempo se conservan los datos y cómo se purgan automáticamente.
 | `copilot_conversaciones` | Borrar > 365 días (mensajes caen por cascade)     | `COPILOT_RETENTION_DAYS=365`     |
 | `copilot_mensajes`       | Limpieza de huérfanos siempre                     | (sin variable)                   |
 | `notificaciones`         | Borrar leídas > 90 días (las no leídas se conservan) | `NOTIFICATIONS_RETENTION_DAYS=90` |
-| `revisiones_entrega` + fotos en `uploads/revision-entrega/` | **Nunca borrar** (historial de la inspección pre-entrega, v6.18; igual que los tickets y sus fotos) | (sin variable) |
+| `revisiones_entrega` + fotos en `uploads/revision-entrega/` | **Nunca borrar** (historial de la inspección pre-entrega, v7; igual que los tickets y sus fotos) | (sin variable) |
 
 `audit_log` está exento por defecto porque registra acciones de negocio
 deliberadas (auditorías, cambios de permisos, etc.) y suele ser exigido por

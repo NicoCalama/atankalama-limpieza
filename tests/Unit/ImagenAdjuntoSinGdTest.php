@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Sin GD, imagecreatefrom*() no existe y PHP lanzaba \Error: el ticket o la inspección pre-entrega se
  * caían con un 500 en vez de guardarse sin la foto. Ahora es una ImagenException que los llamadores ya
- * manejan (revisión de la v6.18). Solo corre donde falta GD (el PHP local de dev); con GD se salta.
+ * manejan (revisión de la v7). Solo corre donde falta GD (el PHP local de dev); con GD se salta.
  */
 final class ImagenAdjuntoSinGdTest extends TestCase
 {
