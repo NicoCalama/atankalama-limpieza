@@ -295,6 +295,67 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
     }
 
     /**
+     * v7.1 (decisión de Nicolás, 10/10/2026): a la supervisora solo le cuentan las revisiones hechas con la
+     * pieza aprobada. Un NO a una pieza que ya se ensució no le baja la calidad a quien aprobó su limpieza.
+     */
+    public function testLaCalidadSoloCuentaRevisionesConLaPiezaAprobada(): void
+    {
+        foreach (['101', '102'] as $n) {
+            $this->limpiar($n, $this->ana);
+            $this->aprobar($n);
+        }
+        $this->svc->registrar($this->hab['101'], 'si', null, null, null, $this->carla);
+        (new HabitacionService())->cambiarEstado($this->hab['102'], Habitacion::ESTADO_SUCIA, null, 'cron');
+        $this->no('102'); // la pieza ya estaba sucia: no es su aprobación lo que se está juzgando
+
+        $rep = new ReportesService();
+        $sofia = $rep->fichaKpis($this->hoy, $this->hoy, 'ambos')['supervisoras']['inspectoras'][0];
+        $this->assertSame([1, 0, 100.0], [$sofia['recepcion_aprobadas'], $sofia['recepcion_rechazadas'], $sofia['recepcion_calidad_pct']]);
+        $mes = array_values(array_filter(
+            $rep->resumenMensualAuditores((int) date('Y'), (int) date('n'), 'ambos'),
+            fn (array $a): bool => $a['usuario_id'] === $this->sofia
+        ))[0];
+        $this->assertSame([1, 0], [$mes['recepcion_aprobadas'], $mes['recepcion_rechazadas']]);
+        $this->assertSame(2, $this->svc->reporte($this->hoy, $this->hoy, 'ambos')['resumen']['total'], 'la sección de Recepción igual muestra las dos');
+    }
+
+    /**
+     * Producción de Recepción (v7.1, decisión de Nicolás del 10/10/2026): una por limpieza. Revisar de nuevo la
+     * misma pieza sin re-limpieza no suma; después de una re-limpieza, sí. Cada persona cuenta lo suyo y,
+     * dentro de una limpieza, el NO manda. En Reportes y en la pestaña «Recepción» del Excel.
+     */
+    public function testLaProduccionDeRecepcionCuentaUnaPorLimpieza(): void
+    {
+        [$valeria] = TestDatabase::crearUsuario('55555555-5', 'Valeria', 'Recepción');
+        foreach (['101', '102'] as $n) {
+            $this->limpiar($n, $this->ana);
+            $this->aprobar($n);
+        }
+        // Carla: la 101 dos veces sin re-limpieza (1), NO a la 102 y, tras la re-limpieza, SÍ (2).
+        $this->svc->registrar($this->hab['101'], 'si', null, null, null, $this->carla);
+        $this->svc->registrar($this->hab['101'], 'si', null, null, null, $this->carla);
+        $rev = $this->no('102');
+        $this->svc->pedirRelimpieza($rev, $this->berta, true, $this->sofia);
+        $this->limpiar('102', $this->berta, false);
+        $this->aprobar('102');
+        $this->svc->registrar($this->hab['102'], 'si', null, null, null, $this->carla);
+        // Valeria: SÍ y después NO a la misma limpieza de la 101 → una, y cuenta como NO.
+        $this->svc->registrar($this->hab['101'], 'si', null, null, null, $valeria);
+        $this->svc->registrar($this->hab['101'], 'no', $this->motivo, null, null, $valeria);
+
+        $prod = $this->svc->reporte($this->hoy, $this->hoy, 'ambos')['por_recepcionista'];
+        $this->assertSame(
+            [['Carla', 3, 2, 1, 33.3], ['Valeria', 1, 0, 1, 100.0]],
+            array_map(static fn (array $p): array => [$p['nombre'], $p['inspecciones'], $p['si'], $p['no'], $p['pct_no']], $prod)
+        );
+        $this->assertSame([], $this->svc->produccionPorRecepcionista($this->hoy, $this->hoy, 'inn'), 'otro hotel');
+
+        $hoja = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Recepción'];
+        $this->assertSame(['Recepcionista', 'Inspecciones', 'Aprobadas (SÍ)', 'No aprobadas (NO)', '% NO'], $hoja[5]);
+        $this->assertSame(['TOTAL', 4, 2, 2, 50.0], $hoja[count($hoja) - 1], 'TOTAL de ambos hoteles');
+    }
+
+    /**
      * Calidad según Recepción (fórmula de gerencia, 10/10/2026): (SÍ − NO) ÷ (SÍ + NO) con las piezas de la
      * columna «Recepción», en la ficha, en el resumen mensual y en el Excel; el TOTAL sale de los SÍ y NO sumados.
      */

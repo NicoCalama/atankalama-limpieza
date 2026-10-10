@@ -147,13 +147,13 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400 mb-4" x-text="'Hotel: ' + hotelLabel()"></p>
 
                 <div class="space-y-2 mb-5">
-                    <!-- Resumen mensual: Excel con dos pestañas -->
+                    <!-- Resumen mensual: Excel con tres pestañas -->
                     <label class="flex gap-3 p-3 rounded-lg border cursor-pointer transition"
                            :class="exportarTipo === 'mensual' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700'">
                         <input type="radio" name="exportar-tipo" value="mensual" x-model="exportarTipo" class="mt-1 w-4 h-4 flex-shrink-0">
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Resumen mensual</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Excel con dos pestañas: «Trabajadores» (del hotel elegido) y «Supervisores» (cada hotel por separado y el total).</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Excel con tres pestañas: «Trabajadores» (del hotel elegido), «Supervisores» y «Recepción» (cada hotel por separado y el total).</p>
                             <input type="month" x-show="exportarTipo === 'mensual'" x-model="exportarMes" aria-label="Mes del resumen"
                                    class="mt-2 min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                         </div>
@@ -526,7 +526,7 @@
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechaz.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Minutos promedio desde que abre la pieza hasta que da el veredicto. Solo inspecciones desde que se activó la medición.">T. por insp.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Lo que ella inspeccionó sobre todo lo limpiado en la sección.">Aporte cobert.</th>
-                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
+                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, revisadas mientras seguían aprobadas y según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Calidad según Recepción: (aprobadas − no aprobadas) ÷ las que Recepción revisó × 100, con las mismas piezas de la columna «Recepción». Cada NO pesa el doble (18 SÍ y 2 NO = 80 %). Nunca baja de 0 %. Sin revisiones de Recepción en el período: —.">Calidad</th>
                                     </tr>
                                 </thead>
@@ -746,7 +746,7 @@
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Casillas del checklist que desmarcó al inspeccionar (en aprobadas con observación y en rechazadas). Es lo mismo que «Observ.» de los trabajadores, contado desde quien inspecciona.">Observaciones</th>
-                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, revisadas mientras seguían aprobadas y según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Calidad según Recepción: (aprobadas − no aprobadas) ÷ las que Recepción revisó × 100, con las mismas piezas de la columna «Recepción». Cada NO pesa el doble (18 SÍ y 2 NO = 80 %). Nunca baja de 0 %. Sin revisiones de Recepción en el período: —.">Calidad</th>
                             </tr>
                         </thead>
@@ -859,9 +859,9 @@
             </template>
         </section>
 
-        <!-- Inspección pre-entrega de Recepción (v7, docs/revision-entrega.md). Por ahora no entra en
-             ningún KPI (los datos quedan guardados para el de calidad de supervisoras). Mismo período y
-             hotel que arriba; ignora la trabajadora. -->
+        <!-- Inspección pre-entrega de Recepción (v7, docs/revision-entrega.md). No cambia los KPIs de aseo;
+             alimenta la columna «Calidad» de las supervisoras y, desde la v7.1, la producción por
+             recepcionista. Mismo período y hotel que arriba; ignora la trabajadora. -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.revision_entrega">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
                 <div class="flex items-center gap-2 min-w-0">
@@ -914,6 +914,40 @@
                             <p class="text-xs text-red-700 dark:text-red-300" x-show="revEntrega.resumen.a_sucia > 0"
                                x-text="revEntrega.resumen.a_sucia + ' volvieron a sucia'"></p>
                         </div>
+                    </div>
+
+                    <!-- Producción por recepcionista (v7.1): una por limpieza; dentro de una limpieza, el NO manda. -->
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Por recepcionista</h3>
+                        <template x-if="revEntrega.por_recepcionista.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Nadie registró inspecciones en el período.</p>
+                        </template>
+                        <template x-if="revEntrega.por_recepcionista.length > 0">
+                            <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Recepcionista</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Una por limpieza: revisar otra vez la misma habitación sin que se haya vuelto a limpiar no suma; después de una re-limpieza, sí.">Inspecc.</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">SÍ</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider" title="Si en la misma limpieza hubo un SÍ y un NO, cuenta como NO.">NO</th>
+                                            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">% NO</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        <template x-for="p in revEntrega.por_recepcionista" :key="p.usuario_id">
+                                            <tr>
+                                                <td class="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap" x-text="p.nombre"></td>
+                                                <td class="px-3 py-2 text-right font-semibold text-gray-900 dark:text-gray-100 tabular-nums" x-text="p.inspecciones"></td>
+                                                <td class="px-3 py-2 text-right font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums" x-text="p.si"></td>
+                                                <td class="px-3 py-2 text-right font-semibold text-red-700 dark:text-red-400 tabular-nums" x-text="p.no"></td>
+                                                <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums" x-text="fmtPct(p.pct_no)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </template>
                     </div>
 
                     <!-- NO por motivo -->

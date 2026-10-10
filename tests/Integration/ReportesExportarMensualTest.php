@@ -67,7 +67,8 @@ final class ReportesExportarMensualTest extends TestCase
     public function testTrabajadoresRespetaElHotelYSupervisoresTraeLosDosYElTotal(): void
     {
         $hojas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), '1_sur');
-        $this->assertSame(['Trabajadores', 'Supervisores'], array_keys($hojas));
+        $this->assertSame(['Trabajadores', 'Supervisores', 'Recepción'], array_keys($hojas));
+        $this->assertContains(['Sin inspecciones pre-entrega en el mes'], $hojas['Recepción'], 'sin inspecciones de Recepción en este escenario');
 
         // Trabajadores, solo 1 Sur: la 101 (hecha); la rechazada de INN no entra.
         $ana = $this->filaQueEmpiezaCon($hojas['Trabajadores'], '11111111-1');

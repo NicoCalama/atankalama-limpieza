@@ -147,11 +147,20 @@ re-limpieza, quien la pidió). DDL en
 - **Columna «Recepción»** (`recepcionPorSupervisora()`; regla de conteo aprobada por Nicolás el 05/10): por cada inspección **aprobada por una persona** (no el
   cierre automático) que Recepción revisó en el período: no aprobada si recibió al menos un NO, aprobada si solo SÍ.
   Ventana = fecha de la revisión de Recepción (un mes cerrado no cambia). Quien solo tiene resultados de Recepción en
-  el período (aprobó antes y no inspeccionó) aparece igual, fuera del promedio.
+  el período (aprobó antes y no inspeccionó) aparece igual, fuera del promedio. **v7.1 (decisión de Nicolás,
+  10/10):** solo cuentan las revisiones hechas con la pieza **Aprobada o Aprobada c/obs.** (`estado_pieza`): un SÍ/NO a
+  una pieza que ya se ensució o empezó a limpiarse no le cuenta a quien aprobó su última limpieza. Como se calcula al
+  leer, corrige también lo ya registrado.
 - **Columna «Calidad»** (`calidadRecepcionPct()`, fórmula de gerencia y decisiones de Nicolás del 10/10): (aprobadas −
   no aprobadas) ÷ (aprobadas + no aprobadas) × 100 con las mismas piezas de la columna «Recepción» (lo que ella aprobó
   y Recepción no revisó no entra), **mínimo 0 %**, un decimal; sin revisiones en el período, «—». En el Excel
   («Recepción: calidad %») el TOTAL de cada hotel sale de los SÍ y NO sumados.
+- **Producción por recepcionista** (`produccionPorRecepcionista()`, v7.1, decisiones de Nicolás del 10/10): cuántas
+  inspecciones hizo cada persona en el período, **una por limpieza**: revisar otra vez la misma pieza sin que se haya
+  vuelto a limpiar (misma `ejecucion_id`) no suma; después de una re-limpieza, sí. Cada persona cuenta lo suyo y, dentro
+  de una limpieza, el NO manda. Ventana = fecha de la revisión. Tabla «Por recepcionista» en la sección de Reportes
+  (inspecciones, SÍ, NO, % NO) y pestaña «Recepción» del Excel mensual (un bloque por hotel y el total). No se filtra
+  por `kpis.excluido` (en prod lo tienen todos los roles menos Trabajador, Recepción incluida).
 
 ## 4. Pantallas
 
@@ -196,6 +205,11 @@ tiene los tres. «Re-limpiar» no tiene permiso propio: es una asignación (`asi
 [api-endpoints.md](api-endpoints.md) §19.
 
 ## 6. Pendientes y límites conocidos
+
+- **Calidad con piezas que Cloudbeds aprobó por fuera (v7.1):** si Cloudbeds marca limpia una pieza sucia, el sync la
+  fuerza a «aprobada» sin limpieza ni inspección en la app; un SÍ/NO de Recepción en ese momento queda ligado a la
+  última limpieza aprobada en la app y le cuenta a esa supervisora. Para excluirlo habría que mirar el historial de
+  cambios de estado (`audit_log`) entre la aprobación y la revisión.
 
 - **`sw.js` cachea `GET /uploads/*`** en la caché de páginas (network-first). Para fotos con nombre inmutable no hace
   daño, pero ocupa espacio en el celular.

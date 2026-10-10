@@ -272,10 +272,12 @@ final class ReportesService
     }
 
     /**
-     * Excel del resumen mensual (un solo archivo, dos pestañas — pedido de Nicolás, 04/10/2026):
+     * Excel del resumen mensual (un solo archivo — pedido de Nicolás, 04/10/2026):
      *   «Trabajadores» = el resumen por trabajador con el hotel elegido (mismos números que la pantalla);
      *   «Supervisores» = las inspecciones del mes SIEMPRE con los dos hoteles: un bloque por hotel y
-     *                    uno con el total, sin importar el filtro de hotel.
+     *                    uno con el total, sin importar el filtro de hotel;
+     *   «Recepción»    = la producción de la inspección pre-entrega por recepcionista (v7.1), igual que
+     *                    «Supervisores»: un bloque por hotel y el total.
      *
      * @return array<string, list<list<string|int|float|null>>> nombre de la pestaña → filas
      */
@@ -284,7 +286,49 @@ final class ReportesService
         return [
             'Trabajadores' => $this->filasMensualTrabajadores($anio, $mes, $hotel),
             'Supervisores' => $this->filasMensualSupervisores($anio, $mes),
+            'Recepción'    => $this->filasMensualRecepcion($anio, $mes),
         ];
+    }
+
+    /**
+     * Pestaña «Recepción» (v7.1): la producción de la inspección pre-entrega por recepcionista
+     * (RevisionEntregaService::produccionPorRecepcionista, una por limpieza), como «Supervisores»: un
+     * bloque por hotel y uno con el total, sin importar el filtro de hotel.
+     *
+     * @return list<list<string|int|float|null>>
+     */
+    private function filasMensualRecepcion(int $anio, int $mes): array
+    {
+        $desde = sprintf('%04d-%02d-01', $anio, $mes);
+        $hasta = date('Y-m-t', strtotime($desde));
+        $revisiones = new RevisionEntregaService();
+
+        $rows = [];
+        $rows[] = ['Inspección pre-entrega por recepcionista (una por limpieza)', 'Atankalama Corp'];
+        $rows[] = ['Mes', self::nombreMes($anio, $mes)];
+        $rows[] = ['Generado', date('d/m/Y H:i:s')];
+
+        foreach (['1_sur' => 'ATANKALAMA', 'inn' => 'ATANKALAMA INN', 'ambos' => 'TOTAL AMBOS HOTELES'] as $hotel => $titulo) {
+            $rows[] = [];
+            $rows[] = [$titulo];
+            $rows[] = ['Recepcionista', 'Inspecciones', 'Aprobadas (SÍ)', 'No aprobadas (NO)', '% NO'];
+
+            $filas = $revisiones->produccionPorRecepcionista($desde, $hasta, $hotel);
+            if ($filas === []) {
+                $rows[] = ['Sin inspecciones pre-entrega en el mes'];
+                continue;
+            }
+            $tot = [0, 0, 0];
+            foreach ($filas as $f) {
+                $rows[] = [$f['nombre'], $f['inspecciones'], $f['si'], $f['no'], $f['pct_no'] ?? ''];
+                $tot[0] += $f['inspecciones'];
+                $tot[1] += $f['si'];
+                $tot[2] += $f['no'];
+            }
+            $rows[] = ['TOTAL', ...$tot, $this->pct($tot[2], $tot[0]) ?? ''];
+        }
+
+        return $rows;
     }
 
     /** @return list<list<string|int|float|null>> */
@@ -1589,6 +1633,11 @@ final class ReportesService
      * DEFAULT APLICADO (aprobado por el usuario, 05/10/2026): una pieza = una inspección aprobada; el NO
      * manda sobre el SÍ; ventana por fecha de la revisión de Recepción.
      *
+     * v7.1 (decisión de Nicolás, 10/10/2026): solo cuentan las revisiones hechas con la pieza Aprobada o
+     * Aprobada c/obs. (estado_pieza, la foto que guardó la revisión). Un SÍ/NO a una pieza que ya se ensució
+     * o empezó a limpiarse no le cuenta a quien aprobó su última limpieza. Límite conocido: si Cloudbeds
+     * fuerza «aprobada» sin limpieza en la app, la revisión queda ligada a la aprobación anterior.
+     *
      * @return array<int, array{nombre:string, aprobadas:int, rechazadas:int}> auditor_id → conteo
      */
     private function recepcionPorSupervisora(string $desde, string $hasta, string $hotel): array
@@ -1604,6 +1653,7 @@ final class ReportesService
                        JOIN #__habitaciones h ON h.id = r.habitacion_id
                        JOIN #__hoteles ho ON ho.id = h.hotel_id
                       WHERE r.auditoria_id IS NOT NULL
+                        AND r.estado_pieza IN ('aprobada', 'aprobada_con_observacion')
                         AND r.created_at >= ? AND r.created_at < ?
                             {$h}
                       GROUP BY r.auditoria_id) x
