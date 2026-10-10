@@ -106,6 +106,10 @@ trait EscenarioCicloLimpieza
 
     private function sincronizar(): void
     {
+        // En Windows el reloj avanza a saltos de ~15 ms: sin esta pausa, un cambio de estado hecho
+        // justo antes puede quedar con la misma marca de tiempo que la lectura del sync, y el sync
+        // salta la pieza como «cambió después de leer Cloudbeds» (test intermitente, 10/10/2026).
+        usleep(20_000);
         $this->sync->sincronizar(null, 'auto_cron');
     }
 

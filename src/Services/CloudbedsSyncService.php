@@ -212,23 +212,21 @@ final class CloudbedsSyncService
                         $aprobadaHoy = $this->aprobadaHoy($hab);
                         $motivo = $this->motivoParaConservarAprobacion($hab, $aprobadaHoy, $frontdesk, $ocupada);
                         if ($motivo !== null) {
-                            Logger::info('cloudbeds', 'aprobación conservada: Cloudbeds la marcó sucia con huésped adentro', [
+                            Logger::info('cloudbeds', 'aprobación conservada: Cloudbeds la marcó sucia', [
                                 'habitacion_id' => $hab->id,
                                 'numero' => $hab->numero,
                                 'estado' => $hab->estado,
                                 'frontdesk' => $frontdesk,
+                                'ocupada' => $ocupada,
                                 'motivo' => $motivo,
                             ]);
                         } else {
+                            // Sin aviso (v6.22): lo que llega acá es el ciclo normal (aprobada otro
+                            // día, así entra cada mañana el aseo del día), una rechazada (no la
+                            // aprobó nadie), una que «aprobó» el cierre de la noche porque nadie
+                            // terminó la limpieza, o el aseo diario de hoy cuyo huésped ya se fue
+                            // (le toca la limpieza de salida).
                             $this->habitaciones->cambiarEstado($hab->id, Habitacion::ESTADO_SUCIA, null, 'cron');
-                            // Solo es noticia si la aprobación era de HOY: alguien la va a limpiar
-                            // dos veces el mismo día. La de otro día es el ciclo normal (así entra
-                            // cada mañana el aseo del día) y una rechazada no la aprobó nadie.
-                            // Antes se avisaba en los tres casos: ~140 alertas P1 por día que no
-                            // se veían solo porque el INSERT fallaba (incidente del 23/09/2026).
-                            if ($aprobadaHoy) {
-                                $this->avisarAprobacionDeshecha($hab, $hotel, $frontdesk);
-                            }
                             $actualizadas++;
                         }
                     } elseif ($cleaningStatus === 'clean' && !in_array($hab->estado, [
@@ -348,28 +346,34 @@ final class CloudbedsSyncService
      * ¿Hay que conservar la aprobación aunque Cloudbeds diga 'dirty'? Devuelve el motivo, o null
      * si la pieza vuelve a la cola.
      *
-     * Cloudbeds marca una pieza 'dirty' apenas entra un huésped: para ellos es la marca del
-     * servicio del día SIGUIENTE, no una limpieza pendiente. Si la app le hace caso sin
-     * distinguir, deshace la aprobación y manda a limpiar de nuevo una pieza limpia y ocupada.
-     * Pasó de verdad: el 22/09/2026 la pieza 706 se aprobó a las 11:15 y 25 minutos después el
-     * sync la devolvió a sucia porque había entrado un huésped. Ese día le pasó a ~8 piezas.
+     * Regla de la v6.22 (decisión de Nicolás, 10/10/2026): **lo que se aprobó HOY queda limpio
+     * hasta mañana**, diga lo que diga Cloudbeds, aunque la marca sucia la haya puesto Recepción
+     * a mano. No se avisa a nadie y no se le escribe nada a Cloudbeds. Si de verdad hay que
+     * limpiarla otra vez, se usa «Marcar sucia» en la app.
      *
-     * Se conserva en tres casos; en todo lo demás vuelve a la cola como siempre:
-     *  - Aprobada HOY y con huésped adentro (o llegando / siguiendo), salvo turnover (v6.10).
-     *  - Turnover aprobado HOY cuya limpieza se terminó con la pieza VACÍA según Cloudbeds, y ya
-     *    llegó el huésped nuevo (R1, v6.20): se limpió entre un huésped y otro. Si se limpió con el
-     *    anterior adentro, o no hay dato, vuelve a la cola: ahí sí hace falta aseo entremedio (es
-     *    lo que se cuidó desde el 23/09/2026, piezas 710 y 107). Pedido de la supervisora del
-     *    08/10/2026: el turnover limpiado volvía a la cola de la misma trabajadora.
-     *  - Aprobada un día ANTERIOR, vacía, y hoy llega un huésped (frontdesk 'check-in', ya
-     *    ocupada): queda aprobada hasta el aseo de mañana (decisión de Nicolás, 08/10/2026). Si
-     *    Recepción la marca sucia antes de que llegue el huésped, se respeta.
+     * **Única excepción:** si cuando se terminó la limpieza había un huésped alojado (la anotación
+     * de la v6.20) y ahora Cloudbeds dice que la pieza quedó vacía, el huésped se fue después del
+     * aseo diario (salida anticipada, cambio de pieza, o el anterior de un turnover que se limpió
+     * antes de su check-out): vuelve a la cola para la limpieza de salida. Sin anotación (antes de
+     * la v6.20, o sin lectura de Cloudbeds) no hay excepción.
      *
-     * Nunca se conserva una rechazada (no la aprobó nadie), ni una pieza cuya última limpieza la
-     * terminó el cierre de la noche porque nadie apretó «terminar» (v6.19): quedó aprobada para
-     * liberarla, no porque esté limpia. El aseo diario de los que siguen ('stayover', cada
-     * madrugada) y el check-out siguen volviendo a la cola. Los nocheros no dependen de esta
-     * rama: los revierte su propio barrido de las 16:00 (ver scripts/sync-cloudbeds.php).
+     * Reemplaza los casos de la v6.10 y la v6.20 (con huésped adentro, turnover limpiado vacío),
+     * que dejaban pasar casos: el 10/10/2026 la 409 volvió a la cola porque Recepción hizo y
+     * deshizo un check-in (Cloudbeds la dejó 'dirty' y sin nadie hospedado), aunque se había
+     * limpiado vacía. Cloudbeds marca 'dirty' apenas entra un huésped (es la marca del servicio
+     * del día SIGUIENTE), así que hacerle caso el mismo día manda a limpiar dos veces una pieza
+     * limpia.
+     *
+     * Sigue igual:
+     *  - Aprobada un día ANTERIOR: vuelve a la cola (así entra cada madrugada el aseo diario),
+     *    salvo que hoy llegue un huésped a la pieza vacía (frontdesk 'check-in', ya ocupada):
+     *    queda aprobada hasta el aseo de mañana (v6.20). Si Recepción la marca sucia antes de que
+     *    llegue el huésped, se respeta.
+     *  - Nunca se conserva una rechazada (no la aprobó nadie), ni una pieza cuya última limpieza
+     *    la terminó el cierre de la noche porque nadie apretó «terminar» (v6.19): quedó aprobada
+     *    para liberarla, no porque esté limpia.
+     *  - Los nocheros no dependen de esta rama: los revierte su propio barrido de las 16:00 (ver
+     *    scripts/sync-cloudbeds.php).
      */
     private function motivoParaConservarAprobacion(Habitacion $hab, bool $aprobadaHoy, ?string $frontdesk, ?bool $ocupada): ?string
     {
@@ -377,55 +381,15 @@ final class CloudbedsSyncService
             return null;
         }
 
-        if (!$aprobadaHoy) {
-            return $frontdesk === 'check-in' && $ocupada === true ? 'llegada_sobre_aprobacion_anterior' : null;
+        if ($aprobadaHoy) {
+            // La única excepción: aseo diario con el huésped alojado, y el huésped ya se fue.
+            if ($ocupada === false && $this->habitaciones->ultimaLimpiezaConHuespedAlojado($hab->id)) {
+                return null;
+            }
+            return 'aprobada_hoy';
         }
 
-        if ($frontdesk === 'turnover') {
-            return $ocupada === true && $this->habitaciones->limpiezaTerminadaVaciaHoy($hab->id)
-                ? 'turnover_limpiado_vacio'
-                : null;
-        }
-
-        return $ocupada === true || in_array($frontdesk, ['check-in', 'stayover'], true) ? 'aprobada_hoy_ocupada' : null;
-    }
-
-    /**
-     * La sincronización deshizo una aprobación de HOY: queda en el log y le llega a la
-     * supervisora. La alerta se resuelve sola cuando la pieza vuelve a quedar aprobada
-     * (HabitacionService::cambiarEstado()).
-     *
-     * Antes esto pasaba MUDO —la rama de al lado (Cloudbeds la aprueba sola) sí registraba un
-     * WARNING—, así que alguien volvía a limpiar sin que nadie supiera por qué. La asimetría
-     * costó horas de diagnóstico el 22/09/2026.
-     */
-    private function avisarAprobacionDeshecha(Habitacion $hab, Hotel $hotel, ?string $frontdesk): void
-    {
-        Logger::warning('cloudbeds', 'aprobación deshecha: Cloudbeds reporta la pieza sucia', [
-            'habitacion_id' => $hab->id,
-            'numero' => $hab->numero,
-            'estado_previo' => $hab->estado,
-            'frontdesk' => $frontdesk,
-        ]);
-
-        try {
-            $this->alertas->levantar(
-                AlertaActiva::TIPO_APROBACION_DESHECHA,
-                "Habitación {$hab->numero} volvió a sucia",
-                'Se había aprobado hoy, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza.',
-                ['habitacion_id' => $hab->id, 'frontdesk' => $frontdesk],
-                $hotel->id,
-                // Una alerta por pieza: si el sync la vuelve a ver sucia en el siguiente tick
-                // no se apila otra. Ver AlertasService::levantar().
-                "habitacion:{$hab->id}",
-            );
-        } catch (\Throwable $e) {
-            // Avisar es importante, pero no puede tumbar la sincronización entera.
-            Logger::error('cloudbeds', 'no se pudo levantar la alerta de aprobación deshecha', [
-                'habitacion_id' => $hab->id,
-                'mensaje' => $e->getMessage(),
-            ]);
-        }
+        return $frontdesk === 'check-in' && $ocupada === true ? 'llegada_sobre_aprobacion_anterior' : null;
     }
 
     /**

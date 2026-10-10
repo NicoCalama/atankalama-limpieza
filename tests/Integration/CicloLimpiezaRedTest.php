@@ -72,9 +72,12 @@ final class CicloLimpiezaRedTest extends TestCase
         $this->assertSinAlertasDeshechas();
     }
 
-    public function testAprobadaConElHuespedAdentroYCheckOutAnticipadoVuelveALaColaConAlertaQueSeResuelveSola(): void
+    public function testAprobadaConElHuespedAlojadoYCheckOutAnticipadoVuelveALaCola(): void
     {
+        // El sync ya leyó la pieza con el huésped alojado (en producción corre cada 10 minutos):
+        // de ahí sale la anotación «había un huésped alojado» al terminar la limpieza.
         $this->cb->estadia('CB_101');
+        $this->sincronizar();
         $this->limpiar('101', $this->ana);
         $this->aprobar('101');
         $this->sincronizar();
@@ -82,17 +85,18 @@ final class CicloLimpiezaRedTest extends TestCase
 
         $this->cb->seVa('CB_101');
         $this->sincronizar();
-        $this->assertEstado('101', 'sucia', 'se fue en la tarde: hay que limpiarla como salida');
-        $this->assertSame(1, $this->alertasDeshechas());
+        $this->assertEstado('101', 'sucia', 'se fue en la tarde: hay que limpiarla como salida (la excepción de la v6.22)');
+        $this->assertSinAlertasDeshechas('desde la v6.22 vuelve a la cola sin aviso');
 
         $this->limpiar('101', $this->ana);
         $this->aprobar('101');
-        $this->assertSinAlertasDeshechas('al re-aprobarse la alerta se resuelve sola');
+        $this->assertEstado('101', 'aprobada');
     }
 
     public function testLateCheckOutDespuesDeUnaAprobacionAutomatica(): void
     {
         $this->cb->estadia('CB_101');
+        $this->sincronizar();
         $this->limpiar('101', $this->ana);
         $this->cierreDeDia();
         $this->assertEstado('101', 'aprobada_automatica');
@@ -104,13 +108,14 @@ final class CicloLimpiezaRedTest extends TestCase
         $this->cb->seVa('CB_101');
         $this->sincronizar();
         $this->assertEstado('101', 'sucia');
-        $this->assertSame(1, $this->alertasDeshechas());
+        $this->assertSinAlertasDeshechas();
     }
 
     public function testElHuespedSeCambiaDePieza(): void
     {
-        // Origen: la 101, limpiada con el huésped adentro. Destino: la 102, limpiada vacía.
+        // Origen: la 101, limpiada con el huésped alojado. Destino: la 102, limpiada vacía.
         $this->cb->estadia('CB_101');
+        $this->sincronizar();
         $this->limpiar('101', $this->ana);
         $this->aprobar('101');
         $this->limpiar('102', $this->ana);

@@ -1744,3 +1744,55 @@ limpiar»): arriba del checklist el recuadro «Motivo del rechazo» con el texto
 desmarcados en rojo con «La supervisora lo desmarcó».
 
 **Vuelta atrás:** subir `build/limpieza-v621-vuelta-atras.zip` (los mismos cinco archivos en la v6.20, `62d4952`).
+
+### 11.24 Release "lo aprobado hoy queda limpio" → v6.22
+
+Origen: el 10/10/2026 la **409** de Atankalama volvió a la cola de Yessica después de aprobada: Recepción hizo el
+check-in de la reserva nueva a las 07:44 y lo deshizo a las 07:48; Cloudbeds la dejó `dirty` y sin nadie hospedado, y la
+regla de la v6.20 la devolvió a la cola (diagnóstico completo en §11.22). **Decisión de Nicolás:** si una pieza se aprobó
+hoy, queda limpia hasta mañana aunque Cloudbeds diga sucia, también si la marca la puso Recepción a mano; en silencio
+(sin aviso a las supervisoras) y sin escribirle nada a Cloudbeds. **Única excepción:** el aseo diario hecho con un
+huésped alojado cuyo huésped se va ese mismo día (salida anticipada, cambio de pieza) vuelve a la cola para la limpieza
+de salida.
+
+**Qué cambia** (`CloudbedsSyncService::motivoParaConservarAprobacion()`, detalle en `docs/cloudbeds.md` §4.x):
+
+- Aprobada hoy + Cloudbeds `dirty` → se conserva (motivo `aprobada_hoy` en el log), salvo que la última limpieza se
+  haya terminado con `cb_ocupada = 1` (la anotación de la v6.20) y ahora Cloudbeds la dé vacía.
+- Se dejan de usar los motivos `aprobada_hoy_ocupada` y `turnover_limpiado_vacio`; `llegada_sobre_aprobacion_anterior`
+  (aprobada un día anterior y llega un huésped) sigue igual.
+- El sync ya no levanta la alerta `aprobacion_deshecha` ni escribe el WARNING «aprobación deshecha». Las alertas de ese
+  tipo que estén activas se siguen resolviendo solas al volver a aprobarse la pieza.
+- Siguen igual: el aseo diario de lo aprobado otro día, las rechazadas, las limpiezas que cerró el sistema a las 23:55
+  (v6.19) y el barrido de nocheros de las 16:00.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos, sin cambios en los cron.**
+
+**ZIP** `build/limpieza-v622-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v6.22 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3
+archivos: `src/Services/CloudbedsSyncService.php`, `src/Services/HabitacionService.php` y `CHANGELOG.md`. Vuelta atrás:
+`build/limpieza-v622-vuelta-atras.zip` (los mismos tres en la v6.21, `4ce3c5c`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v6.22** (incógnito) y `/api/health` 200.
+
+**Verificación al día siguiente:**
+
+```sql
+-- Aprobaciones conservadas por motivo desde el deploy (horas en UTC; poner la del deploy).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.motivo')) AS motivo,
+       COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.habitacion_id'))) AS piezas
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n conservada:%'
+   AND created_at >= '2026-10-11T00:00'
+ GROUP BY motivo;
+
+-- No tiene que aparecer ninguna «aprobación deshecha» nueva.
+SELECT COUNT(*) AS deshechas
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n deshecha:%'
+   AND created_at >= '2026-10-11T00:00';
+```
+
+**Vuelta atrás:** subir `build/limpieza-v622-vuelta-atras.zip`. No hay datos que deshacer.
