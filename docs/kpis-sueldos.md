@@ -452,6 +452,25 @@ cambios de schema.
   de una). Se mantienen los dos por ser intuitivos desde ángulos opuestos; se puede dejar uno
   solo si más adelante se prefiere.
 
+### KPI S2.4 — Calidad según Recepción  *(v7, fórmula de gerencia del 10/10/2026)*
+- **Qué mide:** de las piezas que **la supervisora aprobó** y Recepción revisó antes de entregarlas al
+  huésped (inspección pre-entrega, [revision-entrega.md](revision-entrega.md)), cuánto le aprobó
+  Recepción. Es la calidad de su aprobación vista «con ojos de cliente».
+- **Fórmula:** `(aprobadas − rechazadas) ÷ (aprobadas + rechazadas) × 100`, con **mínimo 0 %**
+  (decisión de Nicolás, 10/10: un período con más NO que SÍ queda en 0 %, no en negativo). Cada NO
+  pesa el doble: 18 SÍ y 2 NO = 80 %; 1 SÍ y 3 NO = 0 %.
+- **Aprobadas / rechazadas = la columna «Recepción»** (regla del 05/10): una pieza por cada
+  inspección **aprobada por ella** (no el cierre automático) que Recepción revisó; si recibió al
+  menos un NO, es rechazada. **Los totales son solo lo que revisó Recepción** (decisión de Nicolás,
+  10/10): lo que ella aprobó y Recepción no revisó no entra.
+- **Ventana:** fecha de la revisión de Recepción (un mes cerrado no cambia). Sin revisiones de
+  Recepción en el período → «—». La re-limpieza de un NO no cuenta como inspección.
+- **Por supervisora.** Se ve en la columna **«Calidad»** de «Supervisora · Inspección» y del «Resumen
+  mensual de inspecciones», y en **«Recepción: calidad %»** de la pestaña «Supervisores» del Excel
+  mensual (el TOTAL de cada hotel sale de los SÍ y NO sumados, no del promedio de las calidades).
+  Código: `ReportesService::calidadRecepcionPct()`.
+- **Bono:** la app entrega el %; el monto del bono no se calcula en la app.
+
 **Fechas variables:** los tres KPIs del N2 respetan el requisito transversal — día / semana / mes
 / rango personalizado.
 
@@ -675,5 +694,5 @@ re-clean **<5%**.
 | 01/10/2026 | **Rol «Apoyo» (v6.15.2, pedido de Nicolás):** personal de otras áreas que limpia de vez en cuando y cuyo sueldo depende de otras cosas. Quien tiene el permiso `kpis.excluido` (lo trae el rol Apoyo) **no aparece** en la ficha, las tarjetas, el detalle, el selector, el resumen mensual ni el bono, y sus limpiezas **no mueven** los KPIs del equipo (rechazo y aprobación a la 1ª, productividad, ítems desmarcados, cobertura de inspección) ni el tiempo promedio y la tasa de rechazo del Inicio del Admin. Cada número de la ficha es de una sola persona: si una trabajadora rehace una pieza rechazada de Apoyo, la pieza y lo que ella marcó le cuentan a ella (lo heredado no le cuenta a nadie); si Apoyo rehace una de una trabajadora, el rechazo sigue siendo de ella. Las inspecciones que una supervisora hace sobre piezas de Apoyo sí le cuentan como trabajo suyo (resumen de inspecciones). **Límite:** se decide con el rol que la persona tiene HOY; si alguien pasa de Apoyo a Trabajador, su trabajo anterior aparece en los meses pasados. Detalle en `docs/roles-permisos.md` §3.5. |
 | 05/10/2026 | **Inspección pre-entrega («visión cliente», v7, pedido de gerencia):** Recepción marca SÍ / NO antes de entregar cada pieza (desde su tarjeta en Habitaciones). Gerencia la quiere para un **KPI de calidad de las supervisoras** (¿lo que aprobó la inspección pasa la mirada del cliente?). **Por ahora solo se guarda**: cada revisión registra el estado de la pieza, la última limpieza (`ejecucion_id`) y la inspección de esa limpieza (`auditoria_id` → quién aprobó). **Pendiente con gerencia la fórmula:** qué revisiones cuentan (¿solo piezas aprobadas por una persona, excluyendo `aprobado_automatico`?), ventana de tiempo entre la aprobación y la revisión, si un NO pesa igual por cualquier motivo, y en qué nivel entra (N2 % de la sección o por supervisora). Ver `docs/revision-entrega.md`. |
 | 05/10/2026 | **Re-limpieza por un NO de Recepción y columna «Recepción» (v7, decisiones de Nicolás):** la supervisora puede mandar a re-limpiar una pieza aprobada que Recepción no aprobó (botón «Re-limpiar», con prioridad en la cola) y, con el interruptor prendido, la pieza vuelve sola a la cola de quien la limpió. **Esa re-limpieza no suma para la trabajadora** (ni piezas, ni créditos, ni tiempos, ni Asignadas, ni bono; tampoco le resta a quien la limpió primero) **ni cuenta en los indicadores de inspección**: el NO es de la supervisora, que aprobó la pieza. Los días trabajados sí cuentan. Reportes suma la columna **«Recepción»** por supervisora (aprobadas en verde / no aprobadas en rojo; regla aprobada por Nicolás: una pieza por aprobación, el NO manda, por fecha de la revisión de Recepción) en la sección de supervisoras, el resumen mensual de inspecciones y el Excel. **Pendiente con gerencia:** cómo pesa en el bono de calidad. Ver `docs/revision-entrega.md` §3b. |
-
 | 08/10/2026 | **Limpiezas sin terminar (v6.19, decisión de Nicolás):** el cierre de la noche termina y aprueba toda limpieza que siga en progreso (habitaciones y áreas) para liberar la pieza al día siguiente, pero **quien no apretó «terminar» no recibe créditos de ella** — «no siguieron las instrucciones que se dieron». Queda con `cerrada_por_sistema = 1`: fuera de créditos, piezas hechas (bono), tiempos, productividad, «Habitaciones limpiadas», «Pendientes al corte», cobertura y tasas de la sección; **sí cuenta como asignada y no hecha** (Asignadas y días trabajados). Si la supervisora la da por limpia con «Marcar limpia» antes del cierre, la persona conserva lo que marcó (regla del atajo, sin cambios). Ver [checklist.md](checklist.md) §3.7. |
+| 10/10/2026 | **Calidad según Recepción (v7, fórmula de gerencia; KPI S2.4):** gerencia aprobó la inspección pre-entrega tal cual y dio la fórmula de calidad de las supervisoras: `(aprobadas − rechazadas) ÷ totales`. **Decisiones de Nicolás:** los totales son **solo lo que revisó Recepción** (aprobadas + rechazadas de la columna «Recepción»; lo aprobado sin revisar no entra) y el resultado tiene **mínimo 0 %** (nunca negativo). Columna «Calidad» en «Supervisora · Inspección» y en el «Resumen mensual de inspecciones», y «Recepción: calidad %» en el Excel mensual (TOTAL con los SÍ y NO sumados). La app entrega el %; el monto del bono no se calcula en la app. |

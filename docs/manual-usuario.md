@@ -279,7 +279,7 @@ Si la señal está mala y no sabes si llegó, vuelve a tocar el mismo botón: nu
 
 Si el interruptor está en «Avisar y devolver la pieza a limpieza», la pieza vuelve sola a la cola de quien la limpió hoy (y a ella le llega el aviso); con **Re-limpiar** puedes dársela a otra persona.
 
-La re-limpieza **no suma en los KPIs** de quien la haga y no le resta a quien la limpió primero. El NO cuenta para la supervisora que había aprobado la pieza: en **Reportes**, la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» (y del Excel) muestra, de las piezas que aprobó cada una, cuántas aprobó Recepción (en verde) y cuántas no (en rojo).
+La re-limpieza **no suma en los KPIs** de quien la haga y no le resta a quien la limpió primero. El NO cuenta para la supervisora que había aprobado la pieza: en **Reportes**, la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» (y del Excel) muestra, de las piezas que aprobó cada una, cuántas aprobó Recepción (en verde) y cuántas no (en rojo). Al lado, la columna **«Calidad»** lo resume en un porcentaje: (aprobadas − no aprobadas) ÷ las que Recepción revisó. Cada NO pesa el doble (18 SÍ y 2 NO = 80 %) y nunca baja de 0 %.
 
 ---
 

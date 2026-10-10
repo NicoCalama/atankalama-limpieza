@@ -154,7 +154,7 @@ final class RevisionEntregaCicloTest extends TestCase
     private function sinRecepcion(array $indicadores): array
     {
         foreach ($indicadores['ficha']['supervisoras']['inspectoras'] as &$i) {
-            unset($i['recepcion_aprobadas'], $i['recepcion_rechazadas']);
+            unset($i['recepcion_aprobadas'], $i['recepcion_rechazadas'], $i['recepcion_calidad_pct']);
         }
         unset($i);
         return $indicadores;

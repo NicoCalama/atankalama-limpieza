@@ -79,16 +79,17 @@ final class ReportesExportarMensualTest extends TestCase
         $this->assertSame(
             [
                 'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
-                'Recepción: aprobadas', 'Recepción: rechazadas',
+                'Recepción: aprobadas', 'Recepción: rechazadas', 'Recepción: calidad %',
             ],
             $sup[array_search(['ATANKALAMA'], $sup, true) + 1]
         );
-        // Sin inspecciones pre-entrega de Recepción en este escenario: la columna «Recepción» va en cero.
+        // Sin inspecciones pre-entrega de Recepción en este escenario: la columna «Recepción» va en cero y la
+        // calidad, sin dato (celda vacía).
         $this->assertSame(
-            [['Sofia', 1, 0, 1, 0, 1, 0, 0], ['Sofia', 1, 0, 0, 1, 2, 0, 0], ['Sofia', 2, 0, 1, 1, 3, 0, 0]],
+            [['Sofia', 1, 0, 1, 0, 1, 0, 0, ''], ['Sofia', 1, 0, 0, 1, 2, 0, 0, ''], ['Sofia', 2, 0, 1, 1, 3, 0, 0, '']],
             array_values(array_filter($sup, static fn (array $f): bool => ($f[0] ?? null) === 'Sofia'))
         );
-        $this->assertSame(['TOTAL', 2, 0, 1, 1, 3, 0, 0], $sup[count($sup) - 1]);
+        $this->assertSame(['TOTAL', 2, 0, 1, 1, 3, 0, 0, ''], $sup[count($sup) - 1]);
     }
 
     public function testElControladorDevuelveUnExcelConLasDosPestanas(): void

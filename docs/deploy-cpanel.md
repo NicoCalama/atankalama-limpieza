@@ -1382,7 +1382,9 @@ Lista = `git diff --name-only <commit del ZIP de la v6.16.1> HEAD` menos `docs/`
     llenos. Al empezar la limpieza, `relimpieza_ejecucion_id` se llena y la franja desaparece.
 12. Reportes (Admin) con «Hoy»: la re-limpieza **no** suma en la fila de esa trabajadora ni en «Habitaciones limpiadas»;
     la columna **«Recepción»** de «Supervisora · Inspección» y del «Resumen mensual de inspecciones» muestra el NO (rojo)
-    para la supervisora que había aprobado la test room; el Excel mensual trae las dos columnas nuevas en «Supervisores».
+    para la supervisora que había aprobado la test room, y su **«Calidad»** en 0 % (un solo NO: (0 − 1) ÷ 1 queda en el
+    mínimo, 0 %); el Excel mensual trae las tres columnas nuevas en «Supervisores» («Recepción: aprobadas»,
+    «Recepción: rechazadas», «Recepción: calidad %»).
 
 ### 11.16 Release "ciclo de limpieza con Cloudbeds" → v6.17
 

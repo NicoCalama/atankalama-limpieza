@@ -293,4 +293,33 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $this->assertCount(1, $inspectoras);
         $this->assertSame([0, 1, 1], [$inspectoras[0]['total'], $inspectoras[0]['recepcion_aprobadas'], $inspectoras[0]['recepcion_rechazadas']]);
     }
+
+    /**
+     * Calidad según Recepción (fórmula de gerencia, 10/10/2026): (SÍ − NO) ÷ (SÍ + NO) con las piezas de la
+     * columna «Recepción», en la ficha, en el resumen mensual y en el Excel; el TOTAL sale de los SÍ y NO sumados.
+     */
+    public function testLaCalidadSaleDeLaColumnaRecepcion(): void
+    {
+        foreach (['101', '102', '103'] as $n) {
+            $this->limpiar($n, $this->ana);
+            $this->aprobar($n);
+        }
+        $this->svc->registrar($this->hab['101'], 'si', null, null, null, $this->carla);
+        $this->no('102');
+        $this->svc->registrar($this->hab['102'], 'si', null, null, null, $this->carla); // el NO manda
+        $this->svc->registrar($this->hab['103'], 'si', null, null, null, $this->carla);
+
+        $rep = new ReportesService();
+        $sofia = $rep->fichaKpis($this->hoy, $this->hoy, 'ambos')['supervisoras']['inspectoras'][0];
+        $this->assertSame([2, 1, 33.3], [$sofia['recepcion_aprobadas'], $sofia['recepcion_rechazadas'], $sofia['recepcion_calidad_pct']]);
+        $mes = array_values(array_filter(
+            $rep->resumenMensualAuditores((int) date('Y'), (int) date('n'), 'ambos'),
+            fn (array $a): bool => $a['usuario_id'] === $this->sofia
+        ))[0];
+        $this->assertSame(33.3, $mes['recepcion_calidad_pct']);
+
+        $sup = $rep->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Supervisores'];
+        $this->assertSame('Recepción: calidad %', $sup[array_search(['TOTAL AMBOS HOTELES'], $sup, true) + 1][8]);
+        $this->assertSame([2, 1, 33.3], array_slice($sup[count($sup) - 1], 6), 'TOTAL de ambos hoteles');
+    }
 }

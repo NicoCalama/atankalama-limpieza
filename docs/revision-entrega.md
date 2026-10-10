@@ -43,7 +43,8 @@ Pedido de gerencia del 04/10/2026; diseño final de Nicolás del 05/10/2026.
 11. **El NO le cuenta a la supervisora que aprobó la pieza (05/10):** su bono de calidad se verá afectado por lo que
     Recepción aprueba y rechaza. Desde ya, Reportes muestra la columna **«Recepción»** (aprobadas en verde / no aprobadas
     en rojo) en «Supervisora · Inspección», en el «Resumen mensual de inspecciones» y en la pestaña «Supervisores» del
-    Excel mensual. La fórmula del bono sigue pendiente con gerencia.
+    Excel mensual. **Fórmula de gerencia (10/10):** al lado va su **«Calidad»** = (aprobadas − no aprobadas) ÷ las que
+    Recepción revisó × 100, con mínimo 0 % (§3b; KPI S2.4 de [kpis-sueldos.md](kpis-sueldos.md)).
 
 ## 2. Modelo de datos
 
@@ -147,6 +148,10 @@ re-limpieza, quien la pidió). DDL en
   cierre automático) que Recepción revisó en el período: no aprobada si recibió al menos un NO, aprobada si solo SÍ.
   Ventana = fecha de la revisión de Recepción (un mes cerrado no cambia). Quien solo tiene resultados de Recepción en
   el período (aprobó antes y no inspeccionó) aparece igual, fuera del promedio.
+- **Columna «Calidad»** (`calidadRecepcionPct()`, fórmula de gerencia y decisiones de Nicolás del 10/10): (aprobadas −
+  no aprobadas) ÷ (aprobadas + no aprobadas) × 100 con las mismas piezas de la columna «Recepción» (lo que ella aprobó
+  y Recepción no revisó no entra), **mínimo 0 %**, un decimal; sin revisiones en el período, «—». En el Excel
+  («Recepción: calidad %») el TOTAL de cada hotel sale de los SÍ y NO sumados.
 
 ## 4. Pantallas
 
@@ -192,8 +197,6 @@ tiene los tres. «Re-limpiar» no tiene permiso propio: es una asignación (`asi
 
 ## 6. Pendientes y límites conocidos
 
-- **Bono de calidad de supervisoras:** definir la fórmula con gerencia. Los datos ya se guardan y la columna
-  «Recepción» ya los muestra (§3b); falta decidir cómo pesan en el bono.
 - **`sw.js` cachea `GET /uploads/*`** en la caché de páginas (network-first). Para fotos con nombre inmutable no hace
   daño, pero ocupa espacio en el celular.
 - **Límite de subida de prod** (`post_max_size` / `upload_max_filesize` en MultiPHP INI) no está documentado. La ventana

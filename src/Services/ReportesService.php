@@ -215,10 +215,11 @@ final class ReportesService
      * auditoría (inmutable), así que cada casilla desmarcada se le cuenta a un solo auditor.
      *
      * recepcion_aprobadas / recepcion_rechazadas = inspección pre-entrega (v7): de las piezas que aprobó,
-     * las que Recepción aprobó y no aprobó para entregar en el mes (recepcionPorSupervisora()). Las
-     * re-limpiezas de un NO no cuentan como inspecciones (sinRelimpieza()).
+     * las que Recepción aprobó y no aprobó para entregar en el mes (recepcionPorSupervisora()), y
+     * recepcion_calidad_pct su calidad (calidadRecepcionPct()). Las re-limpiezas de un NO no cuentan como
+     * inspecciones (sinRelimpieza()).
      *
-     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int, recepcion_aprobadas:int, recepcion_rechazadas:int}>
+     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int, recepcion_aprobadas:int, recepcion_rechazadas:int, recepcion_calidad_pct:?float}>
      */
     public function resumenMensualAuditores(int $anio, int $mes, string $hotel): array
     {
@@ -299,8 +300,8 @@ final class ReportesService
             $rows[] = [$titulo];
             $rows[] = [
                 'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
-                // Inspección pre-entrega (v7): de las piezas que aprobó, lo que aprobó y rechazó Recepción.
-                'Recepción: aprobadas', 'Recepción: rechazadas',
+                // Inspección pre-entrega (v7): de las piezas que aprobó, lo que aprobó y rechazó Recepción, y su calidad.
+                'Recepción: aprobadas', 'Recepción: rechazadas', 'Recepción: calidad %',
             ];
 
             $filas = $this->resumenMensualAuditores($anio, $mes, $hotel);
@@ -314,12 +315,13 @@ final class ReportesService
                     $f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['observaciones'],
                     $f['recepcion_aprobadas'], $f['recepcion_rechazadas'],
                 ];
-                $rows[] = [$f['nombre'], ...$valores];
+                $rows[] = [$f['nombre'], ...$valores, $f['recepcion_calidad_pct'] ?? ''];
                 foreach ($valores as $i => $v) {
                     $tot[$i] += $v;
                 }
             }
-            $rows[] = ['TOTAL', ...$tot];
+            // La calidad del total sale de los SÍ y NO sumados (no es el promedio de las calidades).
+            $rows[] = ['TOTAL', ...$tot, self::calidadRecepcionPct($tot[5], $tot[6]) ?? ''];
         }
 
         return $rows;
@@ -1624,8 +1626,9 @@ final class ReportesService
     }
 
     /**
-     * Suma a cada fila (por usuario_id) la columna «Recepción» (recepcion_aprobadas / recepcion_rechazadas) y
-     * agrega al final, con $vacia en lo demás, a quien solo tiene resultados de Recepción en el período.
+     * Suma a cada fila (por usuario_id) la columna «Recepción» (recepcion_aprobadas / recepcion_rechazadas y su
+     * recepcion_calidad_pct) y agrega al final, con $vacia en lo demás, a quien solo tiene resultados de
+     * Recepción en el período.
      *
      * @param list<array<string, mixed>>                                   $filas
      * @param array<int, array{nombre:string, aprobadas:int, rechazadas:int}> $recepcion
@@ -1636,18 +1639,36 @@ final class ReportesService
     {
         foreach ($filas as &$fila) {
             $uid = (int) $fila['usuario_id'];
-            $fila['recepcion_aprobadas']  = $recepcion[$uid]['aprobadas'] ?? 0;
-            $fila['recepcion_rechazadas'] = $recepcion[$uid]['rechazadas'] ?? 0;
+            $fila['recepcion_aprobadas']   = $recepcion[$uid]['aprobadas'] ?? 0;
+            $fila['recepcion_rechazadas']  = $recepcion[$uid]['rechazadas'] ?? 0;
+            $fila['recepcion_calidad_pct'] = self::calidadRecepcionPct($fila['recepcion_aprobadas'], $fila['recepcion_rechazadas']);
             unset($recepcion[$uid]);
         }
         unset($fila);
         foreach ($recepcion as $uid => $r) {
             $filas[] = ['usuario_id' => $uid, 'nombre' => $r['nombre']] + $vacia + [
-                'recepcion_aprobadas'  => $r['aprobadas'],
-                'recepcion_rechazadas' => $r['rechazadas'],
+                'recepcion_aprobadas'   => $r['aprobadas'],
+                'recepcion_rechazadas'  => $r['rechazadas'],
+                'recepcion_calidad_pct' => self::calidadRecepcionPct($r['aprobadas'], $r['rechazadas']),
             ];
         }
         return $filas;
+    }
+
+    /**
+     * Calidad de supervisión según Recepción (fórmula de gerencia, 10/10/2026):
+     * (aprobadas − rechazadas) ÷ (aprobadas + rechazadas) × 100, sobre las piezas que la supervisora aprobó y
+     * Recepción revisó (las de la columna «Recepción»), con mínimo 0 % (decisión de Nicolás: un período con más
+     * NO que SÍ queda en 0 %, no en negativo). Cada NO pesa el doble: 18 SÍ y 2 NO = 80 %. Sin revisiones de
+     * Recepción en el período → null («—»): no hay con qué medirla.
+     */
+    public static function calidadRecepcionPct(int $aprobadas, int $rechazadas): ?float
+    {
+        $total = $aprobadas + $rechazadas;
+        if ($total === 0) {
+            return null;
+        }
+        return max(0.0, round(($aprobadas - $rechazadas) / $total * 100, 1));
     }
 
     /**
