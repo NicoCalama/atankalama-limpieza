@@ -132,11 +132,10 @@ sábanas de cada propiedad **NO** se exponen por la API (se replican del lado nu
       - Matchear por cloudbeds_room_id.
       - Si cleaningStatus=Dirty y estado actual en app es (aprobada | aprobada_con_observacion | rechazada):
           → hubo check-out, pasar a 'sucia', crear nueva ejecución disponible.
-          → EXCEPCIÓN (ver abajo): si la aprobación es de HOY y la pieza está OCUPADA,
-            NO se revierte — ese 'dirty' es la marca del servicio del día siguiente.
-          → Si se revierte una aprobación de HOY, queda WARNING en el log + alerta P1
-            'aprobacion_deshecha' (se resuelve sola al volver a aprobarse). La de otro día
-            (ciclo normal) y la rechazada vuelven a la cola sin alerta (v6.16).
+          → EXCEPCIÓN (ver abajo): si la aprobación es de HOY, NO se revierte — lo aprobado
+            hoy queda limpio hasta mañana (v6.22), salvo el aseo diario cuyo huésped ya se fue.
+          → Nada levanta alerta: desde la v6.22 la 'aprobacion_deshecha' ya no se crea (las
+            que quedaron de antes se siguen resolviendo solas al volver a aprobarse).
       - Si cleaningStatus=Dirty y estado actual es 'sucia': no-op.
       - Si cleaningStatus=Clean y estado actual es 'completada_pendiente_auditoria': WARN (inconsistencia — auditamos por un lado, Cloudbeds por otro).
 3. Actualizar sync_historial: finalizada_at=now, resultado=exito|parcial|error, contadores.
@@ -154,7 +153,7 @@ escritura a Cloudbeds respondió `success: true`, entró un huésped, y a las 11
 a sucia. La limpiaron dos veces. Ese día le pasó a ~8 piezas; en la semana previa, a varias por día.
 
 **La regla** (`CloudbedsSyncService::aprobadaHoy()` + `motivoParaConservarAprobacion()`, al día de
-la v6.20):
+la v6.22):
 
 ```
 Cloudbeds dice 'dirty' y la pieza está en estado terminal:
@@ -163,35 +162,47 @@ Cloudbeds dice 'dirty' y la pieza está en estado terminal:
   ¿Su último cambio de estado (audit_log) fue HOY, día de Chile?
     ├─ NO → ¿frontdesk 'check-in' y ya ocupada?   (llega un huésped a una pieza aprobada antes — v6.20)
     │         ├─ SÍ → NO revertir, INFO al log    (queda aprobada hasta el aseo de mañana)
-    │         └─ NO → revertir, sin alerta        (ciclo normal: el aseo diario 'stayover', el check-out)
-    └─ SÍ → ¿frontdesk 'turnover'?                (se va un huésped y entra otro el mismo día)
-              ├─ SÍ → ¿ya ocupada y la limpieza se TERMINÓ con la pieza vacía? (R1, v6.20)
-              │         ├─ SÍ → NO revertir, INFO al log   (se limpió entre un huésped y otro)
-              │         └─ NO → revertir + WARNING + alerta P1   (se limpió con el anterior adentro, o sin dato)
-              └─ NO → ¿ocupada, o frontdesk 'check-in'/'stayover'?
-                        ├─ SÍ → NO revertir, INFO al log
-                        └─ NO → revertir + WARNING + alerta P1
+    │         └─ NO → revertir                    (ciclo normal: el aseo diario 'stayover', el check-out)
+    └─ SÍ → ¿al terminar la limpieza había un huésped alojado y ahora Cloudbeds la da vacía?
+              ├─ SÍ → revertir                    (se fue después del aseo diario: limpieza de salida)
+              └─ NO → NO revertir, INFO al log    (lo aprobado hoy queda limpio hasta mañana — v6.22)
 ```
 
-La alerta P1 (`aprobacion_deshecha`) se resuelve sola cuando la pieza vuelve a quedar aprobada.
+Nada de esto avisa a nadie ni le escribe a Cloudbeds. La alerta P1 `aprobacion_deshecha` que levantaba
+la v6.10–v6.21 ya no se crea; las que quedaron activas se siguen resolviendo solas al volver a aprobarse
+la pieza (`HabitacionService::cambiarEstado()`).
 
-**«Se terminó con la pieza vacía» (v6.20).** Al pasar a `completada_pendiente_auditoria`,
-`HabitacionService::cambiarEstado()` anota en el detalle del historial (`audit_log`) la ocupación de
-la última lectura de Cloudbeds: `cb_ocupada` (0/1), `cb_frontdesk` y `cb_leida_at`. La sincronización
-mira la última limpieza terminada de la pieza (`limpiezaTerminadaVaciaHoy()`): tiene que ser de hoy y
-con `cb_ocupada = 0`. Sin la anotación (limpiezas anteriores a la v6.20) o si el sync no alcanzó a leer
-la salida del huésped antes de que terminara la limpieza, vuelve a la cola como antes: nunca queda peor.
-Depende de que Cloudbeds reporte la pieza vacía entre un huésped y otro (consulta Q2 del documento
-«Ciclo de limpieza y Cloudbeds»); si no lo hace, el dato hay que sacarlo de las reservas (plan B, con SQL).
+**Lo aprobado hoy queda limpio (v6.22, decisión de Nicolás del 10/10/2026).** Reemplaza los casos de
+la v6.10 y la v6.20 (con huésped adentro / turnover limpiado vacío). El 10/10/2026 la **409** se limpió
+vacía (el check-out del grupo anterior fue a las 06:49) y se aprobó a las 07:34; a las 07:44 Recepción
+hizo el check-in de la reserva nueva y a las 07:48 lo deshizo. El check-in la dejó `dirty` en Cloudbeds
+y deshacerlo no la devuelve a `clean`, así que a las 07:50 el sync la vio sucia y sin nadie hospedado y
+la devolvió a la cola. Por la API eso es igual a una marca sucia puesta a mano. Con la v6.22 la marca
+sucia del mismo día se ignora siempre, también la manual: si de verdad hay que limpiar otra vez una
+pieza aprobada hoy, se usa **«Marcar sucia»** en la app (que además avisa `dirty` a Cloudbeds).
 
-Pedidos que la originaron (08/10/2026): la supervisora contó que el turnover ya limpiado volvía a la
-cola de la misma trabajadora al llegar el huésped nuevo; y Nicolás decidió que la pieza aprobada un día
-anterior que recibe un huésped hoy se queda aprobada hasta el aseo de mañana. Si Recepción la marca
-sucia antes de que llegue el huésped (la pieza todavía vacía), se respeta y vuelve a la cola.
+**La única excepción: el aseo diario cuyo huésped se va ese mismo día.** Al pasar a
+`completada_pendiente_auditoria`, `HabitacionService::cambiarEstado()` anota en el historial
+(`audit_log`) la ocupación de la última lectura de Cloudbeds: `cb_ocupada` (0/1), `cb_frontdesk` y
+`cb_leida_at` (desde la v6.20). Si la última limpieza terminada se hizo con un huésped **alojado**
+(`cb_ocupada = 1`: el aseo diario, con el huésped en la calle) y ahora Cloudbeds dice que la pieza quedó
+**vacía**, el huésped se fue después (salida anticipada, cambio de pieza, o el anterior de un turnover
+que se limpió antes de su check-out): la pieza necesita la limpieza de salida y vuelve a la cola
+(`ultimaLimpiezaConHuespedAlojado()`). Sin anotación no hay excepción. Con alguien adentro nadie
+limpia: la trabajadora salta la pieza («Huésped no ha salido», como en la 409) y vuelve cuando sale.
+
+Verificación previa (10/10/2026, §11.22 de `docs/deploy-cpanel.md`): Cloudbeds sí marca vacía la pieza
+entre un huésped y otro (la regla del turnover de la v6.20 se aplicó 15 veces en dos días), así que el
+dato de ocupación que usa la excepción es confiable.
+
+Pedidos anteriores (08/10/2026): la supervisora contó que el turnover ya limpiado volvía a la cola de
+la misma trabajadora al llegar el huésped nuevo; y Nicolás decidió que la pieza aprobada un día anterior
+que recibe un huésped hoy se queda aprobada hasta el aseo de mañana. Si Recepción la marca sucia antes
+de que llegue el huésped (la pieza todavía vacía), se respeta y vuelve a la cola.
 
 **Qué NO rompe:**
-- La re-limpieza legítima del mismo día (se fue un huésped, entra otro) llega **desocupada** y con
-  frontdesk `check-out`/`turnover` → sigue revirtiendo igual que siempre.
+- El aseo de todos los días: lo aprobado un día anterior vuelve a la cola con la marca sucia de la
+  madrugada, como siempre.
 - Los **nocheros** no dependen de esta rama: los revierte su propio barrido de las 16:00
   (`HabitacionService::barrerNocheros()`, lo llama `scripts/sync-cloudbeds.php`), que además avisa
   `dirty` a Cloudbeds. Desde la v6.17 el barrido solo toma piezas **aprobadas**: una rechazada espera a

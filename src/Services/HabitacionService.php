@@ -576,18 +576,19 @@ final class HabitacionService
     }
 
     /**
-     * ¿La última limpieza terminada de la pieza se terminó HOY con la pieza vacía según Cloudbeds?
+     * ¿Cuando se terminó la última limpieza de la pieza había un huésped alojado, según Cloudbeds?
      *
      * Sale de la anotación que deja cambiarEstado() al pasar a completada_pendiente_auditoria
-     * (cb_ocupada de la última lectura de Cloudbeds). Responde que no si no hay dato: la anotación
-     * existe desde la v6.20, o la pieza nunca tuvo lectura de Cloudbeds. Lo usa la sincronización
-     * para no mandar a limpiar de nuevo un turnover que se limpió entre un huésped y otro (R1).
+     * (cb_ocupada de la última lectura de Cloudbeds, v6.20). Sin dato (limpieza anterior a la
+     * v6.20, área común, pieza que el sync todavía no leía) responde que no. Lo usa la
+     * sincronización para la única excepción de la v6.22: la pieza que recibió el aseo diario con
+     * el huésped alojado, y cuyo huésped se va ese mismo día, vuelve a la cola para la limpieza de
+     * salida.
      */
-    public function limpiezaTerminadaVaciaHoy(int $id, ?string $hoyLocal = null): bool
+    public function ultimaLimpiezaConHuespedAlojado(int $id): bool
     {
-        $hoyLocal ??= date('Y-m-d');
         $filas = Database::fetchAll(
-            "SELECT detalles_json, created_at FROM #__audit_log
+            "SELECT detalles_json FROM #__audit_log
               WHERE entidad = 'habitacion' AND entidad_id = ? AND accion = 'habitacion.cambiar_estado'
               ORDER BY id DESC LIMIT 20",
             [$id]
@@ -598,9 +599,7 @@ final class HabitacionService
                 continue;
             }
             // La última vez que se terminó una limpieza de esta pieza decide.
-            return Fechas::fechaLocalDeUtc((string) $f['created_at']) === $hoyLocal
-                && array_key_exists('cb_ocupada', $detalles)
-                && $detalles['cb_ocupada'] === 0;
+            return ($detalles['cb_ocupada'] ?? null) === 1;
         }
         return false;
     }
@@ -696,8 +695,9 @@ final class HabitacionService
         Logger::info('habitaciones', 'cambio de estado', $contexto, $usuarioId);
 
         $detalles = ['desde' => $habitacion->estado, 'hasta' => $nuevoEstado];
-        // Al terminarse una limpieza queda anotado cómo veía Cloudbeds la pieza en ese momento:
-        // con eso la sincronización sabe si se limpió vacía, entre un huésped y otro (R1, v6.20).
+        // Al terminarse una limpieza queda anotado cómo veía Cloudbeds la pieza en ese momento
+        // (v6.20). Con eso la sincronización sabe si fue el aseo diario con el huésped alojado
+        // (la única excepción de la v6.22) y sirve para diagnosticar (caso de la 409, 10/10/2026).
         if ($nuevoEstado === Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA) {
             $detalles += $this->ocupacionCloudbedsActual($id);
         }

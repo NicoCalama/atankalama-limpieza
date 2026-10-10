@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Atankalama\Limpieza\Tests\Integration;
 
 use Atankalama\Limpieza\Core\Database;
+use Atankalama\Limpieza\Models\AlertaActiva;
+use Atankalama\Limpieza\Services\AlertasService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionService;
@@ -44,6 +46,8 @@ final class CloudbedsSyncServiceTest extends TestCase
 
     public function testSincronizarMarcaChecOutComoSucia(): void
     {
+        // Aprobada otro día: es el aseo del día (lo aprobado HOY queda limpio desde la v6.22).
+        $this->envejecerCambiosDeEstado('101', 2);
         // Shape real de getHousekeepingStatus: success + data plano con roomCondition.
         $this->transport->encolarOk(200, [
             'success' => true,
@@ -377,8 +381,13 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertSame([], $alertas, 'Si no se deshizo nada, no hay que alertar');
     }
 
-    /** El caso legítimo: se fue el huésped, la pieza hay que rehacerla de verdad. */
-    public function testSiDeshaceLaAprobacionCuandoLaPiezaQuedoDesocupada(): void
+    /**
+     * v6.22 (decisión de Nicolás, 10/10/2026): lo aprobado HOY queda limpio hasta mañana aunque
+     * Cloudbeds la marque sucia y vacía. Antes volvía a la cola. La única excepción (aseo diario
+     * con el huésped alojado que después se va) necesita la anotación de la limpieza, que acá no
+     * hay. Si de verdad hay que limpiarla otra vez, se usa «Marcar sucia» en la app.
+     */
+    public function testLaAprobacionDeHoySeConservaAunqueCloudbedsLaMarqueSucia(): void
     {
         $this->transport->encolarOk(200, [
             'success' => true,
@@ -389,8 +398,27 @@ final class CloudbedsSyncServiceTest extends TestCase
 
         $this->sync->sincronizar(null, 'manual');
 
-        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
-        $this->assertSame('sucia', $r101['estado'], 'Tras el check-out la re-limpieza es legítima');
+        $this->assertSame('aprobada', $this->estado('101'), 'Limpiada hoy: no vuelve a la cola el mismo día');
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"), 'Se bloquea en silencio');
+    }
+
+    /** Una marca sucia puesta a mano en Cloudbeds sobre una pieza aprobada hoy también se ignora (v6.22). */
+    public function testLaMarcaSuciaDeRecepcionSobreUnaPiezaAprobadaHoySeIgnora(): void
+    {
+        $this->transport->encolarOk(200, [
+            'success' => true,
+            'data' => [
+                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'unused', 'roomOccupied' => false],
+            ],
+        ]);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $this->assertSame('aprobada', $this->estado('101'));
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+        $this->assertSame([], Database::fetchAll(
+            "SELECT * FROM cloudbeds_sync_historial WHERE tipo = 'escritura_estado'"
+        ), 'No se le escribe nada a Cloudbeds: la marca de Recepción queda allá como está');
     }
 
     /** Ciclo normal: la aprobación es de otro día, se revierte aunque esté ocupada. */
@@ -495,21 +523,16 @@ final class CloudbedsSyncServiceTest extends TestCase
     /**
      * La alerta dura lo que dura la condición: cuando la pieza vuelve a quedar aprobada, se
      * resuelve sola y queda cerrada en la bitácora. Si no, cada pieza deshecha dejaba una
-     * alerta P1 colgada para siempre en el Inicio de la supervisora.
+     * alerta P1 colgada para siempre en el Inicio de la supervisora. Desde la v6.22 el sync ya
+     * no la levanta, pero las que quedaron en producción se tienen que seguir resolviendo.
      */
     public function testLaAlertaSeResuelveSolaCuandoLaPiezaVuelveAQuedarAprobada(): void
     {
-        $this->transport->encolarOk(200, [
-            'success' => true,
-            'data' => [
-                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
-            ],
-        ]);
-        $this->sync->sincronizar(null, 'manual');
+        Database::execute("UPDATE habitaciones SET estado = 'sucia' WHERE numero = '101'");
+        $id = $this->alertaDeshechaAnterior('101');
         $this->assertNotNull(Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
 
         // Cualquier camino que apruebe pasa por cambiarEstado(): acá, el cierre de día.
-        $id = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
         (new HabitacionService())->cambiarEstado($id, 'aprobada_automatica', null, 'cron', forzar: true);
 
         $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
@@ -521,19 +544,11 @@ final class CloudbedsSyncServiceTest extends TestCase
     /** Resolver la de una pieza no toca la alerta de otra (dedupe por pieza). */
     public function testAprobarUnaPiezaNoResuelveLaAlertaDeOtra(): void
     {
-        Database::execute("UPDATE habitaciones SET estado = 'aprobada' WHERE numero = '102'");
-        $this->registrarCambioDeEstado('102', 'aprobada', 0);
-        $this->transport->encolarOk(200, [
-            'success' => true,
-            'data' => [
-                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
-                ['roomID' => 'CB_R102', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
-            ],
-        ]);
-        $this->sync->sincronizar(null, 'manual');
+        Database::execute("UPDATE habitaciones SET estado = 'sucia' WHERE numero IN ('101', '102')");
+        $id101 = $this->alertaDeshechaAnterior('101');
+        $this->alertaDeshechaAnterior('102');
         $this->assertCount(2, Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
 
-        $id101 = (int) Database::fetchOne("SELECT id FROM habitaciones WHERE numero='101'")['id'];
         (new HabitacionService())->cambiarEstado($id101, 'aprobada', null, 'cron', forzar: true);
 
         $quedan = Database::fetchAll("SELECT titulo FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
@@ -541,23 +556,19 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertStringContainsString('102', (string) $quedan[0]['titulo']);
     }
 
-    /** Deshacer una aprobación ya no es mudo: queda alerta para la supervisora. */
-    public function testAlDeshacerUnaAprobacionLevantaAlertaParaLaSupervisora(): void
+    /**
+     * La que «aprobó» hoy el cierre de la noche porque nadie terminó la limpieza (v6.19) no es una
+     * pieza limpiada: si Cloudbeds la marca sucia, vuelve a la cola. Sin aviso: no la aprobó nadie.
+     */
+    public function testUnaAprobacionDeHoyQueCerroElSistemaVuelveALaColaSinAviso(): void
     {
-        $this->transport->encolarOk(200, [
-            'success' => true,
-            'data' => [
-                ['roomID' => 'CB_R101', 'roomCondition' => 'dirty', 'frontdeskStatus' => 'check-out', 'roomOccupied' => false],
-            ],
-        ]);
+        $this->ultimaLimpiezaCerradaPorElSistema('101');
+        $this->encolarHousekeeping('101', 'dirty', 'check-out', false);
 
         $this->sync->sincronizar(null, 'manual');
 
-        $alerta = Database::fetchOne("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'");
-        $this->assertNotNull($alerta, 'La supervisora tiene que enterarse de que alguien va a limpiar de nuevo');
-        $this->assertSame(1, (int) $alerta['prioridad']);
-        $this->assertStringContainsString('101', (string) $alerta['titulo']);
-        $this->assertSame($this->hotel1SurId, (int) $alerta['hotel_id']);
+        $this->assertSame('sucia', $this->estado('101'));
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
     }
 
     // ── Regresiones del incidente del 23/09/2026 ──────────────────────────────
@@ -590,11 +601,12 @@ final class CloudbedsSyncServiceTest extends TestCase
     }
 
     /**
-     * 'turnover' = se va un huésped y entra otro el mismo día. Cloudbeds la reporta ocupada,
-     * pero es justo cuando hay que limpiarla. Le pasó a las piezas 710 y 107, conservadas
-     * todo el 23/09/2026.
+     * 'turnover' = se va un huésped y entra otro el mismo día. Desde el 23/09/2026 (piezas 710 y
+     * 107) hasta la v6.21 un turnover aprobado hoy volvía a la cola salvo que la anotación dijera
+     * que se limpió vacía. Desde la v6.22 lo aprobado hoy queda limpio: si la trabajadora encuentra
+     * al huésped anterior adentro, salta la pieza y vuelve cuando sale.
      */
-    public function testDeshaceLaAprobacionEnUnTurnoverAunqueCloudbedsLaReporteOcupada(): void
+    public function testUnTurnoverAprobadoHoySeConservaAunqueCloudbedsLoMarqueSucio(): void
     {
         $this->transport->encolarOk(200, [
             'success' => true,
@@ -605,8 +617,7 @@ final class CloudbedsSyncServiceTest extends TestCase
 
         $this->sync->sincronizar(null, 'manual');
 
-        $r101 = Database::fetchOne("SELECT estado FROM habitaciones WHERE numero='101'");
-        $this->assertSame('sucia', $r101['estado'], 'Entre un huésped y el siguiente hay que limpiar');
+        $this->assertSame('aprobada', $this->estado('101'));
     }
 
     /**
@@ -661,26 +672,64 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertNotEmpty($detalles['cb_leida_at']);
     }
 
-    /** Se limpió con el huésped anterior adentro: al irse, la pieza necesita aseo de verdad. */
-    public function testUnTurnoverLimpiadoConElHuespedAdentroVuelveALaCola(): void
+    /**
+     * Se limpió con un huésped alojado y la pieza sigue ocupada: no se fue nadie, así que la marca
+     * sucia de Cloudbeds no cambia nada (v6.22).
+     */
+    public function testUnaPiezaLimpiadaConHuespedAlojadoSeConservaMientrasSigaOcupada(): void
+    {
+        $this->terminarYAprobarHoy('101', ocupadaAlTerminar: 1, frontdeskAlTerminar: 'stayover');
+        $this->encolarHousekeeping('101', 'dirty', 'stayover', true);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $this->assertSame('aprobada', $this->estado('101'));
+    }
+
+    /**
+     * La única excepción de la v6.22: aseo diario con el huésped alojado (salió a la calle) y ese
+     * mismo día el huésped se va antes. La pieza necesita la limpieza de salida: vuelve a la cola,
+     * sin aviso.
+     */
+    public function testElAseoDiarioVuelveALaColaSiElHuespedSeVaElMismoDia(): void
+    {
+        $this->terminarYAprobarHoy('101', ocupadaAlTerminar: 1, frontdeskAlTerminar: 'stayover');
+        $this->encolarHousekeeping('101', 'dirty', 'check-out', false);
+
+        $this->sync->sincronizar(null, 'manual');
+
+        $this->assertSame('sucia', $this->estado('101'), 'Se fue después del aseo diario: le toca la limpieza de salida');
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
+    }
+
+    /**
+     * Misma excepción en un turnover: se limpió con el huésped anterior todavía alojado (piezas 710
+     * y 107 del 23/09/2026); cuando se va, vuelve a la cola para limpiarla antes del que llega.
+     */
+    public function testUnTurnoverLimpiadoAntesDelCheckOutVuelveALaColaCuandoSeVaElAnterior(): void
     {
         $this->terminarYAprobarHoy('101', ocupadaAlTerminar: 1);
-        $this->encolarHousekeeping('101', 'dirty', 'turnover', true);
+        $this->encolarHousekeeping('101', 'dirty', 'turnover', false);
 
         $this->sync->sincronizar(null, 'manual');
 
         $this->assertSame('sucia', $this->estado('101'));
     }
 
-    /** Limpiado vacío pero el «sucia» llega con la pieza todavía vacía (lo marcó Recepción): se respeta. */
-    public function testUnTurnoverLimpiadoVacioQueSeEnsuciaSinHuespedVuelveALaCola(): void
+    /**
+     * El caso de la 409 (10/10/2026): limpiada vacía y aprobada; Recepción hizo el check-in del
+     * huésped nuevo y lo deshizo a los 4 minutos. Cloudbeds la dejó 'dirty' y sin nadie hospedado,
+     * y la v6.21 la devolvía a la cola. Desde la v6.22 sigue aprobada.
+     */
+    public function testUnCheckInDeshechoNoDevuelveALaColaUnaPiezaAprobadaHoy(): void
     {
         $this->terminarYAprobarHoy('101', ocupadaAlTerminar: 0);
         $this->encolarHousekeeping('101', 'dirty', 'turnover', false);
 
         $this->sync->sincronizar(null, 'manual');
 
-        $this->assertSame('sucia', $this->estado('101'));
+        $this->assertSame('aprobada', $this->estado('101'));
+        $this->assertSame([], Database::fetchAll("SELECT * FROM alertas_activas WHERE tipo = 'aprobacion_deshecha'"));
     }
 
     /** Decisión de Nicolás: aprobada un día anterior y hoy llega un huésped → aprobada hasta mañana. */
@@ -712,16 +761,7 @@ final class CloudbedsSyncServiceTest extends TestCase
      */
     public function testNoConservaLaLlegadaSiLaUltimaLimpiezaLaCerroElSistema(): void
     {
-        TestDatabase::sembrarChecklistTemplates();
-        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        $hab = (int) Database::fetchColumn("SELECT id FROM habitaciones WHERE numero = '101'");
-        Database::execute('INSERT INTO asignaciones (habitacion_id, usuario_id, fecha, activa) VALUES (?, ?, ?, 1)', [$hab, $ana, date('Y-m-d', strtotime('-1 day'))]);
-        $asignacion = Database::lastInsertId();
-        Database::execute(
-            "INSERT INTO ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_fin, cerrada_por_sistema)
-             VALUES (?, ?, ?, (SELECT MIN(id) FROM checklists_template), 'auditada', ?, 1)",
-            [$hab, $asignacion, $ana, gmdate('Y-m-d\TH:i:s.000\Z', time() - 86400)]
-        );
+        $this->ultimaLimpiezaCerradaPorElSistema('101');
         $this->envejecerCambiosDeEstado('101', 2);
         $this->encolarHousekeeping('101', 'dirty', 'check-in', true);
 
@@ -730,17 +770,47 @@ final class CloudbedsSyncServiceTest extends TestCase
         $this->assertSame('sucia', $this->estado('101'));
     }
 
+    /** La última limpieza de la pieza la terminó el cierre de la noche porque nadie apretó «terminar» (v6.19). */
+    private function ultimaLimpiezaCerradaPorElSistema(string $numero): void
+    {
+        TestDatabase::sembrarChecklistTemplates();
+        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        $hab = (int) Database::fetchColumn('SELECT id FROM habitaciones WHERE numero = ?', [$numero]);
+        Database::execute('INSERT INTO asignaciones (habitacion_id, usuario_id, fecha, activa) VALUES (?, ?, ?, 1)', [$hab, $ana, date('Y-m-d', strtotime('-1 day'))]);
+        $asignacion = Database::lastInsertId();
+        Database::execute(
+            "INSERT INTO ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_fin, cerrada_por_sistema)
+             VALUES (?, ?, ?, (SELECT MIN(id) FROM checklists_template), 'auditada', ?, 1)",
+            [$hab, $asignacion, $ana, gmdate('Y-m-d\TH:i:s.000\Z', time() - 86400)]
+        );
+    }
+
+    /** Una alerta «aprobación deshecha» como las que levantaba el sync hasta la v6.21. Devuelve el id de la pieza. */
+    private function alertaDeshechaAnterior(string $numero): int
+    {
+        $id = (int) Database::fetchColumn('SELECT id FROM habitaciones WHERE numero = ?', [$numero]);
+        (new AlertasService())->levantar(
+            AlertaActiva::TIPO_APROBACION_DESHECHA,
+            "Habitación {$numero} volvió a sucia",
+            'Se había aprobado hoy, pero Cloudbeds la reporta sucia y volvió a la cola de limpieza.',
+            ['habitacion_id' => $id],
+            $this->hotel1SurId,
+            "habitacion:{$id}",
+        );
+        return $id;
+    }
+
     /**
      * Lleva la pieza por el camino real de hoy: en progreso → terminada (con la ocupación que tenía
      * Cloudbeds en ese momento) → aprobada, todo por HabitacionService::cambiarEstado().
      */
-    private function terminarYAprobarHoy(string $numero, int $ocupadaAlTerminar): void
+    private function terminarYAprobarHoy(string $numero, int $ocupadaAlTerminar, string $frontdeskAlTerminar = 'turnover'): void
     {
         $id = (int) Database::fetchColumn('SELECT id FROM habitaciones WHERE numero = ?', [$numero]);
         Database::execute('DELETE FROM audit_log WHERE entidad = ? AND entidad_id = ?', ['habitacion', $id]);
         Database::execute(
-            "UPDATE habitaciones SET estado = 'en_progreso', cb_ocupada = ?, cb_frontdesk_status = 'turnover', cb_ocupacion_sync_at = ? WHERE id = ?",
-            [$ocupadaAlTerminar, gmdate('Y-m-d\TH:i:s.000\Z'), $id]
+            "UPDATE habitaciones SET estado = 'en_progreso', cb_ocupada = ?, cb_frontdesk_status = ?, cb_ocupacion_sync_at = ? WHERE id = ?",
+            [$ocupadaAlTerminar, $frontdeskAlTerminar, gmdate('Y-m-d\TH:i:s.000\Z'), $id]
         );
         $habitaciones = new HabitacionService();
         $habitaciones->cambiarEstado($id, 'completada_pendiente_auditoria', null, 'ui');

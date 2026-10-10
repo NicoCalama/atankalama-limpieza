@@ -409,6 +409,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-08 | **Limpiezas sin terminar y menú ⋮ de áreas** → **v6.19** (feat `dd22c1a`, docs `f1740d4`, CHANGELOG fechado `8774c47`, armado del ZIP `97f967f`; rama `v6.19-cierre-sin-terminar`, desde `1e612b4`) | Audio de la supervisora (área «en progreso» desde el día anterior, sin botones) y diagnóstico en prod: 17 de 626 limpiezas de áreas a medias desde el 14/09, 16 con todo marcado en menos de 20 s (los 3 minutos mínimos). **Decisión de Nicolás:** en la pasada de la noche toda limpieza sin terminar (habitaciones y áreas, de cualquier día) se termina y la pieza queda aprobada, pero quien no apretó «terminar» no recibe créditos (sí le cuenta como asignada); campanita a las supervisoras; menú ⋮ («Marcar limpia» / «Marcar sucia») en Áreas comunes. Runbook §11.21. **SQL corrido antes del ZIP** (columna `limpieza_ejecuciones_checklist.cerrada_por_sistema`). **Dos errores del armado:** el primer ZIP salió con la fila «sin publicar» y con las rutas `limpieza/…` sin `app_core/`; extraído en `public_html/`, quedó en el docroot y prod siguió en la v6.18 (sin ⋮ y con el badge viejo). Se rearmó con la fecha y con `limpieza/app_core/…` (10 archivos, idénticos a `8774c47`) y `build/limpieza-v619-vuelta-atras.zip`. Subido el 08/10 ~17:15. Smoke: botón ⋮ en Áreas comunes (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (17:19). **Primer cierre verificado el 09/10** (§11.21): a las 23:55 del 08/10 cerró 42 limpiezas sin terminar (41 solo se cerraron porque la pieza ya había seguido su ciclo y 1 pieza quedó aprobada), la campanita `cerradas_sin_terminar` llegó a 8 personas (esa primera noche dice «el 08/10» también para las colgadas viejas, como COSTURA) y a la mañana no quedaba ninguna limpieza en progreso de días anteriores. **Docroot limpio** (captura de Nicolás del 09/10): ya no están los archivos sueltos de las dos primeras subidas (`CHANGELOG.md`, `docs/`, `scripts/`, `src/`, `views/`); en `public_html/limpieza/` quedan solo `app_core/`, `assets/`, `cgi-bin/`, `.htaccess`, `index.php`, `offline.html` y `sw.js`. |
 | 2026-10-08 | **Turnover y llegadas sobre piezas aprobadas** → **v6.20** (feat `5d24c95`, docs y CHANGELOG fechado `6b825bf`; rama `v6.20-turnover`, desde `fdd661c`) | La supervisora contó que las habitaciones aprobadas vuelven solas a la cola de la trabajadora cuando llega el huésped: causa **R1** del documento «Ciclo de limpieza y Cloudbeds». Al terminar cada limpieza queda anotada en el historial la ocupación que veía Cloudbeds; un turnover limpiado con la pieza vacía ya no vuelve a la cola cuando llega el huésped nuevo, y **por decisión de Nicolás** una pieza aprobada un día anterior que recibe un huésped hoy queda aprobada hasta el aseo de mañana (si Recepción la marca sucia antes de que llegue, se respeta). Nunca se conserva una rechazada ni una cerrada por el cierre de la noche sin terminar. Runbook §11.22: **sin SQL**, ZIP de 3 archivos con las rutas bajo `limpieza/app_core/` (`build/limpieza-v620-delta.zip`, idénticos a `6b825bf`) y `build/limpieza-v620-vuelta-atras.zip`. La Q2 (¿Cloudbeds marca vacía la pieza entre huéspedes?) no se alcanzó a correr antes: se sube igual porque sin ese dato todo sigue como antes. Subido el 08/10 ~18:05. Smoke: badge **v6.20** (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (18:07). **Verificación parcial el 09/10** (§11.22): las limpiezas terminadas después del deploy guardan la ocupación que veía Cloudbeds (en habitaciones; las áreas comunes no tienen ese dato); hasta las 10 h el sync conservó 10 aprobaciones con el motivo de antes (`aprobada_hoy_ocupada`) y ninguna con los nuevos, y las 3 que volvieron a la cola (706 y 104 en turnover, 401 en check-out) se habían limpiado el 08/10 antes del deploy, sin anotación, así que vuelven por diseño. **Verificada el 10/10** (§11.22): la regla del turnover conservó 2 aprobaciones el 09/10 y 13 el 10/10 (con eso la Q2 queda respondida: Cloudbeds sí marca vacía la pieza entre huéspedes, el plan B de R1 no hace falta); el 10/10 solo volvió a la cola la 409, por un check-in que Recepción hizo y deshizo en Cloudbeds (07:44 → 07:48), no por un error de la app. La regla de la llegada sobre una aprobación anterior todavía no se dio. |
 | 2026-10-09 | **Motivo del rechazo en la re-limpieza + borde por hotel** → **v6.21** (borde `f33900c`, feat `f48ffeb`, CHANGELOG fechado `fea3544`; rama `v6.21-motivo-rechazo`, desde `62d4952`) | Pedido de Nicolás: al volver a limpiar una pieza rechazada, arriba del checklist el motivo que escribió la supervisora (con su nombre) y en rojo los ítems que ella desmarcó; antes el motivo solo iba en el texto de la campanita y quien recibía la pieza reasignada nunca lo veía. **Decisiones de Nicolás:** solo en la re-limpieza del mismo día y franja (un rechazo de ayer no se muestra), y una sola versión con el arreglo del borde por hotel (que se había armado como v6.18.1 y v6.20.1, §11.20). Runbook §11.23: **sin SQL**, ZIP de 5 archivos (`custom.css` al docroot y a `app_core/public/assets/css/`, `ChecklistService.php`, `habitacion-detalle.php`, `CHANGELOG.md`; `build/limpieza-v621-delta.zip`, idénticos a `fea3544`) y `build/limpieza-v621-vuelta-atras.zip` (los mismos en `62d4952`). Subido el 09/10 ~08:20 (de noche en Australia). **El precheck no se comparó:** los archivos bajados de prod se borraron antes; el riesgo es bajo porque prod quedó en `62d4952` el día anterior. Smoke: `/api/health` 200, el `custom.css` del docroot ya trae el `!important` y la captura de Áreas comunes en prod muestra el borde de color por hotel. **Versión confirmada el 09/10:** Ajustes → Versiones muestra la v6.21 del 09/10/2026 «En uso» (captura de Nicolás). **Pendiente:** ver la primera re-limpieza real con el motivo arriba. |
+| 2026-10-10 | **Lo aprobado hoy queda limpio** → **v6.22** (feat `b362eeb`, CHANGELOG fechado `ee2913d`; rama `v6.22-limpiada-hoy`, desde `4ce3c5c`) | Origen: la 409 de Atankalama volvió a la cola ya limpia porque Recepción hizo y deshizo un check-in en Cloudbeds (07:44 → 07:48), diagnóstico en §11.22. **Decisión de Nicolás:** si una pieza se aprobó hoy, queda limpia hasta mañana aunque Cloudbeds la marque sucia (también la marca manual), en silencio y sin escribirle a Cloudbeds; **única excepción:** el aseo diario hecho con un huésped alojado cuyo huésped se va ese mismo día vuelve a la cola para la limpieza de salida. El sync deja de levantar la alerta `aprobacion_deshecha`. Runbook §11.24: **sin SQL**, ZIP de 3 archivos con las rutas bajo `limpieza/app_core/` (`CloudbedsSyncService.php`, `HabitacionService.php`, `CHANGELOG.md`; `build/limpieza-v622-delta.zip`, idénticos a `ee2913d`) y `build/limpieza-v622-vuelta-atras.zip` (los mismos en `4ce3c5c`). Suite 689 OK. Subido el 10/10 ~17:50. Smoke: badge **v6.22** (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (17:52). **Pendiente:** verificación al día siguiente (§11.24): conservadas con motivo `aprobada_hoy` y ninguna «aprobación deshecha» nueva. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -1928,3 +1929,55 @@ limpiar»): arriba del checklist el recuadro «Motivo del rechazo» con el texto
 desmarcados en rojo con «La supervisora lo desmarcó».
 
 **Vuelta atrás:** subir `build/limpieza-v621-vuelta-atras.zip` (los mismos cinco archivos en la v6.20, `62d4952`).
+
+### 11.24 Release "lo aprobado hoy queda limpio" → v6.22
+
+Origen: el 10/10/2026 la **409** de Atankalama volvió a la cola de Yessica después de aprobada: Recepción hizo el
+check-in de la reserva nueva a las 07:44 y lo deshizo a las 07:48; Cloudbeds la dejó `dirty` y sin nadie hospedado, y la
+regla de la v6.20 la devolvió a la cola (diagnóstico completo en §11.22). **Decisión de Nicolás:** si una pieza se aprobó
+hoy, queda limpia hasta mañana aunque Cloudbeds diga sucia, también si la marca la puso Recepción a mano; en silencio
+(sin aviso a las supervisoras) y sin escribirle nada a Cloudbeds. **Única excepción:** el aseo diario hecho con un
+huésped alojado cuyo huésped se va ese mismo día (salida anticipada, cambio de pieza) vuelve a la cola para la limpieza
+de salida.
+
+**Qué cambia** (`CloudbedsSyncService::motivoParaConservarAprobacion()`, detalle en `docs/cloudbeds.md` §4.x):
+
+- Aprobada hoy + Cloudbeds `dirty` → se conserva (motivo `aprobada_hoy` en el log), salvo que la última limpieza se
+  haya terminado con `cb_ocupada = 1` (la anotación de la v6.20) y ahora Cloudbeds la dé vacía.
+- Se dejan de usar los motivos `aprobada_hoy_ocupada` y `turnover_limpiado_vacio`; `llegada_sobre_aprobacion_anterior`
+  (aprobada un día anterior y llega un huésped) sigue igual.
+- El sync ya no levanta la alerta `aprobacion_deshecha` ni escribe el WARNING «aprobación deshecha». Las alertas de ese
+  tipo que estén activas se siguen resolviendo solas al volver a aprobarse la pieza.
+- Siguen igual: el aseo diario de lo aprobado otro día, las rechazadas, las limpiezas que cerró el sistema a las 23:55
+  (v6.19) y el barrido de nocheros de las 16:00.
+
+**Sin SQL, sin `.env`, sin `vendor/`, sin estáticos, sin cambios en los cron.**
+
+**ZIP** `build/limpieza-v622-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v6.22 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 3
+archivos: `src/Services/CloudbedsSyncService.php`, `src/Services/HabitacionService.php` y `CHANGELOG.md`. Vuelta atrás:
+`build/limpieza-v622-vuelta-atras.zip` (los mismos tres en la v6.21, `4ce3c5c`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v6.22** (incógnito) y `/api/health` 200.
+
+**Verificación al día siguiente:**
+
+```sql
+-- Aprobaciones conservadas por motivo desde el deploy (horas en UTC; poner la del deploy).
+SELECT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.motivo')) AS motivo,
+       COUNT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(contexto_json, '$.habitacion_id'))) AS piezas
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n conservada:%'
+   AND created_at >= '2026-10-11T00:00'
+ GROUP BY motivo;
+
+-- No tiene que aparecer ninguna «aprobación deshecha» nueva.
+SELECT COUNT(*) AS deshechas
+  FROM limpieza_logs_eventos
+ WHERE mensaje LIKE 'aprobaci%n deshecha:%'
+   AND created_at >= '2026-10-11T00:00';
+```
+
+**Vuelta atrás:** subir `build/limpieza-v622-vuelta-atras.zip`. No hay datos que deshacer.
