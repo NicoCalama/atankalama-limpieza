@@ -462,7 +462,9 @@ cambios de schema.
 - **Aprobadas / rechazadas = la columna «Recepción»** (regla del 05/10): una pieza por cada
   inspección **aprobada por ella** (no el cierre automático) que Recepción revisó; si recibió al
   menos un NO, es rechazada. **Los totales son solo lo que revisó Recepción** (decisión de Nicolás,
-  10/10): lo que ella aprobó y Recepción no revisó no entra.
+  10/10): lo que ella aprobó y Recepción no revisó no entra. **v7.1 (10/10):** solo cuentan las
+  revisiones hechas con la pieza **Aprobada o Aprobada c/obs.**: un NO a una pieza que ya se ensució
+  (el huésped la usó) no le baja la calidad a quien la aprobó antes.
 - **Ventana:** fecha de la revisión de Recepción (un mes cerrado no cambia). Sin revisiones de
   Recepción en el período → «—». La re-limpieza de un NO no cuenta como inspección.
 - **Por supervisora.** Se ve en la columna **«Calidad»** de «Supervisora · Inspección» y del «Resumen
@@ -524,6 +526,29 @@ atrás**:
 > **✅ Definición de KPIs de la SUPERVISORA COMPLETA (N1 + N2 + N3).** Con el Trabajador ya
 > cerrado, ambos roles del equipo de Aseo quedan definidos. Próximo: armar las **piezas** —
 > reporte de KPIs y reporte de sueldos (cruce por RUT, reusar `ExcelExport`).
+
+---
+
+# Rol C — Recepción (inspección pre-entrega)
+
+Recepción no limpia ni inspecciona aseo: revisa cada pieza antes de entregarla al huésped (SÍ / NO,
+[revision-entrega.md](revision-entrega.md)). Sus SÍ/NO alimentan la calidad de la supervisora (KPI
+S2.4) y, desde la v7.1, su propia producción.
+
+### KPI R1 — Producción de la inspección pre-entrega  *(v7.1, decisión de Nicolás del 10/10/2026)*
+- **Qué mide:** cuántas piezas revisó cada recepcionista antes de entregarlas.
+- **Fórmula:** **una por limpieza**: las revisiones de la misma persona sobre la misma pieza y la misma
+  limpieza (`ejecucion_id`) cuentan una vez. Revisar de nuevo sin que se haya vuelto a limpiar no
+  suma; después de una re-limpieza, sí. Ejemplo: SÍ a la 205, otro SÍ 10 min después y, tras una
+  re-limpieza, otra revisión = **2**. Si dos personas revisan la misma limpieza, le suma a las dos.
+- **Resultado:** dentro de una limpieza el NO manda (SÍ y después NO = una no aprobada), igual que
+  la columna «Recepción» de las supervisoras. Se muestran inspecciones, SÍ, NO y % NO.
+- **Ventana:** fecha de la revisión. **Quiénes:** todos los que registraron revisiones en el período;
+  no se filtra por `kpis.excluido` (en prod lo tienen todos los roles menos Trabajador).
+- **Dónde:** tabla «Por recepcionista» en la sección «Inspección pre-entrega (Recepción)» de Reportes y
+  pestaña «Recepción» del Excel mensual (un bloque por hotel y el total; el % NO del TOTAL sale de los
+  sumados). Código: `RevisionEntregaService::produccionPorRecepcionista()`.
+- **Bono:** la app entrega los conteos; el monto no se calcula en la app.
 
 ---
 
@@ -696,3 +721,4 @@ re-clean **<5%**.
 | 05/10/2026 | **Re-limpieza por un NO de Recepción y columna «Recepción» (v7, decisiones de Nicolás):** la supervisora puede mandar a re-limpiar una pieza aprobada que Recepción no aprobó (botón «Re-limpiar», con prioridad en la cola) y, con el interruptor prendido, la pieza vuelve sola a la cola de quien la limpió. **Esa re-limpieza no suma para la trabajadora** (ni piezas, ni créditos, ni tiempos, ni Asignadas, ni bono; tampoco le resta a quien la limpió primero) **ni cuenta en los indicadores de inspección**: el NO es de la supervisora, que aprobó la pieza. Los días trabajados sí cuentan. Reportes suma la columna **«Recepción»** por supervisora (aprobadas en verde / no aprobadas en rojo; regla aprobada por Nicolás: una pieza por aprobación, el NO manda, por fecha de la revisión de Recepción) en la sección de supervisoras, el resumen mensual de inspecciones y el Excel. **Pendiente con gerencia:** cómo pesa en el bono de calidad. Ver `docs/revision-entrega.md` §3b. |
 | 08/10/2026 | **Limpiezas sin terminar (v6.19, decisión de Nicolás):** el cierre de la noche termina y aprueba toda limpieza que siga en progreso (habitaciones y áreas) para liberar la pieza al día siguiente, pero **quien no apretó «terminar» no recibe créditos de ella** — «no siguieron las instrucciones que se dieron». Queda con `cerrada_por_sistema = 1`: fuera de créditos, piezas hechas (bono), tiempos, productividad, «Habitaciones limpiadas», «Pendientes al corte», cobertura y tasas de la sección; **sí cuenta como asignada y no hecha** (Asignadas y días trabajados). Si la supervisora la da por limpia con «Marcar limpia» antes del cierre, la persona conserva lo que marcó (regla del atajo, sin cambios). Ver [checklist.md](checklist.md) §3.7. |
 | 10/10/2026 | **Calidad según Recepción (v7, fórmula de gerencia; KPI S2.4):** gerencia aprobó la inspección pre-entrega tal cual y dio la fórmula de calidad de las supervisoras: `(aprobadas − rechazadas) ÷ totales`. **Decisiones de Nicolás:** los totales son **solo lo que revisó Recepción** (aprobadas + rechazadas de la columna «Recepción»; lo aprobado sin revisar no entra) y el resultado tiene **mínimo 0 %** (nunca negativo). Columna «Calidad» en «Supervisora · Inspección» y en el «Resumen mensual de inspecciones», y «Recepción: calidad %» en el Excel mensual (TOTAL con los SÍ y NO sumados). La app entrega el %; el monto del bono no se calcula en la app. |
+| 10/10/2026 | **v7.1 — calidad solo con la pieza aprobada y producción de Recepción (decisiones de Nicolás):** (a) a la supervisora solo le cuentan los SÍ/NO de Recepción hechos con la pieza Aprobada o Aprobada c/obs. (un NO a una pieza que ya se ensució no le baja la calidad; se calcula al leer, así que corrige lo ya registrado); (b) nuevo **KPI R1 «Producción de la inspección pre-entrega»** por recepcionista, **una por limpieza** (revisar de nuevo sin re-limpieza no suma; dentro de una limpieza el NO manda), en Reportes («Por recepcionista») y en la pestaña «Recepción» del Excel mensual. Límite conocido: una pieza que Cloudbeds aprueba por fuera queda ligada a la última aprobación de la app. |

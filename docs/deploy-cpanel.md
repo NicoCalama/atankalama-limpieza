@@ -2023,3 +2023,32 @@ SELECT COUNT(*) AS deshechas
 ```
 
 **Vuelta atrás:** subir `build/limpieza-v622-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.25 Release "calidad solo con la pieza aprobada y producción de Recepción" → v7.1
+
+Pedido de Nicolás (10/10/2026, el mismo día de la v7): «calidad de la supervisora y producción para los
+recepcionistas». **Decisiones:**
+
+- **Calidad de la supervisora:** solo cuentan los SÍ/NO de Recepción hechos con la pieza **Aprobada o Aprobada c/obs.**
+  (`revisiones_entrega.estado_pieza`). Un NO a una pieza que ya se ensució no le baja la calidad a quien aprobó su
+  última limpieza. Se calcula al leer: corrige también lo registrado desde la v7.
+- **Producción de Recepción:** por recepcionista, **una por limpieza** (revisar otra vez la misma pieza sin re-limpieza
+  no suma; dentro de una limpieza el NO manda). Tabla «Por recepcionista» en la sección «Inspección pre-entrega» de
+  Reportes y pestaña «Recepción» del Excel mensual (un bloque por hotel y el total).
+
+Detalle en [revision-entrega.md](revision-entrega.md) §3b y [kpis-sueldos.md](kpis-sueldos.md) (KPI S2.4 y Rol C).
+
+**Sin SQL** (usa columnas que ya trajo la v7), sin `.env`, sin `vendor/`, sin estáticos, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v71-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` y **la fila
+de la v7.1 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 5 archivos:
+`src/Services/{ReportesService,RevisionEntregaService}.php`, `src/Controllers/ReportesController.php` (solo un
+comentario), `views/reportes.php` y `CHANGELOG.md`. Vuelta atrás: `build/limpieza-v71-vuelta-atras.zip` (los mismos cinco
+en la v7, `cf03ce9`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v7.1** (incógnito), `/api/health` 200, y en Reportes (Admin, «Hoy») la sección «Inspección
+pre-entrega» con la tabla «Por recepcionista»; el Excel mensual trae la pestaña «Recepción».
+
+**Vuelta atrás:** subir `build/limpieza-v71-vuelta-atras.zip`. No hay datos que deshacer.

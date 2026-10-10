@@ -700,13 +700,7 @@ final class RevisionEntregaService
      */
     public function reporte(string $desde, string $hasta, string $hotel): array
     {
-        [$d, $h] = Fechas::rangoUtc($desde, $hasta);
-        $where = 'r.created_at >= ? AND r.created_at < ?';
-        $params = [$d, $h];
-        if ($hotel !== 'ambos') {
-            $where .= ' AND ho.codigo = ?';
-            $params[] = $hotel;
-        }
+        [$where, $params] = $this->filtroPeriodo($desde, $hasta, $hotel);
         $base = 'FROM #__revisiones_entrega r
                  JOIN #__habitaciones h ON h.id = r.habitacion_id
                  JOIN #__hoteles ho ON ho.id = h.hotel_id';
@@ -754,9 +748,70 @@ final class RevisionEntregaService
                 'a_sucia' => (int) ($tot['cant_sucia'] ?? 0),
             ],
             'por_motivo' => $porMotivo,
+            'por_recepcionista' => $this->produccionPorRecepcionista($desde, $hasta, $hotel),
             'historial' => $historial,
             'truncado' => $truncado,
         ];
+    }
+
+    /**
+     * Producción de Recepción (v7.1, decisión de Nicolás del 10/10/2026): cuántas inspecciones hizo cada
+     * persona en el período, contando UNA POR LIMPIEZA: revisar otra vez la misma pieza sin que se haya
+     * vuelto a limpiar (misma ejecucion_id) no suma; después de una re-limpieza, sí. Cada persona cuenta lo
+     * suyo (si dos revisan la misma limpieza, le suma a las dos). Dentro de una misma limpieza el NO manda,
+     * igual que la columna «Recepción» de las supervisoras. Ventana = fecha de la revisión. Salen todos los
+     * que registraron inspecciones: no se filtra por kpis.excluido (en prod lo tienen todos los roles menos
+     * Trabajador, Recepción incluida).
+     *
+     * @return list<array{usuario_id: int, nombre: string, inspecciones: int, si: int, no: int, pct_no: ?float}>
+     */
+    public function produccionPorRecepcionista(string $desde, string $hasta, string $hotel): array
+    {
+        [$where, $params] = $this->filtroPeriodo($desde, $hasta, $hotel);
+        $filas = Database::fetchAll(
+            "SELECT g.usuario_id, u.nombre,
+                    COUNT(*) AS inspecciones,
+                    SUM(CASE WHEN g.nos > 0 THEN 0 ELSE 1 END) AS cant_si,
+                    SUM(CASE WHEN g.nos > 0 THEN 1 ELSE 0 END) AS cant_no
+               FROM (SELECT r.usuario_id, r.habitacion_id, COALESCE(r.ejecucion_id, 0) AS limpieza,
+                            SUM(CASE WHEN r.resultado = 'no' THEN 1 ELSE 0 END) AS nos
+                       FROM #__revisiones_entrega r
+                       JOIN #__habitaciones h ON h.id = r.habitacion_id
+                       JOIN #__hoteles ho ON ho.id = h.hotel_id
+                      WHERE {$where}
+                      GROUP BY r.usuario_id, r.habitacion_id, COALESCE(r.ejecucion_id, 0)) g
+               JOIN #__usuarios u ON u.id = g.usuario_id
+              GROUP BY g.usuario_id, u.nombre",
+            $params
+        );
+        $produccion = array_map(static fn(array $f): array => [
+            'usuario_id' => (int) $f['usuario_id'],
+            'nombre' => (string) $f['nombre'],
+            'inspecciones' => (int) $f['inspecciones'],
+            'si' => (int) $f['cant_si'],
+            'no' => (int) $f['cant_no'],
+            'pct_no' => (int) $f['inspecciones'] > 0 ? round(((int) $f['cant_no']) * 100 / (int) $f['inspecciones'], 1) : null,
+        ], $filas);
+        usort($produccion, static fn(array $a, array $b): int => strcmp($a['nombre'], $b['nombre']));
+        return $produccion;
+    }
+
+    /**
+     * Condición del período (por fecha de la revisión) y del hotel, sobre los alias r (revisiones_entrega)
+     * y ho (hoteles).
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    private function filtroPeriodo(string $desde, string $hasta, string $hotel): array
+    {
+        [$d, $h] = Fechas::rangoUtc($desde, $hasta);
+        $where = 'r.created_at >= ? AND r.created_at < ?';
+        $params = [$d, $h];
+        if ($hotel !== 'ambos') {
+            $where .= ' AND ho.codigo = ?';
+            $params[] = $hotel;
+        }
+        return [$where, $params];
     }
 
     // ───────────────────────────── Catálogo de motivos ─────────────────────────────

@@ -242,8 +242,8 @@ final class ReportesController
 
     /**
      * GET /api/reportes/exportar-mensual?anio=2026&mes=4&hotel=ambos
-     * Excel del mes con dos pestañas: «Trabajadores» (hotel elegido) y «Supervisores» (los dos
-     * hoteles por separado y el total). Ver ReportesService::hojasMensual().
+     * Excel del mes con tres pestañas: «Trabajadores» (hotel elegido), «Supervisores» y «Recepción» (los
+     * dos hoteles por separado y el total). Ver ReportesService::hojasMensual().
      */
     public function exportarMensual(Request $request): Response
     {
