@@ -69,7 +69,6 @@ function modalInspeccionPreEntrega() {
         errorFormulario: '',
 
         motivoId: null,
-        comentario: '',
         foto: null,
         fotoPreview: null,
         procesandoFoto: false,
@@ -92,7 +91,6 @@ function modalInspeccionPreEntrega() {
             this.hab = detalle.habitacion;
             this.paso = 'pregunta';
             this.motivoId = null;
-            this.comentario = '';
             this.quitarFoto();
             this.procesandoFoto = false;
             this.lento = false;
@@ -177,7 +175,6 @@ function modalInspeccionPreEntrega() {
             fd.append('idempotency_key', clave);
             if (resultado === 'no') {
                 fd.append('motivo_id', String(this.motivoId));
-                fd.append('comentario', this.comentario || '');
                 if (this.foto) fd.append('foto', this.foto, this.foto.name || 'foto.jpg');
             }
 

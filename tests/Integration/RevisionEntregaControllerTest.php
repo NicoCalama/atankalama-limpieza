@@ -217,23 +217,12 @@ final class RevisionEntregaControllerTest extends TestCase
         $this->assertNull($this->ok($ctrl->obtener($detalle))['habitacion']['revision_entrega']);
     }
 
-    public function testMotivosYConfigSonDeQuienConfigura(): void
+    /** Los motivos de un NO se editan desde la v7.3 con ListasOpcionesController (ver ListasOpcionesServiceTest). */
+    public function testLaConfigEsDeQuienConfigura(): void
     {
         $soloRegistrar = ['revision_entrega.registrar'];
-        $this->error($this->ctrl->listarMotivos($this->req('GET', permisos: $soloRegistrar)), 403, 'SIN_PERMISO');
+        $this->error($this->ctrl->config($this->req('GET', permisos: $soloRegistrar)), 403, 'SIN_PERMISO');
         $this->error($this->ctrl->guardarConfig($this->req('PUT', ['no_ensucia' => true], permisos: $soloRegistrar)), 403, 'SIN_PERMISO');
-
-        $id = $this->ok($this->ctrl->crearMotivo($this->req('POST', ['nombre' => 'Mal olor'])), 201)['id'];
-        $this->error($this->ctrl->crearMotivo($this->req('POST', ['nombre' => '   '])), 400, 'PARAMETROS_INVALIDOS');
-        $this->error($this->ctrl->crearMotivo($this->req('POST', ['nombre' => 'mal olor'])), 409, 'MOTIVO_DUPLICADO');
-
-        $this->ok($this->ctrl->actualizarMotivo($this->req('PUT', ['activo' => false], ruta: ['id' => (string) $id])));
-        $this->error($this->ctrl->actualizarMotivo($this->req('PUT', ['activo' => false], ruta: ['id' => '999'])), 404, 'MOTIVO_NO_ENCONTRADO');
-
-        $activos = array_column($this->ok($this->ctrl->listarMotivos($this->req('GET')))['motivos'], 'nombre');
-        $todos = array_column($this->ok($this->ctrl->listarMotivos($this->req('GET', query: ['todos' => '1'])))['motivos'], 'nombre');
-        $this->assertSame(['Baño sucio'], $activos);
-        $this->assertSame(['Baño sucio', 'Mal olor', 'Viejo'], $todos);
 
         $this->assertFalse($this->ok($this->ctrl->config($this->req('GET')))['no_ensucia']);
         $this->error($this->ctrl->guardarConfig($this->req('PUT', ['no_ensucia' => 'si'])), 400, 'PARAMETROS_INVALIDOS');

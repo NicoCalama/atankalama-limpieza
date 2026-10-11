@@ -8,6 +8,8 @@ use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Models\Habitacion;
 use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\HabitacionService;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
+use Atankalama\Limpieza\Services\ListasOpcionesService;
 use Atankalama\Limpieza\Services\RevisionEntregaException;
 use Atankalama\Limpieza\Services\RevisionEntregaService;
 use Atankalama\Limpieza\Tests\Support\TestDatabase;
@@ -273,23 +275,35 @@ final class RevisionEntregaServiceTest extends TestCase
         $this->assertArrayNotHasKey($this->hab['101'], $this->svc->revisionesVigentes());
     }
 
+    /**
+     * Desde la v7.3 los motivos de un NO se editan como la lista «no_recepcion» de ListasOpcionesService (Ajustes →
+     * Checklists y listas), en su misma tabla: crear, renombrar, ordenar y desactivar, sin borrar.
+     */
     public function testMotivosSeCreanRenombranYDesactivanPeroNoSeBorran(): void
     {
-        $this->esperarError('MOTIVO_DUPLICADO', 409, fn() => $this->svc->crearMotivo('BAÑO SUCIO', $this->sofia));
-        $this->esperarError('NOMBRE_INVALIDO', 400, fn() => $this->svc->crearMotivo(' x ', $this->sofia));
-        $this->esperarError('NOMBRE_INVALIDO', 400, fn() => $this->svc->crearMotivo(str_repeat('a', 61), $this->sofia));
-        $this->esperarError('MOTIVO_NO_ENCONTRADO', 404, fn() => $this->svc->actualizarMotivo(999, ['activo' => false], $this->sofia));
+        $listas = new ListasOpcionesService();
+        $lista = ListasOpcionesService::NO_RECEPCION;
+        $esperarLista = function (string $codigo, callable $fn): void {
+            try {
+                $fn();
+                $this->fail("se esperaba {$codigo}");
+            } catch (ListasOpcionesException $e) {
+                $this->assertSame($codigo, $e->codigo);
+            }
+        };
+        $esperarLista('OPCION_DUPLICADA', fn() => $listas->crear($lista, 'BAÑO SUCIO', $this->sofia));
+        $esperarLista('NOMBRE_INVALIDO', fn() => $listas->crear($lista, ' x ', $this->sofia));
+        $esperarLista('OPCION_NO_ENCONTRADA', fn() => $listas->actualizar($lista, 999, ['activo' => false], $this->sofia));
 
-        $id = $this->svc->crearMotivo('  Mal olor ', $this->sofia);
-        $this->esperarError('MOTIVO_DUPLICADO', 409, fn() => $this->svc->actualizarMotivo($id, ['nombre' => 'baño sucio'], $this->sofia));
-        $this->svc->actualizarMotivo($id, ['nombre' => 'Olor a humo'], $this->sofia);
-        $this->svc->actualizarMotivo($id, ['activo' => false], $this->sofia);
+        $id = $listas->crear($lista, '  Mal olor ', $this->sofia);
+        $esperarLista('OPCION_DUPLICADA', fn() => $listas->actualizar($lista, $id, ['nombre' => 'baño sucio'], $this->sofia));
+        $listas->actualizar($lista, $id, ['nombre' => 'Olor a humo'], $this->sofia);
+        $listas->actualizar($lista, $id, ['activo' => false], $this->sofia);
 
         $this->assertNotContains('Olor a humo', array_column($this->svc->listarMotivos(true), 'nombre'));
         $todos = array_column($this->svc->listarMotivos(false), 'activo', 'nombre');
-        $this->assertSame(['Baño sucio' => true, 'Olor a humo' => false, 'Viejo' => false], $todos);
+        $this->assertSame(['Baño sucio' => true, 'Viejo' => false, 'Olor a humo' => false], $todos, 'en el orden de la lista');
 
-        $this->assertFalse(method_exists($this->svc, 'eliminarMotivo'), 'no hay borrado de motivos');
         $this->svc->registrar($this->hab['101'], 'no', $this->banoSucio, null, null, $this->carla);
         try {
             Database::execute('DELETE FROM motivos_revision_entrega WHERE id = ?', [$this->banoSucio]);
@@ -297,13 +311,13 @@ final class RevisionEntregaServiceTest extends TestCase
         } catch (\PDOException) {
             $this->addToAssertionCount(1);
         }
-        $this->assertSame(1, $this->contar('audit_log', "accion = 'revision_entrega.motivo_crear'"));
-        $this->assertSame(2, $this->contar('audit_log', "accion = 'revision_entrega.motivo_actualizar'"));
+        $this->assertSame(1, $this->contar('audit_log', "accion = 'listas.opcion_crear'"));
+        $this->assertSame(2, $this->contar('audit_log', "accion = 'listas.opcion_actualizar'"));
     }
 
     public function testElReporteCuentaPorMotivoYFiltraPorHotelYFechas(): void
     {
-        $olor = $this->svc->crearMotivo('Mal olor', $this->sofia);
+        $olor = (new ListasOpcionesService())->crear(ListasOpcionesService::NO_RECEPCION, 'Mal olor', $this->sofia);
         $this->svc->registrar($this->hab['101'], 'no', $this->banoSucio, 'pelos', null, $this->carla);
         $this->svc->registrar($this->hab['102'], 'no', $this->banoSucio, null, null, $this->carla);
         $this->svc->registrar($this->hab['102'], 'si', null, null, null, $this->carla);

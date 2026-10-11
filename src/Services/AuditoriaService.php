@@ -21,12 +21,19 @@ final class AuditoriaService
         private readonly AlertasService $alertas = new AlertasService(),
         private readonly PushService $push = new PushService(),
         private readonly NotificacionesService $notificaciones = new NotificacionesService(),
+        private readonly ListasOpcionesService $listas = new ListasOpcionesService(),
     ) {
     }
 
     /**
      * Emite un veredicto sobre la habitación pendiente de auditoría.
      * Inmutable: una habitación/ejecución no puede ser re-auditada (UNIQUE en auditorias.ejecucion_id).
+     *
+     * Desde la v7.3 (gerencia, 10/10/2026: sin cuadros de texto) la pantalla no manda comentario:
+     *   - el rechazo trae $motivoId, una opción activa de la lista «rechazo»; el comentario guardado es
+     *     su nombre, así lo siguen mostrando la re-limpieza, el aviso y el historial;
+     *   - la observación son las casillas desmarcadas (al menos una) y el comentario se arma con ellas.
+     * $comentario queda solo para llamadas internas (tests, scripts): si hay $motivoId, manda el motivo.
      *
      * @param list<int> $itemsDesmarcados
      */
@@ -36,6 +43,7 @@ final class AuditoriaService
         string $veredicto,
         ?string $comentario = null,
         array $itemsDesmarcados = [],
+        ?int $motivoId = null,
     ): Auditoria {
         if (!in_array($veredicto, Auditoria::VEREDICTOS_VALIDOS, true)) {
             throw new AuditoriaException('VEREDICTO_INVALIDO', "Veredicto inválido: {$veredicto}.", 400);
@@ -48,23 +56,32 @@ final class AuditoriaService
         // adentro con bloqueo: otra auditora (o el cierre de día) pudo adelantarse entremedio.
         $this->ejecucionAuditable($habitacionId);
 
-        $esComentarioRequerido = in_array($veredicto, [
-            Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
-            Auditoria::VEREDICTO_RECHAZADO,
-        ], true);
-
-        if ($esComentarioRequerido) {
-            if ($comentario === null || strlen(trim($comentario)) < 10) {
-                throw new AuditoriaException(
-                    'COMENTARIO_REQUERIDO',
-                    'El comentario debe tener al menos 10 caracteres.',
-                    400
-                );
+        $comentario = ($comentario !== null && trim($comentario) !== '') ? trim($comentario) : null;
+        $motivoGuardado = null;
+        if ($veredicto === Auditoria::VEREDICTO_RECHAZADO) {
+            if ($motivoId !== null) {
+                try {
+                    $opcion = $this->listas->opcionActiva('rechazo', $motivoId);
+                } catch (ListasOpcionesException $e) {
+                    throw new AuditoriaException($e->codigo, $e->getMessage(), $e->httpStatus);
+                }
+                $motivoGuardado = $opcion['id'];
+                $comentario = $opcion['nombre'];
+            } elseif ($comentario === null) {
+                throw new AuditoriaException('OPCION_REQUERIDA', 'Elige el motivo del rechazo.', 400);
             }
         }
+        if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsDesmarcados === []) {
+            throw new AuditoriaException(
+                'OBSERVACION_SIN_ITEMS',
+                'Para aprobar con observación desmarca las casillas que encontraste mal.',
+                400
+            );
+        }
 
-        // Ítems desmarcados: los aceptan la observación (opcional) y el rechazo (obligatorio ≥1,
-        // definen qué se re-limpia). El aprobado limpio no admite ninguno. Ver docs/creditos-rework.md.
+        // Ítems desmarcados: los aceptan la observación (obligatorio ≥1 desde la v7.3: son la observación)
+        // y el rechazo (obligatorio ≥1, definen qué se re-limpia). El aprobado limpio no admite ninguno.
+        // Ver docs/creditos-rework.md.
         $admiteDesmarcados = in_array($veredicto, [
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
             Auditoria::VEREDICTO_RECHAZADO,
@@ -85,6 +102,9 @@ final class AuditoriaService
             );
         }
         $itemsJson = $itemsDesmarcados === [] ? null : json_encode($itemsDesmarcados);
+        if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $comentario === null) {
+            $comentario = $this->textoObservacion($itemsDesmarcados);
+        }
 
         $nuevoEstadoHab = match ($veredicto) {
             Auditoria::VEREDICTO_APROBADO => Habitacion::ESTADO_APROBADA,
@@ -101,14 +121,14 @@ final class AuditoriaService
         // La escritura a Cloudbeds queda afuera: es una llamada de red y no debe retener el lock.
         [$auditoriaId, $ejecucion] = Database::transactionImmediate(function () use (
             $habitacionId, $auditorId, $veredicto, $comentario, $itemsDesmarcados, $admiteDesmarcados,
-            $itemsJson, $nuevoEstadoHab, $origenCambio
+            $itemsJson, $nuevoEstadoHab, $origenCambio, $motivoGuardado
         ): array {
             $ejecucion = $this->ejecucionAuditable($habitacionId, Database::forUpdate());
 
             try {
                 Database::execute(
-                    'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json) VALUES (?, ?, ?, ?, ?, ?)',
-                    [$ejecucion->id, $habitacionId, $auditorId, $veredicto, $comentario, $itemsJson]
+                    'INSERT INTO #__auditorias (ejecucion_id, habitacion_id, auditor_id, veredicto, comentario, items_desmarcados_json, motivo_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [$ejecucion->id, $habitacionId, $auditorId, $veredicto, $comentario, $itemsJson, $motivoGuardado]
                 );
             } catch (\PDOException $e) {
                 // 23000 = el UNIQUE de auditorias.ejecucion_id: otra auditoría ganó la carrera.
@@ -119,7 +139,8 @@ final class AuditoriaService
             }
             $auditoriaId = Database::lastInsertId();
 
-            if ($admiteDesmarcados && $itemsDesmarcados !== []) {
+            // Desde la v7.3 la observación y el rechazo traen siempre al menos una casilla (validado arriba).
+            if ($admiteDesmarcados) {
                 $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
             }
 
@@ -168,6 +189,23 @@ final class AuditoriaService
         ]);
 
         return Auditoria::desdeFila(Database::fetchOne('SELECT * FROM #__auditorias WHERE id = ?', [$auditoriaId]));
+    }
+
+    /**
+     * Comentario de una observación (v7.3): las casillas desmarcadas en el orden del checklist,
+     * «Observado: Espejo · Basurero». Lo leen el historial de la ficha y el Excel del historial.
+     * Un id ajeno al checklist no aparece acá: lo rechaza después desmarcarPorAuditor().
+     *
+     * @param list<int> $itemsIds
+     */
+    private function textoObservacion(array $itemsIds): string
+    {
+        $marcas = implode(', ', array_fill(0, count($itemsIds), '?'));
+        $nombres = array_column(Database::fetchAll(
+            "SELECT descripcion FROM #__items_checklist WHERE id IN ({$marcas}) ORDER BY orden, id",
+            $itemsIds
+        ), 'descripcion');
+        return 'Observado: ' . ($nombres === [] ? 'casillas del checklist' : implode(' · ', array_map('strval', $nombres)));
     }
 
     /**

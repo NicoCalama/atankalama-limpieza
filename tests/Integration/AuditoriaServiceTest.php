@@ -137,7 +137,11 @@ final class AuditoriaServiceTest extends TestCase
         $this->assertSame('auditada', $ejec['estado']);
     }
 
-    public function testAprobadoConObservacionRequiereComentario(): void
+    /**
+     * v7.3 (decisión de Nicolás, 10/10/2026): la observación son las casillas desmarcadas, sin texto. Sin
+     * casillas no hay observación; con casillas, el comentario lo arma el sistema con sus descripciones.
+     */
+    public function testAprobadoConObservacionSonLasCasillasDesmarcadas(): void
     {
         try {
             $this->svc->emitirVeredicto(
@@ -147,8 +151,23 @@ final class AuditoriaServiceTest extends TestCase
             );
             $this->fail('Debía lanzar');
         } catch (AuditoriaException $e) {
-            $this->assertSame('COMENTARIO_REQUERIDO', $e->codigo);
+            $this->assertSame('OBSERVACION_SIN_ITEMS', $e->codigo);
         }
+
+        $items = Database::fetchAll(
+            'SELECT id, descripcion FROM items_checklist WHERE template_id = (SELECT template_id FROM ejecuciones_checklist WHERE id = ?) ORDER BY orden',
+            [$this->ejecucionId]
+        );
+        // Mandadas al revés: el texto sale en el orden del checklist.
+        $auditoria = $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
+            null,
+            [(int) $items[1]['id'], (int) $items[0]['id']]
+        );
+        $this->assertSame('Observado: ' . $items[0]['descripcion'] . ' · ' . $items[1]['descripcion'], $auditoria->comentario);
+        $this->assertNull(Database::fetchColumn('SELECT motivo_id FROM auditorias WHERE id = ?', [$auditoria->id]));
     }
 
     public function testAprobadoConObservacionDesmarcaItems(): void
@@ -416,19 +435,41 @@ final class AuditoriaServiceTest extends TestCase
         }
     }
 
-    public function testComentarioMuyCortoLanza(): void
+    /**
+     * v7.3 (gerencia, 10/10/2026: sin cuadros de texto): el rechazo lleva una opción activa de la lista
+     * «rechazo». Se guarda su id y su nombre como comentario (lo lee la re-limpieza, el aviso y el historial).
+     */
+    public function testElRechazoLlevaUnMotivoDeLaLista(): void
     {
-        try {
-            $this->svc->emitirVeredicto(
-                $this->habitacionId,
-                $this->auditorId,
-                Auditoria::VEREDICTO_RECHAZADO,
-                'corto'
-            );
-            $this->fail('Debía lanzar');
-        } catch (AuditoriaException $e) {
-            $this->assertSame('COMENTARIO_REQUERIDO', $e->codigo);
-        }
+        $item = (int) Database::fetchColumn(
+            'SELECT id FROM items_checklist WHERE template_id = (SELECT template_id FROM ejecuciones_checklist WHERE id = ?) ORDER BY orden LIMIT 1',
+            [$this->ejecucionId]
+        );
+        $esperar = function (string $codigo, ?int $motivoId) use ($item): void {
+            try {
+                $this->svc->emitirVeredicto($this->habitacionId, $this->auditorId, Auditoria::VEREDICTO_RECHAZADO, null, [$item], $motivoId);
+                $this->fail("Debía lanzar {$codigo}");
+            } catch (AuditoriaException $e) {
+                $this->assertSame($codigo, $e->codigo);
+            }
+        };
+        $esperar('OPCION_REQUERIDA', null);
+        $esperar('OPCION_INVALIDA', TestDatabase::opcionId('saltar', 'Falta un insumo')); // de otra lista
+        $malOlor = TestDatabase::opcionId('rechazo', 'Mal olor');
+        Database::execute('UPDATE listas_opciones SET activo = 0 WHERE id = ?', [$malOlor]);
+        $esperar('OPCION_INVALIDA', $malOlor); // desactivada
+
+        $bano = TestDatabase::opcionId('rechazo', 'Baño sucio');
+        $auditoria = $this->svc->emitirVeredicto(
+            $this->habitacionId,
+            $this->auditorId,
+            Auditoria::VEREDICTO_RECHAZADO,
+            'texto que manda un script viejo', // con motivo, el motivo manda
+            [$item],
+            $bano
+        );
+        $this->assertSame('Baño sucio', $auditoria->comentario);
+        $this->assertSame($bano, (int) Database::fetchColumn('SELECT motivo_id FROM auditorias WHERE id = ?', [$auditoria->id]));
     }
 
     public function testHabitacionNoPendienteLanza(): void

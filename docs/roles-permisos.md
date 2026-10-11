@@ -59,6 +59,7 @@ Formato: `codigo | descripcion | categoria | scope`
 |---|---|---|---|
 | `checklists.ver` | Ver los templates de checklist por tipo de habitación | Checklists | global |
 | `checklists.editar` | Modificar items de un template existente | Checklists | global |
+| `listas.editar` | (v7.3) Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas). Solo Admin por defecto (decisión de Nicolás, 10/10/2026) | Checklists | global |
 | `checklists.crear_nuevos` | Crear templates nuevos (para tipo de habitación nuevo) | Checklists | global |
 
 ### 2.3 Asignaciones
@@ -88,7 +89,7 @@ Recepción revisa la pieza antes de entregarla al huésped (SÍ / NO), desde el 
 | Código | Descripción | Categoría | Scope |
 |---|---|---|---|
 | `revision_entrega.registrar` | Registrar la inspección pre-entrega de una habitación (SÍ / NO con motivo, observaciones y foto) desde su tarjeta en Habitaciones | Inspección pre-entrega | global |
-| `revision_entrega.configurar` | Configurar la inspección pre-entrega: motivos de un NO y si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Por defecto Supervisora y Admin, no Recepción (decisión de Nicolás, 04/10/2026) | Inspección pre-entrega | global |
+| `revision_entrega.configurar` | Configurar la inspección pre-entrega: si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Por defecto Supervisora y Admin, no Recepción (decisión de Nicolás, 04/10/2026). Desde la v7.3 los motivos de un NO se editan con `listas.editar` | Inspección pre-entrega | global |
 
 Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpanel.md` §11.15): crea las tablas y los tres permisos de la v7 (estos dos + `habitaciones.gestionar_edificios`) y los concede por rol y a todo rol con `permisos.asignar_a_rol`.
 
@@ -252,7 +253,7 @@ Permisos por defecto (incluye todo lo del Trabajador excepto los `_propios` reem
 - `copilot.ver_historial_propio`
 - `kpis.ver_operativas`
 - `alertas.recibir_predictivas` (también recibe el aviso de un NO de la inspección pre-entrega)
-- `revision_entrega.configurar` (v7: motivos y qué hace un NO de la inspección pre-entrega)
+- `revision_entrega.configurar` (v7: qué hace un NO de la inspección pre-entrega; los motivos, desde la v7.3, con `listas.editar`, que la Supervisora no tiene)
 - `habitaciones.gestionar_edificios` (v7: Ajustes → Edificios y Mapeo)
 - `usuarios.cambiar_propia_contrasena`
 - `notificaciones.ver`
@@ -306,6 +307,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `checklists.ver` | ⚪ | ⚪ | ⚪ | ✅ |
 | `checklists.editar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `checklists.crear_nuevos` | ⚪ | ⚪ | ⚪ | ✅ |
+| `listas.editar` (v7.3) | ⚪ | ⚪ | ⚪ | ✅ |
 | `apariencia.editar` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.asignar_manual` | ⚪ | ✅ | ⚪ | ✅ |
 | `asignaciones.auto_asignar` | ⚪ | ✅ | ⚪ | ✅ |

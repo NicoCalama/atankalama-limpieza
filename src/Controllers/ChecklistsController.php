@@ -234,15 +234,20 @@ final class ChecklistsController
     public function saltar(Request $request): Response
     {
         $habitacionId = $request->rutaInt('id');
-        $motivo = $request->inputString('motivo', '');
+        // v7.3 (gerencia, 10/10/2026): el motivo se elige de la lista «saltar» (Ajustes → Checklists y
+        // listas); ya no hay texto libre. Un «motivo» escrito desde una pantalla vieja se rechaza.
+        $opcionId = $request->inputInt('opcion_id');
         // Fecha derivada en el servidor (no se confía en el cliente); ver iniciar().
         $fecha = date('Y-m-d');
         if ($habitacionId === null || $request->usuario === null) {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y usuario son requeridos.', 400);
         }
+        if ($opcionId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige por qué no puedes limpiarla. Si no ves la lista, recarga la página.', 400);
+        }
 
         try {
-            $res = $this->svc->saltarEjecucion($habitacionId, $request->usuario->id, $motivo, $fecha);
+            $res = $this->svc->saltarEjecucion($habitacionId, $request->usuario->id, '', $fecha, $opcionId);
         } catch (ChecklistException | HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

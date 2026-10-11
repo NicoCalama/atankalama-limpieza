@@ -78,7 +78,8 @@ final class RevisionEntregaController
         }
         $resultado = $request->inputString('resultado');
         $motivoId = $request->inputInt('motivo_id');
-        $comentario = $request->inputString('comentario');
+        // v7.3 (gerencia, 10/10/2026): el NO es solo motivo + foto, sin observaciones escritas. Un
+        // «comentario» que mande una pantalla vieja se ignora; las observaciones de antes quedan en el historial.
         $key = $request->inputString('idempotency_key');
         $svc = $this->servicio();
 
@@ -96,7 +97,7 @@ final class RevisionEntregaController
                 $habitacionId,
                 $resultado,
                 $motivoId,
-                $comentario !== '' ? $comentario : null,
+                null,
                 $fotoRuta,
                 $request->usuario->id,
                 $key !== '' ? $key : null,
@@ -181,58 +182,7 @@ final class RevisionEntregaController
         return Response::ok(['revision' => $revision]);
     }
 
-    /** GET /api/revision-entrega/motivos?todos=1 (Ajustes; el modal del NO usa /piezas). */
-    public function listarMotivos(Request $request): Response
-    {
-        if (($error = $this->exigir($request, self::PERMISO_CONFIGURAR)) !== null) {
-            return $error;
-        }
-        $todos = ($request->query['todos'] ?? '') === '1';
-        return Response::ok(['motivos' => $this->servicio()->listarMotivos(!$todos)]);
-    }
-
-    /** POST /api/revision-entrega/motivos {nombre} */
-    public function crearMotivo(Request $request): Response
-    {
-        if (($error = $this->exigir($request, self::PERMISO_CONFIGURAR)) !== null) {
-            return $error;
-        }
-        $nombre = trim($request->inputString('nombre'));
-        if ($nombre === '') {
-            return Response::error('PARAMETROS_INVALIDOS', 'Escribe el nombre del motivo.', 400);
-        }
-        try {
-            $id = $this->servicio()->crearMotivo($nombre, $request->usuario->id);
-        } catch (RevisionEntregaException $e) {
-            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
-        }
-        return Response::ok(['id' => $id], 201);
-    }
-
-    /** PUT /api/revision-entrega/motivos/{id} {nombre?, activo?} */
-    public function actualizarMotivo(Request $request): Response
-    {
-        if (($error = $this->exigir($request, self::PERMISO_CONFIGURAR)) !== null) {
-            return $error;
-        }
-        $id = $request->rutaInt('id');
-        if ($id === null) {
-            return Response::error('ID_INVALIDO', 'Motivo inválido.', 400);
-        }
-        $datos = [];
-        if (array_key_exists('nombre', $request->cuerpo)) {
-            $datos['nombre'] = $request->inputString('nombre');
-        }
-        if (array_key_exists('activo', $request->cuerpo)) {
-            $datos['activo'] = (bool) $request->input('activo');
-        }
-        try {
-            $this->servicio()->actualizarMotivo($id, $datos, $request->usuario->id);
-        } catch (RevisionEntregaException $e) {
-            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
-        }
-        return Response::ok(['ok' => true]);
-    }
+    // Los motivos de un NO se editan desde la v7.3 con ListasOpcionesController (lista «no_recepcion»).
 
     /** GET /api/revision-entrega/config */
     public function config(Request $request): Response

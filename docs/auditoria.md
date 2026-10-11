@@ -29,7 +29,7 @@ La auditoría **no es binaria**. Tiene 3 estados porque la realidad operativa lo
 - Habitación → `Clean` en Cloudbeds (disponible para venta).
 - KPIs a nivel de **ítem** (no de habitación): se registra qué items específicos fueron desmarcados.
 - El trabajador **NO ve esto como rechazo** en su historial. Es información interna para capacitación agregada.
-- Comentario del auditor es obligatorio (mínimo 10 caracteres).
+- **La observación son las casillas desmarcadas** (al menos una; v7.3, decisión de Nicolás del 10/10/2026): no hay comentario escrito. El sistema guarda en `auditorias.comentario` el texto «Observado: ítem · ítem» para el historial.
 
 ### 2.3 `rechazado`
 
@@ -38,7 +38,7 @@ La auditoría **no es binaria**. Tiene 3 estados porque la realidad operativa lo
 - Supervisora es notificada vía alerta P1 `habitacion_rechazada`.
 - Supervisora decide a quién reasignar (mismo trabajador para corrección, o a otro).
 - KPIs: cuenta como rechazo para el trabajador original.
-- Comentario obligatorio (mínimo 10 caracteres).
+- **Motivo obligatorio de la lista «rechazo»** (v7.3, gerencia 10/10/2026: sin cuadros de texto), editable en Ajustes → Checklists y listas, más al menos un ítem fallido (lo que se re-limpia). Se guarda `auditorias.motivo_id` y el nombre del motivo en `comentario` (foto del momento: renombrar la opción después no cambia el historial).
 
 ---
 
@@ -84,19 +84,17 @@ Una habitación con auditoría:
 
 1. Auditor tap "Aprobar con observación".
 2. Se abre **modal expandido**:
-   - Campo obligatorio "Comentario" (textarea, min 10 chars).
-   - Checklist de la ejecución visible — auditor puede **desmarcar** items específicos (si tiene `auditoria.editar_checklist_durante_auditoria`).
+   - Checklist de la ejecución visible — el auditor **desmarca** las casillas que encontró mal (requiere `auditoria.editar_checklist_durante_auditoria`; sin ese permiso el botón no aparece). **Al menos una**: esas casillas son la observación (v7.3, sin comentario escrito).
    - Los desmarcados se recolectan en un array `item_ids[]`.
 3. Confirmación → POST `/api/auditoria/{habitacion_id}`:
    ```json
    {
      "veredicto": "aprobado_con_observacion",
-     "comentario": "Faltaba reponer jabón. Resuelto.",
      "items_desmarcados": [3, 7]
    }
    ```
 4. Backend:
-   - Crea fila `auditorias` con el JSON de items desmarcados.
+   - Crea fila `auditorias` con el JSON de items desmarcados y `comentario` = «Observado: …» (las descripciones de esas casillas). Sin casillas: 400 `OBSERVACION_SIN_ITEMS`.
    - Actualiza `ejecuciones_items.marcado=0, desmarcado_por_auditor=1` para los items desmarcados.
    - Actualiza `habitaciones.estado = 'aprobada_con_observacion'`.
    - Encola sync Cloudbeds (→ Clean).
@@ -107,9 +105,9 @@ Una habitación con auditoría:
 
 1. Auditor tap "Rechazar".
 2. Modal:
-   - Campo obligatorio "Comentario" (min 10 chars).
-   - Opcional: seleccionar items específicos que motivan el rechazo (solo marcador visual para la supervisora, no desmarca).
-3. POST `/api/auditoria/{habitacion_id}` `{ "veredicto": "rechazado", "comentario": "..." }`.
+   - Marcar los **ítems fallidos** (al menos uno): se desmarcan y son lo que se re-limpia (ver [creditos-rework.md](creditos-rework.md)).
+   - Elegir el **motivo** de la lista «rechazo» (botones; v7.3, sin texto libre).
+3. POST `/api/auditoria/{habitacion_id}` `{ "veredicto": "rechazado", "motivo_id": 4, "items_desmarcados": [2, 5] }`. Sin `motivo_id`: 400 `OPCION_REQUERIDA`; opción desactivada o de otra lista: 400 `OPCION_INVALIDA`.
 4. Backend:
    - Crea fila `auditorias`.
    - Actualiza `habitaciones.estado = 'rechazada'`.
@@ -155,8 +153,8 @@ Request:
 ```json
 {
   "veredicto": "aprobado" | "aprobado_con_observacion" | "rechazado",
-  "comentario": "string (opcional para aprobado, obligatorio para los otros 2)",
-  "items_desmarcados": [1, 2, 3]  // solo para aprobado_con_observacion
+  "motivo_id": 4,                 // v7.3: obligatorio en rechazado (lista «rechazo»); se ignora en los demás
+  "items_desmarcados": [1, 2, 3]  // observación y rechazo: al menos uno
 }
 ```
 

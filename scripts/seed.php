@@ -25,6 +25,7 @@ Database::transaction(function () use ($seedDir) {
     seedRoles($seedDir);
     seedCatalogos($seedDir);
     seedMotivosRevisionEntrega($seedDir);
+    seedListasOpciones($seedDir);
     seedChecklistTemplates($seedDir);
     seedAdminInicial();
 });
@@ -124,10 +125,27 @@ function seedCatalogos(string $seedDir): void
 function seedMotivosRevisionEntrega(string $seedDir): void
 {
     $motivos = require $seedDir . '/motivos_revision_entrega.php';
-    foreach ($motivos as $nombre) {
-        Database::execute('INSERT OR IGNORE INTO #__motivos_revision_entrega (nombre) VALUES (?)', [$nombre]);
+    foreach ($motivos as $i => $nombre) {
+        Database::execute('INSERT OR IGNORE INTO #__motivos_revision_entrega (nombre, orden) VALUES (?, ?)', [$nombre, $i + 1]);
     }
     echo "  motivos_revision_entrega: " . count($motivos) . "\n";
+}
+
+/** Opciones iniciales de las listas de selección (v7.3; UNIQUE(lista, nombre): re-correr no duplica). */
+function seedListasOpciones(string $seedDir): void
+{
+    $listas = require $seedDir . '/listas_opciones.php';
+    $total = 0;
+    foreach ($listas as $lista => $opciones) {
+        foreach ($opciones as $i => $nombre) {
+            Database::execute(
+                'INSERT OR IGNORE INTO #__listas_opciones (lista, nombre, orden) VALUES (?, ?, ?)',
+                [$lista, $nombre, $i + 1]
+            );
+            $total++;
+        }
+    }
+    echo "  listas_opciones: " . $total . "\n";
 }
 
 function seedChecklistTemplates(string $seedDir): void

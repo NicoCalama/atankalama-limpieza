@@ -85,7 +85,7 @@ $modalInspeccionJsV = @filemtime($modalInspeccionJsFile) ?: '1';
                 <button type="button" @click="cargarFormulario()" class="mt-2 min-h-[40px] px-3 rounded-lg bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 font-medium">Reintentar</button>
             </div>
             <div x-show="formularioListo && motivos.length === 0" x-cloak class="p-3 mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-sm">
-                No hay motivos cargados. Pídele a tu supervisora que los agregue en Ajustes → Inspección pre-entrega.
+                No hay motivos cargados. Pídele a administración que los agregue en Ajustes → Checklists y listas.
             </div>
             <div class="grid grid-cols-2 gap-2 mb-4" role="radiogroup" aria-label="Motivo">
                 <template x-for="m in motivos" :key="m.id">
@@ -101,12 +101,7 @@ $modalInspeccionJsV = @filemtime($modalInspeccionJsFile) ?: '1';
                 </template>
             </div>
 
-            <!-- Observaciones -->
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" for="insp-observaciones">Observaciones (opcional)</label>
-            <textarea id="insp-observaciones" rows="2" maxlength="300" x-model="comentario" :disabled="enviando !== null"
-                      placeholder="Ej: la tina quedó con pelos"
-                      class="w-full mb-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-base p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-
+            <!-- v7.3 (gerencia, 10/10/2026): sin observaciones escritas, solo el motivo y la foto. -->
             <!-- Foto -->
             <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Foto (opcional)</p>
             <div class="mb-4">

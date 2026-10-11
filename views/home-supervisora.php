@@ -411,15 +411,40 @@ if ($hora < 12) {
                         </template>
                     </div>
 
-                    <!-- Paso 2: elegir destino -->
+                    <!-- Paso 2: motivo (v7.3, gerencia 10/10/2026): obligatorio y de la lista «reasignar»
+                         (Ajustes → Checklists y listas), antes de elegir a quién. -->
+                    <div x-show="modalReasignar.habSeleccionada">
+                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">¿Por qué la cambias?</p>
+                        <template x-if="motivosReasignarCargando && motivosReasignar.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Cargando motivos...</p>
+                        </template>
+                        <template x-if="motivosReasignarError">
+                            <p class="text-sm text-red-600 dark:text-red-400" x-text="motivosReasignarError"></p>
+                        </template>
+                        <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Motivo de la reasignación">
+                            <template x-for="m in motivosReasignar" :key="m.id">
+                                <button type="button" role="radio" :aria-checked="modalReasignar.opcionId === m.id ? 'true' : 'false'"
+                                        @click="modalReasignar.opcionId = m.id" :disabled="modalReasignar.enviando"
+                                        :class="modalReasignar.opcionId === m.id
+                                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                            : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                        class="min-h-[48px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                    <span x-text="m.nombre"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Paso 3: elegir destino (se habilita con el motivo) -->
                     <div x-show="modalReasignar.habSeleccionada">
                         <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">Enviar a (ordenado por menor carga)</p>
+                        <p x-show="modalReasignar.opcionId === null" class="text-xs text-gray-500 dark:text-gray-400 mb-2">Primero elige el motivo.</p>
                         <ul class="space-y-1.5 max-h-60 overflow-y-auto">
                             <template x-for="dest in trabajadoresDestino()" :key="dest.usuario.id">
                                 <li>
                                     <button @click="confirmarReasignar(dest)"
-                                            :disabled="modalReasignar.enviando"
-                                            class="w-full flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50">
+                                            :disabled="modalReasignar.enviando || modalReasignar.opcionId === null"
+                                            class="w-full min-h-[44px] flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
                                         <span class="flex items-center gap-2 min-w-0">
                                             <span x-html="avatarUsuario(dest.usuario)"></span>
                                             <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="dest.usuario.nombre"></span>
@@ -431,14 +456,6 @@ if ($hora < 12) {
                                 </li>
                             </template>
                         </ul>
-                    </div>
-
-                    <!-- Textarea motivo -->
-                    <div x-show="modalReasignar.habSeleccionada">
-                        <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Motivo (opcional)</label>
-                        <input x-model="modalReasignar.motivo" type="text" maxlength="200"
-                               placeholder="Ej: sobrecarga, llegó tarde, etc."
-                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
                     </div>
                 </div>
             </template>
@@ -462,7 +479,11 @@ function homeSupervisora() {
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
         modalVerCarga: { abierto: false, trabajador: null, cola: [], cargando: false },
-        modalReasignar: { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, motivo: '', cargando: false, enviando: false },
+        modalReasignar: { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, opcionId: null, cargando: false, enviando: false },
+        // Opciones de la lista «reasignar» (v7.3, Ajustes → Checklists y listas), se piden una vez.
+        motivosReasignar: [],
+        motivosReasignarCargando: false,
+        motivosReasignarError: '',
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -811,8 +832,9 @@ function homeSupervisora() {
             this.modalReasignar = {
                 abierto: true, origen: tr,
                 habitacionesPendientes: [], habSeleccionada: null,
-                motivo: '', cargando: true, enviando: false
+                opcionId: null, cargando: true, enviando: false
             };
+            this.asegurarMotivosReasignar();
             this.$nextTick(function () { lucide.createIcons(); });
             try {
                 var r = await apiFetch('/api/usuarios/' + tr.usuario.id + '/cola');
@@ -831,7 +853,25 @@ function homeSupervisora() {
         },
 
         cerrarReasignar() {
-            this.modalReasignar = { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, motivo: '', cargando: false, enviando: false };
+            this.modalReasignar = { abierto: false, origen: null, habitacionesPendientes: [], habSeleccionada: null, opcionId: null, cargando: false, enviando: false };
+        },
+
+        async asegurarMotivosReasignar() {
+            if (this.motivosReasignar.length > 0 || this.motivosReasignarCargando) return;
+            this.motivosReasignarCargando = true;
+            this.motivosReasignarError = '';
+            try {
+                var r = await apiFetch('/api/listas/reasignar');
+                if (r && r.ok) {
+                    this.motivosReasignar = r.data.opciones || [];
+                } else {
+                    this.motivosReasignarError = (r && r.error && r.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.motivosReasignarError = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.motivosReasignarCargando = false;
+            }
         },
 
         trabajadoresDestino() {
@@ -855,7 +895,7 @@ function homeSupervisora() {
         },
 
         async confirmarReasignar(dest) {
-            if (this.modalReasignar.enviando) return;
+            if (this.modalReasignar.enviando || this.modalReasignar.opcionId === null) return;
             var id = this.modalReasignar.habSeleccionada;
             if (!id) return;
             var hab = this.modalReasignar.habitacionesPendientes.find(function (h) { return h.habitacion_id === id; });
@@ -868,7 +908,7 @@ function homeSupervisora() {
                     habitacion_id: this.modalReasignar.habSeleccionada,
                     usuario_id: dest.usuario.id,
                     fecha: window.hoyServidor(),
-                    motivo: this.modalReasignar.motivo || 'Reasignación desde Home Supervisora'
+                    opcion_id: this.modalReasignar.opcionId
                 };
                 var r = await apiPost('/api/asignaciones/reasignar', payload);
                 if (r && r.ok) {

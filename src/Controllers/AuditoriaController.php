@@ -63,7 +63,9 @@ final class AuditoriaController
     {
         $habitacionId = $request->rutaInt('id');
         $veredicto = $request->inputString('veredicto');
-        $comentario = $request->inputString('comentario', '');
+        // v7.3 (gerencia, 10/10/2026): sin texto libre. El rechazo trae motivo_id (lista «rechazo») y la
+        // observación son las casillas desmarcadas; un «comentario» de una pantalla vieja no se usa.
+        $motivoId = $request->inputInt('motivo_id');
         $items = $request->input('items_desmarcados', []);
 
         if ($habitacionId === null || $veredicto === '' || $request->usuario === null) {
@@ -91,13 +93,18 @@ final class AuditoriaController
             return Response::error('PERMISO_INSUFICIENTE', 'Falta permiso auditoria.editar_checklist_durante_auditoria.', 403);
         }
 
+        if ($veredicto === Auditoria::VEREDICTO_RECHAZADO && $motivoId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige el motivo del rechazo. Si no ves la lista, recarga la página.', 400);
+        }
+
         try {
             $auditoria = $this->servicio()->emitirVeredicto(
                 $habitacionId,
                 $request->usuario->id,
                 $veredicto,
-                $comentario === '' ? null : $comentario,
-                $itemsIds
+                null,
+                $itemsIds,
+                $veredicto === Auditoria::VEREDICTO_RECHAZADO ? $motivoId : null,
             );
         } catch (AuditoriaException | ChecklistException $e) {
             // ChecklistException: ítems desmarcados que no son del checklist (400 ITEMS_DESMARCADOS_INVALIDO).

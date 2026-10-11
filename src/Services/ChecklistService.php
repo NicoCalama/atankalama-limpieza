@@ -1367,9 +1367,13 @@ final class ChecklistService
      * reintentarla más tarde en el turno. La alerta a la supervisora la levanta
      * el controller.
      *
+     * Desde la v7.3 (gerencia, 10/10/2026: sin cuadros de texto) la pantalla manda $opcionId, una opción
+     * activa de la lista «saltar» (Ajustes → Checklists y listas), y el motivo es su nombre. $motivo como
+     * texto queda para llamadas internas.
+     *
      * @return array{habitacion_id:int, motivo:string}
      */
-    public function saltarEjecucion(int $habitacionId, int $usuarioId, string $motivo, string $fecha): array
+    public function saltarEjecucion(int $habitacionId, int $usuarioId, string $motivo, string $fecha, ?int $opcionId = null): array
     {
         // Solo se puede saltar la ejecución en curso que cuelga de una asignación
         // ACTIVA de hoy (la que el trabajador ve en su cola). Acotarlo evita saltar
@@ -1384,13 +1388,19 @@ final class ChecklistService
             );
         }
 
+        if ($opcionId !== null) {
+            try {
+                $motivo = (new ListasOpcionesService())->opcionActiva('saltar', $opcionId)['nombre'];
+            } catch (ListasOpcionesException $e) {
+                throw new ChecklistException($e->codigo, $e->getMessage(), $e->httpStatus);
+            }
+        }
         $motivo = trim($motivo);
         if ($motivo === '') {
             throw new ChecklistException('MOTIVO_REQUERIDO', 'Indica un motivo para saltar la habitación.', 400);
         }
-        // Cap de largo server-side (coincide con el maxlength=200 del textarea del modal):
-        // sin esto, por API se podría enviar un texto enorme que se persiste tres veces
-        // (audit_log, alertas_activas, bitacora_alertas) y ensucia la bandeja de alertas.
+        // Cap de largo server-side: un texto enorme se persistiría tres veces (audit_log, alertas_activas,
+        // bitacora_alertas) y ensuciaría la bandeja de alertas. Las opciones de la lista llegan a 60.
         if (mb_strlen($motivo) > 200) {
             $motivo = mb_substr($motivo, 0, 200);
         }
@@ -1400,13 +1410,14 @@ final class ChecklistService
         // Todas las escrituras del salto son atómicas: si algo falla a mitad,
         // se revierte y la habitación no queda en un estado inconsistente
         // (ejecución borrada pero habitación aún 'en_progreso', o sin alerta).
-        Database::transaction(function () use ($habitacionId, $usuarioId, $motivo, $fecha, $ejecId, $alertas): void {
+        Database::transaction(function () use ($habitacionId, $usuarioId, $motivo, $fecha, $ejecId, $alertas, $opcionId): void {
             // Se descarta el progreso parcial: la ejecución abandonada se elimina
             // (sus items caen por cascade). Cuando el trabajador la retome, empieza
             // desde cero. El registro del salto queda en audit_log y en la alerta.
             Logger::audit($usuarioId, 'checklist.saltar', 'ejecucion_checklist', $ejecId, [
                 'habitacion_id' => $habitacionId,
                 'motivo' => $motivo,
+                'opcion_id' => $opcionId,
             ]);
 
             Database::execute('DELETE FROM #__ejecuciones_items WHERE ejecucion_id = ?', [$ejecId]);
@@ -1434,7 +1445,7 @@ final class ChecklistService
                 AlertaActiva::TIPO_HABITACION_SALTADA,
                 $tituloAlerta,
                 "{$nombreTrab} no pudo terminar {$lugar}: {$motivo}.",
-                ['habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo],
+                ['habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo, 'opcion_id' => $opcionId],
                 $hotelId,
                 // Dedupe por habitación (sin fecha): una habitación saltada es una
                 // condición por pieza, y así completar() puede resolverla sin adivinar

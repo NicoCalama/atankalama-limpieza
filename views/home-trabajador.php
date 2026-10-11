@@ -282,23 +282,22 @@ if ($hora < 12) {
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Elige un motivo. Se avisará a tu supervisora y esta habitación volverá más adelante a tu lista.
             </p>
-            <div class="space-y-2 mb-4">
-                <template x-for="m in motivosSaltar" :key="m">
-                    <button type="button"
-                            @click="motivoSaltar = m"
-                            :class="motivoSaltar === m
+            <!-- v7.3 (gerencia, 10/10/2026): los motivos salen de la lista «saltar» (Ajustes → Checklists y listas), sin texto libre. -->
+            <template x-if="cargandoMotivosSaltar && motivosSaltar.length === 0">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Cargando motivos...</p>
+            </template>
+            <div class="space-y-2 mb-4" role="radiogroup" aria-label="Motivo">
+                <template x-for="m in motivosSaltar" :key="m.id">
+                    <button type="button" role="radio" :aria-checked="motivoSaltar === m.id ? 'true' : 'false'"
+                            @click="motivoSaltar = m.id"
+                            :class="motivoSaltar === m.id
                                 ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
                                 : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
                             class="w-full min-h-[44px] text-left px-4 py-2 border rounded-lg text-sm font-medium transition">
-                        <span x-text="m"></span>
+                        <span x-text="m.nombre"></span>
                     </button>
                 </template>
             </div>
-            <template x-if="motivoSaltar === 'Otro'">
-                <textarea x-model="motivoOtro" rows="2" maxlength="200"
-                          placeholder="Cuéntanos brevemente qué pasó"
-                          class="w-full mb-4 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"></textarea>
-            </template>
             <template x-if="errorSaltar">
                 <p class="text-sm text-red-600 dark:text-red-400 mb-4" x-text="errorSaltar"></p>
             </template>
@@ -330,14 +329,13 @@ function homeTrabajador() {
         mostrarSaltar: false,
         altSaltar: false, // Alt/Option presionado: subraya C/O del modal "No puedo limpiarla ahora"
         saltando: false,
-        motivoSaltar: null,
-        motivoOtro: '',
-        motivosSaltar: ['Huésped no ha salido', 'Falta un insumo', 'Requiere mantención', 'Otro'],
+        motivoSaltar: null, // id de la opción elegida (lista «saltar», v7.3)
+        motivosSaltar: [],  // [{id, nombre}] desde /api/listas/saltar, al abrir la ventana
+        cargandoMotivosSaltar: false,
         errorSaltar: null,
 
         get motivoSaltarValido() {
-            if (this.motivoSaltar === 'Otro') return this.motivoOtro.trim().length > 0;
-            return !!this.motivoSaltar;
+            return this.motivoSaltar !== null;
         },
 
         async cargar() {
@@ -451,8 +449,24 @@ function homeTrabajador() {
         abrirSaltar() {
             this.mostrarSaltar = true;
             this.motivoSaltar = null;
-            this.motivoOtro = '';
             this.errorSaltar = null;
+            if (this.motivosSaltar.length === 0) this.cargarMotivosSaltar();
+        },
+
+        async cargarMotivosSaltar() {
+            this.cargandoMotivosSaltar = true;
+            try {
+                var r = await apiFetch('/api/listas/saltar');
+                if (r && r.ok) {
+                    this.motivosSaltar = r.data.opciones || [];
+                } else {
+                    this.errorSaltar = (r && r.error && r.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.errorSaltar = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.cargandoMotivosSaltar = false;
+            }
         },
 
         cerrarSaltar() {
@@ -502,14 +516,13 @@ function homeTrabajador() {
             this.saltando = true;
             this.errorSaltar = null;
             var habitacionId = this.data.habitacion_actual.id;
-            var motivo = this.motivoSaltar === 'Otro' ? this.motivoOtro.trim() : this.motivoSaltar;
             try {
                 var rIniciar = await apiPost('/api/habitaciones/' + habitacionId + '/iniciar', {});
                 if (!rIniciar || !rIniciar.ok) {
                     this.errorSaltar = (rIniciar && rIniciar.error && rIniciar.error.mensaje) || 'No pudimos abrir la habitación.';
                     return;
                 }
-                var rSaltar = await apiPost('/api/habitaciones/' + habitacionId + '/saltar', { motivo: motivo });
+                var rSaltar = await apiPost('/api/habitaciones/' + habitacionId + '/saltar', { opcion_id: this.motivoSaltar });
                 if (!rSaltar || !rSaltar.ok) {
                     this.errorSaltar = (rSaltar && rSaltar.error && rSaltar.error.mensaje) || 'No pudimos registrar el salto.';
                     return;

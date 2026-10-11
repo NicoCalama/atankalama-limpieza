@@ -38,17 +38,17 @@ $secciones = [
     [
         'ruta' => '/ajustes/checklists',
         'icono' => 'list-checks',
-        'label' => 'Checklists',
+        'label' => 'Checklists y listas',
         'letra_indice' => 0, // C
-        'descripcion' => 'Ítems del checklist por tipo y sus créditos',
-        'visible' => $usuario->tienePermiso('checklists.editar'),
+        'descripcion' => 'Ítems del checklist con sus créditos, y las listas para elegir motivos (rechazo, saltar, reasignar, NO de Recepción)',
+        'visible' => $usuario->tienePermiso('checklists.editar') || $usuario->tienePermiso('listas.editar'),
     ],
     [
         'ruta' => '/ajustes/revision-entrega',
         'icono' => 'clipboard-check',
         'label' => 'Inspección pre-entrega',
         'letra_indice' => 20, // Inspección pre-entre[g]a (I, n, s, p, c, r, a ya están tomadas; e, t reservadas)
-        'descripcion' => 'Qué pasa con un NO y los motivos que elige Recepción',
+        'descripcion' => 'Qué pasa cuando Recepción marca NO',
         'visible' => $usuario->tienePermiso('revision_entrega.configurar'),
     ],
     [

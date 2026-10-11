@@ -17,6 +17,8 @@ return [
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
     ['checklists.crear_nuevos', 'Crear templates nuevos', 'Checklists', 'global'],
+    // v7.3 (gerencia, 10/10/2026): las acciones se eligen de listas, sin cuadro de texto. Solo Admin por defecto.
+    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas)', 'Checklists', 'global'],
 
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
@@ -41,7 +43,7 @@ return [
     // en Habitaciones. Nunca escribe auditorias. Se guarda para el KPI de calidad de las supervisoras.
     // Ver docs/revision-entrega.md.
     ['revision_entrega.registrar', 'Registrar la inspección pre-entrega de una habitación (SÍ / NO con motivo, observaciones y foto) desde su tarjeta en Habitaciones', 'Inspección pre-entrega', 'global'],
-    ['revision_entrega.configurar', 'Configurar la inspección pre-entrega: motivos de un NO y si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega)', 'Inspección pre-entrega', 'global'],
+    ['revision_entrega.configurar', 'Configurar la inspección pre-entrega: si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Los motivos de un NO se editan con listas.editar', 'Inspección pre-entrega', 'global'],
 
     ['tickets.crear', 'Crear un ticket de mantenimiento', 'Tickets', 'global'],
     ['tickets.ver_propios', 'Ver solo los tickets propios', 'Tickets', 'propio'],

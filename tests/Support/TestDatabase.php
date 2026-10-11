@@ -72,6 +72,27 @@ final class TestDatabase
                 );
             }
         }
+
+        // Listas de selección (v7.3): igual que scripts/seed.php. Rechazar, saltar y reasignar exigen
+        // una opción activa, así que toda base de prueba nace con las iniciales.
+        foreach (require $seedDir . '/listas_opciones.php' as $lista => $opciones) {
+            foreach ($opciones as $i => $nombre) {
+                Database::execute(
+                    'INSERT INTO #__listas_opciones (lista, nombre, orden) VALUES (?, ?, ?)',
+                    [$lista, $nombre, $i + 1]
+                );
+            }
+        }
+    }
+
+    /** Id de una opción de lista sembrada (v7.3), para los tests que rechazan, saltan o reasignan. */
+    public static function opcionId(string $lista, string $nombre): int
+    {
+        $id = Database::fetchColumn('SELECT id FROM #__listas_opciones WHERE lista = ? AND nombre = ?', [$lista, $nombre]);
+        if ($id === false || $id === null) {
+            throw new \RuntimeException("No existe la opción «{$nombre}» en la lista {$lista}");
+        }
+        return (int) $id;
     }
 
     /**

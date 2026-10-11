@@ -15,28 +15,57 @@
  * meses ya cerrados, y tocarlas reescribiría el pasado.
  *
  * Los templates de espacio (áreas comunes) NO aparecen acá: se editan desde /espacios.
- * Requiere permiso checklists.editar (gateado en PaginasController y en el endpoint PUT).
+ * El editor de checklists requiere checklists.editar (lo exige el endpoint PUT).
+ *
+ * Desde la v7.3 la página se llama «Checklists y listas» y tiene dos pestañas: «Checklists» (este editor) y
+ * «Listas» (views/ajustes/listas-opciones.php: las listas de selección de rechazar, saltar, reasignar y el NO
+ * de Recepción; pedido de gerencia del 10/10/2026, sin cuadros de texto). Cada pestaña se ve con su permiso
+ * (checklists.editar / listas.editar); con uno solo no hay barra de pestañas. La pestaña va en la URL
+ * (#listas), así el enlace de Ajustes → Inspección pre-entrega abre directo en Listas.
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
+$puedeChecklists = $usuario->tienePermiso('checklists.editar');
+$puedeListas = $usuario->tienePermiso('listas.editar');
+// El componente de la pestaña Listas se carga afuera del <template x-if>: un <script> insertado por x-if no corre.
+$listasJsV = @filemtime(__DIR__ . '/recursos/ajustes/listas-opciones.js') ?: '1';
 ?>
+<script src="<?= u('/views/recursos/ajustes/listas-opciones.js') ?>?v=<?= $listasJsV ?>"></script>
 
-<div x-data="checklistsApp()" x-init="cargar()">
+<div x-data="ajustesChecklistsPestanas(<?= $puedeChecklists ? 'true' : 'false' ?>, <?= $puedeListas ? 'true' : 'false' ?>)"
+     x-init="iniciar()" @hashchange.window="leerUrl()">
 
     <!-- Header -->
-    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 pt-3"
+            :class="ambas ? '' : 'pb-3'">
         <div class="flex items-center gap-3 max-w-5xl mx-auto">
             <a href="<?= u('/ajustes') ?>" aria-label="Volver"
                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
             </a>
             <div class="min-w-0 flex-1">
-                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Checklists</h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Ítems y créditos por tipo de habitación</p>
+                <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Checklists y listas</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400"
+                   x-text="pestana === 'listas' ? 'Opciones para elegir al rechazar, saltar, reasignar o marcar NO' : 'Ítems y créditos por tipo de habitación'"></p>
             </div>
             <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
+        <!-- Pestañas (subrayado, como Ajustes → Turnos) -->
+        <nav x-show="ambas" x-cloak class="max-w-5xl mx-auto mt-2 -mb-px flex gap-1" role="tablist" aria-label="Checklists y listas" data-tour="ajc.pestanas">
+            <template x-for="p in [{ id: 'checklists', label: 'Checklists', icono: 'list-checks' }, { id: 'listas', label: 'Listas', icono: 'list' }]" :key="p.id">
+                <button type="button" role="tab" @click="cambiar(p.id)" :aria-selected="pestana === p.id ? 'true' : 'false'"
+                        :class="pestana === p.id ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+                        class="min-h-[44px] flex items-center gap-1.5 px-4 border-b-2 text-sm font-medium transition">
+                    <i :data-lucide="p.icono" class="w-4 h-4"></i>
+                    <span x-text="p.label"></span>
+                </button>
+            </template>
+        </nav>
     </header>
+
+    <!-- ═══════════════ Pestaña CHECKLISTS ═══════════════ -->
+    <template x-if="pestana === 'checklists'">
+<div x-data="checklistsApp()" x-init="cargar()">
 
     <!-- Toast -->
     <div x-show="toast.visible" x-cloak
@@ -344,8 +373,46 @@
         </div>
     </div>
 </div>
+    </template>
+
+    <!-- ═══════════════ Pestaña LISTAS ═══════════════ -->
+    <template x-if="pestana === 'listas'">
+        <?php include __DIR__ . '/ajustes/listas-opciones.php'; ?>
+    </template>
+</div>
 
 <script>
+function ajustesChecklistsPestanas(puedeChecklists, puedeListas) {
+    var validas = [];
+    if (puedeChecklists) validas.push('checklists');
+    if (puedeListas) validas.push('listas');
+    return {
+        ambas: validas.length === 2,
+        pestana: validas[0] || 'checklists',
+
+        iniciar() {
+            this.leerUrl();
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        leerUrl() {
+            var id = (window.location.hash || '').replace('#', '');
+            if (validas.indexOf(id) !== -1 && id !== this.pestana) {
+                this.pestana = id;
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        // replaceState: cambiar de pestaña no llena el historial (atrás vuelve a Ajustes).
+        cambiar(id) {
+            if (validas.indexOf(id) === -1) return;
+            this.pestana = id;
+            try { history.replaceState(null, '', '#' + id); } catch (e) { /* sin historial: igual cambia */ }
+            this.$nextTick(() => lucide.createIcons());
+        },
+    };
+}
+
 function checklistsApp() {
     return {
         templates: null,

@@ -187,12 +187,13 @@ final class PaginasController
         if ($request->usuario->requiereCambioPwd) {
             return self::redirect('/cambiar-contrasena');
         }
-        if (!$request->usuario->tienePermiso('checklists.editar')) {
+        // v7.3: la página suma la pestaña «Listas» (listas de selección); entra quien edita una u otra cosa.
+        if (!$request->usuario->tienePermiso('checklists.editar') && !$request->usuario->tienePermiso('listas.editar')) {
             return self::redirect('/ajustes');
         }
         return View::conLayout('ajustes-checklists', [
             'usuario' => $request->usuario,
-            'titulo' => 'Checklists',
+            'titulo' => 'Checklists y listas',
         ]);
     }
 

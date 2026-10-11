@@ -336,6 +336,25 @@ CREATE TABLE #__ejecuciones_items (
 CREATE INDEX idx_ejecuciones_items_ejecucion ON #__ejecuciones_items(ejecucion_id);
 
 -- ============================================================================
+-- LISTAS DE SELECCIÓN (v7.3, gerencia 10/10/2026: sin cuadros de texto, solo selección)
+-- ============================================================================
+
+-- Opciones de las listas que se eligen en una acción. Nunca se borran: se desactivan. Va antes de
+-- auditorias, que la referencia (la FK de MariaDB exige que la tabla exista).
+CREATE TABLE #__listas_opciones (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lista       VARCHAR(30) NOT NULL CHECK (lista IN (
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+    )),
+    nombre      VARCHAR(60) NOT NULL,
+    activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INT NOT NULL DEFAULT 0,
+    created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_listas_opciones_nombre (lista, nombre),
+    KEY idx_listas_opciones_lista (lista, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
 -- BLOQUE 3 — AUDITORÍA
 -- ============================================================================
 
@@ -349,10 +368,12 @@ CREATE TABLE #__auditorias (
     )),
     comentario          TEXT,
     items_desmarcados_json  TEXT,
+    motivo_id           INT NULL,
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (ejecucion_id) REFERENCES #__ejecuciones_checklist(id) ON DELETE RESTRICT,
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE RESTRICT,
-    FOREIGN KEY (auditor_id) REFERENCES #__usuarios(id) ON DELETE RESTRICT
+    FOREIGN KEY (auditor_id) REFERENCES #__usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (motivo_id) REFERENCES #__listas_opciones(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_auditorias_habitacion ON #__auditorias(habitacion_id);
@@ -664,6 +685,7 @@ CREATE TABLE #__motivos_revision_entrega (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     nombre      VARCHAR(60) NOT NULL UNIQUE,
     activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INT NOT NULL DEFAULT 0,
     created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -705,5 +727,5 @@ CREATE TABLE #__revisiones_entrega (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
--- FIN DEL SCHEMA — 34 tablas (paridad con database-schema.sql)
+-- FIN DEL SCHEMA — 41 tablas (paridad con database-schema.sql)
 -- ============================================================================

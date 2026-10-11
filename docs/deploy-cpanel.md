@@ -2093,3 +2093,122 @@ Vuelta atrás: `build/limpieza-v72-vuelta-atras.zip` (los mismos archivos en la 
 muestra sus bloques (Mensual con el cuadro «Inspección pre-entrega del mes»); recargar con `#mensual` abre Mensual; el «?» de Reportes ofrece los 4 recorridos.
 
 **Vuelta atrás:** subir `build/limpieza-v72-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.27 Release "listas de selección, sin cuadros de texto" → v7.3
+
+Pedido de gerencia (10/10/2026): «todos los check list y tablas tipo selección de alguna opción, como cuando se rechaza
+una habitación o cuando hay que dar la razón de por qué se cambió la habitación, se puedan editar desde Ajustes y no
+tengan cuadro de texto, solo selección». **Decisiones de Nicolás (plan aprobado el 10/10):**
+
+- **Rechazo:** motivo obligatorio de la lista «rechazo» + los ítems fallidos de siempre. Se guarda en
+  `auditorias.motivo_id` y el nombre en `comentario` (lo siguen mostrando la re-limpieza, el aviso y el historial).
+- **Aprobar con observación:** sin lista ni texto; **la observación son las casillas desmarcadas** (al menos una). El
+  comentario lo arma el sistema («Observado: …»). Quien tenga `aprobar_con_observacion` pero no
+  `editar_checklist_durante_auditoria` deja de ver ese botón (ver precheck).
+- **Saltar** («No puedo limpiarla ahora»): lista «saltar», sin «Otro» con texto.
+- **Reasignar:** motivo **obligatorio** de la lista «reasignar», también al **arrastrar** en el tablero (ventana «¿Por
+  qué la cambias?»; «Cancelar» deja la pieza donde estaba).
+- **NO de Recepción:** sin «Observaciones» escritas (motivo + foto). Sus motivos pasan a editarse con las demás listas.
+- **Dónde se editan:** Ajustes → **Checklists y listas**, pestaña «Listas». Permiso nuevo **`listas.editar`, solo
+  Admin** (la Supervisora deja de editar los motivos del NO; aceptado por Nicolás). Las opciones no se borran: se
+  desactivan; cada lista conserva al menos una activa.
+- Los endpoints viejos `/api/revision-entrega/motivos*` se eliminan (los reemplaza `/api/listas/*`).
+
+Detalle en [ajustes.md](ajustes.md) §2.3, [auditoria.md](auditoria.md) y [api-endpoints.md](api-endpoints.md) §18b.
+
+**Va DESPUÉS de la v7.2** (la rama `v7.3-listas-opciones` sale de ella): si la v7.2 todavía no se subió, se suben juntas
+en este orden.
+
+#### Precheck (phpMyAdmin, antes de todo)
+
+```sql
+-- 1) Roles que hoy aprueban con observación pero NO pueden desmarcar casillas: con la v7.3 dejarían de poder
+--    aprobar con observación. Esperado: vacío (en el seed, Supervisora y Recepción tienen los dos).
+SELECT r.nombre FROM limpieza_roles r
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id AND rp.permiso_codigo = 'auditoria.aprobar_con_observacion'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos x
+                    WHERE x.rol_id = r.id AND x.permiso_codigo = 'auditoria.editar_checklist_durante_auditoria');
+
+-- 2) Quiénes editan hoy los motivos del NO (revision_entrega.configurar): los que no son Admin dejan de editarlos.
+SELECT r.nombre FROM limpieza_roles r
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id AND rp.permiso_codigo = 'revision_entrega.configurar';
+
+-- 3) La migración no debe estar corrida. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'limpieza_listas_opciones';
+```
+
+#### SQL (phpMyAdmin, ANTES de subir el código)
+
+```sql
+CREATE TABLE IF NOT EXISTS limpieza_listas_opciones (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lista       VARCHAR(30) NOT NULL CHECK (lista IN (
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+    )),
+    nombre      VARCHAR(60) NOT NULL,
+    activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INT NOT NULL DEFAULT 0,
+    created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_listas_opciones_nombre (lista, nombre),
+    KEY idx_listas_opciones_lista (lista, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE limpieza_motivos_revision_entrega ADD COLUMN orden INT NOT NULL DEFAULT 0;
+
+-- Orden inicial de los motivos del NO: alfabético con «Otro» al final.
+UPDATE limpieza_motivos_revision_entrega m
+  JOIN (SELECT id, ROW_NUMBER() OVER (ORDER BY (LOWER(nombre) = 'otro'), nombre COLLATE utf8mb4_spanish_ci) AS rn
+          FROM limpieza_motivos_revision_entrega) x ON x.id = m.id
+   SET m.orden = x.rn;
+
+ALTER TABLE limpieza_auditorias
+  ADD COLUMN motivo_id INT NULL,
+  ADD CONSTRAINT fk_limpieza_auditorias_motivo FOREIGN KEY (motivo_id) REFERENCES limpieza_listas_opciones(id) ON DELETE RESTRICT;
+
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas)', 'Checklists', 'global');
+-- Solo el rol que administra la matriz de permisos (Admin).
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+  SELECT DISTINCT rol_id, 'listas.editar' FROM limpieza_rol_permisos WHERE permiso_codigo = 'permisos.asignar_a_rol';
+UPDATE limpieza_permisos
+   SET descripcion = 'Configurar la inspección pre-entrega: si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Los motivos de un NO se editan con listas.editar'
+ WHERE codigo = 'revision_entrega.configurar';
+
+INSERT INTO limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('rechazo', 'Baño sucio', 1), ('rechazo', 'Cama mal hecha o sábanas sucias', 2), ('rechazo', 'Piso o superficies sucias', 3),
+  ('rechazo', 'Basura sin retirar', 4), ('rechazo', 'Faltan amenities o toallas', 5), ('rechazo', 'Mal olor', 6),
+  ('rechazo', 'Algo roto o no funciona', 7), ('rechazo', 'Otro', 8),
+  ('saltar', 'Huésped no ha salido', 1), ('saltar', 'Falta un insumo', 2), ('saltar', 'Requiere mantención', 3), ('saltar', 'Otro', 4),
+  ('reasignar', 'Sobrecarga de trabajo', 1), ('reasignar', 'Ausencia o atraso', 2), ('reasignar', 'Cambio de prioridad', 3), ('reasignar', 'Otro', 4);
+```
+
+Es lo mismo que hace `scripts/migrate-add-listas-opciones.php` (probado dos veces seguidas sobre una copia del banco y
+en `MigracionListasOpcionesTest`). Comprobación: `/api/health` → `checks.esquema.ok: true`.
+
+#### ZIP
+
+`build/limpieza-v73-delta.zip`, con la fila de la v7.3 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0). Todo va a
+`limpieza/app_core/` (no hay estáticos de `public/`: el JS nuevo vive en `views/recursos/`, que sirve PHP):
+- `CHANGELOG.md`; `database/seeds/{permisos,listas_opciones}.php` (el verificador de esquema lee los permisos);
+  `docs/database-schema{,.mariadb}.sql` (los lee el verificador).
+- `scripts/{migrate-add-listas-opciones,migrate-add-revision-entrega,seed}.php`.
+- `src/Controllers/{AsignacionesController,AuditoriaController,ChecklistsController,ListasOpcionesController,PaginasController,RevisionEntregaController}.php`,
+  `src/Core/Kernel.php`, `src/Services/{AsignacionService,AuditoriaService,ChecklistService,ListasOpcionesException,ListasOpcionesService,RevisionEntregaService}.php`,
+  `src/Support/Tours.php`.
+- `views/{ajustes,ajustes-checklists,ajustes-revision-entrega,asignaciones,auditoria-detalle,habitacion-detalle,home-supervisora,home-trabajador}.php`,
+  `views/ajustes/listas-opciones.php`, `views/componentes/modal-inspeccion-pre-entrega.php`,
+  `views/recursos/ajustes/listas-opciones.js` y `views/recursos/componentes/modal-inspeccion-pre-entrega.js`.
+
+Las clases nuevas cargan por PSR-4 (el autoload de Composer no es «authoritative»): no hace falta `vendor/`.
+
+Vuelta atrás: `build/limpieza-v73-vuelta-atras.zip` (los mismos archivos en la v7.2; los nuevos se borran a mano). El SQL
+puede quedar: es aditivo y la v7.2 no lo lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, y **avisar antes** a supervisoras y Recepción: una pantalla
+que quedó abierta desde antes puede responder «Elige una opción de la lista. Si no la ves, recarga la página»; basta
+con recargar.
+
+**Smoke:** badge **v7.3** (incógnito), `/api/health` 200 con esquema ok, y como Admin: Ajustes → «Checklists y listas»
+→ pestaña «Listas» con 4 tarjetas (rechazo 8, reasignar 4, saltar 4, NO de pre-entrega con los motivos de hoy);
+abrir una pieza por inspeccionar y ver que «Rechazar» muestra los motivos y «Aprobar con observación» no pide texto;
+en Asignaciones, la ventana de reasignar pide el motivo primero. **No** emitir veredictos de prueba en piezas reales.

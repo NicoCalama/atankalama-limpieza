@@ -402,9 +402,10 @@ final class Tours
                 'recorridos' => [
 
                     // ── 1. El corazón de la pantalla: los 3 veredictos. ──
+                    // v2 (v7.3): sin comentario escrito; observación = casillas, rechazo = motivo de la lista.
                     [
                         'id'       => 'veredicto',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Dar el veredicto',
                         'pregunta' => '¿Aprobar, con obs. o rechazar?',
                         'requiere' => [],
@@ -417,7 +418,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
                                 'titulo' => 'Con observación no es rechazar',
-                                'texto'  => '«Con observación» deja la pieza limpia igual, con una nota; «Rechazar» la manda de vuelta a sucia para re-limpiarla.',
+                                'texto'  => '«Con observación» deja la pieza limpia igual: la observación son las casillas que desmarcas. «Rechazar» la manda de vuelta a sucia, con un motivo de la lista.',
                             ],
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
@@ -430,7 +431,7 @@ final class Tours
                     // ── 2. El checklist ejecutado (ver + desmarcar). ──
                     [
                         'id'       => 'checklist',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Revisar lo hecho',
                         'pregunta' => '¿Cómo marco lo que quedó mal?',
                         'requiere' => [],
@@ -438,7 +439,14 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="aud2.checklist"]',
                                 'titulo' => 'Lo que marcó el trabajador',
-                                'texto'  => 'Acá ves lo que el trabajador marcó. En «con observación» o «rechazo», desmarca los ítems que quedaron mal antes de confirmar.',
+                                'texto'  => 'Acá ves lo que el trabajador marcó. En «con observación» o «rechazo», desmarca los ítems que quedaron mal: en la observación, esas casillas son la observación.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="aud2.motivo"]',
+                                'titulo' => 'El motivo del rechazo',
+                                'modo'   => 'dialogo',
+                                'abrir'  => 'Toca «Rechazar» y la ayuda sigue sola.',
+                                'texto'  => 'Al rechazar eliges el motivo de la lista, sin escribir. Las opciones se editan en Ajustes → Checklists y listas.',
                             ],
                         ],
                     ],
@@ -1240,17 +1248,14 @@ final class Tours
                 'capacidad' => 'revision_entrega.configurar',
                 'recorridos' => [
                     [
-                        'id' => 'configurar', 'v' => 1,
+                        // v2 (v7.3): los motivos de un NO pasaron a Ajustes → Checklists y listas (recorrido «listas»).
+                        'id' => 'configurar', 'v' => 2,
                         'titulo' => 'Configurar el NO',
                         'pregunta' => '¿Qué pasa cuando Recepción marca NO?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rev.interruptor"]', 'titulo' => 'Elige qué hace un NO',
                              'texto' => 'Con «Solo avisar», la pieza no cambia de estado y la supervisora decide. Con «Devolver a limpieza», si estaba aprobada vuelve a sucia y se avisa a Cloudbeds.'],
-                            ['sel' => '[data-tour="mot.nuevo"]', 'titulo' => 'Agrega un motivo',
-                             'texto' => 'Escribe la razón tal como la verá Recepción y toca «Agregar». Aparece en la lista de motivos cuando Recepción marca NO en la inspección.'],
-                            ['sel' => '[data-tour="mot.lista"]', 'titulo' => 'Renombra o desactiva',
-                             'texto' => 'El lápiz cambia el nombre y el interruptor lo desactiva. Un motivo inactivo deja de aparecer en el NO, pero el historial lo conserva.'],
                         ],
                     ],
                 ],
@@ -1307,38 +1312,64 @@ final class Tours
                 'nombre' => 'Editor de checklists',
                 'capacidad' => 'checklists.editar',
                 'recorridos' => [
+                    // v2 (v7.3): la página tiene dos pestañas y el contenido de cada una existe solo con ella
+                    // abierta (x-if): el primer paso espera en modo 'dialogo' a que se toque «Checklists».
                     [
-                        'id' => 'editar', 'v' => 1,
+                        'id' => 'editar', 'v' => 2,
                         'titulo' => 'Editar el checklist',
                         'pregunta' => '¿Cómo cambio los ítems y créditos de un tipo?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cada tipo, su checklist',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta es un tipo de habitación con sus ítems y créditos. Al tocar «Editar checklist» se abre el editor para agregar, quitar y reordenar ítems, y ponerles créditos.'],
                             ['sel' => '[data-tour="chk.intro"]', 'titulo' => 'Qué ítems dan créditos',
                              'texto' => 'Solo los ítems marcados «Obligatorio» suman créditos cuando el trabajador los completa. Los opcionales no dan créditos, así que el total premia lo que de verdad importa.'],
                         ],
                     ],
                     [
-                        'id' => 'por-hotel', 'v' => 1,
+                        'id' => 'por-hotel', 'v' => 2,
                         'titulo' => 'Separar por hotel',
                         'pregunta' => '¿Cómo le doy su propio checklist a cada hotel?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.por-hotel"]', 'titulo' => 'Un checklist por hotel',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'Al activar «Separar checklists por hotel», cada hotel puede tener su propia versión de un tipo; si no la tiene, usa la compartida. Aparece un selector «Compartido» y un botón por hotel para elegir cuál editas.'],
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cambios solo de ese hotel',
                              'texto' => 'Con un hotel elegido, la tarjeta dice «Personalizar» cuando ese tipo todavía usa el compartido. Al guardar ahí, se crea o actualiza solo la versión de ese hotel; la compartida y la del otro hotel no cambian.'],
                         ],
                     ],
                     [
-                        'id' => 'ver-versiones', 'v' => 1,
+                        'id' => 'ver-versiones', 'v' => 2,
                         'titulo' => 'Ver versiones pasadas',
                         'pregunta' => '¿Dónde veo las versiones pasadas de un checklist?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Abrir el historial',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'El botón «Historial» de cada tarjeta abre las versiones anteriores del checklist, de solo lectura. No se pueden editar porque los reportes de días ya cerrados se calculan con ellas.'],
+                        ],
+                    ],
+                    [
+                        // v7.3 (gerencia, 10/10/2026): listas de selección, sin cuadros de texto.
+                        'id' => 'listas', 'v' => 1,
+                        'capacidad' => 'listas.editar',
+                        'titulo' => 'Listas para elegir',
+                        'pregunta' => '¿Cómo cambio las opciones de rechazar o saltar?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Dos pestañas',
+                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen al rechazar, reasignar, saltar una pieza o marcar NO en la inspección pre-entrega.'],
+                            ['sel' => '[data-tour="lst.tarjetas"]', 'titulo' => 'Una tarjeta por acción',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Listas» y la ayuda sigue sola.',
+                             'texto' => 'Cada tarjeta dice quién usa la lista y cuándo, y cuántas opciones tiene activas. Tócala para editarla.'],
+                            ['sel' => '[data-tour="lst.opciones"]', 'titulo' => 'Ordena, renombra o apaga',
+                             'modo' => 'dialogo', 'abrir' => 'Abre una lista y la ayuda sigue sola.',
+                             'texto' => 'Las flechas cambian el orden, el lápiz el nombre y el interruptor apaga la opción. Una opción apagada sale de la lista pero queda en el historial, y cada lista conserva al menos una.'],
+                            ['sel' => '[data-tour="lst.nueva"]', 'titulo' => 'Agrega una opción',
+                             'modo' => 'dialogo',
+                             'texto' => 'Escribe la opción tal como la verá quien elige y toca «Agregar». Abajo, «Así lo ve» muestra los botones en el orden en que aparecen.'],
                         ],
                     ],
                 ],
