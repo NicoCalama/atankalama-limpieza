@@ -246,7 +246,11 @@ final class HabitacionEnProgresoTest extends TestCase
         // Estado forzado: la regla mira el estado y la asignación de hoy, no la ejecución.
         Database::execute("UPDATE habitaciones SET estado = 'en_progreso' WHERE id = ?", [$area]);
         $ctrl = new EspaciosController();
+        // v7.4.1: pasarla a otra persona es cambiarla de persona y lleva motivo (sin él, 400 antes del permiso).
         $cuerpo = ['usuario_id' => $this->bea, 'fecha' => $this->hoy];
+        $sinMotivo = $ctrl->pedirLimpieza($this->req($this->sofia, $cuerpo, ['id' => (string) $area]));
+        $this->assertSame('OPCION_REQUERIDA', $this->json($sinMotivo)['error']['codigo']);
+        $cuerpo['opcion_id'] = TestDatabase::opcionId('reasignar', 'Otro');
 
         $sup = $ctrl->pedirLimpieza($this->req($this->sofia, $cuerpo, ['id' => (string) $area]));
         $this->assertSame(403, $sup->status);

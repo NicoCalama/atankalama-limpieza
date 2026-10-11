@@ -13,7 +13,7 @@
  *  - POST   /api/espacios                     { nombre, hotel, items:[{descripcion, creditos}] }
  *  - PUT    /api/espacios/{id}                { nombre, items:[{descripcion, creditos}] }
  *  - DELETE /api/espacios/{id}
- *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha }
+ *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha, opcion_id? }  (opcion_id: motivo si ya la tiene otra, v7.4.1)
  *  - POST   /api/habitaciones/{id}/marcar-limpia | marcar-sucia  (menú ⋮, v6.19: los mismos de Habitaciones)
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
@@ -428,6 +428,37 @@
                 <input type="date" x-model="modalPedir.fecha" :min="fechaHoy" @change="cambiarFechaPedir()"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
             </div>
+            <!-- Motivo (v7.4.1, gerencia: sin cuadros de texto): si el área ya la tiene otra persona y esa
+                 limpieza no está hecha, pedírsela a otra es cambiarla de persona. Motivo obligatorio de la
+                 lista «reasignar» (Ajustes → Checklists y listas), antes de elegir a quién. -->
+            <template x-if="pidiendoMotivo()">
+                <div class="mb-3">
+                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">¿Por qué la cambias de persona?</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2"
+                       x-text="esHoyPedir() && modalPedir.espacio?.asignado_a_nombre
+                           ? 'Hoy la tiene ' + modalPedir.espacio.asignado_a_nombre + '. Para pedírsela a la misma persona no hace falta motivo.'
+                           : 'Ese día ya la tiene otra persona.'"></p>
+                    <template x-if="motivosCargando && motivosReasignar.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Cargando motivos...</p>
+                    </template>
+                    <template x-if="motivosError">
+                        <p class="text-sm text-red-600 dark:text-red-400" x-text="motivosError"></p>
+                    </template>
+                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Motivo del cambio de persona">
+                        <template x-for="m in motivosReasignar" :key="m.id">
+                            <button type="button" role="radio" :aria-checked="modalPedir.opcionId === m.id ? 'true' : 'false'"
+                                    @click="modalPedir.opcionId = m.id" :disabled="modalPedir.enviando"
+                                    :class="modalPedir.opcionId === m.id
+                                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="min-h-[48px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                <span x-text="m.nombre"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <p x-show="modalPedir.opcionId === null" class="text-xs text-gray-500 dark:text-gray-400 mt-2">Primero elige el motivo.</p>
+                </div>
+            </template>
             <template x-if="data && data.trabajadores.length === 0">
                 <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno ese día en este hotel.</p>
             </template>
@@ -435,10 +466,11 @@
                 <ul class="space-y-1.5 max-h-[55vh] overflow-y-auto">
                     <template x-for="tr in data.trabajadores" :key="tr.id">
                         <li>
-                            <button @click="confirmarPedir(tr)" :disabled="modalPedir.enviando"
-                                    class="w-full flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50 text-left">
+                            <button @click="confirmarPedir(tr)" :disabled="modalPedir.enviando || faltaMotivoPara(tr)"
+                                    class="w-full min-h-[44px] flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-left">
                                 <span x-html="avatarUsuario(tr)"></span>
                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="tr.nombre"></span>
+                                <span x-show="esQuienLaTiene(tr)" class="ml-auto text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">La tiene hoy</span>
                             </button>
                         </li>
                     </template>
@@ -499,7 +531,12 @@ function espaciosApp() {
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         modalForm: { abierto: false, enviando: false },
         form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
-        modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '' },
+        // opcionId: motivo de la lista «reasignar» cuando pedirla es cambiarla de persona (v7.4.1);
+        // forzarMotivo: el backend respondió OPCION_REQUERIDA (otro día, o lo que vio la pantalla quedó viejo).
+        modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '', opcionId: null, forzarMotivo: false },
+        motivosReasignar: [],
+        motivosCargando: false,
+        motivosError: '',
         modalEstado: { abierto: false, espacio: null },
         accionEstadoEnCurso: false,
 
@@ -800,15 +837,53 @@ function espaciosApp() {
 
         // --- Pedir limpieza ---
         abrirPedir(esp) {
-            this.modalPedir = { abierto: true, enviando: false, espacio: esp, fecha: this.fechaHoy };
+            this.modalPedir = { abierto: true, enviando: false, espacio: esp, fecha: this.fechaHoy, opcionId: null, forzarMotivo: false };
+            if (this.pidiendoMotivo()) this.asegurarMotivos();
             this.$nextTick(function () { lucide.createIcons(); });
         },
         cerrarPedir() {
-            this.modalPedir = { abierto: false, enviando: false, espacio: null, fecha: '' };
+            this.modalPedir = { abierto: false, enviando: false, espacio: null, fecha: '', opcionId: null, forzarMotivo: false };
+        },
+        esHoyPedir() {
+            return (this.modalPedir.fecha || this.fechaHoy) === this.fechaHoy;
+        },
+        // Hoy la pantalla ya sabe si el área la tiene otra persona con la limpieza sin hacer
+        // (cambio_pide_motivo, del backend). Para otro día lo dice el backend al intentar.
+        pidiendoMotivo() {
+            var m = this.modalPedir;
+            if (!m.espacio) return false;
+            return m.forzarMotivo || (this.esHoyPedir() && !!m.espacio.cambio_pide_motivo);
+        },
+        esQuienLaTiene(tr) {
+            var m = this.modalPedir;
+            return !!m.espacio && this.esHoyPedir() && m.espacio.asignado_a_id === tr.id;
+        },
+        // A quien ya la tiene se le puede volver a pedir sin motivo.
+        faltaMotivoPara(tr) {
+            return this.pidiendoMotivo() && this.modalPedir.opcionId === null && !this.esQuienLaTiene(tr);
+        },
+        async asegurarMotivos() {
+            if (this.motivosReasignar.length > 0 || this.motivosCargando) return;
+            this.motivosCargando = true;
+            this.motivosError = '';
+            try {
+                var r = await apiFetch('/api/listas/reasignar');
+                if (r && r.ok) {
+                    this.motivosReasignar = r.data.opciones || [];
+                } else {
+                    this.motivosError = (r && r.error && r.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.motivosError = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.motivosCargando = false;
+            }
         },
         // Al cambiar la fecha del modal, recarga solo los trabajadores con turno esa fecha
         // (candidatos), sin recargar la lista de espacios ni perder su estado en pantalla.
         async cambiarFechaPedir() {
+            this.modalPedir.forzarMotivo = false;
+            if (this.pidiendoMotivo()) this.asegurarMotivos();
             if (!this.modalPedir.fecha || !this.data) return;
             try {
                 var url = '/api/espacios?fecha=' + encodeURIComponent(this.modalPedir.fecha);
@@ -819,12 +894,13 @@ function espaciosApp() {
         },
         async confirmarPedir(tr) {
             if (this.modalPedir.enviando || !this.modalPedir.espacio) return;
+            if (this.faltaMotivoPara(tr)) return;
             this.modalPedir.enviando = true;
             try {
-                var r = await apiPost('/api/espacios/' + this.modalPedir.espacio.id + '/pedir-limpieza', {
-                    usuario_id: tr.id,
-                    fecha: this.modalPedir.fecha || this.fechaHoy
-                });
+                var cuerpo = { usuario_id: tr.id, fecha: this.modalPedir.fecha || this.fechaHoy };
+                // El backend solo lo usa si es un cambio de persona.
+                if (this.modalPedir.opcionId !== null) cuerpo.opcion_id = this.modalPedir.opcionId;
+                var r = await apiPost('/api/espacios/' + this.modalPedir.espacio.id + '/pedir-limpieza', cuerpo);
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Limpieza pedida a ' + tr.nombre + '.');
                     this.cerrarPedir();
@@ -832,6 +908,11 @@ function espaciosApp() {
                 } else if (r && r.encolado) {
                     this.mostrarToast('exito', 'Sin conexión: se pedirá la limpieza apenas vuelva internet.');
                     this.cerrarPedir();
+                } else if (r && r.error && r.error.codigo === 'OPCION_REQUERIDA') {
+                    // Ese día ya la tiene otra persona: aparece la lista y se vuelve a tocar a quién.
+                    this.modalPedir.forzarMotivo = true;
+                    this.asegurarMotivos();
+                    this.mostrarToast('error', r.error.mensaje);
                 } else {
                     this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos pedir la limpieza.');
                 }

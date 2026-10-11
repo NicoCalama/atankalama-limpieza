@@ -23,6 +23,17 @@ final class EspacioService
     /** numero es VARCHAR(20) en MariaDB: el nombre del espacio debe entrar ahí. */
     private const NOMBRE_MAX = 20;
 
+    /**
+     * Estados en que la limpieza que alguien tiene asignada todavía no está hecha: pedírsela a otra
+     * persona es cambiarla de persona y lleva motivo (v7.4.1). Por inspeccionar o aprobada, en
+     * cambio, ya se limpió: pedirla de nuevo es una limpieza nueva, sin motivo.
+     */
+    private const ESTADOS_LIMPIEZA_PENDIENTE = [
+        Habitacion::ESTADO_SUCIA,
+        Habitacion::ESTADO_EN_PROGRESO,
+        Habitacion::ESTADO_RECHAZADA,
+    ];
+
     public function __construct(
         private readonly AsignacionService $asignaciones = new AsignacionService(),
     ) {
@@ -82,7 +93,7 @@ final class EspacioService
         $this->asignaciones->ponerAlDiaPreasignaciones($hoy);
 
         $where = ['h.es_espacio_comun = 1', 'h.activa = 1'];
-        $params = [$hoy];
+        $params = [$hoy, $hoy];
         if ($hotel !== null && $hotel !== 'ambos') {
             $where[] = 'ho.codigo = ?';
             $params[] = $hotel;
@@ -95,6 +106,10 @@ final class EspacioService
                        JOIN #__usuarios u ON u.id = a.usuario_id
                       WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
                       ORDER BY a.id DESC LIMIT 1) AS asignado_a_nombre,
+                    (SELECT a.usuario_id
+                       FROM #__asignaciones a
+                      WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                      ORDER BY a.id DESC LIMIT 1) AS asignado_a_id,
                     (SELECT COUNT(*)
                        FROM #__checklists_template ct
                        JOIN #__items_checklist ic ON ic.template_id = ct.id
@@ -112,7 +127,10 @@ final class EspacioService
         );
         return array_map(static function (array $f): array {
             $f['asignada_hoy'] = $f['asignado_a_nombre'] !== null;
+            $f['asignado_a_id'] = $f['asignado_a_id'] !== null ? (int) $f['asignado_a_id'] : null;
             $f['franja'] = self::franjaVisible((string) $f['estado'], $f['asignada_hoy']);
+            // v7.4.1: pedírsela hoy a otra persona es cambiarla de persona (la pantalla pide el motivo).
+            $f['cambio_pide_motivo'] = $f['asignada_hoy'] && in_array($f['estado'], self::ESTADOS_LIMPIEZA_PENDIENTE, true);
             return $f;
         }, $filas);
     }
@@ -256,9 +274,19 @@ final class EspacioService
      * resetea el estado terminal (aprobada) → sucia y crea la asignación (el trabajador lo verá en
      * su cola). Ver docs/areas-comunes.md §2. Pedírsela a otra persona mientras el área está en
      * progreso la mueve igual que reasignarla: exige asignaciones.mover_en_progreso.
+     *
+     * v7.4.1 (gerencia: sin cuadros de texto, motivo obligatorio al cambiar de persona): si ese día
+     * el área ya la tiene otra persona y esa limpieza no está hecha, es un cambio de persona y
+     * $opcionId (lista «reasignar») es obligatorio; queda registrada como reasignación.
      */
-    public function pedirLimpieza(int $id, int $usuarioId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false): Asignacion
-    {
+    public function pedirLimpieza(
+        int $id,
+        int $usuarioId,
+        string $fecha,
+        ?int $actorId = null,
+        bool $puedeMoverEnProgreso = false,
+        ?int $opcionId = null,
+    ): Asignacion {
         $this->obtenerDetalle($id); // valida que exista y sea espacio
         // El trabajador debe existir y estar activo (evita un 500 por FK si llega un id inválido).
         // No se exige turno a propósito: el coordinador puede pedir un servicio puntual a quien esté.
@@ -266,7 +294,40 @@ final class EspacioService
         if ($u === null) {
             throw new EspacioException('TRABAJADOR_INVALIDO', 'El trabajador no existe o está inactivo.', 400);
         }
-        return $this->asignaciones->asignarManual($id, $usuarioId, $fecha, $actorId, puedeMoverEnProgreso: $puedeMoverEnProgreso);
+        if (!$this->esCambioDePersona($id, $usuarioId, $fecha)) {
+            return $this->asignaciones->asignarManual($id, $usuarioId, $fecha, $actorId, puedeMoverEnProgreso: $puedeMoverEnProgreso);
+        }
+        if ($opcionId === null) {
+            throw new EspacioException(
+                'OPCION_REQUERIDA',
+                'Esta área ya la tiene otra persona: elige por qué la cambias. Si no ves la lista, recarga la página.',
+                400
+            );
+        }
+        $motivo = (new ListasOpcionesService())->opcionActiva('reasignar', $opcionId)['nombre'];
+        return $this->asignaciones->reasignar(
+            $id, $usuarioId, $fecha, $motivo, $actorId,
+            puedeMoverEnProgreso: $puedeMoverEnProgreso,
+            opcionId: $opcionId,
+        );
+    }
+
+    /**
+     * ¿Pedirle el área a $usuarioId ese día es sacársela a otra persona? Sí, si ese día tiene una
+     * asignación activa de otra persona y esa limpieza no está hecha: hoy, el área sigue pendiente,
+     * en progreso o rechazada; otro día, la preasignación todavía no se ejecutó.
+     */
+    private function esCambioDePersona(int $id, int $usuarioId, string $fecha): bool
+    {
+        $activa = $this->asignaciones->obtenerActivaDeHabitacion($id, $fecha);
+        if ($activa === null || $activa->usuarioId === $usuarioId) {
+            return false;
+        }
+        if ($fecha !== date('Y-m-d')) {
+            return true;
+        }
+        $estado = (string) Database::fetchColumn('SELECT estado FROM #__habitaciones WHERE id = ?', [$id]);
+        return in_array($estado, self::ESTADOS_LIMPIEZA_PENDIENTE, true);
     }
 
     /**

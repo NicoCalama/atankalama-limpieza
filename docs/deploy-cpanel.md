@@ -412,6 +412,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-10 | **Lo aprobado hoy queda limpio** → **v6.22** (feat `b362eeb`, CHANGELOG fechado `ee2913d`; rama `v6.22-limpiada-hoy`, desde `4ce3c5c`) | Origen: la 409 de Atankalama volvió a la cola ya limpia porque Recepción hizo y deshizo un check-in en Cloudbeds (07:44 → 07:48), diagnóstico en §11.22. **Decisión de Nicolás:** si una pieza se aprobó hoy, queda limpia hasta mañana aunque Cloudbeds la marque sucia (también la marca manual), en silencio y sin escribirle a Cloudbeds; **única excepción:** el aseo diario hecho con un huésped alojado cuyo huésped se va ese mismo día vuelve a la cola para la limpieza de salida. El sync deja de levantar la alerta `aprobacion_deshecha`. Runbook §11.24: **sin SQL**, ZIP de 3 archivos con las rutas bajo `limpieza/app_core/` (`CloudbedsSyncService.php`, `HabitacionService.php`, `CHANGELOG.md`; `build/limpieza-v622-delta.zip`, idénticos a `ee2913d`) y `build/limpieza-v622-vuelta-atras.zip` (los mismos en `4ce3c5c`). Suite 689 OK. Subido el 10/10 ~17:50. Smoke: badge **v6.22** (Nicolás) y `/api/health` 200 con `checks.esquema.ok: true` (17:52). **Pendiente:** verificación al día siguiente (§11.24): conservadas con motivo `aprobada_hoy` y ninguna «aprobación deshecha» nueva. |
 | 2026-10-10 | **Inspección pre-entrega + Re-limpiar + calidad de la supervisora** → **v7** (feat `57ec634` y `811fb5a` del 05/10, texto de Ajustes `130618f`, calidad `9db8a84`, CHANGELOG fechado y runbook `cf03ce9`; en `main`) | Pedido de gerencia del 04/10; **visto bueno de jefatura y gerencia el 10/10, tal cual** (flujo, «solo avisar» al partir, 8 motivos). Fórmula de gerencia para la calidad de la supervisora: (aprobadas − rechazadas) ÷ las que Recepción revisó, mínimo 0 % (columna «Calidad»). Runbook §11.15. **Precheck:** la consulta de quién se queda sin «Inicio» dio 10 personas, todas de Recepción (8 también Trabajador: hoy ya las mandaba a Habitaciones). **SQL antes del ZIP** (§11.15): 2 tablas, `registrar` → Admin y Recepción, `configurar` → Admin y Supervisora, `gestionar_edificios` → Admin y Supervisora (ningún otro rol tenía `ver_todas`), 8 motivos. ZIP de 40 archivos (11 nuevos) a `app_core/` (`build/limpieza-v7-delta.zip`, idénticos a `cf03ce9`) y `build/limpieza-v7-vuelta-atras.zip` (los 29 que pisa, en `5b70ff8`). Subido el 10/10 ~18:58. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (18:59), badge **v7** y Recepción entra directo a Habitaciones sin «Inicio» (Nicolás). **Pendiente:** el NO con foto en producción (lo hace alguien del hotel con el video de capacitación) y borrar después esos registros de prueba. |
 | 2026-10-10 | **Calidad solo con la pieza aprobada y producción de Recepción** → **v7.1** (feat `aa917ab`, CHANGELOG fechado `4d5a48d`; rama `v7.1-calidad-produccion`, desde `cf03ce9`) | Pedido de Nicolás del mismo día: a la supervisora solo le cuentan los SÍ/NO hechos con la pieza Aprobada o Aprobada c/obs. (corrige también lo ya registrado) y nueva producción por recepcionista, una por limpieza (tabla «Por recepcionista» en Reportes y pestaña «Recepción» del Excel). Runbook §11.25: **sin SQL**, ZIP de 5 archivos (`build/limpieza-v71-delta.zip`, idénticos a `4d5a48d`) y `build/limpieza-v71-vuelta-atras.zip` (los 5 en `cf03ce9`). Subido el 10/10 ~20:00. Smoke: tabla «Por recepcionista» en Reportes y pestaña «Recepción» en el Excel (capturas de Nicolás, 20:02), `/api/health` 200 con `checks.esquema.ok: true` (20:03). |
+| 2026-10-10 | **Reportes en pestañas + listas de selección + mensaje a la mucama y tickets por selección** → **v7.2 + v7.3 + v7.4** en un deploy combinado (v7.2 `a595696` y `54d3b74`, v7.3 `90caa4f`, v7.4 `c5020aa`, CHANGELOG fechado y runbook `20f1273`; merge en `main` `fed2641`) | Pedidos del 10/10: Reportes en 4 pestañas (Nicolás) y, de gerencia, «sin cuadros de texto, solo selección», con las listas editables en Ajustes → Checklists y listas (permiso `listas.editar`, solo Admin). **Decisión de Nicolás:** las tres juntas, runbook §11.29. **Precheck** (~23:05): 1) vacío, 2) Supervisora y Admin, 3) 0. **SQL antes del ZIP** (§11.27 + §11.28, `build/limpieza-v74.sql`; probado antes en MariaDB 10.6 con Docker); comprobación: 6 listas (rechazo 8, reasignar 4, saltar 4, nota_recepcion 6, ticket_tipo 9, ticket_respuesta 5) y `listas.editar` solo en Admin. ZIP de 46 archivos (45 a `app_core/` y `vista-guiada.js` al docroot; `build/limpieza-v74-delta.zip`, idénticos a `main`) y `build/limpieza-v74-vuelta-atras.zip` (los 39 que pisa, en `4d5a48d`). Subido el 10/10 ~23:10. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (23:12), `vista-guiada.js` del docroot ya es el nuevo, y el smoke de §11.29 OK (Nicolás). **Gotcha:** phpMyAdmin abrió la pestaña SQL parada en `information_schema` (error #1109 «Tabla desconocida»): el precheck se corrió con las tablas calificadas (`cat6852_australia.limpieza_…`) y el SQL con la base elegida en el panel izquierdo. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -2339,3 +2340,33 @@ v7.1 (`4d5a48d`), incluida la copia del docroot. Los 7 nuevos (`ListasOpciones*`
 carga. El SQL también puede quedar: es aditivo y el verificador solo reclama lo que falta. Lo registrado mientras
 estuvo la v7.4 sigue legible en la v7.1 (motivos y tipos quedan como texto en `comentario`, `titulo` y
 `nota_recepcion`).
+
+### 11.30 Release "motivo al cambiar de persona un área + ayuda al día" → v7.4.1
+
+Pedido de Nicolás (10/10/2026, después del deploy de la v7.4): revisar si las áreas comunes funcionan igual y si la
+ayuda guiada quedó bien. **Decisiones:**
+
+- **Áreas comunes:** las áreas no están en Asignaciones; se mandan con «Pedir limpieza». Si ese día el área ya la tiene
+  otra persona y esa limpieza no está hecha (pendiente, en progreso o rechazada; en otra fecha, cualquier
+  preasignación), pedírsela a otra es cambiarla de persona y ahora pide el motivo de la lista «reasignar», igual que en
+  Asignaciones (punto 3 aprobado por Nicolás). Queda como `asignacion.reasignar` con el motivo. A la misma persona, o
+  una nueva limpieza de un área ya limpia, sigue sin motivo. Detalle en [areas-comunes.md](areas-comunes.md).
+- **Ayuda guiada:** el paso «Si la respuesta es NO» de Habitaciones ya no habla de observaciones escritas (desde la v7.3
+  el NO es motivo y foto); el de arrastrar en Asignaciones avisa que al soltar se elige el motivo; el de Áreas comunes
+  explica el motivo al cambiar de persona. Recorridos probados en el banco con cada rol (Supervisora, Admin, Recepción).
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v741-delta.zip`, con la fila de la v7.4.1 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0).
+6 archivos a `limpieza/app_core/`: `CHANGELOG.md`, `src/Controllers/EspaciosController.php`,
+`src/Services/EspacioService.php`, `src/Support/Tours.php`, `views/espacios.php` y `views/home-trabajador.php` (solo un
+comentario). Vuelta atrás: `build/limpieza-v741-vuelta-atras.zip` (los mismos seis en la v7.4, `fed2641`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v7.4.1** (incógnito), `/api/health` 200, y en Áreas comunes, en un área que hoy tiene alguien sin
+terminar, «Pedir limpieza» muestra «¿Por qué la cambias de persona?» y «La tiene hoy» junto a esa persona (cerrar sin
+elegir). El «?» de Habitaciones → «Inspeccionar la pieza» → paso 2 dice «Eliges el motivo de la lista y puedes sumar una
+foto».
+
+**Vuelta atrás:** subir `build/limpieza-v741-vuelta-atras.zip`. No hay datos que deshacer.

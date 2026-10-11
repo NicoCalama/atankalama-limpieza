@@ -209,6 +209,17 @@ que reasignarla (el trabajador pierde lo avanzado), así que además exige
 403 `HABITACION_EN_PROGRESO` («El área X está en progreso: solo un administrador puede reasignarla
 o quitarla»), que la pantalla de Espacios muestra como aviso. Ver `docs/asignacion.md` §4.4.
 
+**Cambiar de persona (v7.4.1, pedido de gerencia: motivo obligatorio y sin texto):** si ese día el área
+ya la tiene otra persona y esa limpieza no está hecha (pendiente, en progreso o rechazada; en otra fecha,
+cualquier preasignación), pedírsela a otra es cambiarla de persona. La ventana «Pedir limpieza» muestra
+primero «¿Por qué la cambias de persona?» con la lista «reasignar» (la misma de Asignaciones, Ajustes →
+Checklists y listas) y quien la tiene hoy queda marcado «La tiene hoy». El backend exige `opcion_id`
+(400 `OPCION_REQUERIDA` / `OPCION_INVALIDA`) y lo registra como `asignacion.reasignar` con el motivo.
+Para otra fecha la pantalla no sabe quién la tiene: la lista aparece cuando el backend responde
+`OPCION_REQUERIDA`. Sin motivo: pedírsela de nuevo a la misma persona, o pedir otra limpieza de un
+área que ya se limpió (por inspeccionar o aprobada). `GET /api/espacios` trae `asignado_a_id` y
+`cambio_pide_motivo` para eso.
+
 ---
 
 ## 6. Cadencia

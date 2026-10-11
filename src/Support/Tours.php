@@ -103,7 +103,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
                                 'titulo' => 'Arrastra de una persona a otra',
-                                'texto'  => 'Cada tarjeta es un trabajador con su cola. Arrastra una pieza de una persona a otra para reasignarla.',
+                                'texto'  => 'Cada tarjeta es un trabajador con su cola. Arrastra una pieza de una persona a otra para reasignarla: al soltarla eliges por qué la cambias, o «Cancelar» la deja donde estaba.',
                             ],
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
@@ -475,7 +475,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
                                 'titulo' => 'Cada tarjeta es un área',
-                                'texto'  => 'Cada tarjeta es un área común (piscina, pasillos…). Con «Pedir limpieza» eliges a un trabajador y se la asignas para hoy.',
+                                'texto'  => 'Cada tarjeta es un área común (piscina, pasillos…). Con «Pedir limpieza» eliges a un trabajador y se la asignas para hoy. Si ya la tiene otra persona y no la ha terminado, primero eliges por qué la cambias.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
@@ -849,7 +849,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="hb.inspeccion"]',
                                 'titulo' => 'Si la respuesta es NO',
-                                'texto'  => 'Eliges el motivo y puedes sumar observaciones y una foto. Las supervisoras reciben el aviso y el botón muestra el resultado hasta que la pieza cambia de estado.',
+                                'texto'  => 'Eliges el motivo de la lista y puedes sumar una foto. Las supervisoras reciben el aviso y el botón muestra el resultado hasta que la pieza cambia de estado.',
                             ],
                         ],
                     ],

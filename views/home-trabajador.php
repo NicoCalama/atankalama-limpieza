@@ -486,7 +486,7 @@ function homeTrabajador() {
         },
 
         // Focus trap genérico (accesibilidad-teclado.md): el modal tiene contenido variable
-        // (lista de motivos + textarea condicional), no un par fijo de botones.
+        // (lista de motivos), no un par fijo de botones.
         atraparTabGenerico(e, elModal, activo) {
             if (!activo || !elModal) return;
             var focables = Array.prototype.slice.call(
