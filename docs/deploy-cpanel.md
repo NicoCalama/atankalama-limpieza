@@ -2507,3 +2507,52 @@ hoy tiene alguien sin terminar muestra «¿Por qué la cambias de persona?» y �
 v7.4 (`fed2641`). Los 2 nuevos (`HabitacionesPrueba.php`, la migración) pueden quedar. El SQL puede quedar, pero
 **desactivar las «PRUEBA»** (`UPDATE cat6852_australia.limpieza_habitaciones SET activa = 0 WHERE es_prueba = 1;`):
 con la v7.4 aparecerían como una pieza más.
+
+### 11.33 Release "preasignaciones de madrugada y asignadas justas" → v7.5.1
+
+Origen: el 11/10/2026 una supervisora avisó que las habitaciones que preasignó el 10/10 para el día siguiente ya no
+estaban cuando llegó la gente («segunda vez que pasa»). Diagnóstico (`build/diagnostico-preasignaciones-2026-10-11.sql`,
+consultas de Nicolás): `reconciliarPreasignaciones` retiró **132 de 155** preasignaciones a las **00:00** en punto,
+porque las piezas seguían aprobadas del día anterior; el sync las pasó a sucia entre las 00:30 y la 01:30 y las
+supervisoras las reasignaron a mano entre las 06:30 y las 08:24. Lo disparó una pantalla abierta a medianoche: el Inicio
+de supervisora y el tablero se recargan solos cada minuto y cargan las colas. Pasó también el 28/09 (24), el 04/10 (109)
+y el 10/10 (127); los demás días, 0–2.
+
+**Qué cambia** (decisiones de Nicolás, 11/10/2026):
+
+- **Preasignaciones** (`AsignacionService::HORA_RETIRO_PREASIGNACIONES = 6`): una habitación preasignada que sigue
+  aprobada se retira recién desde las 06:00; de madrugada queda en la cola tal cual. Las áreas comunes preasignadas
+  siguen pasando a sucia a cualquier hora (v6.17.1).
+- **Reportes → Asignadas** (`ReportesService::PASADA_A_OTRA_NO_CUENTA_DESDE = '2026-10-01'`): desde los turnos del
+  01/10/2026, una asignación sin trabajo que pasó a otra persona no le cuenta a quien la tenía (le bajaba la eficiencia
+  por piezas que no tocó). El rechazo sigue igual y septiembre no cambia. Detalle en `docs/kpis-sueldos.md`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v751-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v7.5.1 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 4
+archivos: `CHANGELOG.md`, `src/Services/AsignacionService.php`, `src/Services/ReportesService.php` y
+`views/reportes.php`. Vuelta atrás: `build/limpieza-v751-vuelta-atras.zip` (los mismos cuatro en la v7.5, `d08e519`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, y **antes de la medianoche** para que las preasignaciones de
+esa noche ya no se pierdan.
+
+**Smoke:** badge **v7.5.1** (incógnito), `/api/health` 200, y en Reportes → Trabajadores el «?» de la columna
+«Asignadas» dice «desde el 01/10/2026 tampoco la que pasó a otra persona sin que la empezaras».
+
+**Verificación al día siguiente:**
+
+```sql
+-- Retiros automáticos desde el deploy, con la hora de Chile: ninguno antes de las 06:00.
+SELECT JSON_UNQUOTE(JSON_EXTRACT(detalles_json, '$.fecha')) AS dia, COUNT(*) AS retiradas,
+       MIN(DATE_FORMAT(DATE_SUB(STR_TO_DATE(LEFT(created_at, 19), '%Y-%m-%dT%H:%i:%s'), INTERVAL 3 HOUR), '%H:%i')) AS primera_cl
+  FROM cat6852_australia.limpieza_audit_log
+ WHERE accion = 'asignacion.autocancelada'
+   AND created_at >= '2026-10-12T03:00'
+ GROUP BY dia;
+```
+
+Y la consulta 2 del diagnóstico para el día siguiente: las preasignadas tienen que aparecer limpiadas con esa
+asignación, no retiradas.
+
+**Vuelta atrás:** subir `build/limpieza-v751-vuelta-atras.zip`. No hay datos que deshacer.

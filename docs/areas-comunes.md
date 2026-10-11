@@ -87,7 +87,11 @@ del tablero (`AsignacionService::reconciliarPreasignaciones`) pasa a `sucia` el 
 sigue «Lista» (aprobada, con observación o automática) y sin limpieza ligada a esa asignación:
 **preasignar un área es un pedido firme de limpieza para ese día** (decisión de Nicolás, 07/10/2026).
 Las habitaciones de huésped, en cambio, se retiran de la cola si amanecen aprobadas: no necesitaron la
-limpieza planificada.
+limpieza planificada. Eso se decide recién **desde las 06:00** (v7.5.1,
+`AsignacionService::HORA_RETIRO_PREASIGNACIONES`): de madrugada las piezas limpiadas el día anterior
+siguen aprobadas hasta que la sincronización con Cloudbeds las pasa a sucia (00:30–01:30), y un Inicio
+de supervisora abierto, que se recarga solo cada minuto, retiraba a medianoche todo lo planificado
+(132 de 155 preasignaciones el 11/10/2026). Las áreas pasan a `sucia` a cualquier hora.
 
 Antes las áreas pasaban por la misma regla que las habitaciones: se cancelaban «porque no necesitaron
 limpieza» o, si las había aprobado el sistema, quedaban en la cola sin poder empezarse. En producción,

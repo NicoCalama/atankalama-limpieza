@@ -12,6 +12,7 @@ use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\ChecklistService;
 use Atankalama\Limpieza\Services\CierreDiaService;
 use Atankalama\Limpieza\Services\EspacioService;
+use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -44,7 +45,8 @@ final class PreasignacionesTest extends TestCase
         $this->tipoId  = (int) Database::fetchColumn("SELECT id FROM tipos_habitacion WHERE nombre = 'Doble'");
         [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
         $this->hoy     = date('Y-m-d');
-        $this->asig    = new AsignacionService();
+        // A media mañana: la suite no depende de la hora a la que corre (ver los tests de madrugada).
+        $this->asig    = new AsignacionService(horaActual: 9);
     }
 
     /** @return array<string, array{0: string}> */
@@ -69,6 +71,73 @@ final class PreasignacionesTest extends TestCase
         $this->assertSame(0, $this->activa($asignacionId));
         $this->assertSame($estado, $this->estado($hab), 'una habitación limpia no se ensucia');
         $this->assertSame(1, $this->avisosDeRetiro());
+    }
+
+    /** @return array<string, array{0: int}> */
+    public static function horasDeMadrugada(): array
+    {
+        return ['medianoche' => [0], '01:30' => [1], '05:59' => [5]];
+    }
+
+    /**
+     * v7.5.1: el 11/10/2026 un Inicio de supervisora abierto a medianoche retiró 132 preasignaciones;
+     * las piezas seguían aprobadas del día anterior y el sync las pasó a sucia recién de madrugada.
+     */
+    #[DataProvider('horasDeMadrugada')]
+    public function testDeMadrugadaLaHabitacionPreasignadaNoSeRetira(int $hora): void
+    {
+        $hab = $this->crearHabitacion('305', 'aprobada');
+        $asignacionId = $this->preasignar($hab);
+
+        $cola = (new AsignacionService(horaActual: $hora))->colaDelTrabajador($this->ana, $this->hoy);
+
+        $this->assertCount(1, $cola);
+        $this->assertSame(1, $this->activa($asignacionId));
+        $this->assertSame('aprobada', $this->estado($hab));
+        $this->assertSame(0, $this->avisosDeRetiro());
+    }
+
+    public function testDesdeLasSeisSeRetiraLaQueSigueAprobada(): void
+    {
+        $hab = $this->crearHabitacion('305', 'aprobada');
+        $asignacionId = $this->preasignar($hab);
+        (new AsignacionService(horaActual: 0))->colaDelTrabajador($this->ana, $this->hoy);
+
+        $cola = (new AsignacionService(horaActual: AsignacionService::HORA_RETIRO_PREASIGNACIONES))
+            ->colaDelTrabajador($this->ana, $this->hoy);
+
+        $this->assertSame([], $cola);
+        $this->assertSame(0, $this->activa($asignacionId));
+        $this->assertSame(1, $this->avisosDeRetiro());
+    }
+
+    public function testLaQueElSyncEnsuciaDeMadrugadaSigueEnLaColaEnLaManana(): void
+    {
+        // El caso de producción: abierta a medianoche, el sync la pasa a sucia a la 01:30 y en la
+        // mañana la trabajadora la tiene en su cola, lista para empezar.
+        $hab = $this->crearHabitacion('305', 'aprobada');
+        $asignacionId = $this->preasignar($hab);
+        (new AsignacionService(horaActual: 0))->colaDelTrabajador($this->ana, $this->hoy);
+        (new HabitacionService())->cambiarEstado($hab, 'sucia', null, 'cron');
+
+        $cola = (new AsignacionService(horaActual: 7))->colaDelTrabajador($this->ana, $this->hoy);
+
+        $this->assertSame(1, $this->activa($asignacionId));
+        $this->assertCount(1, $cola);
+        $this->assertSame('sucia', $cola[0]['estado']);
+        $this->assertSame(0, $this->avisosDeRetiro());
+    }
+
+    public function testDeMadrugadaElAreaComunPreasignadaIgualPasaASucia(): void
+    {
+        $area = (new EspacioService())->crear('Baño recepción', '1_sur', ['Limpiar lavamanos']);
+        Database::execute("UPDATE habitaciones SET estado = 'aprobada' WHERE id = ?", [$area]);
+        $asignacionId = $this->preasignar($area);
+
+        (new AsignacionService(horaActual: 0))->colaDelTrabajador($this->ana, $this->hoy);
+
+        $this->assertSame('sucia', $this->estado($area));
+        $this->assertSame(1, $this->activa($asignacionId));
     }
 
     #[DataProvider('estadosAprobados')]

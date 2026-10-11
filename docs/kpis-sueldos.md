@@ -145,7 +145,8 @@ rol están definidos.
 - **No cuenta** la asignación retirada sin trabajo: desasignada, autocancelada o **pasada a
   otra persona sin que la tocara** (p. ej. faltó y se la dieron a otra; decisión de Nicolás), ni
   la que solo tuvo el atajo «Marcar limpia» de otra persona. Por eso un día sin nada que cuente
-  no suma, aunque la persona siga figurando en «Asignadas» (pegajoso).
+  no suma. En los turnos de septiembre la persona podía seguir figurando en «Asignadas» por la
+  pieza pasada a otra (pegajoso); desde el 01/10/2026 ya no (ver «Cómo quedó construido»).
 - **Hotel:** respeta el filtro (con «Atankalama» solo cuentan asignaciones de ese hotel).
 - **No es asistencia:** sale de lo que se asignó en la app (ver «Alcance»). Sin semáforo ni
   promedio del equipo (es un conteo de contexto, no un KPI de desempeño).
@@ -190,6 +191,9 @@ Aplica al **Trabajador de aseo**, sobre **habitaciones (piezas de huésped)**. L
 - Una habitación **suma a tus Asignadas** cuando te la **asignan** (incluye asignártela
   para **rehacerla**). Lo asignado es **pegajoso: no se te quita** aunque la rechacen o
   la termine otra persona. Cuenta **una vez por habitación por persona**.
+  - **Excepción desde el 01/10/2026** (decisión de Nicolás, 11/10/2026): si la pieza pasa a otra
+    persona **sin que la hayas empezado**, no te cuenta. El rechazo sigue igual (la limpiaste y
+    quedó mal). Los turnos de septiembre conservan la regla anterior.
 - **Re-limpieza de una pieza rechazada:**
   - Si la rehacés **vos mismo** → la pieza sigue contando como **rechazada** (calidad,
     rechazo, cumplimiento), pero los créditos se recuperan **en forma gradual según el
@@ -259,10 +263,12 @@ recuperás como mucho la **mitad** de esos créditos (segundo intento) y **nada*
   `docs/creditos-rework.md`): los ítems heredados que ya estaban bien siguen siendo de la
   primera persona. ⚠️ Diverge de "gana todos los créditos" de esta ficha — **pendiente de
   decisión** (cambiarlo separaría la ficha del CRÉDITOS TOTAL del resumen mensual).
-- **Asignadas:** una asignación cuenta si siguió activa, si tuvo trabajo (ejecución) o si la
-  pieza pasó después a otra persona (pegajoso). **No** cuenta si se retiró sin trabajo y
-  nadie más la tomó (autocancelada porque la pieza ya estaba limpia al llegar el día, o
-  sacada del plan): no había nada que hacer.
+- **Asignadas:** una asignación cuenta si siguió activa o si tuvo trabajo (ejecución; p. ej. la
+  rechazaron y la rehizo otra: pegajoso). **No** cuenta si se retiró sin trabajo
+  (autocancelada porque la pieza ya estaba limpia al llegar el día, o sacada del plan): no
+  había nada que hacer. Si la pieza **pasó después a otra persona sin que la empezara**, desde
+  los turnos del 01/10/2026 tampoco cuenta (`ReportesService::PASADA_A_OTRA_NO_CUENTA_DESDE`);
+  en los anteriores sí (pegajoso), para no mover los números de septiembre.
 - **Espacios comunes:** sus créditos suman al total del N1 (pedido de la empresa, 2026-07),
   pero Eficiencia, Créditos/pieza y Ritmo se calculan con `creditos_hab` (solo piezas de
   huésped), el mismo universo que Asignadas, piezas y horas.
@@ -722,3 +728,4 @@ re-clean **<5%**.
 | 08/10/2026 | **Limpiezas sin terminar (v6.19, decisión de Nicolás):** el cierre de la noche termina y aprueba toda limpieza que siga en progreso (habitaciones y áreas) para liberar la pieza al día siguiente, pero **quien no apretó «terminar» no recibe créditos de ella** — «no siguieron las instrucciones que se dieron». Queda con `cerrada_por_sistema = 1`: fuera de créditos, piezas hechas (bono), tiempos, productividad, «Habitaciones limpiadas», «Pendientes al corte», cobertura y tasas de la sección; **sí cuenta como asignada y no hecha** (Asignadas y días trabajados). Si la supervisora la da por limpia con «Marcar limpia» antes del cierre, la persona conserva lo que marcó (regla del atajo, sin cambios). Ver [checklist.md](checklist.md) §3.7. |
 | 10/10/2026 | **Calidad según Recepción (v7, fórmula de gerencia; KPI S2.4):** gerencia aprobó la inspección pre-entrega tal cual y dio la fórmula de calidad de las supervisoras: `(aprobadas − rechazadas) ÷ totales`. **Decisiones de Nicolás:** los totales son **solo lo que revisó Recepción** (aprobadas + rechazadas de la columna «Recepción»; lo aprobado sin revisar no entra) y el resultado tiene **mínimo 0 %** (nunca negativo). Columna «Calidad» en «Supervisora · Inspección» y en el «Resumen mensual de inspecciones», y «Recepción: calidad %» en el Excel mensual (TOTAL con los SÍ y NO sumados). La app entrega el %; el monto del bono no se calcula en la app. |
 | 10/10/2026 | **v7.1 — calidad solo con la pieza aprobada y producción de Recepción (decisiones de Nicolás):** (a) a la supervisora solo le cuentan los SÍ/NO de Recepción hechos con la pieza Aprobada o Aprobada c/obs. (un NO a una pieza que ya se ensució no le baja la calidad; se calcula al leer, así que corrige lo ya registrado); (b) nuevo **KPI R1 «Producción de la inspección pre-entrega»** por recepcionista, **una por limpieza** (revisar de nuevo sin re-limpieza no suma; dentro de una limpieza el NO manda), en Reportes («Por recepcionista») y en la pestaña «Recepción» del Excel mensual. Límite conocido: una pieza que Cloudbeds aprueba por fuera queda ligada a la última aprobación de la app. |
+| 11/10/2026 | **Asignadas: la pieza pasada a otra persona sin empezarla ya no cuenta (v7.5.1, decisión de Nicolás):** «los créditos son para quien limpió, y no es justo que a alguien le baje la eficiencia por piezas que no tocó». Origen: la app retiraba a medianoche las preasignaciones (132 el 11/10) y, al dárselas la supervisora a otra persona, a quien las tenía le quedaban como asignadas y no hechas. Desde los turnos del **01/10/2026** una asignación sin trabajo que pasó a otra persona no cuenta en Asignadas (por cualquier motivo: retiro de la app, reparto de carga, ausencia). **El rechazo sigue igual** (la limpió, quedó mal y la rehizo otra: le sigue contando). Septiembre conserva la regla anterior para no mover sus números. |

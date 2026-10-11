@@ -967,6 +967,14 @@ final class ReportesService
      * aprobada a la primera = 100 %, a la segunda = 50 %, a la tercera o más = 0 %.
      */
     private const RECUPERACION_TRAS_RECHAZO = [0 => 1.0, 1 => 0.5, 2 => 0.0];
+    /**
+     * Desde este día (fecha del turno), una pieza que pasó a otra persona sin que quien la tenía la
+     * empezara ya no le cuenta a esa persona en Asignadas (decisión de Nicolás, 11/10/2026). Antes
+     * contaba (pegajoso) y le bajaba la eficiencia por piezas que nunca tocó: la app le retiraba la
+     * preasignación a medianoche y la supervisora se la daba a otra, o se repartía de nuevo la carga.
+     * Los turnos anteriores siguen con la regla vieja para no mover los números de septiembre.
+     */
+    private const PASADA_A_OTRA_NO_CUENTA_DESDE = '2026-10-01';
 
     /**
      * Dataset completo de la ficha para el rango/hotel. Shape:
@@ -1196,14 +1204,16 @@ final class ReportesService
         }
 
         // ── N2: Asignadas (E). Una vez por pieza por persona POR CICLO, PEGAJOSO: cuenta aunque la
-        // rechacen o la pieza pase a otra persona (regla de la ficha). Por asignación:
+        // rechacen y la rehaga otra persona (regla de la ficha). Por asignación:
         //  · con limpiezas suyas → un ciclo por cada vuelta que trabajó: el nochero de la tarde y el
         //    turnover suman otra pieza asignada, con los créditos del checklist de esa limpieza;
         //  · solo con el atajo «Marcar limpia» (otra persona la dio por limpia) → no cuenta, no le
         //    quedó nada que hacer;
-        //  · sin ejecuciones → cuenta si siguió activa o si la pieza pasó después a otra persona; NO
-        //    cuenta si se retiró sin trabajo y nadie más la tomó (autocancelada porque la pieza ya
-        //    estaba limpia al llegar el día, o sacada del plan): ahí no había nada que hacer.
+        //  · sin ejecuciones → cuenta si siguió activa; NO cuenta si se retiró sin trabajo
+        //    (autocancelada porque la pieza ya estaba limpia al llegar el día, o sacada del plan):
+        //    ahí no había nada que hacer. Si la pieza pasó después a otra persona, tampoco cuenta
+        //    desde los turnos del 01/10/2026 (PASADA_A_OTRA_NO_CUENTA_DESDE); antes sí (pegajoso).
+        //    Con ejecución suya (p. ej. la limpió mal, la rechazaron y la rehizo otra) sigue contando.
         // Créditos = checklist obligatorio vigente: el de la ejecución si la hubo (exacto), si no
         // el que la app elegiría hoy (templateParaHabitacion).
         // asignaciones.fecha es DATE local: se compara contra desde/hasta sin pasar por UTC.
@@ -1282,7 +1292,8 @@ final class ReportesService
                     continue;
                 }
                 $trabajadas = [0 => null];
-                $cuenta = (int) $f['activa'] === 1 || (int) $f['pasada_a_otro'] > 0;
+                $cuenta = (int) $f['activa'] === 1
+                    || ((int) $f['pasada_a_otro'] > 0 && (string) $f['fecha'] < self::PASADA_A_OTRA_NO_CUENTA_DESDE);
             } else {
                 $cuenta = true;
             }

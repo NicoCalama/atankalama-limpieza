@@ -23,6 +23,7 @@ use PHPUnit\Framework\TestCase;
  *   hoy   Ana    limpia 101 y 102                                       → UN día de Ana (no dos)
  *   hoy   Berta  asignada a 301 (hotel INN), sin empezar                → día de Berta solo en INN / ambos
  *   hoy   Carla  asignada a 105; se la pasan a Dora sin que la toque    → día de Dora, no de Carla
+ *                                                                          (ni asignada de Carla, desde el 01/10)
  *   hoy   Sofía  «Marcar limpia» sobre la 106                           → no es trabajo de Sofía
  */
 final class ReportesDiasTrabajadosTest extends TestCase
@@ -98,10 +99,9 @@ final class ReportesDiasTrabajadosTest extends TestCase
     public function testPiezaPasadaAOtraSinTrabajoCuentaParaQuienLaRecibe(): void
     {
         $this->assertSame(1, $this->filaDe('Dora', $this->hoy, $this->hoy)['dias_trabajados']);
-        // Carla sigue en la ficha (la pieza asignada es pegajosa) pero ese día no lo trabajó.
-        $carla = $this->filaDe('Carla', $this->hoy, $this->hoy);
-        $this->assertSame(1, $carla['esperado_hab']);
-        $this->assertSame(0, $carla['dias_trabajados']);
+        // Desde los turnos del 01/10/2026 la pieza que pasó a otra persona sin que la empezara
+        // tampoco le cuenta como asignada: Carla no tiene nada ese día y no sale en la ficha.
+        $this->assertNull($this->filaOpcional('Carla', $this->hoy, $this->hoy));
     }
 
     public function testElAtajoMarcarLimpiaNoEsDiaTrabajado(): void
@@ -120,7 +120,7 @@ final class ReportesDiasTrabajadosTest extends TestCase
     {
         $this->assertSame('parcial', $this->filaDe('Ana', $this->hoy, $this->hoy)['jornada']);
         $this->assertSame('completa', $this->filaDe('Dora', $this->hoy, $this->hoy)['jornada']);
-        $this->assertNull($this->filaDe('Carla', $this->hoy, $this->hoy)['jornada'], 'sin definir');
+        $this->assertNull($this->filaDe('Berta', $this->hoy, $this->hoy)['jornada'], 'sin definir');
     }
 
     public function testDetallePorTrabajadoraYResumenMensualLlevanDiasYJornada(): void
