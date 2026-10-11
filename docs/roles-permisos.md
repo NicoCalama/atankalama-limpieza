@@ -52,6 +52,7 @@ Formato: `codigo | descripcion | categoria | scope`
 | `habitaciones.marcar_completada` | Marcar una habitación propia como terminada (pasa a auditoría) | Habitaciones | propio |
 | `habitaciones.ver_historial` | Ver historial completo de una habitación (quién la limpió, auditorías previas) | Habitaciones | global |
 | `habitaciones.gestionar_edificios` | Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo). v7: antes alcanzaba con `habitaciones.ver_todas`, así que Recepción veía la pantalla y podía crear y borrar edificios. Supervisora y Admin; en prod lo conserva todo rol que tenía `ver_todas` menos Recepción (decisión de Nicolás, 05/10/2026) | Habitaciones | global |
+| `habitaciones.ver_prueba` | Ver y usar la habitación de prueba «PRUEBA» de cada hotel (v7.5: sin Cloudbeds, fuera de KPIs y avisos). Sin el permiso no aparece en ninguna lista, y solo se le asigna a quien lo tiene. Solo Admin por defecto (decisión de Nicolás, 10/10/2026); se le puede dar a otro rol para una capacitación. Ver [habitacion-prueba.md](habitacion-prueba.md) | Habitaciones | global |
 
 ### 2.2 Checklists (templates)
 
@@ -322,6 +323,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `revision_entrega.registrar` | ⚪ | ⚪ | ✅ | ✅ |
 | `revision_entrega.configurar` | ⚪ | ✅ | ⚪ | ✅ |
 | `habitaciones.gestionar_edificios` | ⚪ | ✅ | ⚪ | ✅ |
+| `habitaciones.ver_prueba` (v7.5) | ⚪ | ⚪ | ⚪ | ✅ |
 | `tickets.crear` | ✅ | ✅ | ⚪ | ✅ |
 | `tickets.ver_propios` | ✅ | ⚪ | ⚪ | ✅ |
 | `tickets.ver_todos` | ⚪ | ✅ | ⚪ | ✅ |

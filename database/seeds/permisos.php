@@ -13,6 +13,8 @@ return [
     ['habitaciones.agregar_nota', 'Dejar/quitar la nota de Recepción para la mucama en una habitación', 'Habitaciones', 'global'],
     // v7: antes alcanzaba con habitaciones.ver_todas, así que Recepción también podía crear y borrar edificios.
     ['habitaciones.gestionar_edificios', 'Crear, editar y borrar edificios y asignar las habitaciones a edificio y piso (Ajustes → Edificios y Mapeo)', 'Habitaciones', 'global'],
+    // v7.5: la habitación «PRUEBA» de cada hotel (smoke tests sin Cloudbeds ni avisos). Solo Admin por defecto.
+    ['habitaciones.ver_prueba', 'Ver y usar la habitación de prueba «PRUEBA» de cada hotel (sin Cloudbeds, fuera de KPIs y avisos); solo se le asigna a quien tiene este permiso', 'Habitaciones', 'global'],
 
     ['checklists.ver', 'Ver los templates de checklist', 'Checklists', 'global'],
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],

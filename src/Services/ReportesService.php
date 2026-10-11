@@ -1856,7 +1856,8 @@ final class ReportesService
         // Excluye áreas comunes de los KPIs de piezas (tiempos, tasas de auditoría, productividad):
         // cada query que usa este helper joinea #__habitaciones con alias 'h'. Un solo punto para no
         // contaminar tasas. Ver docs/areas-comunes.md. Los CRÉDITOS usan hotelCondCreditos (abajo).
-        $cond = ' AND h.es_espacio_comun = 0';
+        // v7.5: tampoco la habitación de prueba (docs/habitacion-prueba.md).
+        $cond = ' AND h.es_espacio_comun = 0 AND ' . HabitacionesPrueba::sqlSinPrueba();
         if ($hotel !== 'ambos') {
             $params[] = $hotel;
             $cond .= ' AND ho.codigo = ?';
@@ -1869,11 +1870,13 @@ final class ReportesService
         // Variante para CRÉDITOS: NO excluye áreas comunes — desde julio 2026 los créditos de los
         // ítems de espacios SUMAN al total del trabajador (pedido de la empresa: hay gente dedicada
         // solo a espacios y su trabajo debe pesar en el KPI). Los demás KPIs siguen solo-piezas.
+        // v7.5: la habitación de prueba no suma créditos.
+        $cond = ' AND ' . HabitacionesPrueba::sqlSinPrueba();
         if ($hotel !== 'ambos') {
             $params[] = $hotel;
-            return ' AND ho.codigo = ?';
+            $cond .= ' AND ho.codigo = ?';
         }
-        return '';
+        return $cond;
     }
 
     private function userCond(?int $usuarioId, array &$params, string $alias = 'ec'): string

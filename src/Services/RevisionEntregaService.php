@@ -210,7 +210,7 @@ final class RevisionEntregaService
         }
 
         $hab = Database::fetchOne(
-            'SELECT h.id, h.numero, h.estado, h.cloudbeds_room_id, ho.codigo AS hotel_codigo
+            'SELECT h.id, h.numero, h.estado, h.cloudbeds_room_id, h.es_prueba, ho.codigo AS hotel_codigo
                FROM #__habitaciones h
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE h.id = ? AND h.activa = 1 AND h.es_espacio_comun = 0',
@@ -348,7 +348,8 @@ final class RevisionEntregaService
             'paso_a_sucia' => $pasaASucia,
         ]);
 
-        if ($resultado === self::RESULTADO_NO) {
+        // v7.5: un NO a la habitación de prueba no avisa a las supervisoras.
+        if ($resultado === self::RESULTADO_NO && ((int) $hab['es_prueba']) !== 1) {
             try {
                 $this->avisarSupervisoras(
                     $hab,
@@ -826,7 +827,8 @@ final class RevisionEntregaService
     private function filtroPeriodo(string $desde, string $hasta, string $hotel): array
     {
         [$d, $h] = Fechas::rangoUtc($desde, $hasta);
-        $where = 'r.created_at >= ? AND r.created_at < ?';
+        // v7.5: la habitación de prueba no cuenta en Reportes ni en la producción de Recepción.
+        $where = 'r.created_at >= ? AND r.created_at < ? AND ' . HabitacionesPrueba::sqlSinPrueba();
         $params = [$d, $h];
         if ($hotel !== 'ambos') {
             $where .= ' AND ho.codigo = ?';

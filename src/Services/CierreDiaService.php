@@ -65,7 +65,8 @@ final class CierreDiaService
      */
     public function pendientes(): array
     {
-        return $this->auditorias->bandejaPendientes();
+        // Con la habitación de prueba: el cierre la aprueba como a cualquier pieza (sin Cloudbeds).
+        return $this->auditorias->bandejaPendientes(null, true);
     }
 
     /**
@@ -113,13 +114,13 @@ final class CierreDiaService
     /**
      * Limpiezas que siguen sin terminar (nadie apretó «terminar»), de cualquier día, con su pieza.
      *
-     * @return list<array{ejecucion_id: int, habitacion_id: int, numero: string, hotel: string, es_espacio_comun: bool, estado_habitacion: string, usuario_id: int, usuario: string}>
+     * @return list<array{ejecucion_id: int, habitacion_id: int, numero: string, hotel: string, es_espacio_comun: bool, es_prueba: bool, estado_habitacion: string, usuario_id: int, usuario: string}>
      */
     public function limpiezasSinTerminar(): array
     {
         $filas = Database::fetchAll(
             "SELECT ec.id AS ejecucion_id, ec.habitacion_id, ec.usuario_id, u.nombre AS usuario,
-                    h.numero, h.es_espacio_comun, h.estado AS estado_habitacion, ho.nombre AS hotel
+                    h.numero, h.es_espacio_comun, h.es_prueba, h.estado AS estado_habitacion, ho.nombre AS hotel
                FROM #__ejecuciones_checklist ec
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -133,6 +134,7 @@ final class CierreDiaService
             'numero'            => (string) $f['numero'],
             'hotel'             => (string) $f['hotel'],
             'es_espacio_comun'  => (int) $f['es_espacio_comun'] === 1,
+            'es_prueba'         => (int) ($f['es_prueba'] ?? 0) === 1,
             'estado_habitacion' => (string) $f['estado_habitacion'],
             'usuario_id'        => (int) $f['usuario_id'],
             'usuario'           => (string) $f['usuario'],
@@ -153,7 +155,7 @@ final class CierreDiaService
      * Una limpieza colgada de una pieza que ya siguió su ciclo (la volvió a limpiar otra persona,
      * la marcaron sucia, Cloudbeds la dio por limpia) solo se cierra: la pieza no se toca.
      *
-     * @return list<array{habitacion_id: int, numero: string, hotel: string, es_espacio_comun: bool, usuarios: list<string>}>
+     * @return list<array{habitacion_id: int, numero: string, hotel: string, es_espacio_comun: bool, es_prueba: bool, usuarios: list<string>}>
      *         piezas que pasaron a por inspeccionar
      */
     public function cerrarSinTerminar(): array
@@ -208,6 +210,7 @@ final class CierreDiaService
                     'numero'           => $limpiezas[0]['numero'],
                     'hotel'            => $limpiezas[0]['hotel'],
                     'es_espacio_comun' => $limpiezas[0]['es_espacio_comun'],
+                    'es_prueba'        => $limpiezas[0]['es_prueba'],
                     'usuarios'         => array_values(array_unique(array_column($limpiezas, 'usuario'))),
                 ];
             }
@@ -223,10 +226,12 @@ final class CierreDiaService
      * Campanita a las supervisoras con las piezas que el sistema terminó esta noche y de quién eran.
      * Una sola por noche, con todas.
      *
-     * @param list<array{numero: string, hotel: string, es_espacio_comun: bool, usuarios: list<string>}> $piezas
+     * @param list<array{numero: string, hotel: string, es_espacio_comun: bool, es_prueba?: bool, usuarios: list<string>}> $piezas
      */
     public function avisarCerradasSinTerminar(array $piezas, string $hoy): void
     {
+        // v7.5: la habitación de prueba no le avisa a nadie.
+        $piezas = array_values(array_filter($piezas, static fn(array $p): bool => !($p['es_prueba'] ?? false)));
         $destinatarios = $this->destinatariosAvisos();
         if ($piezas === [] || $destinatarios === []) {
             return;

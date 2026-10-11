@@ -43,11 +43,15 @@ final class HabitacionService
      * @param string|null                $estado  estado específico
      * @return array<int, array<string, mixed>>   filas con hotel_codigo y tipo_nombre incluidos
      */
-    public function listar(?string $hotel = 'ambos', ?string $estado = null): array
+    public function listar(?string $hotel = 'ambos', ?string $estado = null, bool $incluirPrueba = false): array
     {
         // es_espacio_comun = 0: el listado de habitaciones es solo piezas de huésped; las áreas
         // comunes tienen su propia pantalla (EspacioService). Ver docs/areas-comunes.md
         $where = ['h.activa = 1', 'h.es_espacio_comun = 0'];
+        // v7.5: la habitación de prueba solo la lista quien tiene habitaciones.ver_prueba.
+        if (!$incluirPrueba) {
+            $where[] = HabitacionesPrueba::sqlSinPrueba();
+        }
         // Asignación activa de HOY, para mostrar a quién le corresponde cada pieza (mismo
         // patrón que AsignacionService::vistaConsolidada). Puede haber varias asignaciones
         // activas de una habitación en fechas distintas (planificación a futuro), pero como
@@ -92,6 +96,7 @@ final class HabitacionService
             // string ("0"/"1"), y "0" es truthy en JS — el botón "N" del listado se pintaría
             // activo en TODAS las habitaciones sin este cast. Ver docs/nocheros.md
             $f['es_nochero'] = ((int) ($f['es_nochero'] ?? 0)) === 1;
+            $f['es_prueba'] = ((int) ($f['es_prueba'] ?? 0)) === 1;
             return $this->sabanas->anotarFila($f);
         }, $filas);
     }
@@ -130,6 +135,7 @@ final class HabitacionService
         $fila['cb_ocupada'] = isset($fila['cb_ocupada'])
             ? ((int) $fila['cb_ocupada']) === 1
             : null;
+        $fila['es_prueba'] = ((int) ($fila['es_prueba'] ?? 0)) === 1;
         return $fila;
     }
 

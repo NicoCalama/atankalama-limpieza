@@ -12,6 +12,7 @@ use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\ChecklistException;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
+use Atankalama\Limpieza\Services\HabitacionesPrueba;
 
 final class AuditoriaController
 {
@@ -37,7 +38,10 @@ final class AuditoriaController
     {
         $hotel = $request->query['hotel'] ?? 'ambos';
         $hotel = is_string($hotel) ? $hotel : 'ambos';
-        $pendientes = $this->servicio()->bandejaPendientes($hotel);
+        $pendientes = $this->servicio()->bandejaPendientes(
+            $hotel,
+            $request->usuario?->tienePermiso(HabitacionesPrueba::PERMISO_VER) ?? false,
+        );
         return Response::ok(['pendientes' => $pendientes, 'total' => count($pendientes)]);
     }
 

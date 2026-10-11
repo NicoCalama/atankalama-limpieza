@@ -400,6 +400,12 @@ final class CloudbedsSyncService
      */
     private function escribirEstadoRoomCondition(Habitacion $habitacion, string $condicion): bool
     {
+        // v7.5: la habitación de prueba nunca le escribe a Cloudbeds. No tiene cloudbeds_room_id, pero
+        // el freno va explícito y sin la advertencia de «escritura omitida» (no es un problema).
+        if ($habitacion->esPrueba) {
+            Logger::info('cloudbeds', 'escritura omitida: habitación de prueba', ['habitacion_id' => $habitacion->id]);
+            return false;
+        }
         $hotel = $this->hoteles->buscarPorId($habitacion->hotelId);
         if ($hotel === null || $hotel->cloudbedsPropertyId === null || $habitacion->cloudbedsRoomId === null) {
             Logger::warning('cloudbeds', 'escritura omitida: sin cloudbeds_property_id o cloudbeds_room_id', [

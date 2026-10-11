@@ -101,6 +101,10 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="habitacion.numero"></p>
                         <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="habitacion.tipo_nombre"></p>
                         <p class="text-sm text-gray-500 dark:text-gray-500 mt-0.5" x-text="habitacion.hotel_nombre"></p>
+                        <!-- v7.5: habitación de prueba. Ver docs/habitacion-prueba.md -->
+                        <template x-if="habitacion.es_prueba">
+                            <p class="mt-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">De prueba · sin Cloudbeds</span></p>
+                        </template>
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span x-html="badgeEstado(habitacion.estado)"></span>

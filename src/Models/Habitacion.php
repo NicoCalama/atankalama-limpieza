@@ -50,6 +50,8 @@ final class Habitacion
         public readonly ?string $notaRecepcion = null,
         public readonly ?int $notaRecepcionAutorId = null,
         public readonly ?string $notaRecepcionAt = null,
+        // v7.5: habitación de prueba (sin Cloudbeds, fuera de KPIs y avisos). Ver HabitacionesPrueba.
+        public readonly bool $esPrueba = false,
     ) {
     }
 
@@ -73,6 +75,7 @@ final class Habitacion
             notaRecepcion: isset($fila['nota_recepcion']) ? (string) $fila['nota_recepcion'] : null,
             notaRecepcionAutorId: isset($fila['nota_recepcion_autor_id']) ? (int) $fila['nota_recepcion_autor_id'] : null,
             notaRecepcionAt: isset($fila['nota_recepcion_at']) ? (string) $fila['nota_recepcion_at'] : null,
+            esPrueba: ((int) ($fila['es_prueba'] ?? 0)) === 1,
         );
     }
 
@@ -95,6 +98,7 @@ final class Habitacion
             'nota_recepcion' => $this->notaRecepcion,
             'nota_recepcion_autor_id' => $this->notaRecepcionAutorId,
             'nota_recepcion_at' => $this->notaRecepcionAt,
+            'es_prueba' => $this->esPrueba,
         ];
     }
 

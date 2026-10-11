@@ -41,6 +41,15 @@ final class AsignacionService
     ): Asignacion {
         $this->validarFecha($fecha);
         $franja = $this->validarFranja($franja);
+        // v7.5: la habitación de prueba solo se le asigna a quien la puede ver: así nunca le llega a
+        // una persona del hotel ni su aviso de asignación.
+        if (HabitacionesPrueba::esPrueba($habitacionId) && !HabitacionesPrueba::usuarioPuedeVer($usuarioId)) {
+            throw new AsignacionException(
+                'HABITACION_DE_PRUEBA',
+                'La habitación de prueba solo se le puede asignar a quien tiene permiso para verla.',
+                403
+            );
+        }
         $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
         $this->desactivarAsignacionesActivas($habitacionId, $fecha);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
@@ -163,6 +172,7 @@ final class AsignacionService
                     WHERE h.estado = ?
                       AND h.activa = 1
                       AND h.es_espacio_comun = 0
+                      AND ' . HabitacionesPrueba::sqlSinPrueba() . '
                       AND a.id IS NULL';
         $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA];
         if ($filtroHotel !== null) {
@@ -406,8 +416,11 @@ final class AsignacionService
      *     trabajadores: list<array<string, mixed>>
      * }
      */
-    public function vistaConsolidada(string $hotel, string $fecha): array
+    public function vistaConsolidada(string $hotel, string $fecha, bool $incluirPrueba = false): array
     {
+        // v7.5: sin habitaciones.ver_prueba, la habitación de prueba no sale en el pool, en «Volver a
+        // limpiar» ni en las colas.
+        $sinPrueba = $incluirPrueba ? '' : ' AND ' . HabitacionesPrueba::sqlSinPrueba();
         $filtroHotel = ($hotel === 'ambos') ? null : $hotel;
         $esHoy = $fecha === date('Y-m-d');
 
@@ -446,6 +459,7 @@ final class AsignacionService
                           AND h.es_espacio_comun = 0
                           AND a.id IS NULL';
         }
+        $sqlSin .= $sinPrueba;
         $paramsSin = [$fecha];
         if ($filtroHotel !== null) {
             $sqlSin .= ' AND ho.codigo = ?';
@@ -481,6 +495,7 @@ final class AsignacionService
                           AND h.es_espacio_comun = 0
                           AND h.estado IN (\'aprobada\', \'aprobada_con_observacion\', \'aprobada_automatica\')
                           AND EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1)';
+            $sqlRe .= $sinPrueba;
             $paramsRe = [$fecha];
             if ($filtroHotel !== null) {
                 $sqlRe .= ' AND ho.codigo = ?';
@@ -508,7 +523,7 @@ final class AsignacionService
 
         $trabajadoresVista = [];
         foreach ($trabajadores as $tr) {
-            $cola = $this->colaDelTrabajador((int) $tr['id'], $fecha);
+            $cola = HabitacionesPrueba::filtrar($this->colaDelTrabajador((int) $tr['id'], $fecha), $incluirPrueba);
             if ($filtroHotel !== null) {
                 $cola = array_values(array_filter(
                     $cola,
@@ -574,7 +589,7 @@ final class AsignacionService
         // la pieza siga 'en_progreso': si la sacaron por otro camino («Marcar sucia», «sin aseo»,
         // Cloudbeds), esa ejecución está vencida y no debe ganarle a las pendientes.
         $filas = Database::fetchAll(
-            "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.cb_frontdesk_status, h.cb_arrival_date,
+            "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.es_prueba, h.cb_frontdesk_status, h.cb_arrival_date,
                     h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
                     (h.estado = 'en_progreso' AND EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
@@ -588,7 +603,10 @@ final class AsignacionService
               ORDER BY a.orden_cola, a.id",
             [$usuarioId, $fecha]
         );
-        return array_map(fn(array $f) => $this->sabanas->anotarFila($f), $filas);
+        return array_map(function (array $f): array {
+            $f['es_prueba'] = ((int) ($f['es_prueba'] ?? 0)) === 1;
+            return $this->sabanas->anotarFila($f);
+        }, $filas);
     }
 
     /**

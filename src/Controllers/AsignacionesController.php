@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionException;
 use Atankalama\Limpieza\Services\AsignacionService;
+use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\ListasOpcionesService;
 
@@ -175,7 +176,12 @@ final class AsignacionesController
         $vistaCompleta = $esPropia && (($request->query['vista'] ?? null) === 'completa');
 
         if ($solicitante->tienePermiso('habitaciones.ver_todas') || $vistaCompleta) {
-            $cola = $this->svc->colaDelTrabajador($usuarioId, $fechaStr);
+            // v7.5: la habitación de prueba solo la ve quien tiene el permiso (la dueña de la cola lo tiene:
+            // solo a esa gente se le asigna).
+            $cola = HabitacionesPrueba::filtrar(
+                $this->svc->colaDelTrabajador($usuarioId, $fechaStr),
+                $solicitante->tienePermiso(HabitacionesPrueba::PERMISO_VER),
+            );
         } else {
             $actual = $this->svc->habitacionActualDeCola($usuarioId, $fechaStr);
             $cola = $actual === null ? [] : [$actual];
@@ -195,7 +201,11 @@ final class AsignacionesController
         $hotel = is_string($hotel) ? $hotel : 'ambos';
         $fecha = is_string($fecha) ? $fecha : date('Y-m-d');
 
-        return Response::ok($this->svc->vistaConsolidada($hotel, $fecha));
+        return Response::ok($this->svc->vistaConsolidada(
+            $hotel,
+            $fecha,
+            $request->usuario?->tienePermiso(HabitacionesPrueba::PERMISO_VER) ?? false,
+        ));
     }
 
     /** Reasignar o quitar una pieza en progreso (ver AsignacionService::exigirPuedeMoverEnProgreso). */

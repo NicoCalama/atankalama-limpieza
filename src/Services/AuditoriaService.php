@@ -319,7 +319,7 @@ final class AuditoriaService
      *
      * @return list<array<string, mixed>>
      */
-    public function bandejaPendientes(?string $hotelCodigo = null): array
+    public function bandejaPendientes(?string $hotelCodigo = null, bool $incluirPrueba = false): array
     {
         $sql = "SELECT h.id, h.numero, h.estado, h.es_nochero, h.auditoria_orden,
                        (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
@@ -334,6 +334,10 @@ final class AuditoriaService
                                  WHERE ec2.habitacion_id = h.id AND ec2.estado = 'completada')
                  WHERE h.estado = 'completada_pendiente_auditoria'
                    AND h.activa = 1";
+        // v7.5: la habitación de prueba solo sale a quien tiene habitaciones.ver_prueba (y al cierre).
+        if (!$incluirPrueba) {
+            $sql .= ' AND ' . HabitacionesPrueba::sqlSinPrueba();
+        }
         $params = [];
         if ($hotelCodigo !== null && $hotelCodigo !== 'ambos') {
             $sql .= ' AND ho.codigo = ?';
@@ -399,6 +403,12 @@ final class AuditoriaService
             $comentario ?? 'Revisa qué falta y vuelve a cerrarla.',
             Url::a("/habitaciones/{$habitacionId}")
         );
+
+        // v7.5: la habitación de prueba no levanta alerta ni avisa a las supervisoras (a quien la
+        // limpió sí: solo se le asigna a quien tiene habitaciones.ver_prueba).
+        if (HabitacionesPrueba::esPrueba($habitacionId)) {
+            return;
+        }
 
         $this->alertas->levantar(
             AlertaActiva::TIPO_HABITACION_RECHAZADA,
