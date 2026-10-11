@@ -1224,6 +1224,8 @@ final class Tours
                              'texto' => 'Elige el mes arriba y verás por trabajador lo limpiado y lo que quedó bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
                              'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó, cómo quedaron (aprobadas, con observación o rechazadas) y cuántas casillas del checklist desmarcó.'],
+                            ['sel' => '[data-tour="rep.recepcion_mensual"]', 'titulo' => 'Recepción en el mes',
+                             'texto' => 'Arriba el total de inspecciones pre-entrega del mes y abajo cuántas hizo cada recepcionista, una por limpieza. El SÍ y el NO están en la pestaña Recepción.'],
                             ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
                              'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores, supervisores y Recepción), los KPIs del período o las inspecciones pendientes de un día.'],
                         ],

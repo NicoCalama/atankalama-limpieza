@@ -353,6 +353,15 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $hoja = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Recepción'];
         $this->assertSame(['Recepcionista', 'Inspecciones', 'Aprobadas (SÍ)', 'No aprobadas (NO)', '% NO'], $hoja[5]);
         $this->assertSame(['TOTAL', 4, 2, 2, 50.0], $hoja[count($hoja) - 1], 'TOTAL de ambos hoteles');
+
+        // Pestaña Mensual (v7.2): el mismo conteo, solo total y por persona.
+        $mes = $this->svc->resumenMensual((int) date('Y'), (int) date('n'), 'ambos');
+        $this->assertSame(4, $mes['total'], 'el total es la suma de las personas, igual que el Excel');
+        $this->assertSame(
+            [['Carla', 3], ['Valeria', 1]],
+            array_map(static fn (array $p): array => [$p['nombre'], $p['inspecciones']], $mes['por_recepcionista'])
+        );
+        $this->assertSame(['total' => 0, 'por_recepcionista' => []], $this->svc->resumenMensual((int) date('Y'), (int) date('n'), 'inn'));
     }
 
     /**

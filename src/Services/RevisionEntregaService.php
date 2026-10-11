@@ -797,6 +797,28 @@ final class RevisionEntregaService
     }
 
     /**
+     * Resumen mensual de Recepción (v7.2, pedido de Nicolás del 10/10/2026): solo cuántas inspecciones
+     * pre-entrega hubo en el mes y cuántas hizo cada recepcionista, sin SÍ/NO. Mismo conteo que la hoja
+     * «Recepción» del Excel mensual: una por limpieza por persona, y el total es la suma de las personas.
+     *
+     * @return array{total: int, por_recepcionista: list<array{usuario_id: int, nombre: string, inspecciones: int}>}
+     */
+    public function resumenMensual(int $anio, int $mes, string $hotel): array
+    {
+        $desde = sprintf('%04d-%02d-01', $anio, $mes);
+        $hasta = date('Y-m-t', (int) strtotime($desde));
+        $personas = array_map(static fn(array $p): array => [
+            'usuario_id' => $p['usuario_id'],
+            'nombre' => $p['nombre'],
+            'inspecciones' => $p['inspecciones'],
+        ], $this->produccionPorRecepcionista($desde, $hasta, $hotel));
+        return [
+            'total' => array_sum(array_column($personas, 'inspecciones')),
+            'por_recepcionista' => $personas,
+        ];
+    }
+
+    /**
      * Condición del período (por fecha de la revisión) y del hotel, sobre los alias r (revisiones_entrega)
      * y ho (hoteles).
      *

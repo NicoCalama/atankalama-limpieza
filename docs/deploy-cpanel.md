@@ -2072,11 +2072,15 @@ trabajadores, supervisoras, recepción y reportes mensuales». **Decisiones (pla
   franja pide tocar la pestaña y la ayuda sigue sola); el motor ahora también lleva a la vista el ancla de un
   diálogo (`vista-guiada.js`, función `llevarAVista`).
 
-**Sin SQL**, sin `.env`, sin `vendor/`, sin cambios en los cron. Sin permisos nuevos. Backend sin cambios (mismos
-endpoints).
+- **Cuadro nuevo en Mensual** (pedido de Nicolás, 10/10): «Inspección pre-entrega del mes», solo el total y cuántas hizo
+  cada recepcionista (una por limpieza, el mismo conteo que la hoja «Recepción» del Excel). Endpoint nuevo
+  `GET /api/reportes/recepcion-mensual` (`reportes.ver`), lee solo `revisiones_entrega`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin cambios en los cron. Sin permisos nuevos.
 
 **ZIP** `build/limpieza-v72-delta.zip`, con la fila de la v7.2 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0):
-- `limpieza/app_core/`: `views/reportes.php`, `src/Support/Tours.php`, `CHANGELOG.md` y
+- `limpieza/app_core/`: `views/reportes.php`, `src/Support/Tours.php`, `src/Controllers/ReportesController.php`,
+  `src/Services/RevisionEntregaService.php`, `src/Core/Kernel.php`, `CHANGELOG.md` y
   `public/assets/vista-guiada/vista-guiada.js` (la copia de `app_core`, §10).
 - **Docroot** `limpieza/assets/vista-guiada/vista-guiada.js` (la que sirve el navegador; `layout.php` le pone
   `?v=filemtime`, así que no hace falta tocar `sw.js`).
@@ -2086,6 +2090,6 @@ Vuelta atrás: `build/limpieza-v72-vuelta-atras.zip` (los mismos archivos en la 
 **Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
 
 **Smoke:** badge **v7.2** (incógnito), `/api/health` 200, y en Reportes (Admin): se ven las 4 pestañas; cada una
-muestra sus bloques; recargar con `#mensual` abre Mensual; el «?» de Reportes ofrece los 4 recorridos.
+muestra sus bloques (Mensual con el cuadro «Inspección pre-entrega del mes»); recargar con `#mensual` abre Mensual; el «?» de Reportes ofrece los 4 recorridos.
 
 **Vuelta atrás:** subir `build/limpieza-v72-vuelta-atras.zip`. No hay datos que deshacer.

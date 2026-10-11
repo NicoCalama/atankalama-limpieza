@@ -176,6 +176,29 @@ final class ReportesController
         ]);
     }
 
+    /**
+     * GET /api/reportes/recepcion-mensual?anio=2026&mes=10&hotel=ambos — total de inspecciones pre-entrega
+     * del mes y cuántas hizo cada recepcionista (v7.2, pestaña Mensual). Lee solo revisiones_entrega.
+     */
+    public function recepcionMensual(Request $request): Response
+    {
+        $usuario = $request->usuario;
+        if ($usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'Sesión requerida.', 401);
+        }
+        if (!$usuario->tienePermiso('reportes.ver')) {
+            return Response::error('SIN_PERMISO', 'No tienes permiso para ver reportes.', 403);
+        }
+
+        [$anio, $mes, $hotel] = $this->parsearMes($request);
+        if ($anio === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
+        }
+
+        return Response::ok(['anio' => $anio, 'mes' => $mes, 'hotel' => $hotel]
+            + $this->revisionEntrega->resumenMensual($anio, $mes, $hotel));
+    }
+
     /** GET /api/reportes/auditorias-pendientes?fecha=2026-09-10&hotel=ambos */
     public function auditoriasPendientes(Request $request): Response
     {

@@ -890,6 +890,55 @@
             </template>
         </section>
 
+        <!-- Inspección pre-entrega del mes (pedido de Nicolás, 10/10/2026): solo el total y cuántas hizo cada
+             recepcionista, sin SÍ/NO (el detalle está en la pestaña Recepción). Una por limpieza, igual que la
+             hoja «Recepción» del Excel. -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.recepcion_mensual">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="concierge-bell" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspección pre-entrega del mes</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Cuántas hizo Recepción, una por limpieza. El SÍ / NO está en la pestaña Recepción.</p>
+                    </div>
+                </div>
+            </header>
+
+            <template x-if="recMesCargando && !recMes">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="recMesError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="recMesError"></p>
+                    <button @click="cargarRecepcionMensual()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!recMesError && recMes">
+                <div class="p-4 space-y-4">
+                    <div class="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+                        <p class="text-xs font-medium text-blue-700 dark:text-blue-300">Total del mes</p>
+                        <p class="text-3xl font-bold text-blue-900 dark:text-blue-100 tabular-nums" x-text="recMes.total"></p>
+                    </div>
+                    <template x-if="recMes.por_recepcionista.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Recepción no registró inspecciones pre-entrega en este mes.</p>
+                    </template>
+                    <template x-if="recMes.por_recepcionista.length > 0">
+                        <ul class="divide-y divide-gray-100 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <template x-for="p in recMes.por_recepcionista" :key="p.usuario_id">
+                                <li class="flex items-center justify-between gap-3 px-4 py-3">
+                                    <span class="text-sm text-gray-900 dark:text-gray-100" x-text="p.nombre"></span>
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums" x-text="p.inspecciones"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </template>
+        </section>
+
         </div>
         </template>
         <!-- ═══════════════ fin pestaña MENSUAL ═══════════════ -->
@@ -1091,7 +1140,7 @@ function reportes() {
         trabajadores: ['kpis', 'ficha'],
         supervisoras: VE_SUPERVISORAS ? ['ficha', 'pend'] : ['pend'], // la ficha trae la sección de supervisoras
         recepcion:    ['rev'],
-        mensual:      ['mensual', 'audit'],
+        mensual:      ['mensual', 'audit', 'recmes'],
     };
     var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -1108,7 +1157,7 @@ function reportes() {
             { id: 'mensual',      label: 'Mensual',      icono: 'calendar' },
         ],
         // true = ya se pidió con los filtros actuales; false = hay que pedirla al abrir su pestaña.
-        vigente: { kpis: false, ficha: false, pend: false, rev: false, mensual: false, audit: false },
+        vigente: { kpis: false, ficha: false, pend: false, rev: false, mensual: false, audit: false, recmes: false },
 
         data:         null,
         cargando:     false,
@@ -1170,6 +1219,12 @@ function reportes() {
         guardandoCorte:    false,
         corteError:        '',
         puedeEditarCorte:  <?= $usuario->tienePermiso('reportes.editar_corte') ? 'true' : 'false' ?>,
+
+        // Inspección pre-entrega del mes (pestaña Mensual): total y cuántas hizo cada recepcionista.
+        recMes:          null,
+        recMesCargando:  false,
+        recMesError:     '',
+        recMesSeq:       0,
 
         // Resumen mensual de auditorías
         auditData:       null,
@@ -1255,6 +1310,7 @@ function reportes() {
             var cargadores = {
                 kpis: () => this.cargarKpis(), ficha: () => this.cargarFicha(), pend: () => this.cargarAuditPendientes(),
                 rev: () => this.cargarRevisionEntrega(), mensual: () => this.cargarMensual(), audit: () => this.cargarAudit(),
+                recmes: () => this.cargarRecepcionMensual(),
             };
             (CARGAS_POR_PESTANA[this.pestana] || []).forEach(k => {
                 if (this.vigente[k]) return;
@@ -1272,6 +1328,7 @@ function reportes() {
             var enCurso = {
                 kpis: this.cargando, ficha: this.fichaCargando, pend: this.auditPendCargando,
                 rev: this.revEntregaCargando, mensual: this.mensualCargando, audit: this.auditCargando,
+                recmes: this.recMesCargando,
             };
             return (CARGAS_POR_PESTANA[this.pestana] || []).some(k => enCurso[k]);
         },
@@ -1282,7 +1339,7 @@ function reportes() {
         },
 
         alCambiarHotel() {
-            this.invalidar(['kpis', 'ficha', 'pend', 'rev', 'mensual', 'audit']);
+            this.invalidar(['kpis', 'ficha', 'pend', 'rev', 'mensual', 'audit', 'recmes']);
             this.asegurar();
         },
 
@@ -1292,7 +1349,7 @@ function reportes() {
         },
 
         alCambiarMes() {
-            this.invalidar(['mensual', 'audit']);
+            this.invalidar(['mensual', 'audit', 'recmes']);
             this.asegurar();
         },
 
@@ -1560,6 +1617,37 @@ function reportes() {
             } finally {
                 if (seq === this.auditSeq) {
                     this.auditCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        },
+
+        async cargarRecepcionMensual() {
+            var partes = (this.mes || '').split('-');
+            if (partes.length !== 2) return;
+            var anio = parseInt(partes[0], 10);
+            var mes  = parseInt(partes[1], 10);
+            if (!anio || !mes) return;
+            var seq = ++this.recMesSeq;
+            this.recMesCargando = true;
+            this.recMesError = '';
+            var resp = null;
+            try {
+                var params = new URLSearchParams({ anio: anio, mes: mes, hotel: this.hotel });
+                resp = await fetch(u('/api/reportes/recepcion-mensual?' + params.toString()));
+                var json = await resp.json();
+                if (seq !== this.recMesSeq) return;
+                if (json.ok) {
+                    this.recMes = { total: json.data.total, por_recepcionista: json.data.por_recepcionista || [] };
+                } else {
+                    this.recMes = null;
+                    this.recMesError = this.mensajeError(resp, json);
+                }
+            } catch (e) {
+                if (seq === this.recMesSeq) { this.recMes = null; this.recMesError = this.mensajeError(resp, null); }
+            } finally {
+                if (seq === this.recMesSeq) {
+                    this.recMesCargando = false;
                     this.$nextTick(() => lucide.createIcons());
                 }
             }

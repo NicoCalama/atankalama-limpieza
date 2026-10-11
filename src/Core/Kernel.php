@@ -647,6 +647,10 @@ final class Kernel
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);
+        $router->get('/api/reportes/recepcion-mensual', [$reportes, 'recepcionMensual'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
         $router->get('/api/reportes/exportar', [$reportes, 'exportar'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
