@@ -508,10 +508,23 @@ final class ReportesFichaTest extends TestCase
         Database::execute('UPDATE asignaciones SET activa = 0 WHERE habitacion_id = ?', [$this->hab['106']]);
         $this->assertSame(2, $this->filaDe('Berta')['esperado_hab']);
 
-        // Pero si después la pieza pasa a otra persona, lo de Berta fue una reasignación: pegajoso, cuenta.
+        // Si después la pieza pasa a otra persona, a Berta tampoco le cuenta: nunca la empezó
+        // (desde los turnos del 01/10/2026, decisión de Nicolás del 11/10). Le cuenta a quien la recibe.
         $asig->asignarManual($this->hab['106'], $this->ana, date('Y-m-d'));
-        $this->assertSame(3, $this->filaDe('Berta')['esperado_hab']);
+        $this->assertSame(2, $this->filaDe('Berta')['esperado_hab']);
         $this->assertSame(4, $this->filaDe('Ana')['esperado_hab']);
+    }
+
+    public function testPiezaPasadaAOtraSinEmpezarSeguiaContandoEnSeptiembre(): void
+    {
+        // Los turnos de septiembre conservan la regla vieja (pegajoso) para no mover sus números.
+        $this->crearPieza('106');
+        $asig = new AsignacionService();
+        $asig->asignarManual($this->hab['106'], $this->berta, '2026-09-15');
+        $asig->asignarManual($this->hab['106'], $this->ana, '2026-09-15');
+
+        $this->assertSame(1, $this->filaDe('Berta', '2026-09-15', '2026-09-15')['esperado_hab']);
+        $this->assertSame(1, $this->filaDe('Ana', '2026-09-15', '2026-09-15')['esperado_hab']);
     }
 
     public function testEspaciosComunesSumanCreditosPeroNoEntranEnLosRatios(): void

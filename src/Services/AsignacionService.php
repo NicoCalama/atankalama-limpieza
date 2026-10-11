@@ -21,8 +21,18 @@ final class AsignacionService
         // no es una expresión constante), y darle uno obligatorio rompería todos los `new
         // AsignacionService()` existentes. Se construye perezoso en avisarCloudbedsSucia().
         private readonly ?CloudbedsSyncService $cloudbeds = null,
+        // Hora local (0–23) con que reconciliarPreasignaciones decide si ya puede retirar
+        // habitaciones; null = la del reloj. Los tests la fijan para no depender de cuándo corren.
+        private readonly ?int $horaActual = null,
     ) {
     }
+
+    /**
+     * Desde esta hora (Santiago) se retiran las preasignaciones de habitaciones que siguen
+     * aprobadas. Antes, de madrugada, Cloudbeds todavía no marcó sucias las piezas del día (la
+     * sincronización las pasa entre las 00:30 y la 01:30): ver reconciliarPreasignaciones().
+     */
+    public const HORA_RETIRO_PREASIGNACIONES = 6;
 
     /**
      * @param bool $puedeMoverEnProgreso Si quien actúa tiene asignaciones.mover_en_progreso (ver
@@ -693,6 +703,15 @@ final class AsignacionService
      * v6.11 el sync la convertía en 'aprobada' y este chequeo la tomaba de rebote; desde entonces
      * queda como está y la habitación seguía en la cola.
      *
+     * Las habitaciones se retiran recién desde las HORA_RETIRO_PREASIGNACIONES (v7.5.1): antes de
+     * esa hora todavía no se sabe si la pieza amaneció limpia. Toda pieza limpiada el día anterior
+     * sigue aprobada hasta que Cloudbeds la marca sucia de madrugada, y el Inicio de supervisora y
+     * el tablero se recargan solos cada minuto: una pantalla abierta a medianoche retiraba todo lo
+     * planificado. El 11/10/2026 se retiraron así 132 de 155 preasignaciones a las 00:00 (y 109 el
+     * 04/10, 127 el 10/10); el sync las pasó a sucia entre las 00:30 y la 01:30 y las supervisoras
+     * tuvieron que reasignarlas a mano. Las áreas comunes no esperan: pasarlas a sucia a medianoche
+     * no le quita nada a nadie.
+     *
      * No toca asignaciones de hoy que SÍ se ejecutaron (tienen ejecución ligada, incluso la del
      * atajo «Marcar limpia»), así que un área ya limpiada hoy no se vuelve a ensuciar; tampoco las
      * de fechas futuras (ahí no se conoce el estado real todavía). Solo opera sobre $fecha = hoy;
@@ -702,6 +721,9 @@ final class AsignacionService
     {
         $estados = Habitacion::ESTADOS_APROBADOS;
         $marcas = implode(', ', array_fill(0, count($estados), '?'));
+        $soloAreas = ($this->horaActual ?? (int) date('G')) < self::HORA_RETIRO_PREASIGNACIONES
+            ? ' AND h.es_espacio_comun = 1'
+            : '';
         $huerfanas = Database::fetchAll(
             "SELECT a.id, a.usuario_id, a.habitacion_id, h.numero, h.es_espacio_comun
                FROM #__asignaciones a
@@ -709,7 +731,7 @@ final class AsignacionService
               WHERE a.fecha = ?
                 AND a.activa = 1
                 AND h.estado IN ({$marcas})
-                AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)",
+                AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id){$soloAreas}",
             [$fecha, ...$estados]
         );
         foreach ($huerfanas as $fila) {

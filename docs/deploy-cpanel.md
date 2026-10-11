@@ -414,6 +414,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-10 | **Calidad solo con la pieza aprobada y producción de Recepción** → **v7.1** (feat `aa917ab`, CHANGELOG fechado `4d5a48d`; rama `v7.1-calidad-produccion`, desde `cf03ce9`) | Pedido de Nicolás del mismo día: a la supervisora solo le cuentan los SÍ/NO hechos con la pieza Aprobada o Aprobada c/obs. (corrige también lo ya registrado) y nueva producción por recepcionista, una por limpieza (tabla «Por recepcionista» en Reportes y pestaña «Recepción» del Excel). Runbook §11.25: **sin SQL**, ZIP de 5 archivos (`build/limpieza-v71-delta.zip`, idénticos a `4d5a48d`) y `build/limpieza-v71-vuelta-atras.zip` (los 5 en `cf03ce9`). Subido el 10/10 ~20:00. Smoke: tabla «Por recepcionista» en Reportes y pestaña «Recepción» en el Excel (capturas de Nicolás, 20:02), `/api/health` 200 con `checks.esquema.ok: true` (20:03). |
 | 2026-10-10 | **Reportes en pestañas + listas de selección + mensaje a la mucama y tickets por selección** → **v7.2 + v7.3 + v7.4** en un deploy combinado (v7.2 `a595696` y `54d3b74`, v7.3 `90caa4f`, v7.4 `c5020aa`, CHANGELOG fechado y runbook `20f1273`; merge en `main` `fed2641`) | Pedidos del 10/10: Reportes en 4 pestañas (Nicolás) y, de gerencia, «sin cuadros de texto, solo selección», con las listas editables en Ajustes → Checklists y listas (permiso `listas.editar`, solo Admin). **Decisión de Nicolás:** las tres juntas, runbook §11.29. **Precheck** (~23:05): 1) vacío, 2) Supervisora y Admin, 3) 0. **SQL antes del ZIP** (§11.27 + §11.28, `build/limpieza-v74.sql`; probado antes en MariaDB 10.6 con Docker); comprobación: 6 listas (rechazo 8, reasignar 4, saltar 4, nota_recepcion 6, ticket_tipo 9, ticket_respuesta 5) y `listas.editar` solo en Admin. ZIP de 46 archivos (45 a `app_core/` y `vista-guiada.js` al docroot; `build/limpieza-v74-delta.zip`, idénticos a `main`) y `build/limpieza-v74-vuelta-atras.zip` (los 39 que pisa, en `4d5a48d`). Subido el 10/10 ~23:10. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (23:12), `vista-guiada.js` del docroot ya es el nuevo, y el smoke de §11.29 OK (Nicolás). **Gotcha:** phpMyAdmin abrió la pestaña SQL parada en `information_schema` (error #1109 «Tabla desconocida»): el precheck se corrió con las tablas calificadas (`cat6852_australia.limpieza_…`) y el SQL con la base elegida en el panel izquierdo. |
 | 2026-10-11 | **Motivo al cambiar de persona un área + ayuda al día + habitación de prueba** → **v7.4.1 + v7.5** en un deploy combinado (v7.4.1 `c52e0d5`, v7.5 `03c505b`, CHANGELOG fechado y runbook `d08e519`; en `main`) | v7.4.1: en Áreas comunes, «Pedir limpieza» a otra persona de un área que alguien tiene sin terminar pide el motivo de la lista «reasignar» (punto 3 aprobado por Nicolás) y tres textos de la ayuda guiada al día. v7.5 (pedido de Nicolás del 10/10): una «PRUEBA» por hotel (`habitaciones.es_prueba`, sin `cloudbeds_room_id`) que solo ve y se asigna quien tiene `habitaciones.ver_prueba` (Admin), fuera de KPIs, reparto y avisos, sin Novedades, con «Asignármela para probar». **Decisión de Nicolás:** las dos juntas, runbook §11.32. **Precheck** (~05:30): 1) 0, 2) vacío, 3) Atankalama → «Premium triple» (28), INN → «Atan Inn2 Hab Doble / Matrimonial» (24). **SQL antes del ZIP** (§11.31, `build/limpieza-v75.sql`; probado antes en MariaDB 10.6 con Docker): comprobación con dos «PRUEBA» (`aprobada`, sin roomID) y el permiso solo en Admin. ZIP de 32 archivos a `app_core/` (`build/limpieza-v75-delta.zip`, idénticos a `d08e519`) y `build/limpieza-v75-vuelta-atras.zip` (los 30 que pisa, en `fed2641`; volver atrás exige desactivar las «PRUEBA»). Subido el 11/10 ~05:38. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (05:39) y el smoke de §11.32 OK (Nicolás): badge v7.5, la «PRUEBA» con su ciclo completo como Admin, ausente para una supervisora, y el motivo en «Pedir limpieza» de Áreas comunes. Los registros de esa prueba quedan (fuera de Reportes por diseño). |
+| 2026-10-11 | **Preasignaciones de madrugada y asignadas justas** → **v7.5.1** (fix `cf1f1b7`, CHANGELOG fechado en el mismo commit; rama `v7.5.1-preasignaciones`, desde `c65214e`) | Origen: una supervisora avisó que lo preasignado el 10/10 para el 11/10 no estaba en la mañana. Diagnóstico (`build/diagnostico-preasignaciones-2026-10-11.sql`): `reconciliarPreasignaciones` retiró 132 de 155 preasignaciones a las 00:00 en punto (pantalla de Inicio o tablero abierta, se recargan cada minuto) con las piezas aún aprobadas de ayer; el sync las pasó a sucia 00:30–01:30. También el 28/09, 04/10 y 10/10. **Decisiones de Nicolás:** retiro de habitaciones recién desde las 06:00 (áreas a cualquier hora) y, desde los turnos del 01/10, la pieza pasada a otra persona sin empezarla no cuenta en Asignadas (rechazo igual, septiembre intacto). Runbook §11.33. Suite 789/789, PHPStan y linters OK; reproducido antes del deploy en un banco con reloj simulado (código de prod: se retiran; con el arreglo: no). Sin SQL. ZIP de 4 archivos a `app_core/` (`build/limpieza-v751-delta.zip`, idénticos a `cf1f1b7`) y `build/limpieza-v751-vuelta-atras.zip` (los mismos en `d08e519`). Subido el 11/10 ~09:45. Smoke OK (Nicolás): badge v7.5.1, `/api/health` 200 y la ayuda de «Asignadas» en Reportes. Verificación el 12/10 con la consulta de §11.33. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -2507,3 +2508,53 @@ hoy tiene alguien sin terminar muestra «¿Por qué la cambias de persona?» y �
 v7.4 (`fed2641`). Los 2 nuevos (`HabitacionesPrueba.php`, la migración) pueden quedar. El SQL puede quedar, pero
 **desactivar las «PRUEBA»** (`UPDATE cat6852_australia.limpieza_habitaciones SET activa = 0 WHERE es_prueba = 1;`):
 con la v7.4 aparecerían como una pieza más.
+
+### 11.33 Release "preasignaciones de madrugada y asignadas justas" → v7.5.1
+
+Origen: el 11/10/2026 una supervisora avisó que las habitaciones que preasignó el 10/10 para el día siguiente ya no
+estaban cuando llegó la gente («segunda vez que pasa»). Diagnóstico (`build/diagnostico-preasignaciones-2026-10-11.sql`,
+consultas de Nicolás): `reconciliarPreasignaciones` retiró **132 de 155** preasignaciones a las **00:00** en punto,
+porque las piezas seguían aprobadas del día anterior; el sync las pasó a sucia entre las 00:30 y la 01:30 y las
+supervisoras las reasignaron a mano entre las 06:30 y las 08:24. Lo disparó una pantalla abierta a medianoche: el Inicio
+de supervisora y el tablero se recargan solos cada minuto y cargan las colas. Pasó también el 28/09 (24), el 04/10 (109)
+y el 10/10 (127); los demás días, 0–2.
+
+**Qué cambia** (decisiones de Nicolás, 11/10/2026):
+
+- **Preasignaciones** (`AsignacionService::HORA_RETIRO_PREASIGNACIONES = 6`): una habitación preasignada que sigue
+  aprobada se retira recién desde las 06:00; de madrugada queda en la cola tal cual. Las áreas comunes preasignadas
+  siguen pasando a sucia a cualquier hora (v6.17.1).
+- **Reportes → Asignadas** (`ReportesService::PASADA_A_OTRA_NO_CUENTA_DESDE = '2026-10-01'`): desde los turnos del
+  01/10/2026, una asignación sin trabajo que pasó a otra persona no le cuenta a quien la tenía (le bajaba la eficiencia
+  por piezas que no tocó). El rechazo sigue igual y septiembre no cambia. Detalle en `docs/kpis-sueldos.md`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v751-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v7.5.1 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0). 4
+archivos: `CHANGELOG.md`, `src/Services/AsignacionService.php`, `src/Services/ReportesService.php` y
+`views/reportes.php`. Vuelta atrás: `build/limpieza-v751-vuelta-atras.zip` (los mismos cuatro en la v7.5, `d08e519`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, y **antes de la medianoche** para que las preasignaciones de
+esa noche ya no se pierdan.
+
+**Smoke:** badge **v7.5.1** (incógnito), `/api/health` 200, y en un PC, en Reportes → Trabajadores → «Ficha de KPIs ·
+Trabajador», la ayuda al pasar el mouse sobre el título de la columna «Asignadas» termina en «desde el 01/10/2026
+tampoco la que pasó a otra persona sin que la empezaras» (es un `title`: en el teléfono no se ve).
+
+**Verificación al día siguiente:**
+
+```sql
+-- Retiros automáticos desde el deploy, con la hora de Chile: ninguno antes de las 06:00.
+SELECT JSON_UNQUOTE(JSON_EXTRACT(detalles_json, '$.fecha')) AS dia, COUNT(*) AS retiradas,
+       MIN(DATE_FORMAT(DATE_SUB(STR_TO_DATE(LEFT(created_at, 19), '%Y-%m-%dT%H:%i:%s'), INTERVAL 3 HOUR), '%H:%i')) AS primera_cl
+  FROM cat6852_australia.limpieza_audit_log
+ WHERE accion = 'asignacion.autocancelada'
+   AND created_at >= '2026-10-12T03:00'
+ GROUP BY dia;
+```
+
+Y la consulta 2 del diagnóstico para el día siguiente: las preasignadas tienen que aparecer limpiadas con esa
+asignación, no retiradas.
+
+**Vuelta atrás:** subir `build/limpieza-v751-vuelta-atras.zip`. No hay datos que deshacer.
