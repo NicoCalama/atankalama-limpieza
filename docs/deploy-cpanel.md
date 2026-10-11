@@ -2343,6 +2343,8 @@ estuvo la v7.4 sigue legible en la v7.1 (motivos y tipos quedan como texto en `c
 
 ### 11.30 Release "motivo al cambiar de persona un área + ayuda al día" → v7.4.1
 
+> Sale en el deploy combinado de §11.32 (con la otra de esta pareja, un solo ZIP); el ZIP suelto de esta sección no se arma.
+
 Pedido de Nicolás (10/10/2026, después del deploy de la v7.4): revisar si las áreas comunes funcionan igual y si la
 ayuda guiada quedó bien. **Decisiones:**
 
@@ -2372,6 +2374,8 @@ foto».
 **Vuelta atrás:** subir `build/limpieza-v741-vuelta-atras.zip`. No hay datos que deshacer.
 
 ### 11.31 Release "habitación de prueba" → v7.5
+
+> Sale en el deploy combinado de §11.32 (con la otra de esta pareja, un solo ZIP); el ZIP suelto de esta sección no se arma.
 
 Pedido de Nicolás (10/10/2026): «crear una habitación de prueba que no afecte a Cloudbeds, para poder hacer los
 smoke test sin afectar al proceso». **Decisiones (plan aprobado el 11/10):**
@@ -2465,3 +2469,40 @@ en cada hotel con la etiqueta «Sin Cloudbeds», y al abrirla, «De prueba · si
 permiso (p. ej. una supervisora, en otra ventana de incógnito): no aparece en Habitaciones, Asignaciones ni
 Inspección. Primera prueba completa: abrir «PRUEBA» → «Asignármela para probar» → «Comenzar limpieza» (mínimo 3
 minutos) → inspeccionarla y aprobarla; en Reportes no suma. Detalle en [habitacion-prueba.md](habitacion-prueba.md).
+
+### 11.32 Deploy combinado → v7.5 (v7.4.1 + v7.5)
+
+> **Decisión de Nicolás (11/10/2026):** la v7.4.1 (§11.30) y la v7.5 (§11.31) suben juntas: un solo SQL (el de la
+> v7.5; la v7.4.1 no lleva) y un solo ZIP contra la v7.4 que está arriba (`fed2641`). Los ZIP sueltos de esas secciones
+> no se arman. En el CHANGELOG quedan las dos filas con la misma fecha y el badge muestra **v7.5**.
+
+**Lista de archivos** = `git diff --name-only fed2641 HEAD`, menos `docs/` y `tests/`, más los dos
+`docs/database-schema*.sql` (los lee el verificador). Sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin
+cambios en los cron.
+
+#### Pasos
+
+1. **Cuándo:** fuera de 15:45–16:05 y de 23:45–00:00. Avisar a las supervisoras que en Áreas comunes «Pedir limpieza»
+   ahora pide el motivo si el área la tiene otra persona sin terminar.
+2. **Precheck** (phpMyAdmin, solo lee): `build/limpieza-v75-precheck.sql` (= §11.31). Esperado: 1) `0`; 2) vacío;
+   3) el tipo con más piezas de cada hotel (el primero de cada uno es el que tomará su «PRUEBA»).
+3. **SQL** (phpMyAdmin con `cat6852_australia` elegida en el panel izquierdo, **antes del ZIP**, una sola vez):
+   `build/limpieza-v75.sql` (= §11.31). Comprobación: la consulta de §11.31 da una «PRUEBA» por hotel.
+4. **ZIP** `build/limpieza-v75-delta.zip`: descomprimir en el PC y arrastrar `limpieza/` sobre `public_html/` en
+   FileZilla (binario). 32 archivos, todos a `limpieza/app_core/`:
+   - `CHANGELOG.md`, `database/seeds/permisos.php`, `docs/database-schema{,.mariadb}.sql`,
+     `scripts/migrate-add-habitacion-prueba.php`.
+   - `src/Controllers/{Asignaciones,Auditoria,Espacios,Habitaciones,Home,Tickets}Controller.php`,
+     `src/Models/Habitacion.php`, `src/Support/Tours.php`.
+   - `src/Services/{AlertasPredictivasService,AsignacionService,AuditoriaService,ChecklistService,CierreDiaService,CloudbedsSyncService,EspacioService,HabitacionService,HabitacionesPrueba,HomeService,InventarioImportService,ReportesService,RevisionEntregaService,TicketService}.php`.
+   - `views/{auditoria-detalle,espacios,habitacion-detalle,habitaciones,home-trabajador}.php`.
+5. **Esquema:** `/api/health` 200 con `checks.esquema.ok: true`.
+
+**Smoke:** badge **v7.5** (incógnito). Lo de §11.31 (la «PRUEBA» como Admin y su ausencia para una supervisora; la
+primera prueba completa con «Asignármela para probar») y lo de §11.30 (Áreas comunes: «Pedir limpieza» en un área que
+hoy tiene alguien sin terminar muestra «¿Por qué la cambias de persona?» y «La tiene hoy»; cerrar sin elegir).
+
+**Vuelta atrás:** subir `build/limpieza-v75-vuelta-atras.zip`: los 30 archivos que ya existían, tal como están en la
+v7.4 (`fed2641`). Los 2 nuevos (`HabitacionesPrueba.php`, la migración) pueden quedar. El SQL puede quedar, pero
+**desactivar las «PRUEBA»** (`UPDATE cat6852_australia.limpieza_habitaciones SET activa = 0 WHERE es_prueba = 1;`):
+con la v7.4 aparecerían como una pieza más.
