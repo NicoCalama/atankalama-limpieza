@@ -17,6 +17,7 @@ use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
+use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\HotelService;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\ListasOpcionesService;
@@ -40,7 +41,11 @@ final class HabitacionesController
         $estado = $request->query['estado'] ?? null;
 
         try {
-            $filas = $this->habitaciones->listar(is_string($hotel) ? $hotel : 'ambos', is_string($estado) ? $estado : null);
+            $filas = $this->habitaciones->listar(
+                is_string($hotel) ? $hotel : 'ambos',
+                is_string($estado) ? $estado : null,
+                $request->usuario?->tienePermiso(HabitacionesPrueba::PERMISO_VER) ?? false,
+            );
         } catch (HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }

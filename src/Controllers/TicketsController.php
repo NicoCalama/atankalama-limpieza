@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Models\Ticket;
 use Atankalama\Limpieza\Models\TicketAdjunto;
+use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\ImagenAdjuntoService;
 use Atankalama\Limpieza\Services\ImagenException;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
@@ -61,6 +62,7 @@ final class TicketsController
             // quieren su "Asignados a mí" — ver alcanceFiltroGestion en tickets.php.
             $filtros['asignado_a'] = $request->usuario->id;
         }
+        $filtros['incluir_prueba'] = $request->usuario->tienePermiso(HabitacionesPrueba::PERMISO_VER);
         $tickets = $this->svc->listar($filtros);
         return Response::ok(['tickets' => $tickets, 'total' => count($tickets)]);
     }

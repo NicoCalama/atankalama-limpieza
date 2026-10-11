@@ -201,6 +201,7 @@ final class AlertasPredictivasService
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
               WHERE a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
+                AND h.es_prueba = 0
                 AND h.estado IN ('sucia', 'en_progreso', 'rechazada')",
             [$usuarioId, $fecha]
         );
@@ -220,6 +221,7 @@ final class AlertasPredictivasService
                 AND estado IN ('completada', 'auditada')
                 AND cerrada_por_sistema = 0
                 AND timestamp_fin IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM #__habitaciones hp WHERE hp.id = habitacion_id AND hp.es_prueba = 1)
               ORDER BY id DESC LIMIT 20",
             [$usuarioId]
         );

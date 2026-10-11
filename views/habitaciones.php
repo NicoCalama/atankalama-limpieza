@@ -246,8 +246,8 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                        class="relative rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden hover:shadow-md transition shadow-sm flex flex-col cursor-pointer group bg-white dark:bg-gray-800"
                        :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) && !puedeInspeccionar && !tieneNoVigente(hab) ? 'opacity-60' : '']">
                         <div class="p-4 flex flex-col gap-2">
-                            <div class="flex items-start justify-between">
-                                <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
+                            <div class="flex items-start justify-between" :class="hab.es_prueba ? 'flex-wrap' : ''">
+                                <span class="font-bold text-gray-900 dark:text-gray-100" :class="hab.es_prueba ? 'text-lg' : 'text-2xl'" x-text="hab.numero"></span>
                                 <div class="flex flex-col items-end gap-1">
                                     <span class="text-xs uppercase tracking-wide font-semibold"
                                           :class="etiquetaHotel(hab.hotel_codigo)"
@@ -270,6 +270,10 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                                     </div>
                                 </div>
                             </div>
+                            <!-- v7.5: habitación de prueba (solo la ve habitaciones.ver_prueba). Ver docs/habitacion-prueba.md -->
+                            <template x-if="hab.es_prueba">
+                                <span class="self-start inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" title="Habitación de prueba: no toca Cloudbeds ni cuenta en los reportes">Sin Cloudbeds</span>
+                            </template>
                             <div>
                                 <p class="text-sm text-gray-600 dark:text-gray-400" x-text="hab.tipo_nombre || hab.tipo"></p>
                                 <template x-if="hab.edificio || hab.piso">

@@ -111,6 +111,10 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="habitacion.numero"></p>
                         <p class="text-base text-gray-600 dark:text-gray-400 mt-1" x-text="habitacion.tipo_nombre"></p>
                         <p class="text-sm text-gray-500 dark:text-gray-500 mt-0.5" x-text="habitacion.hotel_nombre"></p>
+                        <!-- v7.5: habitación de prueba. Ver docs/habitacion-prueba.md -->
+                        <template x-if="habitacion.es_prueba">
+                            <p class="mt-2"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">De prueba · sin Cloudbeds</span></p>
+                        </template>
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span x-html="badgeEstado(habitacion.estado)"></span>
@@ -314,6 +318,16 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                        x-text="habitacion.asignado_a_nombre
                            ? 'Asignada hoy a ' + habitacion.asignado_a_nombre + '.'
                            : 'Esta habitación está pendiente de asignación.'"></p>
+                </template>
+
+                <!-- v7.5: la habitación de prueba se la asigna uno mismo, sin turno (así no hay que darle turno al
+                     Admin, que dispararía alertas predictivas). Solo la ve quien tiene habitaciones.ver_prueba, y el
+                     backend igual exige el permiso. Ver docs/habitacion-prueba.md -->
+                <template x-if="habitacion.es_prueba && puedeAsignar && !estaAsignada && ['sucia', 'rechazada', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'].indexOf(habitacion.estado) !== -1">
+                    <button @click="asignarmePrueba()" :disabled="asignandome"
+                            class="w-full min-h-[48px] mt-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded-xl transition shadow-sm">
+                        <span x-text="asignandome ? 'Asignando...' : 'Asignármela para probar'"></span>
+                    </button>
                 </template>
 
                 <!-- Asignada a mí pero no es mi turno todavía (flujo "una a la vez": si llegué
@@ -675,6 +689,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         rechazo: null,
         progreso: { marcados: 0, total: 0, porcentaje: 0, obligatorios_total: 0, obligatorios_marcados: 0, obligatorios_pendientes: 0 },
         estaAsignada: false,
+        asignandome: false,
         puedeVerTodas: false,
         puedeAsignar: false,
         puedeVerHistorial: false,
@@ -940,6 +955,27 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             var mm = Math.floor(this.delayRestante / 60);
             var ss = this.delayRestante % 60;
             return mm + ':' + (ss < 10 ? '0' : '') + ss;
+        },
+
+        // v7.5: asignarse la habitación de prueba para hoy (la deja sucia si estaba aprobada o rechazada).
+        async asignarmePrueba() {
+            if (this.asignandome) return;
+            this.asignandome = true;
+            try {
+                var json = await apiPost('/api/asignaciones', {
+                    habitacion_ids: [this.habitacionId],
+                    usuario_id: this.usuarioId,
+                    fecha: window.hoyServidor()
+                });
+                if (!json || !json.ok) {
+                    alert((json && json.error && json.error.mensaje) || 'No pudimos asignártela.');
+                }
+                await this.cargar();
+            } catch (e) {
+                alert('No pudimos conectar con el servidor.');
+            } finally {
+                this.asignandome = false;
+            }
         },
 
         async iniciar() {

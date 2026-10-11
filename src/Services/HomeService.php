@@ -223,7 +223,7 @@ final class HomeService
     {
         // Habitaciones activas agrupadas por estado actual
         $habs = Database::fetchAll(
-            'SELECT estado, COUNT(*) AS c FROM #__habitaciones WHERE activa = 1 AND es_espacio_comun = 0 AND hotel_id = ? GROUP BY estado',
+            'SELECT estado, COUNT(*) AS c FROM #__habitaciones WHERE activa = 1 AND es_espacio_comun = 0 AND es_prueba = 0 AND hotel_id = ? GROUP BY estado',
             [$hotelId]
         );
         $porEstado = [
@@ -252,7 +252,7 @@ final class HomeService
             "SELECT COUNT(*) AS c
                FROM #__habitaciones h
           LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
-              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
+              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.es_prueba = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
             [$fecha, $hotelId]
         )['c'] ?? 0);
 
@@ -262,7 +262,7 @@ final class HomeService
             'SELECT au.veredicto, COUNT(*) AS c
                FROM #__auditorias au
                JOIN #__habitaciones h ON h.id = au.habitacion_id
-              WHERE h.hotel_id = ? AND au.created_at >= ? AND au.created_at < ?
+              WHERE h.hotel_id = ? AND h.es_prueba = 0 AND au.created_at >= ? AND au.created_at < ?
            GROUP BY au.veredicto',
             [$hotelId, $diaDesde, $diaHasta]
         );
@@ -276,7 +276,7 @@ final class HomeService
                FROM #__auditorias au
                JOIN #__habitaciones h ON h.id = au.habitacion_id
           LEFT JOIN #__ejecuciones_checklist ec ON ec.id = au.ejecucion_id
-              WHERE h.hotel_id = ? AND au.created_at >= ? AND au.created_at < ?
+              WHERE h.hotel_id = ? AND h.es_prueba = 0 AND au.created_at >= ? AND au.created_at < ?
                 AND au.veredicto IN ('aprobado', 'aprobado_automatico', 'aprobado_con_observacion', 'rechazado')
                 AND {$sinApoyo}",
             $paramsKpi
@@ -317,7 +317,9 @@ final class HomeService
 
         // Tickets abiertos del hotel
         $ticketsAbiertos = (int) (Database::fetchOne(
-            "SELECT COUNT(*) AS c FROM #__tickets WHERE hotel_id = ? AND estado IN ('abierto','en_progreso')",
+            "SELECT COUNT(*) AS c FROM #__tickets t
+              WHERE t.hotel_id = ? AND t.estado IN ('abierto','en_progreso')
+                AND NOT EXISTS (SELECT 1 FROM #__habitaciones hp WHERE hp.id = t.habitacion_id AND hp.es_prueba = 1)",
             [$hotelId]
         )['c'] ?? 0);
 
@@ -331,6 +333,7 @@ final class HomeService
                JOIN #__habitaciones h ON h.id = e.habitacion_id
               WHERE h.hotel_id = ?
                 AND h.es_espacio_comun = 0
+                AND h.es_prueba = 0
                 AND e.cerrada_por_sistema = 0
                 AND e.timestamp_fin IS NOT NULL
                 AND e.timestamp_fin >= ? AND e.timestamp_fin < ?
@@ -421,7 +424,7 @@ final class HomeService
                                                'completada_pendiente_auditoria') THEN 1 ELSE 0 END) AS completadas
                FROM #__asignaciones a
                JOIN #__habitaciones h ON h.id = a.habitacion_id
-              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND a.fecha = ? AND a.activa = 1",
+              WHERE h.hotel_id = ? AND h.es_espacio_comun = 0 AND h.es_prueba = 0 AND a.fecha = ? AND a.activa = 1",
             [$hotelId, $fecha]
         );
         $asignadas = (int) ($filaEf['asignadas'] ?? 0);

@@ -100,14 +100,17 @@ final class TicketService
             ? Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId])
             : null;
         $contextoHab = $habFila !== null ? "habitación {$habFila['numero']}" : 'el sistema';
-        $this->alertas->levantar(
-            AlertaActiva::TIPO_TICKET_NUEVO,
-            "Ticket {$prioridad}: {$titulo}",
-            ($usuarioFila['nombre'] ?? 'Un usuario') . " levantó un ticket en {$contextoHab}.",
-            ['ticket_id' => $id, 'prioridad_ticket' => $prioridad, 'habitacion_id' => $habitacionId],
-            $hotelId,
-            "ticket:{$id}",
-        );
+        // v7.5: un ticket de la habitación de prueba no levanta alerta a las supervisoras.
+        if ($habitacionId === null || !HabitacionesPrueba::esPrueba($habitacionId)) {
+            $this->alertas->levantar(
+                AlertaActiva::TIPO_TICKET_NUEVO,
+                "Ticket {$prioridad}: {$titulo}",
+                ($usuarioFila['nombre'] ?? 'Un usuario') . " levantó un ticket en {$contextoHab}.",
+                ['ticket_id' => $id, 'prioridad_ticket' => $prioridad, 'habitacion_id' => $habitacionId],
+                $hotelId,
+                "ticket:{$id}",
+            );
+        }
 
         Logger::audit($levantadoPor, 'ticket.crear', 'ticket', $id, [
             'prioridad' => $prioridad, 'habitacion_id' => $habitacionId,
@@ -234,7 +237,7 @@ final class TicketService
     }
 
     /**
-     * @param array{hotel?: ?string, estado?: ?string, levantado_por?: ?int, asignado_a?: ?int, sin_asignar?: bool} $filtros
+     * @param array{hotel?: ?string, estado?: ?string, levantado_por?: ?int, asignado_a?: ?int, sin_asignar?: bool, incluir_prueba?: bool} $filtros
      * @return list<array<string, mixed>>
      */
     public function listar(array $filtros = []): array
@@ -276,6 +279,10 @@ final class TicketService
             $sql .= ' AND (t.asignado_a = ? OR EXISTS (SELECT 1 FROM #__tickets_asignados ta WHERE ta.ticket_id = t.id AND ta.usuario_id = ?))';
             $params[] = $asignadoA;
             $params[] = $asignadoA;
+        }
+        // v7.5: los tickets de la habitación de prueba solo los ve quien tiene habitaciones.ver_prueba.
+        if (($filtros['incluir_prueba'] ?? false) !== true) {
+            $sql .= ' AND (hab.id IS NULL OR ' . HabitacionesPrueba::sqlSinPrueba('hab') . ')';
         }
         // Complemento de asignado_a: los que todavía no tiene nadie
         if (($filtros['sin_asignar'] ?? false) === true) {
@@ -409,7 +416,7 @@ final class TicketService
 
         // Notificar por Push / Campanita a los nuevos asignados (excepto autoasignación)
         $nuevosParaNotificar = array_diff($uids, $idsActuales, [$asignadoPor]);
-        if ($nuevosParaNotificar !== []) {
+        if ($nuevosParaNotificar !== [] && !$this->esDePrueba($ticket)) {
             // La asignación ya quedó guardada: si el aviso falla, se registra y se sigue (un 500
             // acá haría reintentar al usuario, y en crear() eso duplicaba el ticket).
             try {
@@ -496,6 +503,9 @@ final class TicketService
     public function notificarCreacionANovedades(int $ticketId): void
     {
         $ticket = $this->obtenerOFallar($ticketId);
+        if ($this->esDePrueba($ticket)) {
+            return; // v7.5: la habitación de prueba nunca llega a Novedades (la app de Recepción).
+        }
         $novedadId = $this->novedadesSync->sincronizar($ticket, $this->adjuntosDe($ticketId));
 
         // Se guarda para poder vincular, al cerrar el ticket, la novedad de cierre con
@@ -516,10 +526,16 @@ final class TicketService
     public function notificarCierreANovedades(int $ticketId): void
     {
         $ticket = $this->obtenerOFallar($ticketId);
-        if ($ticket->estado !== Ticket::ESTADO_CERRADO) {
+        if ($ticket->estado !== Ticket::ESTADO_CERRADO || $this->esDePrueba($ticket)) {
             return;
         }
         $this->novedadesSync->sincronizarCierre($ticket, $this->adjuntosDe($ticketId));
+    }
+
+    /** v7.5: ¿el ticket es de la habitación de prueba? Esos no avisan a nadie ni van a Novedades. */
+    private function esDePrueba(Ticket $ticket): bool
+    {
+        return $ticket->habitacionId !== null && HabitacionesPrueba::esPrueba($ticket->habitacionId);
     }
 
     /**
@@ -671,7 +687,7 @@ final class TicketService
      */
     public function comentar(int $ticketId, int $usuarioId, string $comentario, bool $avisarSupervisora): array
     {
-        $this->obtenerOFallar($ticketId); // valida que exista
+        $ticket = $this->obtenerOFallar($ticketId); // valida que exista
         $comentario = trim($comentario);
         if ($comentario === '' || mb_strlen($comentario) > self::COMENTARIO_MAX_LARGO) {
             throw new TicketException(
@@ -686,7 +702,7 @@ final class TicketService
         );
         Logger::audit($usuarioId, 'ticket.comentar', 'ticket', $ticketId, ['avisado' => $avisarSupervisora]);
 
-        if ($avisarSupervisora) {
+        if ($avisarSupervisora && !$this->esDePrueba($ticket)) {
             $destinatarioIds = array_column(
                 Database::fetchAll(
                     "SELECT DISTINCT u.id FROM #__usuarios u

@@ -126,7 +126,7 @@ final class InventarioImportService
         $actualesPorRoomId = [];
         $actualesPorNumero = [];
         foreach (Database::fetchAll(
-            'SELECT id, numero, tipo_habitacion_id, cloudbeds_room_id, cloudbeds_room_name, activa FROM #__habitaciones WHERE hotel_id = ?',
+            'SELECT id, numero, tipo_habitacion_id, cloudbeds_room_id, cloudbeds_room_name, activa, es_prueba FROM #__habitaciones WHERE hotel_id = ?',
             [$hotel->id]
         ) as $fila) {
             $roomId = $fila['cloudbeds_room_id'];
@@ -220,6 +220,12 @@ final class InventarioImportService
             // No existe por room_id: ¿hay una pieza legada con ese numero pero sin room_id?
             if (isset($actualesPorNumero[$numero])) {
                 $fila = $actualesPorNumero[$numero];
+                // v7.5: la habitación de prueba nunca se vincula a una pieza de Cloudbeds (desde ese
+                // momento le escribiría). Se reporta como colisión para revisarla a mano.
+                if (((int) ($fila['es_prueba'] ?? 0)) === 1) {
+                    $res['cambios'][] = ['accion' => 'colision_saltada', 'numero' => $numero, 'room_id' => $roomId];
+                    continue;
+                }
                 $idsVinculados[(int) $fila['id']] = true;
                 $acciones[] = [
                     'tipo' => 'update',

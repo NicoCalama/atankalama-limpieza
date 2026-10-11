@@ -2370,3 +2370,98 @@ elegir). El «?» de Habitaciones → «Inspeccionar la pieza» → paso 2 dice 
 foto».
 
 **Vuelta atrás:** subir `build/limpieza-v741-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.31 Release "habitación de prueba" → v7.5
+
+Pedido de Nicolás (10/10/2026): «crear una habitación de prueba que no afecte a Cloudbeds, para poder hacer los
+smoke test sin afectar al proceso». **Decisiones (plan aprobado el 11/10):**
+
+- **Una «PRUEBA» por hotel** (`habitaciones.es_prueba = 1`), sin `cloudbeds_room_id`, del tipo con más piezas de
+  ese hotel (usa su checklist). Nace «Aprobada»; al asignarla pasa a sucia.
+- **Solo la ve quien tiene `habitaciones.ver_prueba`** (permiso nuevo, solo Admin; se puede dar a otro rol desde
+  Roles y permisos) y **solo se le asigna a esa gente** (403 `HABITACION_DE_PRUEBA`).
+- **Nunca le escribe a Cloudbeds** (sin roomID + freno explícito) y el import de inventario nunca la vincula.
+- **Fuera de todo lo que mide o reparte:** auto-asignar, KPIs/Reportes/Excel/bono/inspectoras/«Calidad», correo de
+  las 23:50, producción de Recepción, Inicio y alertas predictivas.
+- **Avisos silenciados:** sin alertas ni push a supervisoras; sus tickets no avisan ni van a **Novedades**. A quien
+  prueba sí le llegan los suyos (asignación, nota, rechazo).
+- **«Asignármela para probar»** en el detalle de la PRUEBA (decisión de Nicolás, 11/10): quien tiene el permiso y puede
+  asignar se la asigna para hoy sin tener turno (darle turno al Admin dispararía alertas predictivas).
+
+Detalle en [habitacion-prueba.md](habitacion-prueba.md).
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La columna no debe existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'es_prueba';
+
+-- 2) No debe haber una pieza «PRUEBA». Esperado: vacío.
+SELECT h.id, ho.codigo, h.numero FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+ WHERE h.numero = 'PRUEBA';
+
+-- 3) El tipo que va a tomar la «PRUEBA» de cada hotel (el primero de cada uno: el de más piezas).
+SELECT ho.codigo, th.nombre, COUNT(*) AS piezas
+  FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+  JOIN cat6852_australia.limpieza_tipos_habitacion th ON th.id = h.tipo_habitacion_id
+ WHERE h.activa = 1 AND h.es_espacio_comun = 0
+ GROUP BY ho.codigo, th.nombre
+ ORDER BY ho.codigo, piezas DESC;
+```
+
+#### SQL (phpMyAdmin con `cat6852_australia` elegida en el panel izquierdo, ANTES del ZIP)
+
+```sql
+ALTER TABLE limpieza_habitaciones ADD COLUMN es_prueba TINYINT NOT NULL DEFAULT 0 CHECK (es_prueba IN (0, 1));
+
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('habitaciones.ver_prueba', 'Ver y usar la habitación de prueba «PRUEBA» de cada hotel (sin Cloudbeds, fuera de KPIs y avisos); solo se le asigna a quien tiene este permiso', 'Habitaciones', 'global');
+-- Solo el rol que administra la matriz de permisos (Admin).
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+  SELECT DISTINCT rol_id, 'habitaciones.ver_prueba' FROM limpieza_rol_permisos WHERE permiso_codigo = 'permisos.asignar_a_rol';
+
+-- Una «PRUEBA» por hotel con piezas, del tipo con más piezas de ese hotel (mismo criterio que la migración PHP).
+INSERT INTO limpieza_habitaciones (hotel_id, numero, tipo_habitacion_id, estado, activa, es_espacio_comun, es_prueba)
+SELECT ho.id, 'PRUEBA',
+       (SELECT h.tipo_habitacion_id FROM limpieza_habitaciones h
+         WHERE h.hotel_id = ho.id AND h.activa = 1 AND h.es_espacio_comun = 0
+         GROUP BY h.tipo_habitacion_id ORDER BY COUNT(*) DESC, h.tipo_habitacion_id LIMIT 1),
+       'aprobada', 1, 0, 1
+  FROM limpieza_hoteles ho
+ WHERE EXISTS (SELECT 1 FROM limpieza_habitaciones h WHERE h.hotel_id = ho.id AND h.activa = 1 AND h.es_espacio_comun = 0);
+```
+
+Comprobación: `SELECT ho.codigo, h.numero, h.estado, h.cloudbeds_room_id FROM cat6852_australia.limpieza_habitaciones h
+JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id WHERE h.es_prueba = 1;` → una fila por hotel, «PRUEBA»,
+`aprobada`, roomID vacío. Es lo mismo que hace `scripts/migrate-add-habitacion-prueba.php`.
+
+**El SQL va antes del ZIP y el ZIP no se sube sin el SQL:** el código nuevo lee `es_prueba` en Habitaciones,
+Asignaciones, Inspección, Reportes e Inicio.
+
+#### ZIP
+
+`build/limpieza-v75-delta.zip`, con la fila de la v7.5 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0). Todo a
+`limpieza/app_core/` (sin estáticos de `public/`):
+- `CHANGELOG.md`, `database/seeds/permisos.php`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
+  `scripts/migrate-add-habitacion-prueba.php`.
+- `src/Controllers/{Asignaciones,Auditoria,Habitaciones,Home,Tickets}Controller.php`, `src/Models/Habitacion.php`.
+- `src/Services/{AlertasPredictivasService,AsignacionService,AuditoriaService,ChecklistService,CierreDiaService,CloudbedsSyncService,HabitacionService,HabitacionesPrueba,HomeService,InventarioImportService,ReportesService,RevisionEntregaService,TicketService}.php`.
+- `views/{auditoria-detalle,habitacion-detalle,habitaciones}.php`.
+
+27 archivos (2 nuevos: `HabitacionesPrueba.php` y la migración; cargan por PSR-4, sin `vendor/`).
+
+Vuelta atrás: `build/limpieza-v75-vuelta-atras.zip` (los mismos archivos en la v7.4.1, `23fcc67`; los nuevos pueden
+quedar, nadie los carga). El SQL puede quedar: la v7.4.1 no lee `es_prueba` y el verificador solo reclama lo que falta.
+Ojo: con la vuelta atrás la «PRUEBA» aparecería como una pieza más (sin Cloudbeds); si se vuelve atrás, desactivarla con
+`UPDATE cat6852_australia.limpieza_habitaciones SET activa = 0 WHERE es_prueba = 1;`.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v7.5** (incógnito) y `/api/health` 200 con esquema ok. Como Admin: Habitaciones muestra «PRUEBA»
+en cada hotel con la etiqueta «Sin Cloudbeds», y al abrirla, «De prueba · sin Cloudbeds». Con un usuario sin el
+permiso (p. ej. una supervisora, en otra ventana de incógnito): no aparece en Habitaciones, Asignaciones ni
+Inspección. Primera prueba completa: abrir «PRUEBA» → «Asignármela para probar» → «Comenzar limpieza» (mínimo 3
+minutos) → inspeccionarla y aprobarla; en Reportes no suma. Detalle en [habitacion-prueba.md](habitacion-prueba.md).

@@ -1431,7 +1431,7 @@ final class ChecklistService
 
             // Alerta a la supervisora (P2). El trabajador nunca la ve.
             $trabajador = Database::fetchOne('SELECT nombre FROM #__usuarios WHERE id = ?', [$usuarioId]);
-            $hab = Database::fetchOne('SELECT numero, hotel_id, es_espacio_comun FROM #__habitaciones WHERE id = ?', [$habitacionId]);
+            $hab = Database::fetchOne('SELECT numero, hotel_id, es_espacio_comun, es_prueba FROM #__habitaciones WHERE id = ?', [$habitacionId]);
             $nombreTrab = $trabajador['nombre'] ?? 'Un trabajador';
             $numero = $hab['numero'] ?? (string) $habitacionId;
             $hotelId = isset($hab['hotel_id']) ? (int) $hab['hotel_id'] : null;
@@ -1441,6 +1441,10 @@ final class ChecklistService
             $tituloAlerta = $esEspacio ? "Espacio {$numero} saltado" : "Habitación {$numero} saltada";
             $lugar = $esEspacio ? "el espacio {$numero}" : "la habitación {$numero}";
 
+            // v7.5: la habitación de prueba no levanta la alerta a las supervisoras.
+            if (((int) ($hab['es_prueba'] ?? 0)) === 1) {
+                return;
+            }
             $alertas->levantar(
                 AlertaActiva::TIPO_HABITACION_SALTADA,
                 $tituloAlerta,

@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\AuditoriaService;
+use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\HomeService;
 
 final class HomeController
@@ -150,9 +151,11 @@ final class HomeController
         $globalRechazadas = 0;
         $globalTotal = 0;
 
+        // v7.5: la habitación de prueba no cuenta en el equipo de quien no la puede ver.
+        $vePrueba = $usuario->tienePermiso(HabitacionesPrueba::PERMISO_VER);
         foreach ($trabajadores as $t) {
             $usuarioId = (int) $t['id'];
-            $cola = $this->home->colaTrabajador($usuarioId, $hoy);
+            $cola = HabitacionesPrueba::filtrar($this->home->colaTrabajador($usuarioId, $hoy), $vePrueba);
 
             $completadas = 0;
             $enProgreso = 0;
@@ -296,7 +299,7 @@ final class HomeController
         $hotelQuery = $request->query['hotel'] ?? 'ambos';
         $hotel = is_string($hotelQuery) && $hotelQuery !== '' ? $hotelQuery : 'ambos';
 
-        $pendientes = $this->auditorias->bandejaPendientes($hotel);
+        $pendientes = $this->auditorias->bandejaPendientes($hotel, $usuario->tienePermiso(HabitacionesPrueba::PERMISO_VER));
 
         $primerNombre = explode(' ', $usuario->nombre)[0];
 
