@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionException;
 use Atankalama\Limpieza\Services\EspacioException;
 use Atankalama\Limpieza\Services\EspacioService;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
 
 /**
  * Áreas comunes (espacios): piscina, pasillos, patio, bodega, etc. Ver docs/areas-comunes.md
@@ -118,7 +119,10 @@ final class EspaciosController
         return Response::ok(['id' => $id]);
     }
 
-    /** POST /api/espacios/{id}/pedir-limpieza — { usuario_id, fecha? }. */
+    /**
+     * POST /api/espacios/{id}/pedir-limpieza — { usuario_id, fecha?, opcion_id? }. opcion_id (lista
+     * «reasignar») es obligatorio cuando el área ya la tiene otra persona ese día (v7.4.1).
+     */
     public function pedirLimpieza(Request $request): Response
     {
         $id = $request->rutaInt('id');
@@ -135,8 +139,9 @@ final class EspaciosController
             $asignacion = $this->espacios->pedirLimpieza(
                 $id, $usuarioId, $fecha, $request->usuario?->id,
                 puedeMoverEnProgreso: $request->usuario?->tienePermiso('asignaciones.mover_en_progreso') ?? false,
+                opcionId: $request->inputInt('opcion_id'),
             );
-        } catch (EspacioException | AsignacionException $e) {
+        } catch (EspacioException | AsignacionException | ListasOpcionesException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 

@@ -10,6 +10,7 @@ use Atankalama\Limpieza\Services\ChecklistService;
 use Atankalama\Limpieza\Services\EspacioException;
 use Atankalama\Limpieza\Services\EspacioService;
 use Atankalama\Limpieza\Services\HabitacionService;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\ReportesService;
 use Atankalama\Limpieza\Tests\Support\TestDatabase;
 use PHPUnit\Framework\TestCase;
@@ -310,6 +311,74 @@ final class EspacioServiceTest extends TestCase
 
         $this->svc->crear('Piscina', '1_sur', ['A']);
         $this->assertExcepcion('NOMBRE_DUPLICADO', fn() => $this->svc->crear('Piscina', '1_sur', ['B']));
+    }
+
+    /**
+     * v7.4.1 (gerencia: motivo obligatorio al cambiar de persona, sin texto): pedirle hoy a otra
+     * persona un área que ya tiene alguien y que sigue sin limpiar es cambiarla de persona.
+     */
+    public function testCambiarDePersonaUnAreaSinLimpiarPideElMotivoDeLaLista(): void
+    {
+        $ana = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
+        $berta = $this->crearTrabajadorConTurno('17000001-3', 'Berta');
+        $espacioId = $this->svc->crear('Piscina', '1_sur', ['Barrer']);
+        $this->svc->pedirLimpieza($espacioId, $ana, $this->hoy);
+
+        $fila = array_values(array_filter($this->svc->listar('1_sur'), fn(array $e): bool => (int) $e['id'] === $espacioId))[0];
+        $this->assertSame($ana, $fila['asignado_a_id']);
+        $this->assertTrue($fila['cambio_pide_motivo'], 'la pantalla sabe que pedirla a otra pide motivo');
+
+        $this->assertExcepcion('OPCION_REQUERIDA', fn() => $this->svc->pedirLimpieza($espacioId, $berta, $this->hoy));
+        try {
+            $this->svc->pedirLimpieza($espacioId, $berta, $this->hoy, opcionId: TestDatabase::opcionId('saltar', 'Otro'));
+            $this->fail('una opción de otra lista no sirve');
+        } catch (ListasOpcionesException $e) {
+            $this->assertSame('OPCION_INVALIDA', $e->codigo);
+        }
+
+        $asig = $this->svc->pedirLimpieza($espacioId, $berta, $this->hoy, opcionId: TestDatabase::opcionId('reasignar', 'Ausencia o atraso'));
+        $this->assertSame($berta, $asig->usuarioId);
+        $detalle = json_decode((string) Database::fetchColumn(
+            "SELECT detalles_json FROM audit_log WHERE accion = 'asignacion.reasignar' ORDER BY id DESC LIMIT 1"
+        ), true);
+        $this->assertSame('Ausencia o atraso', $detalle['motivo']);
+        $this->assertSame($espacioId, $detalle['habitacion_id']);
+
+        // A quien ya la tiene se le puede volver a pedir sin motivo.
+        $this->assertSame($berta, $this->svc->pedirLimpieza($espacioId, $berta, $this->hoy)->usuarioId);
+    }
+
+    public function testOtraLimpiezaDeUnAreaYaLimpiaNoPideMotivo(): void
+    {
+        $ana = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
+        $berta = $this->crearTrabajadorConTurno('17000001-3', 'Berta');
+        $espacioId = $this->svc->crear('Lobby', '1_sur', ['Barrer']);
+        $this->svc->pedirLimpieza($espacioId, $ana, $this->hoy);
+
+        $chk = new ChecklistService();
+        $ejec = $chk->iniciarEjecucion($espacioId, $ana, $this->hoy);
+        foreach ($chk->estadoEjecucion($ejec->id)['items'] as $it) {
+            $chk->marcarItem($ejec->id, (int) $it['id'], true, $ana);
+        }
+        $chk->completar($ejec->id, $ana);
+
+        $fila = array_values(array_filter($this->svc->listar('1_sur'), fn(array $e): bool => (int) $e['id'] === $espacioId))[0];
+        $this->assertFalse($fila['cambio_pide_motivo'], 'por inspeccionar: ya se limpió');
+        $this->assertSame($berta, $this->svc->pedirLimpieza($espacioId, $berta, $this->hoy)->usuarioId);
+    }
+
+    public function testCambiarLaPreasignacionDeOtroDiaPideMotivo(): void
+    {
+        $ana = $this->crearTrabajadorConTurno('16000001-5', 'Ana');
+        $berta = $this->crearTrabajadorConTurno('17000001-3', 'Berta');
+        $espacioId = $this->svc->crear('Patio', '1_sur', ['Barrer']);
+        $manana = date('Y-m-d', strtotime('+1 day'));
+        $this->svc->pedirLimpieza($espacioId, $ana, $manana);
+
+        $this->assertExcepcion('OPCION_REQUERIDA', fn() => $this->svc->pedirLimpieza($espacioId, $berta, $manana));
+        $asig = $this->svc->pedirLimpieza($espacioId, $berta, $manana, opcionId: TestDatabase::opcionId('reasignar', 'Cambio de prioridad'));
+        $this->assertSame($berta, $asig->usuarioId);
+        $this->assertSame('aprobada', (string) Database::fetchColumn('SELECT estado FROM habitaciones WHERE id = ?', [$espacioId]), 'otro día no ensucia hoy');
     }
 
     private function assertExcepcion(string $codigoEsperado, callable $fn): void
