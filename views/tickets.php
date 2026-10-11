@@ -596,16 +596,33 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                     </li>
                                 </template>
                             </ul>
-                            <textarea x-model="detalle.comentarioNuevo" rows="2" maxlength="2000"
-                                      placeholder="Escribe un comentario..."
-                                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm mb-2"></textarea>
+                            <!-- v7.4 (gerencia, 10/10/2026: sin cuadros de texto): respuestas de la lista
+                                 «ticket_respuesta» (Ajustes → Checklists y listas). -->
+                            <template x-if="respuestasCargando && respuestas.length === 0">
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Cargando respuestas...</p>
+                            </template>
+                            <template x-if="respuestasError">
+                                <p class="text-sm text-red-600 dark:text-red-400 mb-2" x-text="respuestasError"></p>
+                            </template>
+                            <div class="grid grid-cols-2 gap-2 mb-2" role="radiogroup" aria-label="Respuesta">
+                                <template x-for="o in respuestas" :key="o.id">
+                                    <button type="button" role="radio" :aria-checked="detalle.respuestaId === o.id ? 'true' : 'false'"
+                                            @click="detalle.respuestaId = o.id" :disabled="detalle.enviandoComentario"
+                                            :class="detalle.respuestaId === o.id
+                                                ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                                : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                            class="min-h-[44px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                        <span x-text="o.nombre"></span>
+                                    </button>
+                                </template>
+                            </div>
                             <div class="flex items-center justify-between gap-2">
                                 <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                                     <input type="checkbox" x-model="detalle.avisarSupervisora">
                                     Avisar a Supervisora / Admin
                                 </label>
                                 <button type="button" @click="comentar()"
-                                        :disabled="!detalle.comentarioNuevo || detalle.enviandoComentario"
+                                        :disabled="detalle.respuestaId === null || detalle.enviandoComentario"
                                         class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
                                     Comentar
                                 </button>

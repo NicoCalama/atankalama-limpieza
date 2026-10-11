@@ -32,6 +32,7 @@ final class TicketService
         ?int $habitacionId = null,
         ?string $idempotencyKey = null,
         int|array|null $asignadoA = null,
+        ?int $tipoId = null, // v7.4: opción de la lista «ticket_tipo» (la pantalla); null desde el copilot
     ): Ticket {
         // Idempotencia (fase 1 del plan "eliminar No pudimos conectar con el servidor"):
         // el cliente genera un UUID por intento de envío y lo reusa en sus reintentos. Si
@@ -75,8 +76,8 @@ final class TicketService
 
         try {
             Database::execute(
-                'INSERT INTO #__tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, levantado_por, idempotency_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$habitacionId, $hotelId, $titulo, $descripcion, $prioridad, $levantadoPor, $idempotencyKey]
+                'INSERT INTO #__tickets (habitacion_id, hotel_id, titulo, descripcion, prioridad, levantado_por, idempotency_key, tipo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [$habitacionId, $hotelId, $titulo, $descripcion, $prioridad, $levantadoPor, $idempotencyKey, $tipoId]
             );
         } catch (\PDOException $e) {
             // Carrera: dos intentos con la misma idempotency_key llegaron casi a la vez y

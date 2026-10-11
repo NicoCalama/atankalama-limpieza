@@ -46,7 +46,7 @@ $listasJsV = @filemtime(__DIR__ . '/recursos/ajustes/listas-opciones.js') ?: '1'
             <div class="min-w-0 flex-1">
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Checklists y listas</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400"
-                   x-text="pestana === 'listas' ? 'Opciones para elegir al rechazar, saltar, reasignar o marcar NO' : 'Ítems y créditos por tipo de habitación'"></p>
+                   x-text="pestana === 'listas' ? 'Opciones para elegir en vez de escribir' : 'Ítems y créditos por tipo de habitación'"></p>
             </div>
             <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>

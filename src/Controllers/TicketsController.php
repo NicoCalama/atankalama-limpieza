@@ -11,6 +11,8 @@ use Atankalama\Limpieza\Models\Ticket;
 use Atankalama\Limpieza\Models\TicketAdjunto;
 use Atankalama\Limpieza\Services\ImagenAdjuntoService;
 use Atankalama\Limpieza\Services\ImagenException;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
+use Atankalama\Limpieza\Services\ListasOpcionesService;
 use Atankalama\Limpieza\Services\TicketException;
 use Atankalama\Limpieza\Services\TicketService;
 
@@ -126,7 +128,17 @@ final class TicketsController
         if (!$this->puedeVerTicket($request, $ticket)) {
             return Response::error('PERMISO_INSUFICIENTE', 'No puedes comentar este ticket.', 403);
         }
-        $comentario = $request->inputString('comentario', '');
+        // v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el comentario es una respuesta de la lista
+        // «ticket_respuesta» (Ajustes → Checklists y listas). Texto escrito sin opcion_id → OPCION_REQUERIDA.
+        $opcionId = $request->inputInt('opcion_id');
+        if ($opcionId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige una respuesta de la lista. Si no la ves, recarga la página.', 400);
+        }
+        try {
+            $comentario = (new ListasOpcionesService())->opcionActiva('ticket_respuesta', $opcionId)['nombre'];
+        } catch (ListasOpcionesException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
         $avisar = (bool) $request->input('avisar_supervisora', false);
         try {
             $comentarios = $this->svc->comentar($id, $request->usuario->id, $comentario, $avisar);
@@ -183,8 +195,18 @@ final class TicketsController
             return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
         }
         $hotelId = $request->inputInt('hotel_id');
-        $titulo = $request->inputString('titulo');
-        $descripcion = $request->inputString('descripcion');
+        // v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el problema se elige de la lista «ticket_tipo»
+        // (Ajustes → Checklists y listas) y su nombre es el título y la descripción del ticket. La foto
+        // sigue siendo opcional y es lo que explica un «Otro».
+        $tipoId = $request->inputInt('tipo_id');
+        if ($tipoId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige el tipo de problema. Si no ves la lista, recarga la página.', 400);
+        }
+        try {
+            $titulo = $descripcion = (new ListasOpcionesService())->opcionActiva('ticket_tipo', $tipoId)['nombre'];
+        } catch (ListasOpcionesException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
         $prioridadSolicitada = $request->inputString('prioridad', Ticket::PRIORIDAD_NORMAL);
         // Igual que asignado_a abajo: fijar la prioridad al crear (no la de por defecto)
         // exige tickets.editar_prioridad. El resto de los roles reporta siempre en 'normal'
@@ -231,8 +253,8 @@ final class TicketsController
             $idempotencyKey = null;
         }
 
-        if ($hotelId === null || $titulo === '' || $descripcion === '') {
-            return Response::error('PARAMETROS_INVALIDOS', 'hotel_id, titulo y descripcion son requeridos.', 400);
+        if ($hotelId === null) {
+            return Response::error('PARAMETROS_INVALIDOS', 'hotel_id es requerido.', 400);
         }
 
         $archivos = $this->normalizarArchivos($_FILES['fotos'] ?? null);
@@ -251,6 +273,7 @@ final class TicketsController
                 habitacionId: $habitacionId,
                 idempotencyKey: $idempotencyKey,
                 asignadoA: $asignados !== [] ? $asignados : null,
+                tipoId: $tipoId,
             );
         } catch (TicketException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);

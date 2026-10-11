@@ -59,7 +59,7 @@ Formato: `codigo | descripcion | categoria | scope`
 |---|---|---|---|
 | `checklists.ver` | Ver los templates de checklist por tipo de habitación | Checklists | global |
 | `checklists.editar` | Modificar items de un template existente | Checklists | global |
-| `listas.editar` | (v7.3) Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas). Solo Admin por defecto (decisión de Nicolás, 10/10/2026) | Checklists | global |
+| `listas.editar` | (v7.3) Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas). Solo Admin por defecto (decisión de Nicolás, 10/10/2026) | Checklists | global |
 | `checklists.crear_nuevos` | Crear templates nuevos (para tipo de habitación nuevo) | Checklists | global |
 
 ### 2.3 Asignaciones

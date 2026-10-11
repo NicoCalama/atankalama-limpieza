@@ -150,7 +150,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                 <!-- Agregar/editar nota — solo Recepción/Supervisora/Admin (habitaciones.agregar_nota) -->
                 <template x-if="puedeAgregarNota && !editandoNota">
-                    <button @click="editandoNota = true; formNota = habitacion.nota_recepcion || ''"
+                    <button @click="abrirNota()"
                             class="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
                         <i data-lucide="pencil" class="w-4 h-4"></i>
                         <span x-text="habitacion.nota_recepcion ? 'Editar nota' : 'Agregar nota para la mucama'"></span>
@@ -158,14 +158,33 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </template>
                 <template x-if="puedeAgregarNota && editandoNota">
                     <div class="mt-3 space-y-2">
-                        <textarea x-model="formNota" maxlength="500" rows="2" placeholder="Ej: cliente pidió cama extra"
-                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
+                        <!-- v7.4 (gerencia, 10/10/2026: sin cuadros de texto): uno o varios mensajes de la lista
+                             «nota_recepcion» (Ajustes → Checklists y listas). Reemplaza la nota que hubiera. -->
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Elige uno o varios mensajes:</p>
+                        <template x-if="cargandoMensajes && mensajesNota.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Cargando mensajes...</p>
+                        </template>
+                        <template x-if="errorMensajes">
+                            <p class="text-sm text-red-600 dark:text-red-400" x-text="errorMensajes"></p>
+                        </template>
+                        <div class="grid grid-cols-2 gap-2">
+                            <template x-for="m in mensajesNota" :key="m.id">
+                                <button type="button" @click="alternarMensaje(m.id)" :aria-pressed="notaElegidas.includes(m.id) ? 'true' : 'false'"
+                                        :class="notaElegidas.includes(m.id)
+                                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                            : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                        class="min-h-[44px] rounded-xl border-2 px-3 text-sm font-medium text-left flex items-center justify-between gap-2">
+                                    <span x-text="m.nombre"></span>
+                                    <span x-show="notaElegidas.includes(m.id)" aria-hidden="true">✓</span>
+                                </button>
+                            </template>
+                        </div>
                         <div class="flex gap-2">
                             <button @click="editandoNota = false"
                                     class="flex-1 min-h-[40px] px-3 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
                                 Cancelar
                             </button>
-                            <button @click="guardarNota()" :disabled="notaEnviando || !formNota.trim()"
+                            <button @click="guardarNota()" :disabled="notaEnviando || notaElegidas.length === 0"
                                     class="flex-1 min-h-[40px] px-3 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50">
                                 <span x-text="notaEnviando ? 'Guardando...' : 'Guardar nota'"></span>
                             </button>
@@ -664,7 +683,10 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         puedeSincronizar: false,
         puedeAgregarNota: false,
         editandoNota: false,
-        formNota: '',
+        notaElegidas: [],     // ids elegidos de la lista «nota_recepcion» (v7.4)
+        mensajesNota: [],     // [{id, nombre}] desde /api/listas/nota_recepcion
+        cargandoMensajes: false,
+        errorMensajes: '',
         notaEnviando: false,
         historial: [],
         movimientos: [],
@@ -978,12 +1000,40 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        abrirNota() {
+            this.editandoNota = true;
+            this.notaElegidas = [];
+            if (this.mensajesNota.length === 0) this.cargarMensajesNota();
+        },
+
+        async cargarMensajesNota() {
+            this.cargandoMensajes = true;
+            this.errorMensajes = '';
+            try {
+                var r = await apiFetch('/api/listas/nota_recepcion');
+                if (r && r.ok) {
+                    this.mensajesNota = r.data.opciones || [];
+                } else {
+                    this.errorMensajes = (r && r.error && r.error.mensaje) || 'No pudimos cargar los mensajes.';
+                }
+            } catch (e) {
+                this.errorMensajes = 'No pudimos cargar los mensajes, revisa tu conexión.';
+            } finally {
+                this.cargandoMensajes = false;
+            }
+        },
+
+        alternarMensaje(id) {
+            var i = this.notaElegidas.indexOf(id);
+            if (i === -1) this.notaElegidas.push(id);
+            else this.notaElegidas.splice(i, 1);
+        },
+
         async guardarNota() {
-            var texto = this.formNota.trim();
-            if (!texto || this.notaEnviando) return;
+            if (this.notaElegidas.length === 0 || this.notaEnviando) return;
             this.notaEnviando = true;
             try {
-                var r = await apiPost('/api/habitaciones/' + this.habitacionId + '/nota', { nota: texto });
+                var r = await apiPost('/api/habitaciones/' + this.habitacionId + '/nota', { opcion_ids: this.notaElegidas.slice() });
                 if (r && r.ok) {
                     this.habitacion.nota_recepcion = r.data.habitacion.nota_recepcion;
                     this.editandoNota = false;

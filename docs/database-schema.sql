@@ -546,13 +546,15 @@ CREATE TABLE tickets (
     asignado_at      TEXT,                                  -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
     idempotency_key  TEXT,                                  -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
     novedad_id       INTEGER,                                -- id devuelto por novedades al sincronizar la creación (NovedadesSyncService) — se reenvía al cerrar para vincular ambas novedades
+    tipo_id          INTEGER,                                -- v7.4: tipo de problema elegido (lista «ticket_tipo»); NULL en los de antes
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     resuelto_at      TEXT,
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE SET NULL,
     FOREIGN KEY (hotel_id) REFERENCES hoteles(id) ON DELETE RESTRICT,
     FOREIGN KEY (levantado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
-    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL
+    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (tipo_id) REFERENCES listas_opciones(id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_tickets_estado ON tickets(estado);

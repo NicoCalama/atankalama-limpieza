@@ -84,7 +84,8 @@ final class MigracionListasOpcionesTest extends TestCase
             ), 'nombre'),
             'solo el rol que administra la matriz'
         );
-        $this->assertSame(16, (int) Database::fetchColumn('SELECT COUNT(*) FROM listas_opciones'), '8 rechazo + 4 saltar + 4 reasignar');
+        $this->assertSame(36, (int) Database::fetchColumn('SELECT COUNT(*) FROM listas_opciones'), '8 rechazo + 4 saltar + 4 reasignar + 6 mensaje + 9 tipo + 5 respuesta');
+        $this->assertContains('tipo_id', array_column(Database::fetchAll('PRAGMA table_info(tickets)'), 'name'));
 
         $esquema = (new EsquemaService())->faltantes(true);
         $this->assertTrue($esquema['ok'], 'faltan: ' . json_encode($esquema));
@@ -99,7 +100,7 @@ final class MigracionListasOpcionesTest extends TestCase
 
         $salida = $this->correrMigracion();
         $this->assertStringContainsString('ya tenían orden', $salida);
-        $this->assertSame(16, (int) Database::fetchColumn('SELECT COUNT(*) FROM listas_opciones'));
+        $this->assertSame(36, (int) Database::fetchColumn('SELECT COUNT(*) FROM listas_opciones'));
         $this->assertSame(9, (int) Database::fetchColumn("SELECT orden FROM motivos_revision_entrega WHERE nombre = 'Baño sucio'"));
         $this->assertSame(0, (int) Database::fetchColumn("SELECT activo FROM listas_opciones WHERE lista = 'saltar' AND nombre = 'Otro'"));
         $this->assertSame(1, (int) Database::fetchColumn("SELECT COUNT(*) FROM rol_permisos WHERE permiso_codigo = 'listas.editar'"));

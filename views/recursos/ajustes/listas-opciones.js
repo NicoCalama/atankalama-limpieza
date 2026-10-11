@@ -4,13 +4,16 @@
  * insertado por x-if no se ejecuta).
  */
 function listasOpcionesApp() {
-    // Qué es cada lista y quién la ve (el orden de las tarjetas). Las de Recepción (mensaje a la mucama)
-    // y de tickets se suman en la v7.4.
+    // Qué es cada lista y quién la ve (el orden de las tarjetas). La v7.4 suma el mensaje a la mucama y
+    // las dos listas de tickets.
     var LISTAS = {
         rechazo:      { id: 'rechazo',      icono: 'x-circle',         titulo: 'Rechazar una habitación',         quien: 'la supervisora', quienCorto: 'la supervisora', cuando: 'al rechazar en la inspección, además de marcar los ítems fallidos', ejemplo: 'Baño sucio' },
         reasignar:    { id: 'reasignar',    icono: 'arrow-left-right', titulo: 'Cambiar de persona',              quien: 'la supervisora', quienCorto: 'la supervisora', cuando: 'al reasignar una habitación, también al arrastrarla en el tablero', ejemplo: 'Sobrecarga de trabajo' },
         saltar:       { id: 'saltar',       icono: 'skip-forward',     titulo: 'No puedo limpiarla ahora',        quien: 'la trabajadora', quienCorto: 'la trabajadora', cuando: 'cuando no puede entrar o terminar una habitación de su cola', ejemplo: 'Falta un insumo' },
         no_recepcion: { id: 'no_recepcion', icono: 'concierge-bell',   titulo: 'NO de la inspección pre-entrega', quien: 'Recepción',      quienCorto: 'Recepción',      cuando: 'al marcar NO antes de entregar la pieza', ejemplo: 'Mal olor' },
+        nota_recepcion:   { id: 'nota_recepcion',   icono: 'sticky-note',     titulo: 'Mensaje a la mucama',  quien: 'Recepción',    quienCorto: 'Recepción',    cuando: 'al dejarle un mensaje en la habitación (puede elegir varios)', ejemplo: 'Cama extra' },
+        ticket_tipo:      { id: 'ticket_tipo',      icono: 'wrench',          titulo: 'Tipo de problema',     quien: 'quien reporta', quienCorto: 'quien reporta', cuando: 'al crear un ticket de mantención (el nombre es el título)', ejemplo: 'Fuga o problema de agua' },
+        ticket_respuesta: { id: 'ticket_respuesta', icono: 'message-square',  titulo: 'Respuestas de un ticket', quien: 'quien atiende el ticket', quienCorto: 'quien comenta', cuando: 'al comentar un ticket', ejemplo: 'En reparación' },
     };
 
     return {
@@ -20,7 +23,8 @@ function listasOpcionesApp() {
         grupos: [
             { titulo: 'Supervisora', listas: [LISTAS.rechazo, LISTAS.reasignar] },
             { titulo: 'Trabajadora', listas: [LISTAS.saltar] },
-            { titulo: 'Recepción',   listas: [LISTAS.no_recepcion] },
+            { titulo: 'Recepción',   listas: [LISTAS.no_recepcion, LISTAS.nota_recepcion] },
+            { titulo: 'Tickets',     listas: [LISTAS.ticket_tipo, LISTAS.ticket_respuesta] },
         ],
         editor: {
             abierto: false, lista: null, opciones: [], cargando: false, error: '', guardando: false,

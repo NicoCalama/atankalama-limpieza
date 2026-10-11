@@ -18,7 +18,7 @@ return [
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
     ['checklists.crear_nuevos', 'Crear templates nuevos', 'Checklists', 'global'],
     // v7.3 (gerencia, 10/10/2026): las acciones se eligen de listas, sin cuadro de texto. Solo Admin por defecto.
-    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas)', 'Checklists', 'global'],
+    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)', 'Checklists', 'global'],
 
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],

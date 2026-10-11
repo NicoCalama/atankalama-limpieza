@@ -109,6 +109,8 @@ Ver [habitaciones.md](habitaciones.md).
 | POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso`. 409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso. 409 `NO_ES_TU_HABITACION_ACTUAL` si el trabajador (sin `habitaciones.ver_todas`) intenta iniciar una que no es su habitación actual (orden de cola) |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` + asignada | → `completada_pendiente_auditoria` |
 | POST | `/api/habitaciones/{id}/saltar` | asignada | "No puedo terminar ahora": descarta la ejecución, `→ sucia`, al final de la cola + alerta `habitacion_saltada`. Body: `{ opcion_id }` (v7.3: opción de la lista «saltar», §18b; sin ella 400 `OPCION_REQUERIDA`, desactivada 400 `OPCION_INVALIDA`) |
+| POST | `/api/habitaciones/{id}/nota` | `habitaciones.agregar_nota` | Mensaje de Recepción a la mucama (reemplaza el anterior; se borra solo al terminar la limpieza; push a quien la tiene hoy). Desde la v7.4 `{opcion_ids: [...]}`: una o varias opciones de la lista «nota_recepcion» (§18b), unidas con « · »; sin ellas 400 `OPCION_REQUERIDA` |
+| DELETE | `/api/habitaciones/{id}/nota` | `habitaciones.agregar_nota` | Quita el mensaje |
 
 ---
 
@@ -185,12 +187,14 @@ Ver [tickets.md](tickets.md). Los tickets incluyen `responsables` (lista de `{id
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/tickets` | `tickets.crear` | Crear |
+| POST | `/api/tickets` | `tickets.crear` | Crear. Multipart: `hotel_id`, `tipo_id` (v7.4: opción de la lista «ticket_tipo», §18b; su nombre es el título y la descripción; sin ella 400 `OPCION_REQUERIDA`), `habitacion_id?`, `prioridad?`, `usuario_ids[]?`, `fotos[]?` (máx. 3), `idempotency_key` |
 | GET | `/api/tickets` | `tickets.ver_todos` | Todos |
 | GET | `/api/tickets/mios` | `tickets.ver_propios` | Propios |
 | GET | `/api/tickets/{id}` | propietario o `tickets.ver_todos` | Detalle |
 | PUT | `/api/tickets/{id}/asignar` | `tickets.ver_todos`; con solo `tickets.ver_propios`, autoasignarse un ticket sin dueño («Tomar») | Asigna uno o varios responsables: `usuario_ids` (array), `usuario_id` o `grupo_rol`. Reemplaza la lista completa (tabla `tickets_asignados`); `asignado_a` conserva al responsable principal si sigue en la lista. Designar a alguien que no es Trabajador exige `tickets.asignar_a_cualquier_perfil` (403 `PERFIL_NO_ASIGNABLE`) |
 | PUT | `/api/tickets/{id}/estado` | `tickets.ver_todos` (cualquier transición) o ser **cualquiera de los responsables** (solo `en_progreso` / `resuelto`) | Cambiar estado |
+| GET | `/api/tickets/{id}/comentarios` | quien puede ver el ticket | Historial de comentarios |
+| POST | `/api/tickets/{id}/comentarios` | quien puede ver el ticket | `{opcion_id, avisar_supervisora?}`: desde la v7.4 el comentario es una respuesta de la lista «ticket_respuesta» (§18b); sin `opcion_id` 400 `OPCION_REQUERIDA` |
 
 ---
 

@@ -130,7 +130,17 @@ final class ListasOpcionesServiceTest extends TestCase
         $this->svc->actualizar('rechazo', $id, ['activo' => false], $this->admin);
         $resumen = array_column($this->svc->resumen(), null, 'lista');
         $this->assertSame(['lista' => 'rechazo', 'activas' => 7, 'total' => 8], $resumen['rechazo']);
-        $this->assertSame(['rechazo', 'reasignar', 'saltar', 'no_recepcion'], array_keys($resumen));
+        $this->assertSame(['rechazo', 'reasignar', 'saltar', 'no_recepcion', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'], array_keys($resumen));
+    }
+
+    /** v7.4: el mensaje a la mucama admite varias opciones; se devuelven en el orden de la lista y sin repetir. */
+    public function testNombresActivosDeVariasOpciones(): void
+    {
+        $cuna = TestDatabase::opcionId('nota_recepcion', 'Cuna');
+        $extra = TestDatabase::opcionId('nota_recepcion', 'Cama extra');
+        $this->assertSame(['Cama extra', 'Cuna'], $this->svc->nombresActivos('nota_recepcion', [$cuna, $extra, $cuna]));
+        $this->esperarError('OPCION_REQUERIDA', fn() => $this->svc->nombresActivos('nota_recepcion', []));
+        $this->esperarError('OPCION_INVALIDA', fn() => $this->svc->nombresActivos('nota_recepcion', [$cuna, TestDatabase::opcionId('saltar', 'Otro')]));
     }
 
     public function testElControladorPideListasEditarParaEditarYSesionParaLeer(): void

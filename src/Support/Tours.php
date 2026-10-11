@@ -1360,7 +1360,7 @@ final class Tours
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Dos pestañas',
-                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen al rechazar, reasignar, saltar una pieza o marcar NO en la inspección pre-entrega.'],
+                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen en vez de escribir: rechazar, reasignar, saltar, el NO de Recepción, el mensaje a la mucama y los tickets.'],
                             ['sel' => '[data-tour="lst.tarjetas"]', 'titulo' => 'Una tarjeta por acción',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Listas» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta dice quién usa la lista y cuándo, y cuántas opciones tiene activas. Tócala para editarla.'],

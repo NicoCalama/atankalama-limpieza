@@ -24,10 +24,41 @@ final class ListasOpcionesService
     public const NO_RECEPCION = 'no_recepcion';
 
     /**
-     * Listas que se editan desde Ajustes, en el orden en que se muestran.
-     * nota_recepcion, ticket_tipo y ticket_respuesta (ya en el CHECK del schema) se suman en la v7.4.
+     * Listas que se editan desde Ajustes, en el orden en que se muestran. La v7.4 suma el mensaje de
+     * Recepción a la mucama y el tipo de problema y las respuestas de un ticket.
      */
-    public const LISTAS = ['rechazo', 'reasignar', 'saltar', self::NO_RECEPCION];
+    public const LISTAS = ['rechazo', 'reasignar', 'saltar', self::NO_RECEPCION, 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'];
+
+    /** Lista del mensaje de Recepción a la mucama: la única en que se pueden elegir varias opciones a la vez. */
+    public const NOTA_RECEPCION = 'nota_recepcion';
+
+    /**
+     * Nombres de varias opciones activas de una lista, en el orden de la lista (sin repetir). La usa el
+     * mensaje a la mucama, que admite varias. Si alguna no está activa, OPCION_INVALIDA como opcionActiva().
+     *
+     * @param list<int> $ids
+     * @return list<string>
+     */
+    public function nombresActivos(string $lista, array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            throw new ListasOpcionesException('OPCION_REQUERIDA', 'Elige al menos una opción.', 400);
+        }
+        $activas = $this->listar($lista, true);
+        $porId = array_column($activas, 'nombre', 'id');
+        foreach ($ids as $id) {
+            if (!isset($porId[$id])) {
+                throw new ListasOpcionesException(
+                    'OPCION_INVALIDA',
+                    'Esa opción ya no está disponible. Recarga la página y elige otra.',
+                    400
+                );
+            }
+        }
+        $elegidas = array_filter($activas, static fn(array $o): bool => in_array($o['id'], $ids, true));
+        return array_values(array_map(static fn(array $o): string => $o['nombre'], $elegidas));
+    }
 
     public function existe(string $lista): bool
     {

@@ -11,9 +11,11 @@ declare(strict_types=1);
  *   - motivos_revision_entrega.orden (los motivos del NO se ordenan como las demás listas), inicializado en
  *     orden alfabético con «Otro» al final si todavía estaban todos en 0,
  *   - auditorias.motivo_id (la opción de «rechazo» elegida; FK a listas_opciones),
+ *   - tickets.tipo_id (v7.4: el tipo de problema elegido; FK a listas_opciones),
  *   - permiso listas.editar → todo rol con permisos.asignar_a_rol (el Admin; el '__ALL__' del seed solo
  *     se expande al sembrar). DEFAULT APLICADO (aprobado por el usuario): solo Admin edita las listas,
- *   - las opciones iniciales de cada lista que esté vacía (database/seeds/listas_opciones.php).
+ *   - las opciones iniciales de cada lista que esté vacía (database/seeds/listas_opciones.php; desde la v7.4
+ *     también mensaje a la mucama, tipo de problema y respuestas de un ticket).
  *
  * En installs frescos todo esto lo crean init-db.php y seed.php. Portable (SQLite dev + MariaDB prod) e
  * idempotente. Sin `const` ni funciones de nivel superior: un test lo incluye dos veces en el mismo proceso.
@@ -126,6 +128,19 @@ if ($columnaExiste($tAuditorias, 'motivo_id')) {
 } else {
     $pdo->exec("ALTER TABLE {$tAuditorias} ADD COLUMN motivo_id INTEGER REFERENCES {$tListas}(id) ON DELETE RESTRICT");
     echo "{$tAuditorias}.motivo_id agregada.\n";
+}
+
+// 3b. Tipo de problema de un ticket (v7.4).
+$tTickets = Database::tabla('tickets');
+if ($columnaExiste($tTickets, 'tipo_id')) {
+    echo "{$tTickets}.tipo_id ya existe — omito.\n";
+} elseif ($esMaria) {
+    $pdo->exec("ALTER TABLE {$tTickets} ADD COLUMN tipo_id INT NULL");
+    $pdo->exec("ALTER TABLE {$tTickets} ADD CONSTRAINT fk_{$tTickets}_tipo FOREIGN KEY (tipo_id) REFERENCES {$tListas}(id) ON DELETE RESTRICT");
+    echo "{$tTickets}.tipo_id agregada (con FK).\n";
+} else {
+    $pdo->exec("ALTER TABLE {$tTickets} ADD COLUMN tipo_id INTEGER REFERENCES {$tListas}(id) ON DELETE RESTRICT");
+    echo "{$tTickets}.tipo_id agregada.\n";
 }
 
 // 4. Permiso listas.editar (mismas descripciones que database/seeds/permisos.php) → roles que administran la matriz.

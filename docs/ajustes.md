@@ -53,12 +53,14 @@ otro rol desde Roles y permisos).
 | `reasignar` | Supervisora | Al reasignar una pieza (ventana o arrastre en el tablero) | `audit_log` (`asignacion.reasignar`: `motivo` + `opcion_id`) |
 | `saltar` | Trabajadora | «No puedo limpiarla / terminarla ahora» | `audit_log` y la alerta P2 (`motivo` + `opcion_id`) |
 | `no_recepcion` | Recepción | NO de la inspección pre-entrega | `revisiones_entrega.motivo_id` (tabla propia `motivos_revision_entrega`) |
+| `nota_recepcion` (v7.4) | Recepción | Mensaje a la mucama (detalle de la pieza y menú de Habitaciones); **se pueden elegir varias** | `habitaciones.nota_recepcion` (los nombres unidos con « · ») |
+| `ticket_tipo` (v7.4) | Quien reporta | Tipo de problema al crear un ticket (reemplaza la descripción escrita) | `tickets.tipo_id` + el nombre como título y descripción |
+| `ticket_respuesta` (v7.4) | Quien atiende | Respuesta al comentar un ticket | `tickets_comentarios.comentario` (el nombre) |
 
 **Aprobar con observación no tiene lista:** la observación son las casillas que la supervisora desmarca (decisión
-de Nicolás, 10/10/2026). Las listas `nota_recepcion`, `ticket_tipo` y `ticket_respuesta` ya están en el CHECK de
-`listas_opciones` y llegan en la v7.4 (mensaje a la mucama y tickets).
+de Nicolás, 10/10/2026).
 
-**Pantalla:** una tarjeta por lista, agrupadas por quién la usa (Supervisora / Trabajadora / Recepción), con «Lo ve:
+**Pantalla:** una tarjeta por lista, agrupadas por quién la usa (Supervisora / Trabajadora / Recepción / Tickets), con «Lo ve:
 … al …» y cuántas opciones activas tiene. Al tocarla se abre el editor (hoja desde abajo en el teléfono): ↑↓ para
 ordenar, lápiz para renombrar, interruptor para activar/desactivar, «+ Agregar» y **«Así lo ve …»**, los botones tal
 como los verá quien elige. Todo se guarda al instante.

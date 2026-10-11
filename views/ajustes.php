@@ -40,7 +40,7 @@ $secciones = [
         'icono' => 'list-checks',
         'label' => 'Checklists y listas',
         'letra_indice' => 0, // C
-        'descripcion' => 'Ítems del checklist con sus créditos, y las listas para elegir motivos (rechazo, saltar, reasignar, NO de Recepción)',
+        'descripcion' => 'Ítems del checklist con sus créditos, y las listas para elegir (rechazo, saltar, reasignar, Recepción y tickets)',
         'visible' => $usuario->tienePermiso('checklists.editar') || $usuario->tienePermiso('listas.editar'),
     ],
     [

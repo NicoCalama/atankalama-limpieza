@@ -2212,3 +2212,63 @@ con recargar.
 → pestaña «Listas» con 4 tarjetas (rechazo 8, reasignar 4, saltar 4, NO de pre-entrega con los motivos de hoy);
 abrir una pieza por inspeccionar y ver que «Rechazar» muestra los motivos y «Aprobar con observación» no pide texto;
 en Asignaciones, la ventana de reasignar pide el motivo primero. **No** emitir veredictos de prueba en piezas reales.
+
+### 11.28 Release "mensaje a la mucama y tickets por selección" → v7.4
+
+Segunda parte del pedido de gerencia (10/10/2026): Nicolás sumó tres cuadros de texto más a «solo selección».
+**Decisiones (plan aprobado el 10/10):**
+
+- **Mensaje de Recepción a la mucama** (detalle de la pieza y menú de Habitaciones): lista «nota_recepcion», **se pueden
+  elegir varias** (se guardan unidas con « · » en `habitaciones.nota_recepcion`; el push y los movimientos no cambian).
+- **Nuevo ticket:** «Tipo de problema» de la lista «ticket_tipo» en vez de la descripción escrita (y sin dictado). El
+  nombre del tipo es el título y la descripción; se guarda `tickets.tipo_id`. La foto sigue opcional y es lo que
+  explica un «Otro». Novedades recibe el ticket igual que antes (título/descripción = el tipo).
+- **Comentarios de un ticket:** respuesta de la lista «ticket_respuesta» (se guarda el nombre).
+- Las tres listas se editan en Ajustes → Checklists y listas (grupos «Recepción» y «Tickets»), con `listas.editar`.
+- El copilot (apagado) puede seguir creando tickets con texto: solo la pantalla exige el tipo.
+
+**Va DESPUÉS de la v7.3** (usa `listas_opciones`). Si se suben juntas, primero el SQL de §11.27 y después este.
+
+#### SQL (phpMyAdmin, ANTES de subir el código)
+
+```sql
+ALTER TABLE limpieza_tickets
+  ADD COLUMN tipo_id INT NULL,
+  ADD CONSTRAINT fk_limpieza_tickets_tipo FOREIGN KEY (tipo_id) REFERENCES limpieza_listas_opciones(id) ON DELETE RESTRICT;
+
+INSERT INTO limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('nota_recepcion', 'Cama extra', 1), ('nota_recepcion', 'Cuna', 2), ('nota_recepcion', 'Cambio en la cantidad de camas', 3),
+  ('nota_recepcion', 'Salida tardía', 4), ('nota_recepcion', 'Revisar antes de entrar', 5), ('nota_recepcion', 'Llega pronto un huésped', 6),
+  ('ticket_tipo', 'Luz o ampolleta', 1), ('ticket_tipo', 'Fuga o problema de agua', 2), ('ticket_tipo', 'Baño o WC', 3),
+  ('ticket_tipo', 'Electricidad o enchufe', 4), ('ticket_tipo', 'TV o control', 5), ('ticket_tipo', 'Calefacción o aire', 6),
+  ('ticket_tipo', 'Cerradura o puerta', 7), ('ticket_tipo', 'Mueble roto', 8), ('ticket_tipo', 'Otro', 9),
+  ('ticket_respuesta', 'Recibido, lo reviso', 1), ('ticket_respuesta', 'En reparación', 2), ('ticket_respuesta', 'Falta un repuesto', 3),
+  ('ticket_respuesta', 'Necesito acceso a la habitación', 4), ('ticket_respuesta', 'Listo, revisar', 5);
+
+UPDATE limpieza_permisos
+   SET descripcion = 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)'
+ WHERE codigo = 'listas.editar';
+```
+
+`scripts/migrate-add-listas-opciones.php` hace lo mismo (y lo de §11.27) si se corre en una base sin estas listas.
+Comprobación: `/api/health` → `checks.esquema.ok: true`.
+
+#### ZIP
+
+`build/limpieza-v74-delta.zip` (CHANGELOG con la fila de la v7.4 fechada antes, §10 paso 0). Todo a `limpieza/app_core/`:
+- `CHANGELOG.md`, `database/seeds/{permisos,listas_opciones}.php`, `docs/database-schema{,.mariadb}.sql`,
+  `scripts/migrate-add-listas-opciones.php`.
+- `src/Controllers/{HabitacionesController,TicketsController}.php`, `src/Services/{ListasOpcionesService,TicketService}.php`,
+  `src/Support/Tours.php`.
+- `views/{ajustes,ajustes-checklists,habitacion-detalle,habitaciones,tickets}.php`,
+  `views/componentes/modal-ticket-nuevo.php`, `views/recursos/ajustes/listas-opciones.js`,
+  `views/recursos/componentes/modal-ticket-nuevo.js`, `views/recursos/tickets/tickets.js`.
+
+Vuelta atrás: `build/limpieza-v74-vuelta-atras.zip` (los mismos archivos en la v7.3). El SQL puede quedar.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, avisando a Recepción y a quienes reportan tickets que
+recarguen la app (una pantalla abierta de antes responde «Elige … de la lista. Si no la ves, recarga la página»).
+
+**Smoke:** badge **v7.4** (incógnito), `/api/health` 200 con esquema ok; Ajustes → «Checklists y listas» → «Listas»
+con los grupos Recepción (2 tarjetas) y Tickets (2); abrir el «Nuevo ticket» y ver «Tipo de problema» sin cuadro de
+texto (sin enviarlo); en el detalle de una pieza, «Agregar nota para la mucama» muestra los mensajes para elegir.
