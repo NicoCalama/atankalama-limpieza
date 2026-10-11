@@ -2057,6 +2057,8 @@ pre-entrega» con la tabla «Por recepcionista»; el Excel mensual trae la pesta
 
 ### 11.26 Release "Reportes en pestañas" → v7.2
 
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
+
 Pedido de Nicolás (10/10/2026): «la sección Reportes creció mucho; la vamos a dividir en pestañas dedicadas:
 trabajadores, supervisoras, recepción y reportes mensuales». **Decisiones (plan aprobado el 10/10):**
 
@@ -2095,6 +2097,8 @@ muestra sus bloques (Mensual con el cuadro «Inspección pre-entrega del mes»);
 **Vuelta atrás:** subir `build/limpieza-v72-vuelta-atras.zip`. No hay datos que deshacer.
 
 ### 11.27 Release "listas de selección, sin cuadros de texto" → v7.3
+
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
 
 Pedido de gerencia (10/10/2026): «todos los check list y tablas tipo selección de alguna opción, como cuando se rechaza
 una habitación o cuando hay que dar la razón de por qué se cambió la habitación, se puedan editar desde Ajustes y no
@@ -2215,6 +2219,8 @@ en Asignaciones, la ventana de reasignar pide el motivo primero. **No** emitir v
 
 ### 11.28 Release "mensaje a la mucama y tickets por selección" → v7.4
 
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
+
 Segunda parte del pedido de gerencia (10/10/2026): Nicolás sumó tres cuadros de texto más a «solo selección».
 **Decisiones (plan aprobado el 10/10):**
 
@@ -2272,3 +2278,64 @@ recarguen la app (una pantalla abierta de antes responde «Elige … de la lista
 **Smoke:** badge **v7.4** (incógnito), `/api/health` 200 con esquema ok; Ajustes → «Checklists y listas» → «Listas»
 con los grupos Recepción (2 tarjetas) y Tickets (2); abrir el «Nuevo ticket» y ver «Tipo de problema» sin cuadro de
 texto (sin enviarlo); en el detalle de una pieza, «Agregar nota para la mucama» muestra los mensajes para elegir.
+
+### 11.29 Deploy combinado → v7.4 (v7.2 + v7.3 + v7.4)
+
+> **Decisión de Nicolás (10/10/2026):** las tres versiones suben juntas, con un solo SQL y un solo ZIP. Qué trae cada
+> una y por qué: §11.26 (Reportes en pestañas), §11.27 (listas de selección) y §11.28 (mensaje a la mucama y tickets).
+> Los ZIP sueltos de esas secciones no se arman. En el CHANGELOG quedan las tres filas con la misma fecha y el badge
+> muestra **v7.4**.
+
+**Lista de archivos** = `git diff --name-only 4d5a48d HEAD` (4d5a48d = v7.1, lo que está arriba), menos `docs/` y
+`tests/`, más los dos `docs/database-schema*.sql` (los lee el verificador de esquema). Sin `.env`, sin `vendor/` (las
+clases nuevas cargan por PSR-4) y sin cambios en los cron.
+
+**Probado el 10/10** en MariaDB 10.6 (Docker) sobre una base creada con el código de producción (`4d5a48d`, `init-db`
++ `seed`): el precheck dio 1) vacío, 2) Admin y Supervisora, 3) 0; el SQL corrió sin errores; el verificador de la v7.4
+dio «al día»; y el servicio de listas funcionó contra MariaDB (crear, duplicado sin distinguir mayúsculas ni tildes,
+renombrar, desactivar, ordenar el NO, varios mensajes, ticket con tipo, FK). `scripts/migrate-add-listas-opciones.php`
+dejó lo mismo sobre otra base v7.1 y corrió dos veces seguidas sin error.
+
+#### Pasos
+
+1. **Cuándo:** fuera de 15:45–16:05 y de 23:45–00:00. **Avisar antes** a supervisoras, Recepción y quienes reportan
+   tickets que recarguen la app cuando termine: una pantalla abierta desde antes responde «Elige … de la lista. Si no la
+   ves, recarga la página».
+2. **Precheck** (phpMyAdmin, solo lee): `build/limpieza-v74-precheck.sql` (= el de §11.27). Esperado: 1) vacío;
+   2) los roles que hoy editan los motivos del NO (los que no son Admin dejan de editarlos: aceptado); 3) `0`. Si 1) no
+   sale vacío, parar y avisar: ese rol dejaría de poder aprobar con observación.
+3. **SQL** (phpMyAdmin, **antes del ZIP**, una sola vez): `build/limpieza-v74.sql` = §11.27 y después §11.28.
+4. **ZIP** `build/limpieza-v74-delta.zip`: descomprimir en el PC y arrastrar `limpieza/` sobre `public_html/` en
+   FileZilla (binario). 45 archivos van a `limpieza/app_core/` y 1 al docroot
+   (`limpieza/assets/vista-guiada/vista-guiada.js`; `layout.php` le pone `?v=filemtime`, no hace falta tocar `sw.js`):
+   - `CHANGELOG.md`; `database/seeds/{listas_opciones,permisos}.php`; `docs/database-schema{,.mariadb}.sql`;
+     `public/assets/vista-guiada/vista-guiada.js` (la copia de `app_core`, §10).
+   - `scripts/{migrate-add-listas-opciones,migrate-add-revision-entrega,seed}.php`.
+   - `src/Controllers/{Asignaciones,Auditoria,Checklists,Habitaciones,ListasOpciones,Paginas,Reportes,RevisionEntrega,Tickets}Controller.php`,
+     `src/Core/Kernel.php`,
+     `src/Services/{AsignacionService,AuditoriaService,ChecklistService,ListasOpcionesException,ListasOpcionesService,RevisionEntregaService,TicketService}.php`,
+     `src/Support/Tours.php`.
+   - `views/{ajustes,ajustes-checklists,ajustes-revision-entrega,asignaciones,auditoria-detalle,habitacion-detalle,habitaciones,home-supervisora,home-trabajador,reportes,tickets}.php`,
+     `views/ajustes/listas-opciones.php`, `views/componentes/{modal-inspeccion-pre-entrega,modal-ticket-nuevo}.php`,
+     `views/recursos/ajustes/listas-opciones.js`,
+     `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-ticket-nuevo}.js`, `views/recursos/tickets/tickets.js`.
+5. **Esquema:** `/api/health` 200 con `checks.esquema.ok: true`.
+
+**Smoke** (Admin, incógnito; **sin** emitir veredictos, reasignar, crear tickets ni dejar mensajes en piezas reales):
+- Badge **v7.4**.
+- Reportes: las 4 pestañas; Mensual con el cuadro «Inspección pre-entrega del mes»; recargar con `#mensual` abre
+  Mensual.
+- Ajustes → «Checklists y listas» → pestaña «Listas»: grupos Supervisora (Rechazar 8, Cambiar de persona 4),
+  Trabajadora (No puedo limpiarla ahora 4), Recepción (NO de la inspección pre-entrega con los motivos de hoy, Mensaje a
+  la mucama 6) y Tickets (Tipo de problema 9, Respuestas 5).
+- Una pieza por inspeccionar: «Rechazar» muestra los motivos y «Aprobar con observación» no pide texto (cerrar sin
+  confirmar). Asignaciones: la ventana de reasignar pide el motivo primero (cancelar).
+- «Nuevo ticket» muestra «Tipo de problema» sin cuadro de texto, y «Agregar nota para la mucama» muestra los mensajes
+  para elegir (cerrar sin enviar).
+
+**Vuelta atrás:** subir `build/limpieza-v74-vuelta-atras.zip`: los 39 archivos que ya existían, tal como están en la
+v7.1 (`4d5a48d`), incluida la copia del docroot. Los 7 nuevos (`ListasOpciones*`, `listas_opciones.php`,
+`migrate-add-listas-opciones.php`, `views/ajustes/listas-opciones.php` y su `.js`) pueden quedar: la v7.1 no los
+carga. El SQL también puede quedar: es aditivo y el verificador solo reclama lo que falta. Lo registrado mientras
+estuvo la v7.4 sigue legible en la v7.1 (motivos y tipos quedan como texto en `comentario`, `titulo` y
+`nota_recepcion`).
