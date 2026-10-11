@@ -7,7 +7,8 @@ declare(strict_types=1);
  * antes de entregarla al huésped, desde su tarjeta en Habitaciones.
  *
  * Agrega a una BD existente:
- *   - tablas motivos_revision_entrega y revisiones_entrega (+ índices),
+ *   - tablas motivos_revision_entrega y revisiones_entrega (+ índices; desde la v7.3 la de motivos nace con
+ *     su columna orden, que en una base que ya la tenía agrega scripts/migrate-add-listas-opciones.php),
  *   - permisos revision_entrega.registrar, revision_entrega.configurar y habitaciones.gestionar_edificios,
  *   - grants: registrar → Recepción; configurar → Supervisora; gestionar_edificios → todo rol que hoy
  *     tiene habitaciones.ver_todas MENOS Recepción (antes Edificios y Mapeo se abría con ver_todas: así
@@ -52,6 +53,7 @@ if ($esMaria) {
             id          INT AUTO_INCREMENT PRIMARY KEY,
             nombre      VARCHAR(60) NOT NULL UNIQUE,
             activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+            orden       INT NOT NULL DEFAULT 0,
             created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z'))
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
@@ -96,6 +98,7 @@ if ($esMaria) {
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre      TEXT NOT NULL UNIQUE,
             activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+            orden       INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         )"
     );

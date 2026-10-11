@@ -115,7 +115,13 @@ habitación actual sin terminarla es la válvula de escape (§3.6).
 
 Si el trabajador no puede terminar la habitación actual (huésped no salió, falta un
 insumo, requiere mantención), toca **"No puedo terminar esta ahora"** en el detalle,
-elige un motivo y confirma → `POST /api/habitaciones/{id}/saltar` con `{ motivo }`.
+elige un motivo y confirma → `POST /api/habitaciones/{id}/saltar` con `{ opcion_id }`.
+
+Desde la v7.3 (gerencia, 10/10/2026: sin cuadros de texto) los motivos son la lista
+«saltar» de Ajustes → Checklists y listas (opciones iniciales: «Huésped no ha salido»,
+«Falta un insumo», «Requiere mantención», «Otro»); ya no hay texto libre con «Otro».
+Sin `opcion_id`: 400 `OPCION_REQUERIDA`; opción desactivada: 400 `OPCION_INVALIDA`.
+Ningún motivo cambia lo que hace el salto: todos siguen el mismo camino.
 
 El backend:
 - Descarta la ejecución en progreso (el progreso parcial se pierde; al retomar se

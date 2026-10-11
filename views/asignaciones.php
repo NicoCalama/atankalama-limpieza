@@ -19,7 +19,7 @@
  *  - GET  /api/asignaciones/vista?hotel=&fecha=
  *  - POST /api/asignaciones            { habitacion_ids, usuario_id, fecha }
  *  - POST /api/asignaciones/auto       { hotel, fecha }
- *  - POST /api/asignaciones/reasignar  { habitacion_id, usuario_id, fecha, motivo }
+ *  - POST /api/asignaciones/reasignar  { habitacion_id, usuario_id, fecha, opcion_id }  (v7.3: motivo de la lista «reasignar»)
  *  - POST /api/asignaciones/desasignar { habitacion_id, fecha }
  *  - PUT  /api/asignaciones/orden      { usuario_id, fecha, orden: [habitacion_id...] }
  *
@@ -735,15 +735,40 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
                                 </button>
                             </div>
-                            <div class="space-y-3">
+                            <div class="space-y-4">
+                                <!-- 1. Motivo (v7.3, gerencia 10/10/2026): obligatorio y de la lista «reasignar»,
+                                     antes de elegir a quién. Opciones en Ajustes → Checklists y listas. -->
                                 <div>
-                                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">Enviar a (ordenado por menor carga)</p>
+                                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">1. ¿Por qué la cambias?</p>
+                                    <template x-if="motivosReasignarCargando && motivosReasignar.length === 0">
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Cargando motivos...</p>
+                                    </template>
+                                    <template x-if="motivosReasignarError">
+                                        <p class="text-sm text-red-600 dark:text-red-400" x-text="motivosReasignarError"></p>
+                                    </template>
+                                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Motivo de la reasignación">
+                                        <template x-for="m in motivosReasignar" :key="m.id">
+                                            <button type="button" role="radio" :aria-checked="modalReasignar.opcionId === m.id ? 'true' : 'false'"
+                                                    @click="modalReasignar.opcionId = m.id" :disabled="modalReasignar.enviando"
+                                                    :class="modalReasignar.opcionId === m.id
+                                                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                                    class="min-h-[48px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                                <span x-text="m.nombre"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                <!-- 2. Destino: se habilita con el motivo elegido -->
+                                <div>
+                                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-2">2. Enviar a (ordenado por menor carga)</p>
+                                    <p x-show="modalReasignar.opcionId === null" class="text-xs text-gray-500 dark:text-gray-400 mb-2">Primero elige el motivo.</p>
                                     <ul class="space-y-1.5 max-h-60 overflow-y-auto">
                                         <template x-for="dest in destinosReasignar()" :key="dest.usuario.id">
                                             <li>
                                                 <button @click="confirmarReasignar(dest)"
-                                                        :disabled="modalReasignar.enviando"
-                                                        class="w-full flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50">
+                                                        :disabled="modalReasignar.enviando || modalReasignar.opcionId === null"
+                                                        class="w-full min-h-[44px] flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
                                                     <span class="flex items-center gap-2 min-w-0">
                                                         <span x-html="avatarUsuario(dest.usuario)"></span>
                                                         <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="dest.usuario.nombre"></span>
@@ -756,17 +781,58 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                         </template>
                                     </ul>
                                 </div>
-                                <div>
-                                    <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Motivo (opcional)</label>
-                                    <input x-model="modalReasignar.motivo" type="text" maxlength="200"
-                                           placeholder="Ej: sobrecarga, llegó tarde, etc."
-                                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
-                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </template>
+
+            <!-- Va afuera de los modos: se abre desde el tablero. -->
+            <!-- Modal: motivo al ARRASTRAR una pieza de una persona a otra en el tablero (v7.3). La
+                 tarjeta no se mueve hasta confirmar: «Cancelar» la deja donde estaba. -->
+            <div x-show="modalArrastre.abierto" x-cloak
+                 @keydown.escape.window="modalArrastre.abierto && cancelarArrastre()"
+                 class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
+                 @click.self="cancelarArrastre()">
+                <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto"
+                     role="dialog" aria-modal="true" aria-labelledby="arrastre-titulo">
+                    <h3 id="arrastre-titulo" class="text-lg font-semibold text-gray-900 dark:text-gray-100">¿Por qué la cambias?</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3"
+                       x-text="modalArrastre.hab ? ('Hab. ' + modalArrastre.hab.numero + ': de ' + (modalArrastre.origenTr ? modalArrastre.origenTr.usuario.nombre : '') + ' a ' + (modalArrastre.destino ? modalArrastre.destino.usuario.nombre : '')) : ''"></p>
+                    <p x-show="modalArrastre.hab && modalArrastre.hab.estado === 'en_progreso'"
+                       class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-3">
+                        Está en progreso: si la mueves, se reinicia y la persona pierde lo avanzado.
+                    </p>
+                    <template x-if="motivosReasignarCargando && motivosReasignar.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Cargando motivos...</p>
+                    </template>
+                    <template x-if="motivosReasignarError">
+                        <p class="text-sm text-red-600 dark:text-red-400 mb-3" x-text="motivosReasignarError"></p>
+                    </template>
+                    <div class="grid grid-cols-2 gap-2 mb-4" role="radiogroup" aria-label="Motivo de la reasignación">
+                        <template x-for="m in motivosReasignar" :key="m.id">
+                            <button type="button" role="radio" :aria-checked="modalArrastre.opcionId === m.id ? 'true' : 'false'"
+                                    @click="modalArrastre.opcionId = m.id" :disabled="modalArrastre.enviando"
+                                    :class="modalArrastre.opcionId === m.id
+                                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="min-h-[48px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                <span x-text="m.nombre"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="button" @click="cancelarArrastre()" :disabled="modalArrastre.enviando"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition disabled:opacity-50">
+                            Cancelar
+                        </button>
+                        <button type="button" @click="confirmarArrastre()" :disabled="modalArrastre.enviando || modalArrastre.opcionId === null"
+                                class="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-text="modalArrastre.enviando ? 'Moviendo...' : 'Mover'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </template>
@@ -799,7 +865,13 @@ function asignacionesApp() {
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
         modalAsignar: { abierto: false, enviando: false, busqueda: '', franja: null },
-        modalReasignar: { abierto: false, origen: null, habitacion: null, motivo: '', enviando: false },
+        modalReasignar: { abierto: false, origen: null, habitacion: null, opcionId: null, enviando: false },
+        // Arrastre de una persona a otra en el tablero (v7.3): antes de mover se elige el motivo.
+        modalArrastre: { abierto: false, origenTr: null, destino: null, hab: null, rid: null, opcionId: null, enviando: false },
+        // Opciones de la lista «reasignar» (Ajustes → Checklists y listas), se piden una vez.
+        motivosReasignar: [],
+        motivosReasignarCargando: false,
+        motivosReasignarError: '',
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -997,23 +1069,10 @@ function asignacionesApp() {
                 });
                 if (!origenTr || origenTr.usuario.id === workerId) return;
                 var hab = origenTr.cola.find(function (h) { return h.habitacion_id === rid; });
-                if (hab && hab.estado === 'en_progreso') {
-                    if (!confirm('La habitación ' + hab.numero + ' está en progreso. Si la mueves, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
-                }
-                // Optimista: mover de una cola a la otra.
-                origenTr.cola = origenTr.cola.filter(function (h) { return h.habitacion_id !== rid; });
-                if (hab) destino.cola.push(hab);
-                this.$nextTick(function () { lucide.createIcons(); });
-                try {
-                    var r = await apiPost('/api/asignaciones/reasignar', {
-                        habitacion_id: rid, usuario_id: workerId, fecha: this.fecha, motivo: 'Reasignación manual'
-                    });
-                    if (r && r.ok) this.mostrarToast('exito', 'Habitación ' + (hab ? hab.numero : '') + ' movida a ' + destino.usuario.nombre + '.');
-                    else this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos mover la habitación.');
-                } catch (e) {
-                    this.mostrarToast('error', 'No pudimos conectar con el servidor.');
-                }
-                this.cargar();
+                // v7.3 (gerencia, 10/10/2026): el motivo es obligatorio también al arrastrar. La ventana
+                // avisa si está en progreso (antes era un confirm aparte) y la pieza se mueve al confirmar.
+                this.modalArrastre = { abierto: true, origenTr: origenTr, destino: destino, hab: hab || null, rid: rid, opcionId: null, enviando: false };
+                this.asegurarMotivosReasignar();
                 return;
             }
 
@@ -1219,14 +1278,59 @@ function asignacionesApp() {
                 abierto: true,
                 origen: tr,
                 habitacion: hab,
-                motivo: '',
+                opcionId: null,
                 enviando: false
             };
+            this.asegurarMotivosReasignar();
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
         cerrarReasignar() {
-            this.modalReasignar = { abierto: false, origen: null, habitacion: null, motivo: '', enviando: false };
+            this.modalReasignar = { abierto: false, origen: null, habitacion: null, opcionId: null, enviando: false };
+        },
+
+        async asegurarMotivosReasignar() {
+            if (this.motivosReasignar.length > 0 || this.motivosReasignarCargando) return;
+            this.motivosReasignarCargando = true;
+            this.motivosReasignarError = '';
+            try {
+                var r = await apiFetch('/api/listas/reasignar');
+                if (r && r.ok) {
+                    this.motivosReasignar = r.data.opciones || [];
+                } else {
+                    this.motivosReasignarError = (r && r.error && r.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.motivosReasignarError = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.motivosReasignarCargando = false;
+            }
+        },
+
+        cancelarArrastre() {
+            if (this.modalArrastre.enviando) return;
+            this.modalArrastre = { abierto: false, origenTr: null, destino: null, hab: null, rid: null, opcionId: null, enviando: false };
+        },
+
+        async confirmarArrastre() {
+            var m = this.modalArrastre;
+            if (m.enviando || m.opcionId === null) return;
+            m.enviando = true;
+            // Optimista: mover de una cola a la otra.
+            m.origenTr.cola = m.origenTr.cola.filter(function (h) { return h.habitacion_id !== m.rid; });
+            if (m.hab) m.destino.cola.push(m.hab);
+            this.$nextTick(function () { lucide.createIcons(); });
+            try {
+                var r = await apiPost('/api/asignaciones/reasignar', {
+                    habitacion_id: m.rid, usuario_id: m.destino.usuario.id, fecha: this.fecha, opcion_id: m.opcionId
+                });
+                if (r && r.ok) this.mostrarToast('exito', 'Habitación ' + (m.hab ? m.hab.numero : '') + ' movida a ' + m.destino.usuario.nombre + '.');
+                else this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos mover la habitación.');
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            }
+            this.modalArrastre = { abierto: false, origenTr: null, destino: null, hab: null, rid: null, opcionId: null, enviando: false };
+            this.cargar();
         },
 
         destinosReasignar() {
@@ -1243,7 +1347,7 @@ function asignacionesApp() {
         },
 
         async confirmarReasignar(dest) {
-            if (this.modalReasignar.enviando) return;
+            if (this.modalReasignar.enviando || this.modalReasignar.opcionId === null) return;
             var hab = this.modalReasignar.habitacion;
             if (!hab) return;
             // Mismo aviso que al arrastrarla en el Tablero (solo llega acá quien puede moverla).
@@ -1255,7 +1359,7 @@ function asignacionesApp() {
                     habitacion_id: this.modalReasignar.habitacion.habitacion_id,
                     usuario_id: dest.usuario.id,
                     fecha: this.fecha,
-                    motivo: this.modalReasignar.motivo || 'Reasignación manual'
+                    opcion_id: this.modalReasignar.opcionId
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación reasignada a ' + dest.usuario.nombre + '.');

@@ -8,6 +8,8 @@ use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionException;
 use Atankalama\Limpieza\Services\AsignacionService;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
+use Atankalama\Limpieza\Services\ListasOpcionesService;
 
 final class AsignacionesController
 {
@@ -72,16 +74,27 @@ final class AsignacionesController
         $habitacionId = $request->inputInt('habitacion_id');
         $usuarioId = $request->inputInt('usuario_id');
         $fecha = $request->inputString('fecha');
-        $motivo = $request->inputString('motivo', 'reasignacion_manual');
+        // v7.3 (gerencia, 10/10/2026): el motivo es obligatorio y se elige de la lista «reasignar»
+        // (Ajustes → Checklists y listas), también al arrastrar en el tablero. Ya no hay texto libre.
+        $opcionId = $request->inputInt('opcion_id');
 
         if ($habitacionId === null || $usuarioId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id, usuario_id y fecha son requeridos.', 400);
+        }
+        if ($opcionId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige por qué la cambias de persona. Si no ves la lista, recarga la página.', 400);
+        }
+        try {
+            $motivo = (new ListasOpcionesService())->opcionActiva('reasignar', $opcionId)['nombre'];
+        } catch (ListasOpcionesException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
         try {
             $a = $this->svc->reasignar(
                 $habitacionId, $usuarioId, $fecha, $motivo, $request->usuario?->id,
                 puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
+                opcionId: $opcionId,
             );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);

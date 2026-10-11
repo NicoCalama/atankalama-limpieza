@@ -27,11 +27,15 @@ function ticketsApp() {
             mostrarPrioridad: false,
             prioridadNueva: null,
             comentarios: [],
-            comentarioNuevo: '',
+            respuestaId: null, // v7.4: respuesta de la lista «ticket_respuesta», sin texto libre
             avisarSupervisora: false,
             enviandoComentario: false,
         },
         cierreFotos: [], // [{ file, url }] — fotos opcionales al cerrar, máx. 3
+        // Respuestas predefinidas para comentar (v7.4, Ajustes → Checklists y listas), se piden una vez.
+        respuestas: [],
+        respuestasCargando: false,
+        respuestasError: '',
         usuariosAsignables: [], // cargados on-demand la primera vez que se abre el panel de asignar
 
         estadosFiltro: [
@@ -195,7 +199,7 @@ function ticketsApp() {
                 mostrarPrioridad: false,
                 prioridadNueva: null,
                 comentarios: [],
-                comentarioNuevo: '',
+                respuestaId: null,
                 avisarSupervisora: false,
                 enviandoComentario: false,
             };
@@ -212,6 +216,7 @@ function ticketsApp() {
             } catch (e) {
                 // Sin adjuntos
             }
+            this.cargarRespuestas();
             try {
                 var rc = await apiFetch('/api/tickets/' + t.id + '/comentarios');
                 if (rc && rc.ok && this.detalle.ticket && this.detalle.ticket.id === t.id) {
@@ -234,27 +239,45 @@ function ticketsApp() {
                 mostrarPrioridad: false,
                 prioridadNueva: null,
                 comentarios: [],
-                comentarioNuevo: '',
+                respuestaId: null,
                 avisarSupervisora: false,
                 enviandoComentario: false,
             };
         },
 
+        async cargarRespuestas() {
+            if (this.respuestas.length > 0 || this.respuestasCargando) return;
+            this.respuestasCargando = true;
+            this.respuestasError = '';
+            try {
+                var r = await apiFetch('/api/listas/ticket_respuesta');
+                if (r && r.ok) {
+                    this.respuestas = r.data.opciones || [];
+                } else {
+                    this.respuestasError = (r && r.error && r.error.mensaje) || 'No pudimos cargar las respuestas.';
+                }
+            } catch (e) {
+                this.respuestasError = 'No pudimos cargar las respuestas, revisa tu conexión.';
+            } finally {
+                this.respuestasCargando = false;
+            }
+        },
+
         async comentar() {
-            if (!this.detalle.ticket || !this.detalle.comentarioNuevo || this.detalle.enviandoComentario) return;
+            if (!this.detalle.ticket || this.detalle.respuestaId === null || this.detalle.enviandoComentario) return;
             this.detalle.enviandoComentario = true;
             try {
                 var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/comentarios', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        comentario: this.detalle.comentarioNuevo,
+                        opcion_id: this.detalle.respuestaId,
                         avisar_supervisora: this.detalle.avisarSupervisora,
                     })
                 });
                 if (r && r.ok) {
                     this.detalle.comentarios = r.data.comentarios || [];
-                    this.detalle.comentarioNuevo = '';
+                    this.detalle.respuestaId = null;
                     this.detalle.avisarSupervisora = false;
                     this.mostrarToast('exito', 'Comentario agregado.');
                 } else {

@@ -11,10 +11,11 @@
  *
  * Reglas:
  *  - Aprobar: confirm modal simple.
- *  - Aprobar con observación: entra a modo edición — checklist desmarcable,
- *    textarea comentario (min 10 chars), botón "Enviar observación".
- *  - Rechazar: desmarca los ítems fallidos (>=1, se re-limpian) + textarea comentario
- *    (min 10 chars), botón "Confirmar rechazo".
+ *  - Aprobar con observación: entra a modo edición — checklist desmarcable; las casillas
+ *    desmarcadas (>=1) SON la observación (v7.3, sin comentario escrito).
+ *  - Rechazar: desmarca los ítems fallidos (>=1, se re-limpian) + elige el motivo de la
+ *    lista «rechazo» (v7.3, Ajustes → Checklists y listas), botón "Confirmar rechazo".
+ *  Desde la v7.3 (gerencia, 10/10/2026) no hay cuadro de texto ni dictado por voz.
  *  - Inmutabilidad: backend rechaza con 409 si ya hay auditoría.
  *
  * Variables requeridas: $usuario, $habitacionId (int)
@@ -138,7 +139,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                     <template x-if="auditoria.comentario">
                         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">Comentario</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide" x-text="auditoria.veredicto === 'rechazado' ? 'Motivo' : 'Observación'"></p>
                             <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap" x-text="auditoria.comentario"></p>
                         </div>
                     </template>
@@ -166,7 +167,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>
                     <div class="text-sm text-amber-900 dark:text-amber-200">
                         <p class="font-semibold">Aprobando con observación</p>
-                        <p>Desmarca los items que encontraste mal y escribe un comentario (mínimo 10 caracteres).</p>
+                        <p>Desmarca las casillas que encontraste mal: esas casillas son la observación. La habitación queda limpia igual.</p>
+                        <p class="mt-1 font-medium" x-show="itemsDesmarcadosNuevos.length === 0">Desmarca al menos una casilla.</p>
                     </div>
                 </div>
             </template>
@@ -175,8 +177,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <i data-lucide="x-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"></i>
                     <div class="text-sm text-red-900 dark:text-red-200">
                         <p class="font-semibold">Rechazando habitación</p>
-                        <p>Marca los ítems que quedaron mal (se re-limpiarán) y escribe el motivo (mínimo 10 caracteres). La habitación volverá a estado sucia.</p>
+                        <p>Marca los ítems que quedaron mal (se re-limpiarán) y elige el motivo más abajo. La habitación volverá a estado sucia.</p>
                         <p class="mt-1 font-medium" x-show="itemsDesmarcadosNuevos.length === 0">Selecciona al menos un ítem fallido.</p>
+                        <p class="mt-1 font-medium" x-show="itemsDesmarcadosNuevos.length > 0 && motivoId === null">Elige el motivo del rechazo.</p>
                     </div>
                 </div>
             </template>
@@ -220,46 +223,33 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </div>
             </template>
 
-            <!-- Textarea comentario (observacion/rechazo) -->
-            <template x-if="modo === 'observacion' || modo === 'rechazo'">
-                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Comentario <span class="text-red-500">*</span>
-                        </label>
-                        <template x-if="soportaDictado">
-                            <button type="button"
-                                    @click="toggleDictado()"
-                                    :aria-pressed="grabando"
-                                    :aria-label="grabando ? 'Detener dictado' : 'Dictar comentario por voz'"
-                                    class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition"
-                                    :class="grabando ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
-                                <!-- SVG inline (no data-lucide): lucide.createIcons() reemplaza el nodo <i> por un
-                                     <svg> nuevo y Alpine pierde la referencia, dejando iconos huérfanos al alternar. -->
-                                <svg x-show="!grabando" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="9" y="2" width="6" height="13" rx="3"></rect>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                    <path d="M12 19v3"></path>
-                                </svg>
-                                <svg x-show="grabando" x-cloak xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                                </svg>
+            <!-- Motivo del rechazo: se elige de la lista (v7.3, gerencia 10/10/2026: sin cuadros de texto). La
+                 observación no lleva motivo: son las casillas desmarcadas. Opciones en Ajustes → Checklists y listas. -->
+            <template x-if="modo === 'rechazo'">
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4" data-tour="aud2.motivo">
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo del rechazo <span class="text-red-500">*</span></p>
+                    <template x-if="motivosCargando && motivosRechazo.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Cargando motivos...</p>
+                    </template>
+                    <template x-if="motivosError">
+                        <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-sm text-red-700 dark:text-red-300">
+                            <p x-text="motivosError"></p>
+                            <button type="button" @click="cargarMotivosRechazo()" class="mt-2 min-h-[40px] px-3 rounded-lg bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 font-medium">Reintentar</button>
+                        </div>
+                    </template>
+                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Motivo del rechazo">
+                        <template x-for="m in motivosRechazo" :key="m.id">
+                            <button type="button" role="radio" :aria-checked="motivoId === m.id ? 'true' : 'false'"
+                                    @click="motivoId = m.id" :disabled="enviando"
+                                    :class="motivoId === m.id
+                                        ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="min-h-[56px] rounded-xl border-2 px-3 text-base font-medium text-left flex items-center justify-between gap-2">
+                                <span x-text="m.nombre"></span>
+                                <span x-show="motivoId === m.id" aria-hidden="true">✓</span>
                             </button>
                         </template>
                     </div>
-                    <textarea x-model="comentario"
-                              rows="4"
-                              maxlength="2000"
-                              :placeholder="modo === 'observacion' ? 'Describe qué encontraste...' : 'Describe el motivo del rechazo...'"
-                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"></textarea>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        <span x-text="comentario.trim().length"></span> / 2000 caracteres
-                        <template x-if="comentario.trim().length < 10">
-                            <span class="text-red-600 dark:text-red-400 ml-2">Faltan <span x-text="10 - comentario.trim().length"></span> para el mínimo (10)</span>
-                        </template>
-                    </p>
                 </div>
             </template>
 
@@ -273,7 +263,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             <span><span :class="altActivo ? 'underline' : ''">A</span>probar</span>
                         </button>
                     </template>
-                    <template x-if="puedeAprobarConObservacion">
+                    <!-- La observación son casillas desmarcadas (v7.3): sin permiso para desmarcar no se puede dar. -->
+                    <template x-if="puedeAprobarConObservacion && puedeEditarChecklist">
                         <button @click="iniciarObservacion()"
                                 class="w-full min-h-[56px] bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
                             <i data-lucide="alert-triangle" class="w-5 h-5"></i>
@@ -378,15 +369,15 @@ function auditoriaDetalleApp(habitacionId) {
 
         // Estado de interacción
         modo: null, // null | 'observacion' | 'rechazo'
-        comentario: '',
         itemsDesmarcadosNuevos: [],
         mostrarConfirmarAprobar: false,
         altActivo: false, // Alt (Windows) / Option (Mac) presionado: subraya las teclas de acceso
 
-        // Dictado por voz del comentario (Web Speech API)
-        grabando: false,
-        reconocimiento: null,
-        dictadoReinicios: 0,
+        // Motivo del rechazo (v7.3): opción de la lista «rechazo», se pide al entrar en modo rechazo.
+        motivoId: null,
+        motivosRechazo: [],
+        motivosCargando: false,
+        motivosError: '',
 
         toast: { visible: false, tipo: 'exito', mensaje: '' },
 
@@ -413,18 +404,11 @@ function auditoriaDetalleApp(habitacionId) {
             return false;
         },
 
-        get comentarioValido() {
-            return this.comentario.trim().length >= 10;
-        },
-
-        get soportaDictado() {
-            return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-        },
-
         get puedeConfirmarVeredicto() {
-            if (!this.comentarioValido) return false;
-            // El rechazo exige marcar al menos un ítem fallido (lo que hay que rehacer).
-            if (this.modo === 'rechazo') return this.itemsDesmarcadosNuevos.length > 0;
+            // Ambos exigen al menos una casilla: en el rechazo es lo que hay que rehacer y en la observación
+            // es la observación misma. El rechazo además lleva su motivo de la lista.
+            if (this.itemsDesmarcadosNuevos.length === 0) return false;
+            if (this.modo === 'rechazo') return this.motivoId !== null;
             return true;
         },
 
@@ -542,14 +526,14 @@ function auditoriaDetalleApp(habitacionId) {
         },
 
         async confirmarAprobar() {
-            await this.enviarVeredicto('aprobado', '', []);
+            await this.enviarVeredicto('aprobado', null, []);
             this.mostrarConfirmarAprobar = false;
         },
 
         iniciarObservacion() {
-            if (!this.puedeAprobarConObservacion || this.esAuditada) return;
+            if (!this.puedeAprobarConObservacion || !this.puedeEditarChecklist || this.esAuditada) return;
             this.modo = 'observacion';
-            this.comentario = '';
+            this.motivoId = null;
             this.itemsDesmarcadosNuevos = [];
             this.$nextTick(function () { lucide.createIcons(); });
         },
@@ -557,15 +541,35 @@ function auditoriaDetalleApp(habitacionId) {
         iniciarRechazo() {
             if (!this.puedeRechazar || this.esAuditada) return;
             this.modo = 'rechazo';
-            this.comentario = '';
+            this.motivoId = null;
             this.itemsDesmarcadosNuevos = [];
+            if (this.motivosRechazo.length === 0) this.cargarMotivosRechazo();
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
+        async cargarMotivosRechazo() {
+            this.motivosCargando = true;
+            this.motivosError = '';
+            try {
+                var json = await apiFetch('/api/listas/rechazo');
+                if (json && json.ok) {
+                    this.motivosRechazo = json.data.opciones || [];
+                    if (this.motivosRechazo.length === 0) {
+                        this.motivosError = 'No hay motivos cargados. Pídele a administración que los agregue en Ajustes → Checklists y listas.';
+                    }
+                } else {
+                    this.motivosError = (json && json.error && json.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.motivosError = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.motivosCargando = false;
+            }
+        },
+
         cancelarModo() {
-            this.detenerDictado();
             this.modo = null;
-            this.comentario = '';
+            this.motivoId = null;
             this.itemsDesmarcadosNuevos = [];
         },
 
@@ -588,7 +592,7 @@ function auditoriaDetalleApp(habitacionId) {
                 return;
             }
             if (e.code === 'KeyA' && this.puedeAprobar) { e.preventDefault(); this.pedirConfirmacionAprobar(); }
-            else if (e.code === 'KeyO' && this.puedeAprobarConObservacion) { e.preventDefault(); this.iniciarObservacion(); }
+            else if (e.code === 'KeyO' && this.puedeAprobarConObservacion && this.puedeEditarChecklist) { e.preventDefault(); this.iniciarObservacion(); }
             else if (e.code === 'KeyR' && this.puedeRechazar) { e.preventDefault(); this.iniciarRechazo(); }
         },
 
@@ -613,89 +617,20 @@ function auditoriaDetalleApp(habitacionId) {
             }
         },
 
-        // Dicta el comentario por voz. El texto reconocido se agrega al comentario
-        // existente (no lo reemplaza), para poder mezclar teclado y voz.
-        toggleDictado() {
-            if (this.grabando) {
-                this.detenerDictado();
-                return;
-            }
-            if (!this.soportaDictado) return;
-
-            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            var reco = new SpeechRecognition();
-            var self = this;
-            reco.lang = 'es-CL';
-            reco.continuous = true;
-            reco.interimResults = false;
-
-            reco.onresult = function (event) {
-                var textoNuevo = '';
-                for (var i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        textoNuevo += event.results[i][0].transcript;
-                    }
-                }
-                textoNuevo = textoNuevo.trim();
-                if (textoNuevo === '') return;
-                self.dictadoReinicios = 0; // hubo voz real: el contador de seguridad se reinicia
-                var actual = self.comentario.trim();
-                self.comentario = (actual === '' ? textoNuevo : actual + ' ' + textoNuevo).slice(0, 2000);
-            };
-
-            reco.onerror = function (event) {
-                // 'no-speech' (pausa del supervisor) y 'aborted' (nuestro propio stop) son normales:
-                // no cortan el dictado, los maneja onend.
-                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                    self.grabando = false;
-                    self.mostrarToast('error', 'Permiso de micrófono denegado.');
-                } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                    self.grabando = false;
-                    self.mostrarToast('error', 'No pudimos usar el micrófono.');
-                }
-            };
-
-            reco.onend = function () {
-                // Safari/iOS ignora continuous y corta al primer silencio. Mientras el supervisor
-                // no toque "detener", reanudamos para que pueda hacer pausas y seguir hablando.
-                if (!self.grabando) return;
-                if (self.dictadoReinicios >= 30) { self.grabando = false; return; } // tope: micrófono en silencio
-                self.dictadoReinicios++;
-                setTimeout(function () {
-                    if (!self.grabando) return;
-                    try { reco.start(); } catch (e) { self.grabando = false; }
-                }, 250);
-            };
-
-            this.reconocimiento = reco;
-            this.dictadoReinicios = 0;
-            this.grabando = true;
-            reco.start();
-        },
-
-        detenerDictado() {
-            this.grabando = false;
-            this.dictadoReinicios = 0;
-            if (this.reconocimiento) {
-                try { this.reconocimiento.stop(); } catch (e) {}
-            }
-        },
-
         async enviarVeredictoModo() {
             if (!this.puedeConfirmarVeredicto || this.enviando) return;
             var veredicto = this.modo === 'observacion' ? 'aprobado_con_observacion' : 'rechazado';
-            // Observación y rechazo mandan los ítems desmarcados por el auditor.
+            // Observación y rechazo mandan los ítems desmarcados por el auditor; el rechazo, además, su motivo.
             var items = this.itemsDesmarcadosNuevos.slice();
-            await this.enviarVeredicto(veredicto, this.comentario.trim(), items);
+            await this.enviarVeredicto(veredicto, this.modo === 'rechazo' ? this.motivoId : null, items);
         },
 
-        async enviarVeredicto(veredicto, comentario, items) {
+        async enviarVeredicto(veredicto, motivoId, items) {
             if (this.enviando) return;
-            this.detenerDictado();
             this.enviando = true;
             try {
                 var payload = { veredicto: veredicto };
-                if (comentario && comentario !== '') payload.comentario = comentario;
+                if (motivoId !== null && motivoId !== undefined) payload.motivo_id = motivoId;
                 if (items && items.length > 0) payload.items_desmarcados = items;
 
                 var json = await apiPost('/api/auditoria/' + this.habitacionId, payload);

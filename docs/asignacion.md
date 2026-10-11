@@ -70,7 +70,7 @@ Cada tarjeta de habitación muestra **número + tipo + badge de estado**.
 | Gesto | Acción | Endpoint | Payload |
 |---|---|---|---|
 | Arrastrar 1..N del pool a un trabajador | Asignar | `POST /api/asignaciones` (lote) | `{ habitacion_ids:[…], usuario_id, fecha }` (**sin franja**) |
-| Arrastrar de un trabajador a otro | Reasignar (mover) | `POST /api/asignaciones/reasignar` | `{ habitacion_id, usuario_id, fecha, motivo }` |
+| Arrastrar de un trabajador a otro | Reasignar (mover) | `POST /api/asignaciones/reasignar` | `{ habitacion_id, usuario_id, fecha, opcion_id }` — v7.3: al soltar se abre «¿Por qué la cambias?» con la lista «reasignar»; la pieza se mueve al confirmar y «Cancelar» la deja donde estaba |
 | Arrastrar de vuelta al pool, o tocar la **X** de la tarjeta | Quitar (desasignar) | `POST /api/asignaciones/desasignar` | `{ habitacion_id, fecha }` |
 | Arrastrar dentro del mismo trabajador | Reordenar la cola | `PUT /api/asignaciones/orden` | `{ usuario_id, fecha, orden:[habitacion_id…] }` |
 

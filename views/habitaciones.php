@@ -514,16 +514,32 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
 
                     <template x-if="formMensaje.abierto">
                         <div class="space-y-2">
-                            <textarea x-model="formMensaje.texto" maxlength="100" rows="2"
-                                      placeholder="Ej: cambió a 3 camas, revisar antes de entrar"
-                                      class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
-                            <p class="text-xs text-gray-400 text-right" x-text="formMensaje.texto.length + '/100'"></p>
+                            <!-- v7.4 (gerencia, 10/10/2026: sin cuadros de texto): uno o varios mensajes de la
+                                 lista «nota_recepcion» (Ajustes → Checklists y listas). -->
+                            <template x-if="cargandoMensajes && mensajesNota.length === 0">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Cargando mensajes...</p>
+                            </template>
+                            <template x-if="errorMensajes">
+                                <p class="text-sm text-red-600 dark:text-red-400" x-text="errorMensajes"></p>
+                            </template>
+                            <div class="grid grid-cols-2 gap-2">
+                                <template x-for="m in mensajesNota" :key="m.id">
+                                    <button type="button" @click="alternarMensaje(m.id)" :aria-pressed="formMensaje.elegidas.includes(m.id) ? 'true' : 'false'"
+                                            :class="formMensaje.elegidas.includes(m.id)
+                                                ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                                : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                            class="min-h-[44px] rounded-xl border-2 px-3 text-sm font-medium text-left flex items-center justify-between gap-2">
+                                        <span x-text="m.nombre"></span>
+                                        <span x-show="formMensaje.elegidas.includes(m.id)" aria-hidden="true">✓</span>
+                                    </button>
+                                </template>
+                            </div>
                             <div class="flex gap-2">
-                                <button type="button" @click="formMensaje.abierto = false; formMensaje.texto = ''"
+                                <button type="button" @click="formMensaje.abierto = false; formMensaje.elegidas = []"
                                         class="flex-1 min-h-[40px] px-3 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
                                     Cancelar
                                 </button>
-                                <button type="button" @click="enviarMensajeMucama()" :disabled="formMensaje.enviando || !formMensaje.texto.trim()"
+                                <button type="button" @click="enviarMensajeMucama()" :disabled="formMensaje.enviando || formMensaje.elegidas.length === 0"
                                         class="flex-1 min-h-[40px] px-3 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50">
                                     <span x-text="formMensaje.enviando ? 'Enviando...' : 'Enviar'"></span>
                                 </button>
@@ -555,7 +571,11 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         // Formulario de mensaje a la mucama (dentro del mismo modal de acciones): se pega
         // a nota_recepcion, la mucama lo ve al abrir la habitación y recibe push. Se limpia
         // sola al completar la limpieza (ChecklistService). Ver docs y HabitacionService::agregarNota().
-        formMensaje: { abierto: false, texto: '', enviando: false },
+        // v7.4: mensajes de la lista «nota_recepcion» (varios a la vez), sin texto libre.
+        formMensaje: { abierto: false, elegidas: [], enviando: false },
+        mensajesNota: [],
+        cargandoMensajes: false,
+        errorMensajes: '',
         habitaciones: [],
         edificios: [], // All buildings from API
         cargando: false,
@@ -922,25 +942,49 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             this.modalAccionesEstado.abierta = false;
             this.modalAccionesEstado.hab = null;
             this.formMensaje.abierto = false;
-            this.formMensaje.texto = '';
+            this.formMensaje.elegidas = [];
         },
 
         abrirFormMensaje() {
             if (!this.modalAccionesEstado.hab.asignado_a_nombre) return;
             this.formMensaje.abierto = true;
+            this.formMensaje.elegidas = [];
+            if (this.mensajesNota.length === 0) this.cargarMensajesNota();
+        },
+
+        async cargarMensajesNota() {
+            this.cargandoMensajes = true;
+            this.errorMensajes = '';
+            try {
+                var r = await apiFetch('/api/listas/nota_recepcion');
+                if (r && r.ok) {
+                    this.mensajesNota = r.data.opciones || [];
+                } else {
+                    this.errorMensajes = (r && r.error && r.error.mensaje) || 'No pudimos cargar los mensajes.';
+                }
+            } catch (e) {
+                this.errorMensajes = 'No pudimos cargar los mensajes, revisa tu conexión.';
+            } finally {
+                this.cargandoMensajes = false;
+            }
+        },
+
+        alternarMensaje(id) {
+            var i = this.formMensaje.elegidas.indexOf(id);
+            if (i === -1) this.formMensaje.elegidas.push(id);
+            else this.formMensaje.elegidas.splice(i, 1);
         },
 
         // Reusa el mismo endpoint que la nota de Recepción del detalle de la habitación
         // (HabitacionService::agregarNota): se pega a la ficha hasta que la mucama termine
-        // la limpieza, y manda push a quien esté asignado hoy. maxlength=100 en el textarea
-        // (el backend acepta hasta 500 — ver conversación de diseño).
+        // la limpieza, y manda push a quien esté asignado hoy. Desde la v7.4 el mensaje se arma con
+        // las opciones elegidas de la lista «nota_recepcion».
         async enviarMensajeMucama() {
-            var texto = this.formMensaje.texto.trim();
             var hab = this.modalAccionesEstado.hab;
-            if (!texto || !hab || this.formMensaje.enviando) return;
+            if (this.formMensaje.elegidas.length === 0 || !hab || this.formMensaje.enviando) return;
             this.formMensaje.enviando = true;
             try {
-                var r = await apiPost('/api/habitaciones/' + hab.id + '/nota', { nota: texto });
+                var r = await apiPost('/api/habitaciones/' + hab.id + '/nota', { opcion_ids: this.formMensaje.elegidas.slice() });
                 if (r && r.ok) {
                     hab.nota_recepcion = r.data.habitacion.nota_recepcion;
                     this.cerrarMenuEstado();

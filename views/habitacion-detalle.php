@@ -150,7 +150,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                 <!-- Agregar/editar nota — solo Recepción/Supervisora/Admin (habitaciones.agregar_nota) -->
                 <template x-if="puedeAgregarNota && !editandoNota">
-                    <button @click="editandoNota = true; formNota = habitacion.nota_recepcion || ''"
+                    <button @click="abrirNota()"
                             class="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1">
                         <i data-lucide="pencil" class="w-4 h-4"></i>
                         <span x-text="habitacion.nota_recepcion ? 'Editar nota' : 'Agregar nota para la mucama'"></span>
@@ -158,14 +158,33 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </template>
                 <template x-if="puedeAgregarNota && editandoNota">
                     <div class="mt-3 space-y-2">
-                        <textarea x-model="formNota" maxlength="500" rows="2" placeholder="Ej: cliente pidió cama extra"
-                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
+                        <!-- v7.4 (gerencia, 10/10/2026: sin cuadros de texto): uno o varios mensajes de la lista
+                             «nota_recepcion» (Ajustes → Checklists y listas). Reemplaza la nota que hubiera. -->
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Elige uno o varios mensajes:</p>
+                        <template x-if="cargandoMensajes && mensajesNota.length === 0">
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Cargando mensajes...</p>
+                        </template>
+                        <template x-if="errorMensajes">
+                            <p class="text-sm text-red-600 dark:text-red-400" x-text="errorMensajes"></p>
+                        </template>
+                        <div class="grid grid-cols-2 gap-2">
+                            <template x-for="m in mensajesNota" :key="m.id">
+                                <button type="button" @click="alternarMensaje(m.id)" :aria-pressed="notaElegidas.includes(m.id) ? 'true' : 'false'"
+                                        :class="notaElegidas.includes(m.id)
+                                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                            : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                        class="min-h-[44px] rounded-xl border-2 px-3 text-sm font-medium text-left flex items-center justify-between gap-2">
+                                    <span x-text="m.nombre"></span>
+                                    <span x-show="notaElegidas.includes(m.id)" aria-hidden="true">✓</span>
+                                </button>
+                            </template>
+                        </div>
                         <div class="flex gap-2">
                             <button @click="editandoNota = false"
                                     class="flex-1 min-h-[40px] px-3 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
                                 Cancelar
                             </button>
-                            <button @click="guardarNota()" :disabled="notaEnviando || !formNota.trim()"
+                            <button @click="guardarNota()" :disabled="notaEnviando || notaElegidas.length === 0"
                                     class="flex-1 min-h-[40px] px-3 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-50">
                                 <span x-text="notaEnviando ? 'Guardando...' : 'Guardar nota'"></span>
                             </button>
@@ -282,7 +301,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                      Pensada para el aviso de ocupación de arriba: si el huésped no ha
                      salido, postergar sin tener que tocar "Comenzar limpieza" primero. -->
                 <template x-if="(habitacion.estado === 'sucia' || habitacion.estado === 'rechazada') && estaAsignada && !esAuditada">
-                    <button @click="mostrarSaltar = true"
+                    <button @click="abrirSaltar()"
                             class="w-full min-h-[44px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
                         No puedo entrar ahora
                     </button>
@@ -434,7 +453,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                     <!-- Válvula de escape: no puedo terminar esta habitación ahora -->
                     <template x-if="puedeEditar">
-                        <button @click="mostrarSaltar = true" data-tour="hab.saltar"
+                        <button @click="abrirSaltar()" data-tour="hab.saltar"
                                 class="w-full min-h-[48px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
                             No puedo terminar esta ahora
                         </button>
@@ -585,23 +604,25 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                         Elige un motivo. Se avisará a tu supervisora y esta habitación volverá más adelante a tu lista.
                         <span class="block mt-1 text-amber-700 dark:text-amber-400">Se perderá lo que ya marcaste aquí: al retomarla, empiezas de cero.</span>
                     </p>
-                    <div class="space-y-2 mb-4">
-                        <template x-for="m in motivosSaltar" :key="m">
-                            <button type="button"
-                                    @click="motivoSaltar = m"
-                                    :class="motivoSaltar === m
+                    <!-- v7.3 (gerencia, 10/10/2026): los motivos salen de la lista «saltar» (Ajustes → Checklists y listas), sin texto libre. -->
+                    <template x-if="cargandoMotivosSaltar && motivosSaltar.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Cargando motivos...</p>
+                    </template>
+                    <template x-if="errorMotivosSaltar">
+                        <p class="text-sm text-red-600 dark:text-red-400 mb-4" x-text="errorMotivosSaltar"></p>
+                    </template>
+                    <div class="space-y-2 mb-4" role="radiogroup" aria-label="Motivo">
+                        <template x-for="m in motivosSaltar" :key="m.id">
+                            <button type="button" role="radio" :aria-checked="motivoSaltar === m.id ? 'true' : 'false'"
+                                    @click="motivoSaltar = m.id"
+                                    :class="motivoSaltar === m.id
                                         ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
                                         : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
                                     class="w-full min-h-[44px] text-left px-4 py-2 border rounded-lg text-sm font-medium transition">
-                                <span x-text="m"></span>
+                                <span x-text="m.nombre"></span>
                             </button>
                         </template>
                     </div>
-                    <template x-if="motivoSaltar === 'Otro'">
-                        <textarea x-model="motivoOtro" rows="2" maxlength="200"
-                                  placeholder="Cuéntanos brevemente qué pasó"
-                                  class="w-full mb-4 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"></textarea>
-                    </template>
                     <div class="flex gap-3">
                         <button @click="cerrarSaltar()"
                                 class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition">
@@ -662,7 +683,10 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         puedeSincronizar: false,
         puedeAgregarNota: false,
         editandoNota: false,
-        formNota: '',
+        notaElegidas: [],     // ids elegidos de la lista «nota_recepcion» (v7.4)
+        mensajesNota: [],     // [{id, nombre}] desde /api/listas/nota_recepcion
+        cargandoMensajes: false,
+        errorMensajes: '',
         notaEnviando: false,
         historial: [],
         movimientos: [],
@@ -682,9 +706,10 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         saltando: false,
         mostrarMarcarLimpia: false,
         marcandoLimpia: false,
-        motivoSaltar: null,
-        motivoOtro: '',
-        motivosSaltar: ['Huésped no ha salido', 'Falta un insumo', 'Requiere mantención', 'Otro'],
+        motivoSaltar: null, // id de la opción elegida (lista «saltar», v7.3)
+        motivosSaltar: [],  // [{id, nombre}] desde /api/listas/saltar, al abrir la ventana
+        cargandoMotivosSaltar: false,
+        errorMotivosSaltar: '',
         sinConexion: !navigator.onLine,
         cola: [],
         errorPermanente: false,
@@ -723,8 +748,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         },
 
         get motivoSaltarValido() {
-            if (this.motivoSaltar === 'Otro') return this.motivoOtro.trim().length > 0;
-            return !!this.motivoSaltar;
+            return this.motivoSaltar !== null;
         },
 
         // Badges de ocupación y código de Cloudbeds: versión compartida en app.js
@@ -976,12 +1000,40 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        abrirNota() {
+            this.editandoNota = true;
+            this.notaElegidas = [];
+            if (this.mensajesNota.length === 0) this.cargarMensajesNota();
+        },
+
+        async cargarMensajesNota() {
+            this.cargandoMensajes = true;
+            this.errorMensajes = '';
+            try {
+                var r = await apiFetch('/api/listas/nota_recepcion');
+                if (r && r.ok) {
+                    this.mensajesNota = r.data.opciones || [];
+                } else {
+                    this.errorMensajes = (r && r.error && r.error.mensaje) || 'No pudimos cargar los mensajes.';
+                }
+            } catch (e) {
+                this.errorMensajes = 'No pudimos cargar los mensajes, revisa tu conexión.';
+            } finally {
+                this.cargandoMensajes = false;
+            }
+        },
+
+        alternarMensaje(id) {
+            var i = this.notaElegidas.indexOf(id);
+            if (i === -1) this.notaElegidas.push(id);
+            else this.notaElegidas.splice(i, 1);
+        },
+
         async guardarNota() {
-            var texto = this.formNota.trim();
-            if (!texto || this.notaEnviando) return;
+            if (this.notaElegidas.length === 0 || this.notaEnviando) return;
             this.notaEnviando = true;
             try {
-                var r = await apiPost('/api/habitaciones/' + this.habitacionId + '/nota', { nota: texto });
+                var r = await apiPost('/api/habitaciones/' + this.habitacionId + '/nota', { opcion_ids: this.notaElegidas.slice() });
                 if (r && r.ok) {
                     this.habitacion.nota_recepcion = r.data.habitacion.nota_recepcion;
                     this.editandoNota = false;
@@ -1244,16 +1296,37 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             }
         },
 
+        abrirSaltar() {
+            this.mostrarSaltar = true;
+            this.motivoSaltar = null;
+            if (this.motivosSaltar.length === 0) this.cargarMotivosSaltar();
+        },
+
+        async cargarMotivosSaltar() {
+            this.cargandoMotivosSaltar = true;
+            this.errorMotivosSaltar = '';
+            try {
+                var r = await apiFetch('/api/listas/saltar');
+                if (r && r.ok) {
+                    this.motivosSaltar = r.data.opciones || [];
+                } else {
+                    this.errorMotivosSaltar = (r && r.error && r.error.mensaje) || 'No pudimos cargar los motivos.';
+                }
+            } catch (e) {
+                this.errorMotivosSaltar = 'No pudimos cargar los motivos, revisa tu conexión.';
+            } finally {
+                this.cargandoMotivosSaltar = false;
+            }
+        },
+
         cerrarSaltar() {
             this.mostrarSaltar = false;
             this.motivoSaltar = null;
-            this.motivoOtro = '';
         },
 
         async saltar() {
             if (this.saltando || !this.motivoSaltarValido) return;
             this.saltando = true;
-            var motivo = this.motivoSaltar === 'Otro' ? this.motivoOtro.trim() : this.motivoSaltar;
             try {
                 // Si todavía está 'sucia' (el botón "No puedo entrar ahora" se abrió sin
                 // pasar por "Comenzar limpieza"), /saltar no tiene ejecución que saltar —
@@ -1267,7 +1340,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                         return;
                     }
                 }
-                var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/saltar', { motivo: motivo });
+                var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/saltar', { opcion_id: this.motivoSaltar });
                 if (json && json.ok) {
                     this.mostrarSaltar = false;
                     window.location.href = u('/home');

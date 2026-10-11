@@ -2054,3 +2054,288 @@ en la v7, `cf03ce9`).
 pre-entrega» con la tabla «Por recepcionista»; el Excel mensual trae la pestaña «Recepción».
 
 **Vuelta atrás:** subir `build/limpieza-v71-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.26 Release "Reportes en pestañas" → v7.2
+
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
+
+Pedido de Nicolás (10/10/2026): «la sección Reportes creció mucho; la vamos a dividir en pestañas dedicadas:
+trabajadores, supervisoras, recepción y reportes mensuales». **Decisiones (plan aprobado el 10/10):**
+
+- **Cuatro pestañas** con los mismos bloques de antes, sin cambiar su contenido: **Trabajadores** (8 tarjetas de KPI,
+  detalle por trabajadora, ficha) · **Supervisoras** («Supervisora · Inspección», que sigue exigiendo
+  `reportes.ver_supervisoras`, e «Inspecciones pendientes al corte») · **Recepción** (inspección pre-entrega) ·
+  **Mensual** (resumen por trabajador y resumen de inspecciones).
+- **Carga perezosa:** cada pestaña pide sus datos al abrirse; un cambio de filtro recarga solo la abierta. Antes la
+  pantalla lanzaba 6 consultas pesadas al entrar.
+- **La pestaña va en la URL** (`/reportes#mensual`), Trabajadores por defecto. **Un solo mes** en Mensual para los dos
+  resúmenes (antes cada uno tenía el suyo); es el que propone el Excel.
+- **Vista guiada:** un recorrido por pestaña. Los pasos de una pestaña cerrada usan el modo «diálogo» del motor (la
+  franja pide tocar la pestaña y la ayuda sigue sola); el motor ahora también lleva a la vista el ancla de un
+  diálogo (`vista-guiada.js`, función `llevarAVista`).
+
+- **Cuadro nuevo en Mensual** (pedido de Nicolás, 10/10): «Inspección pre-entrega del mes», solo el total y cuántas hizo
+  cada recepcionista (una por limpieza, el mismo conteo que la hoja «Recepción» del Excel). Endpoint nuevo
+  `GET /api/reportes/recepcion-mensual` (`reportes.ver`), lee solo `revisiones_entrega`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin cambios en los cron. Sin permisos nuevos.
+
+**ZIP** `build/limpieza-v72-delta.zip`, con la fila de la v7.2 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0):
+- `limpieza/app_core/`: `views/reportes.php`, `src/Support/Tours.php`, `src/Controllers/ReportesController.php`,
+  `src/Services/RevisionEntregaService.php`, `src/Core/Kernel.php`, `CHANGELOG.md` y
+  `public/assets/vista-guiada/vista-guiada.js` (la copia de `app_core`, §10).
+- **Docroot** `limpieza/assets/vista-guiada/vista-guiada.js` (la que sirve el navegador; `layout.php` le pone
+  `?v=filemtime`, así que no hace falta tocar `sw.js`).
+
+Vuelta atrás: `build/limpieza-v72-vuelta-atras.zip` (los mismos archivos en la v7.1, `4d5a48d`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v7.2** (incógnito), `/api/health` 200, y en Reportes (Admin): se ven las 4 pestañas; cada una
+muestra sus bloques (Mensual con el cuadro «Inspección pre-entrega del mes»); recargar con `#mensual` abre Mensual; el «?» de Reportes ofrece los 4 recorridos.
+
+**Vuelta atrás:** subir `build/limpieza-v72-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.27 Release "listas de selección, sin cuadros de texto" → v7.3
+
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
+
+Pedido de gerencia (10/10/2026): «todos los check list y tablas tipo selección de alguna opción, como cuando se rechaza
+una habitación o cuando hay que dar la razón de por qué se cambió la habitación, se puedan editar desde Ajustes y no
+tengan cuadro de texto, solo selección». **Decisiones de Nicolás (plan aprobado el 10/10):**
+
+- **Rechazo:** motivo obligatorio de la lista «rechazo» + los ítems fallidos de siempre. Se guarda en
+  `auditorias.motivo_id` y el nombre en `comentario` (lo siguen mostrando la re-limpieza, el aviso y el historial).
+- **Aprobar con observación:** sin lista ni texto; **la observación son las casillas desmarcadas** (al menos una). El
+  comentario lo arma el sistema («Observado: …»). Quien tenga `aprobar_con_observacion` pero no
+  `editar_checklist_durante_auditoria` deja de ver ese botón (ver precheck).
+- **Saltar** («No puedo limpiarla ahora»): lista «saltar», sin «Otro» con texto.
+- **Reasignar:** motivo **obligatorio** de la lista «reasignar», también al **arrastrar** en el tablero (ventana «¿Por
+  qué la cambias?»; «Cancelar» deja la pieza donde estaba).
+- **NO de Recepción:** sin «Observaciones» escritas (motivo + foto). Sus motivos pasan a editarse con las demás listas.
+- **Dónde se editan:** Ajustes → **Checklists y listas**, pestaña «Listas». Permiso nuevo **`listas.editar`, solo
+  Admin** (la Supervisora deja de editar los motivos del NO; aceptado por Nicolás). Las opciones no se borran: se
+  desactivan; cada lista conserva al menos una activa.
+- Los endpoints viejos `/api/revision-entrega/motivos*` se eliminan (los reemplaza `/api/listas/*`).
+
+Detalle en [ajustes.md](ajustes.md) §2.3, [auditoria.md](auditoria.md) y [api-endpoints.md](api-endpoints.md) §18b.
+
+**Va DESPUÉS de la v7.2** (la rama `v7.3-listas-opciones` sale de ella): si la v7.2 todavía no se subió, se suben juntas
+en este orden.
+
+#### Precheck (phpMyAdmin, antes de todo)
+
+```sql
+-- 1) Roles que hoy aprueban con observación pero NO pueden desmarcar casillas: con la v7.3 dejarían de poder
+--    aprobar con observación. Esperado: vacío (en el seed, Supervisora y Recepción tienen los dos).
+SELECT r.nombre FROM limpieza_roles r
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id AND rp.permiso_codigo = 'auditoria.aprobar_con_observacion'
+ WHERE NOT EXISTS (SELECT 1 FROM limpieza_rol_permisos x
+                    WHERE x.rol_id = r.id AND x.permiso_codigo = 'auditoria.editar_checklist_durante_auditoria');
+
+-- 2) Quiénes editan hoy los motivos del NO (revision_entrega.configurar): los que no son Admin dejan de editarlos.
+SELECT r.nombre FROM limpieza_roles r
+  JOIN limpieza_rol_permisos rp ON rp.rol_id = r.id AND rp.permiso_codigo = 'revision_entrega.configurar';
+
+-- 3) La migración no debe estar corrida. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'limpieza_listas_opciones';
+```
+
+#### SQL (phpMyAdmin, ANTES de subir el código)
+
+```sql
+CREATE TABLE IF NOT EXISTS limpieza_listas_opciones (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lista       VARCHAR(30) NOT NULL CHECK (lista IN (
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+    )),
+    nombre      VARCHAR(60) NOT NULL,
+    activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INT NOT NULL DEFAULT 0,
+    created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_listas_opciones_nombre (lista, nombre),
+    KEY idx_listas_opciones_lista (lista, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE limpieza_motivos_revision_entrega ADD COLUMN orden INT NOT NULL DEFAULT 0;
+
+-- Orden inicial de los motivos del NO: alfabético con «Otro» al final.
+UPDATE limpieza_motivos_revision_entrega m
+  JOIN (SELECT id, ROW_NUMBER() OVER (ORDER BY (LOWER(nombre) = 'otro'), nombre COLLATE utf8mb4_spanish_ci) AS rn
+          FROM limpieza_motivos_revision_entrega) x ON x.id = m.id
+   SET m.orden = x.rn;
+
+ALTER TABLE limpieza_auditorias
+  ADD COLUMN motivo_id INT NULL,
+  ADD CONSTRAINT fk_limpieza_auditorias_motivo FOREIGN KEY (motivo_id) REFERENCES limpieza_listas_opciones(id) ON DELETE RESTRICT;
+
+INSERT INTO limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, y los del NO de Recepción (Ajustes → Checklists y listas)', 'Checklists', 'global');
+-- Solo el rol que administra la matriz de permisos (Admin).
+INSERT INTO limpieza_rol_permisos (rol_id, permiso_codigo)
+  SELECT DISTINCT rol_id, 'listas.editar' FROM limpieza_rol_permisos WHERE permiso_codigo = 'permisos.asignar_a_rol';
+UPDATE limpieza_permisos
+   SET descripcion = 'Configurar la inspección pre-entrega: si un NO devuelve la pieza a sucia (Ajustes → Inspección pre-entrega). Los motivos de un NO se editan con listas.editar'
+ WHERE codigo = 'revision_entrega.configurar';
+
+INSERT INTO limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('rechazo', 'Baño sucio', 1), ('rechazo', 'Cama mal hecha o sábanas sucias', 2), ('rechazo', 'Piso o superficies sucias', 3),
+  ('rechazo', 'Basura sin retirar', 4), ('rechazo', 'Faltan amenities o toallas', 5), ('rechazo', 'Mal olor', 6),
+  ('rechazo', 'Algo roto o no funciona', 7), ('rechazo', 'Otro', 8),
+  ('saltar', 'Huésped no ha salido', 1), ('saltar', 'Falta un insumo', 2), ('saltar', 'Requiere mantención', 3), ('saltar', 'Otro', 4),
+  ('reasignar', 'Sobrecarga de trabajo', 1), ('reasignar', 'Ausencia o atraso', 2), ('reasignar', 'Cambio de prioridad', 3), ('reasignar', 'Otro', 4);
+```
+
+Es lo mismo que hace `scripts/migrate-add-listas-opciones.php` (probado dos veces seguidas sobre una copia del banco y
+en `MigracionListasOpcionesTest`). Comprobación: `/api/health` → `checks.esquema.ok: true`.
+
+#### ZIP
+
+`build/limpieza-v73-delta.zip`, con la fila de la v7.3 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0). Todo va a
+`limpieza/app_core/` (no hay estáticos de `public/`: el JS nuevo vive en `views/recursos/`, que sirve PHP):
+- `CHANGELOG.md`; `database/seeds/{permisos,listas_opciones}.php` (el verificador de esquema lee los permisos);
+  `docs/database-schema{,.mariadb}.sql` (los lee el verificador).
+- `scripts/{migrate-add-listas-opciones,migrate-add-revision-entrega,seed}.php`.
+- `src/Controllers/{AsignacionesController,AuditoriaController,ChecklistsController,ListasOpcionesController,PaginasController,RevisionEntregaController}.php`,
+  `src/Core/Kernel.php`, `src/Services/{AsignacionService,AuditoriaService,ChecklistService,ListasOpcionesException,ListasOpcionesService,RevisionEntregaService}.php`,
+  `src/Support/Tours.php`.
+- `views/{ajustes,ajustes-checklists,ajustes-revision-entrega,asignaciones,auditoria-detalle,habitacion-detalle,home-supervisora,home-trabajador}.php`,
+  `views/ajustes/listas-opciones.php`, `views/componentes/modal-inspeccion-pre-entrega.php`,
+  `views/recursos/ajustes/listas-opciones.js` y `views/recursos/componentes/modal-inspeccion-pre-entrega.js`.
+
+Las clases nuevas cargan por PSR-4 (el autoload de Composer no es «authoritative»): no hace falta `vendor/`.
+
+Vuelta atrás: `build/limpieza-v73-vuelta-atras.zip` (los mismos archivos en la v7.2; los nuevos se borran a mano). El SQL
+puede quedar: es aditivo y la v7.2 no lo lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, y **avisar antes** a supervisoras y Recepción: una pantalla
+que quedó abierta desde antes puede responder «Elige una opción de la lista. Si no la ves, recarga la página»; basta
+con recargar.
+
+**Smoke:** badge **v7.3** (incógnito), `/api/health` 200 con esquema ok, y como Admin: Ajustes → «Checklists y listas»
+→ pestaña «Listas» con 4 tarjetas (rechazo 8, reasignar 4, saltar 4, NO de pre-entrega con los motivos de hoy);
+abrir una pieza por inspeccionar y ver que «Rechazar» muestra los motivos y «Aprobar con observación» no pide texto;
+en Asignaciones, la ventana de reasignar pide el motivo primero. **No** emitir veredictos de prueba en piezas reales.
+
+### 11.28 Release "mensaje a la mucama y tickets por selección" → v7.4
+
+> Sale en el deploy combinado de §11.29 (un solo SQL y un solo ZIP); el ZIP suelto de esta sección no se arma.
+
+Segunda parte del pedido de gerencia (10/10/2026): Nicolás sumó tres cuadros de texto más a «solo selección».
+**Decisiones (plan aprobado el 10/10):**
+
+- **Mensaje de Recepción a la mucama** (detalle de la pieza y menú de Habitaciones): lista «nota_recepcion», **se pueden
+  elegir varias** (se guardan unidas con « · » en `habitaciones.nota_recepcion`; el push y los movimientos no cambian).
+- **Nuevo ticket:** «Tipo de problema» de la lista «ticket_tipo» en vez de la descripción escrita (y sin dictado). El
+  nombre del tipo es el título y la descripción; se guarda `tickets.tipo_id`. La foto sigue opcional y es lo que
+  explica un «Otro». Novedades recibe el ticket igual que antes (título/descripción = el tipo).
+- **Comentarios de un ticket:** respuesta de la lista «ticket_respuesta» (se guarda el nombre).
+- Las tres listas se editan en Ajustes → Checklists y listas (grupos «Recepción» y «Tickets»), con `listas.editar`.
+- El copilot (apagado) puede seguir creando tickets con texto: solo la pantalla exige el tipo.
+
+**Va DESPUÉS de la v7.3** (usa `listas_opciones`). Si se suben juntas, primero el SQL de §11.27 y después este.
+
+#### SQL (phpMyAdmin, ANTES de subir el código)
+
+```sql
+ALTER TABLE limpieza_tickets
+  ADD COLUMN tipo_id INT NULL,
+  ADD CONSTRAINT fk_limpieza_tickets_tipo FOREIGN KEY (tipo_id) REFERENCES limpieza_listas_opciones(id) ON DELETE RESTRICT;
+
+INSERT INTO limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('nota_recepcion', 'Cama extra', 1), ('nota_recepcion', 'Cuna', 2), ('nota_recepcion', 'Cambio en la cantidad de camas', 3),
+  ('nota_recepcion', 'Salida tardía', 4), ('nota_recepcion', 'Revisar antes de entrar', 5), ('nota_recepcion', 'Llega pronto un huésped', 6),
+  ('ticket_tipo', 'Luz o ampolleta', 1), ('ticket_tipo', 'Fuga o problema de agua', 2), ('ticket_tipo', 'Baño o WC', 3),
+  ('ticket_tipo', 'Electricidad o enchufe', 4), ('ticket_tipo', 'TV o control', 5), ('ticket_tipo', 'Calefacción o aire', 6),
+  ('ticket_tipo', 'Cerradura o puerta', 7), ('ticket_tipo', 'Mueble roto', 8), ('ticket_tipo', 'Otro', 9),
+  ('ticket_respuesta', 'Recibido, lo reviso', 1), ('ticket_respuesta', 'En reparación', 2), ('ticket_respuesta', 'Falta un repuesto', 3),
+  ('ticket_respuesta', 'Necesito acceso a la habitación', 4), ('ticket_respuesta', 'Listo, revisar', 5);
+
+UPDATE limpieza_permisos
+   SET descripcion = 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)'
+ WHERE codigo = 'listas.editar';
+```
+
+`scripts/migrate-add-listas-opciones.php` hace lo mismo (y lo de §11.27) si se corre en una base sin estas listas.
+Comprobación: `/api/health` → `checks.esquema.ok: true`.
+
+#### ZIP
+
+`build/limpieza-v74-delta.zip` (CHANGELOG con la fila de la v7.4 fechada antes, §10 paso 0). Todo a `limpieza/app_core/`:
+- `CHANGELOG.md`, `database/seeds/{permisos,listas_opciones}.php`, `docs/database-schema{,.mariadb}.sql`,
+  `scripts/migrate-add-listas-opciones.php`.
+- `src/Controllers/{HabitacionesController,TicketsController}.php`, `src/Services/{ListasOpcionesService,TicketService}.php`,
+  `src/Support/Tours.php`.
+- `views/{ajustes,ajustes-checklists,habitacion-detalle,habitaciones,tickets}.php`,
+  `views/componentes/modal-ticket-nuevo.php`, `views/recursos/ajustes/listas-opciones.js`,
+  `views/recursos/componentes/modal-ticket-nuevo.js`, `views/recursos/tickets/tickets.js`.
+
+Vuelta atrás: `build/limpieza-v74-vuelta-atras.zip` (los mismos archivos en la v7.3). El SQL puede quedar.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00, avisando a Recepción y a quienes reportan tickets que
+recarguen la app (una pantalla abierta de antes responde «Elige … de la lista. Si no la ves, recarga la página»).
+
+**Smoke:** badge **v7.4** (incógnito), `/api/health` 200 con esquema ok; Ajustes → «Checklists y listas» → «Listas»
+con los grupos Recepción (2 tarjetas) y Tickets (2); abrir el «Nuevo ticket» y ver «Tipo de problema» sin cuadro de
+texto (sin enviarlo); en el detalle de una pieza, «Agregar nota para la mucama» muestra los mensajes para elegir.
+
+### 11.29 Deploy combinado → v7.4 (v7.2 + v7.3 + v7.4)
+
+> **Decisión de Nicolás (10/10/2026):** las tres versiones suben juntas, con un solo SQL y un solo ZIP. Qué trae cada
+> una y por qué: §11.26 (Reportes en pestañas), §11.27 (listas de selección) y §11.28 (mensaje a la mucama y tickets).
+> Los ZIP sueltos de esas secciones no se arman. En el CHANGELOG quedan las tres filas con la misma fecha y el badge
+> muestra **v7.4**.
+
+**Lista de archivos** = `git diff --name-only 4d5a48d HEAD` (4d5a48d = v7.1, lo que está arriba), menos `docs/` y
+`tests/`, más los dos `docs/database-schema*.sql` (los lee el verificador de esquema). Sin `.env`, sin `vendor/` (las
+clases nuevas cargan por PSR-4) y sin cambios en los cron.
+
+**Probado el 10/10** en MariaDB 10.6 (Docker) sobre una base creada con el código de producción (`4d5a48d`, `init-db`
++ `seed`): el precheck dio 1) vacío, 2) Admin y Supervisora, 3) 0; el SQL corrió sin errores; el verificador de la v7.4
+dio «al día»; y el servicio de listas funcionó contra MariaDB (crear, duplicado sin distinguir mayúsculas ni tildes,
+renombrar, desactivar, ordenar el NO, varios mensajes, ticket con tipo, FK). `scripts/migrate-add-listas-opciones.php`
+dejó lo mismo sobre otra base v7.1 y corrió dos veces seguidas sin error.
+
+#### Pasos
+
+1. **Cuándo:** fuera de 15:45–16:05 y de 23:45–00:00. **Avisar antes** a supervisoras, Recepción y quienes reportan
+   tickets que recarguen la app cuando termine: una pantalla abierta desde antes responde «Elige … de la lista. Si no la
+   ves, recarga la página».
+2. **Precheck** (phpMyAdmin, solo lee): `build/limpieza-v74-precheck.sql` (= el de §11.27). Esperado: 1) vacío;
+   2) los roles que hoy editan los motivos del NO (los que no son Admin dejan de editarlos: aceptado); 3) `0`. Si 1) no
+   sale vacío, parar y avisar: ese rol dejaría de poder aprobar con observación.
+3. **SQL** (phpMyAdmin, **antes del ZIP**, una sola vez): `build/limpieza-v74.sql` = §11.27 y después §11.28.
+4. **ZIP** `build/limpieza-v74-delta.zip`: descomprimir en el PC y arrastrar `limpieza/` sobre `public_html/` en
+   FileZilla (binario). 45 archivos van a `limpieza/app_core/` y 1 al docroot
+   (`limpieza/assets/vista-guiada/vista-guiada.js`; `layout.php` le pone `?v=filemtime`, no hace falta tocar `sw.js`):
+   - `CHANGELOG.md`; `database/seeds/{listas_opciones,permisos}.php`; `docs/database-schema{,.mariadb}.sql`;
+     `public/assets/vista-guiada/vista-guiada.js` (la copia de `app_core`, §10).
+   - `scripts/{migrate-add-listas-opciones,migrate-add-revision-entrega,seed}.php`.
+   - `src/Controllers/{Asignaciones,Auditoria,Checklists,Habitaciones,ListasOpciones,Paginas,Reportes,RevisionEntrega,Tickets}Controller.php`,
+     `src/Core/Kernel.php`,
+     `src/Services/{AsignacionService,AuditoriaService,ChecklistService,ListasOpcionesException,ListasOpcionesService,RevisionEntregaService,TicketService}.php`,
+     `src/Support/Tours.php`.
+   - `views/{ajustes,ajustes-checklists,ajustes-revision-entrega,asignaciones,auditoria-detalle,habitacion-detalle,habitaciones,home-supervisora,home-trabajador,reportes,tickets}.php`,
+     `views/ajustes/listas-opciones.php`, `views/componentes/{modal-inspeccion-pre-entrega,modal-ticket-nuevo}.php`,
+     `views/recursos/ajustes/listas-opciones.js`,
+     `views/recursos/componentes/{modal-inspeccion-pre-entrega,modal-ticket-nuevo}.js`, `views/recursos/tickets/tickets.js`.
+5. **Esquema:** `/api/health` 200 con `checks.esquema.ok: true`.
+
+**Smoke** (Admin, incógnito; **sin** emitir veredictos, reasignar, crear tickets ni dejar mensajes en piezas reales):
+- Badge **v7.4**.
+- Reportes: las 4 pestañas; Mensual con el cuadro «Inspección pre-entrega del mes»; recargar con `#mensual` abre
+  Mensual.
+- Ajustes → «Checklists y listas» → pestaña «Listas»: grupos Supervisora (Rechazar 8, Cambiar de persona 4),
+  Trabajadora (No puedo limpiarla ahora 4), Recepción (NO de la inspección pre-entrega con los motivos de hoy, Mensaje a
+  la mucama 6) y Tickets (Tipo de problema 9, Respuestas 5).
+- Una pieza por inspeccionar: «Rechazar» muestra los motivos y «Aprobar con observación» no pide texto (cerrar sin
+  confirmar). Asignaciones: la ventana de reasignar pide el motivo primero (cancelar).
+- «Nuevo ticket» muestra «Tipo de problema» sin cuadro de texto, y «Agregar nota para la mucama» muestra los mensajes
+  para elegir (cerrar sin enviar).
+
+**Vuelta atrás:** subir `build/limpieza-v74-vuelta-atras.zip`: los 39 archivos que ya existían, tal como están en la
+v7.1 (`4d5a48d`), incluida la copia del docroot. Los 7 nuevos (`ListasOpciones*`, `listas_opciones.php`,
+`migrate-add-listas-opciones.php`, `views/ajustes/listas-opciones.php` y su `.js`) pueden quedar: la v7.1 no los
+carga. El SQL también puede quedar: es aditivo y el verificador solo reclama lo que falta. Lo registrado mientras
+estuvo la v7.4 sigue legible en la v7.1 (motivos y tipos quedan como texto en `comentario`, `titulo` y
+`nota_recepcion`).

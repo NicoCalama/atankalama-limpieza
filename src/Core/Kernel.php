@@ -19,6 +19,7 @@ use Atankalama\Limpieza\Controllers\FestivosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
 use Atankalama\Limpieza\Controllers\InventarioController;
+use Atankalama\Limpieza\Controllers\ListasOpcionesController;
 use Atankalama\Limpieza\Controllers\ModoEspiaController;
 use Atankalama\Limpieza\Controllers\PaginasController;
 use Atankalama\Limpieza\Controllers\RolesController;
@@ -535,18 +536,7 @@ final class Kernel
             $authCheck,
             new PermissionCheck('revision_entrega.registrar'),
         ]);
-        $router->get('/api/revision-entrega/motivos', [$revisionEntrega, 'listarMotivos'], [
-            $authCheck,
-            new PermissionCheck('revision_entrega.configurar'),
-        ]);
-        $router->post('/api/revision-entrega/motivos', [$revisionEntrega, 'crearMotivo'], [
-            $authCheck,
-            new PermissionCheck('revision_entrega.configurar'),
-        ]);
-        $router->put('/api/revision-entrega/motivos/{id}', [$revisionEntrega, 'actualizarMotivo'], [
-            $authCheck,
-            new PermissionCheck('revision_entrega.configurar'),
-        ]);
+        // Los motivos de un NO se editan desde la v7.3 en Ajustes → Checklists y listas (/api/listas/no_recepcion).
         $router->get('/api/revision-entrega/config', [$revisionEntrega, 'config'], [
             $authCheck,
             new PermissionCheck('revision_entrega.configurar'),
@@ -554,6 +544,29 @@ final class Kernel
         $router->put('/api/revision-entrega/config', [$revisionEntrega, 'guardarConfig'], [
             $authCheck,
             new PermissionCheck('revision_entrega.configurar'),
+        ]);
+
+        // Listas de selección (v7.3, gerencia 10/10/2026: las acciones no llevan cuadro de texto). Leer las
+        // activas de una lista lo puede cualquiera con sesión (lo piden las ventanas de rechazar, saltar y
+        // reasignar); con ?todos=1 y para editar, listas.editar (lo re-chequea el controlador).
+        $listas = new ListasOpcionesController();
+        $router->get('/api/listas', [$listas, 'resumen'], [
+            $authCheck,
+            new PermissionCheck('listas.editar'),
+        ]);
+        $router->get('/api/listas/{lista}', [$listas, 'listar'], [$authCheck]);
+        $router->post('/api/listas/{lista}', [$listas, 'crear'], [
+            $authCheck,
+            new PermissionCheck('listas.editar'),
+        ]);
+        // Antes que /{id}: «orden» también calza con el patrón de un segmento.
+        $router->put('/api/listas/{lista}/orden', [$listas, 'reordenar'], [
+            $authCheck,
+            new PermissionCheck('listas.editar'),
+        ]);
+        $router->put('/api/listas/{lista}/{id}', [$listas, 'actualizar'], [
+            $authCheck,
+            new PermissionCheck('listas.editar'),
         ]);
 
         // Alertas
@@ -644,6 +657,10 @@ final class Kernel
             new PermissionCheck('reportes.ver'),
         ]);
         $router->get('/api/reportes/resumen-mensual-auditores', [$reportes, 'resumenMensualAuditores'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
+        $router->get('/api/reportes/recepcion-mensual', [$reportes, 'recepcionMensual'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),
         ]);

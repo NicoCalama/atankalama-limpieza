@@ -365,6 +365,29 @@ CREATE TABLE ejecuciones_items (
 CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);
 
 -- ============================================================================
+-- LISTAS DE SELECCIÓN (v7.3, pedido de gerencia 10/10/2026: sin cuadros de texto, solo selección)
+-- Ver docs/ajustes.md §2.3
+-- ============================================================================
+
+-- Opciones de las listas que se eligen en una acción (motivo de un rechazo, de saltar una pieza, de
+-- reasignarla…). Se editan en Ajustes → Checklists y listas (permiso listas.editar). Nunca se borran: se
+-- desactivan, para que el historial conserve la opción. El NO de Recepción usa su propia tabla
+-- (motivos_revision_entrega, FK desde revisiones_entrega) y la pantalla la muestra como una lista más.
+-- Va antes de auditorias: auditorias.motivo_id la referencia (en MariaDB la FK exige el orden).
+CREATE TABLE listas_opciones (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    lista       TEXT NOT NULL CHECK (lista IN (
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+    )),
+    nombre      TEXT NOT NULL,                                 -- 'Baño sucio' (2 a 60, lo valida el servicio)
+    activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (lista, nombre)
+);
+CREATE INDEX idx_listas_opciones_lista ON listas_opciones(lista, orden);
+
+-- ============================================================================
 -- BLOQUE 3 — AUDITORÍA
 -- ============================================================================
 
@@ -378,12 +401,14 @@ CREATE TABLE auditorias (
     veredicto           TEXT NOT NULL CHECK (veredicto IN (
         'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado'
     )),
-    comentario          TEXT,
+    comentario          TEXT,                             -- desde v7.3 lo arma el sistema: nombre del motivo (rechazo) o «Observado: …» (observación)
     items_desmarcados_json  TEXT,                         -- JSON array de item_ids (para observación)
+    motivo_id           INTEGER,                          -- v7.3: opción de la lista 'rechazo' (solo en rechazados)
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE RESTRICT,
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE RESTRICT,
-    FOREIGN KEY (auditor_id) REFERENCES usuarios(id) ON DELETE RESTRICT
+    FOREIGN KEY (auditor_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (motivo_id) REFERENCES listas_opciones(id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_auditorias_habitacion ON auditorias(habitacion_id);
@@ -521,13 +546,15 @@ CREATE TABLE tickets (
     asignado_at      TEXT,                                  -- cuándo se asignó (no cuándo se creó) — para tiempo de resolución en reportes
     idempotency_key  TEXT,                                  -- UUID del cliente: evita duplicar el ticket si un reintento por red repite el POST
     novedad_id       INTEGER,                                -- id devuelto por novedades al sincronizar la creación (NovedadesSyncService) — se reenvía al cerrar para vincular ambas novedades
+    tipo_id          INTEGER,                                -- v7.4: tipo de problema elegido (lista «ticket_tipo»); NULL en los de antes
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     resuelto_at      TEXT,
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE SET NULL,
     FOREIGN KEY (hotel_id) REFERENCES hoteles(id) ON DELETE RESTRICT,
     FOREIGN KEY (levantado_por) REFERENCES usuarios(id) ON DELETE RESTRICT,
-    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL
+    FOREIGN KEY (asignado_a) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (tipo_id) REFERENCES listas_opciones(id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_tickets_estado ON tickets(estado);
@@ -710,6 +737,7 @@ CREATE TABLE motivos_revision_entrega (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre      TEXT NOT NULL UNIQUE,                          -- 'Baño sucio' (máx. 60, lo valida el servicio)
     activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
+    orden       INTEGER NOT NULL DEFAULT 0,                    -- v7.3: se ordena en Ajustes → Checklists y listas
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
@@ -757,7 +785,7 @@ CREATE UNIQUE INDEX idx_revisiones_entrega_idem ON revisiones_entrega(idempotenc
 
 -- ============================================================================
 -- FIN DEL SCHEMA
--- Total de tablas: 32
+-- Total de tablas: 41
 --   Bloque 1 (RBAC/Auth):  8  (permisos, roles, rol_permisos, usuarios, usuarios_roles, sesiones, contrasenas_temporales, intentos_login)
 --   Bloque 2 (Operación):  10 (hoteles, tipos_habitacion, habitaciones, turnos, usuarios_turnos,
 --                              asignaciones, checklists_template, items_checklist,

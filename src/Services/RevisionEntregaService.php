@@ -35,7 +35,6 @@ final class RevisionEntregaService
 
     // DEFAULT APLICADO (plan v7 aprobado por el usuario): topes de texto y del historial de Reportes.
     public const MAX_COMENTARIO = 300;
-    public const MAX_NOMBRE_MOTIVO = 60;
     public const MAX_HISTORIAL = 500;
     private const MAX_IDEMPOTENCY_KEY = 64;
 
@@ -797,6 +796,28 @@ final class RevisionEntregaService
     }
 
     /**
+     * Resumen mensual de Recepción (v7.2, pedido de Nicolás del 10/10/2026): solo cuántas inspecciones
+     * pre-entrega hubo en el mes y cuántas hizo cada recepcionista, sin SÍ/NO. Mismo conteo que la hoja
+     * «Recepción» del Excel mensual: una por limpieza por persona, y el total es la suma de las personas.
+     *
+     * @return array{total: int, por_recepcionista: list<array{usuario_id: int, nombre: string, inspecciones: int}>}
+     */
+    public function resumenMensual(int $anio, int $mes, string $hotel): array
+    {
+        $desde = sprintf('%04d-%02d-01', $anio, $mes);
+        $hasta = date('Y-m-t', (int) strtotime($desde));
+        $personas = array_map(static fn(array $p): array => [
+            'usuario_id' => $p['usuario_id'],
+            'nombre' => $p['nombre'],
+            'inspecciones' => $p['inspecciones'],
+        ], $this->produccionPorRecepcionista($desde, $hasta, $hotel));
+        return [
+            'total' => array_sum(array_column($personas, 'inspecciones')),
+            'por_recepcionista' => $personas,
+        ];
+    }
+
+    /**
      * Condición del período (por fecha de la revisión) y del hotel, sobre los alias r (revisiones_entrega)
      * y ho (hoteles).
      *
@@ -817,103 +838,18 @@ final class RevisionEntregaService
     // ───────────────────────────── Catálogo de motivos ─────────────────────────────
 
     /**
-     * DEFAULT APLICADO (plan v7 aprobado por el usuario): orden alfabético, sin reordenar.
+     * Motivos de un NO en el orden de Ajustes. Desde la v7.3 se editan en Ajustes → Checklists y listas
+     * (ListasOpcionesService, lista «no_recepcion»), que es dueño de crear, renombrar, ordenar y desactivar.
      *
      * @return list<array{id: int, nombre: string, activo: bool}>
      */
     public function listarMotivos(bool $soloActivos = true): array
     {
-        $sql = 'SELECT id, nombre, activo FROM #__motivos_revision_entrega'
-            . ($soloActivos ? ' WHERE activo = 1' : '')
-            . ' ORDER BY LOWER(nombre)';
-        return array_map(static fn(array $f): array => [
-            'id' => (int) $f['id'],
-            'nombre' => (string) $f['nombre'],
-            'activo' => ((int) $f['activo']) === 1,
-        ], Database::fetchAll($sql));
-    }
-
-    public function crearMotivo(string $nombre, int $usuarioId): int
-    {
-        $nombre = $this->validarNombreMotivo($nombre);
-        $this->exigirNombreLibre($nombre, null);
-        try {
-            Database::execute('INSERT INTO #__motivos_revision_entrega (nombre) VALUES (?)', [$nombre]);
-        } catch (\PDOException $e) {
-            if (stripos($e->getMessage(), 'UNIQUE') !== false || stripos($e->getMessage(), 'Duplicate') !== false) {
-                throw new RevisionEntregaException('MOTIVO_DUPLICADO', 'Ya existe un motivo con ese nombre.', 409);
-            }
-            throw $e;
-        }
-        $id = Database::lastInsertId();
-        Logger::audit($usuarioId, 'revision_entrega.motivo_crear', 'motivo_revision_entrega', $id, ['nombre' => $nombre]);
-        return $id;
-    }
-
-    /**
-     * Renombrar y/o activar-desactivar. No hay borrado: un motivo con revisiones queda en el historial.
-     *
-     * @param array{nombre?: string, activo?: bool} $datos
-     */
-    public function actualizarMotivo(int $id, array $datos, int $usuarioId): void
-    {
-        $existente = Database::fetchOne('SELECT id FROM #__motivos_revision_entrega WHERE id = ?', [$id]);
-        if ($existente === null) {
-            throw new RevisionEntregaException('MOTIVO_NO_ENCONTRADO', 'No encontramos ese motivo.', 404);
-        }
-        $sets = [];
-        $params = [];
-        if (array_key_exists('nombre', $datos)) {
-            $nombre = $this->validarNombreMotivo((string) $datos['nombre']);
-            $this->exigirNombreLibre($nombre, $id);
-            $sets[] = 'nombre = ?';
-            $params[] = $nombre;
-        }
-        if (array_key_exists('activo', $datos)) {
-            $sets[] = 'activo = ?';
-            $params[] = $datos['activo'] ? 1 : 0;
-        }
-        if ($sets === []) {
-            return;
-        }
-        $params[] = $id;
-        try {
-            Database::execute('UPDATE #__motivos_revision_entrega SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
-        } catch (\PDOException $e) {
-            if (stripos($e->getMessage(), 'UNIQUE') !== false || stripos($e->getMessage(), 'Duplicate') !== false) {
-                throw new RevisionEntregaException('MOTIVO_DUPLICADO', 'Ya existe un motivo con ese nombre.', 409);
-            }
-            throw $e;
-        }
-        Logger::audit($usuarioId, 'revision_entrega.motivo_actualizar', 'motivo_revision_entrega', $id, $datos);
-    }
-
-    private function validarNombreMotivo(string $nombre): string
-    {
-        $nombre = trim($nombre);
-        $largo = mb_strlen($nombre);
-        if ($largo < 2 || $largo > self::MAX_NOMBRE_MOTIVO) {
-            throw new RevisionEntregaException(
-                'NOMBRE_INVALIDO',
-                'El motivo debe tener entre 2 y ' . self::MAX_NOMBRE_MOTIVO . ' caracteres.',
-                400
-            );
-        }
-        return $nombre;
-    }
-
-    /**
-     * UNIQUE distingue mayúsculas en SQLite y no en MariaDB, y LOWER() de SQLite no baja la «Ñ» ni
-     * las tildes: se compara en PHP con mb_strtolower (el catálogo son unas pocas filas).
-     */
-    private function exigirNombreLibre(string $nombre, ?int $excepto): void
-    {
-        $buscado = mb_strtolower($nombre);
-        foreach (Database::fetchAll('SELECT id, nombre FROM #__motivos_revision_entrega') as $fila) {
-            if ((int) $fila['id'] !== $excepto && mb_strtolower((string) $fila['nombre']) === $buscado) {
-                throw new RevisionEntregaException('MOTIVO_DUPLICADO', 'Ya existe un motivo con ese nombre.', 409);
-            }
-        }
+        return array_map(static fn(array $o): array => [
+            'id' => $o['id'],
+            'nombre' => $o['nombre'],
+            'activo' => $o['activo'],
+        ], (new ListasOpcionesService())->listar(ListasOpcionesService::NO_RECEPCION, $soloActivos));
     }
 
     private function normalizarClave(string $key): ?string

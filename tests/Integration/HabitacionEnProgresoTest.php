@@ -130,7 +130,7 @@ final class HabitacionEnProgresoTest extends TestCase
         $ejec = $this->checklist->iniciarEjecucion($h101, $this->ana, $this->hoy, true);
         $ctrl = new AsignacionesController();
 
-        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy]));
+        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy, 'opcion_id' => TestDatabase::opcionId('reasignar', 'Cambio de prioridad')]));
         $quitar = $ctrl->desasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'fecha' => $this->hoy]));
         $asignar = $ctrl->crear($this->req($this->sofia, ['habitacion_ids' => [$h101], 'usuario_id' => $this->bea, 'fecha' => $this->hoy]));
 
@@ -152,7 +152,7 @@ final class HabitacionEnProgresoTest extends TestCase
         $this->checklist->iniciarEjecucion($h101, $this->ana, $this->hoy, true);
         $ctrl = new AsignacionesController();
 
-        $reasignar = $ctrl->reasignar($this->req($this->admin, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy]));
+        $reasignar = $ctrl->reasignar($this->req($this->admin, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy, 'opcion_id' => TestDatabase::opcionId('reasignar', 'Cambio de prioridad')]));
         $this->assertSame(201, $reasignar->status);
         $this->assertSame($this->bea, $this->asignaciones->obtenerActivaDeHabitacion($h101, $this->hoy)?->usuarioId);
 
@@ -170,11 +170,35 @@ final class HabitacionEnProgresoTest extends TestCase
         (new AuditoriaService())->emitirVeredicto($h101, $this->sofia, 'rechazado', 'Polvo en el velador', [$itemFallido]);
         $ctrl = new AsignacionesController();
 
-        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy]));
+        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy, 'opcion_id' => TestDatabase::opcionId('reasignar', 'Cambio de prioridad')]));
         $quitar = $ctrl->desasignar($this->req($this->sofia, ['habitacion_id' => $h102, 'fecha' => $this->hoy]));
 
         $this->assertSame(201, $reasignar->status);
         $this->assertSame(200, $quitar->status);
+    }
+
+    /** v7.3 (gerencia, 10/10/2026): reasignar exige un motivo de la lista «reasignar», sin texto libre. */
+    public function testReasignarExigeUnMotivoDeLaLista(): void
+    {
+        [$h101] = $this->asignarA($this->ana, '101');
+        $ctrl = new AsignacionesController();
+        $base = ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $this->hoy];
+
+        $sinMotivo = $ctrl->reasignar($this->req($this->sofia, $base + ['motivo' => 'escrito a mano']));
+        $this->assertSame(400, $sinMotivo->status);
+        $this->assertSame('OPCION_REQUERIDA', $this->json($sinMotivo)['error']['codigo']);
+        $deOtraLista = $ctrl->reasignar($this->req($this->sofia, $base + ['opcion_id' => TestDatabase::opcionId('saltar', 'Otro')]));
+        $this->assertSame('OPCION_INVALIDA', $this->json($deOtraLista)['error']['codigo']);
+        $this->assertSame($this->ana, $this->asignaciones->obtenerActivaDeHabitacion($h101, $this->hoy)?->usuarioId, 'nada cambió');
+
+        $opcion = TestDatabase::opcionId('reasignar', 'Ausencia o atraso');
+        $ok = $ctrl->reasignar($this->req($this->sofia, $base + ['opcion_id' => $opcion]));
+        $this->assertSame(201, $ok->status);
+        $detalles = json_decode((string) Database::fetchColumn(
+            "SELECT detalles_json FROM audit_log WHERE accion = 'asignacion.reasignar' ORDER BY id DESC LIMIT 1"
+        ), true);
+        $this->assertSame('Ausencia o atraso', $detalles['motivo']);
+        $this->assertSame($opcion, $detalles['opcion_id']);
     }
 
     public function testLoteConUnaEnProgresoNoAsignaNinguna(): void

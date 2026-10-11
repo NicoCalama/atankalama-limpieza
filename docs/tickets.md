@@ -27,7 +27,8 @@ Tabla `tickets` (ver [database-schema.sql](database-schema.sql)):
 | `habitacion_id` | FK opcional | Si el ticket es sobre una habitación específica |
 | `hotel_id` | FK | Obligatorio |
 | `titulo` | TEXT | "Lámpara quemada", "Fuga en baño" |
-| `descripcion` | TEXT | Detalle |
+| `descripcion` | TEXT | Detalle. Desde la v7.4, igual al título (el tipo elegido) |
+| `tipo_id` | FK NULL | v7.4: opción de la lista «ticket_tipo» (Ajustes → Checklists y listas); NULL en los de antes y en los del copilot |
 | `prioridad` | ENUM | `baja`, `normal`, `alta`, `urgente` |
 | `estado` | ENUM | `abierto`, `en_progreso`, `resuelto`, `cerrado` |
 | `levantado_por` | FK usuario | Quien creó el ticket |
@@ -70,9 +71,12 @@ Transición `resuelto → abierto` (reabrir) es posible si alguien detecta que n
 1. FAB o botón en Home → modal "Nuevo ticket".
 2. Campos:
    - **Habitación** (opcional, selector) — preseleccionada si estoy viendo una habitación específica.
-   - **Título** (obligatorio, max 80 chars).
-   - **Descripción** (obligatorio, textarea).
-   - **Prioridad** (radio: baja/normal/alta/urgente, default normal).
+   - **Tipo de problema** (obligatorio, botones): desde la v7.4 (gerencia, 10/10/2026: sin cuadros de
+     texto ni dictado) se elige de la lista «ticket_tipo» de Ajustes → Checklists y listas; su nombre es
+     el título y la descripción del ticket. Si no está, «Otro» + una foto. Hasta la v7.3 era una
+     descripción escrita (con dictado) y el título salía de sus primeros 80 caracteres.
+   - **Fotos** (opcional, máx. 3).
+   - **Prioridad** (solo con `tickets.editar_prioridad`; default normal).
 3. POST `/api/tickets` → crea fila, estado `abierto`.
 4. Se crea alerta P2 `ticket_nuevo` dirigida a usuarios con `tickets.ver_todos`.
 5. El modal muestra la confirmación en su lugar: «¡Reporte enviado!», el número de ticket y, si

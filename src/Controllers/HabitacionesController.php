@@ -18,6 +18,8 @@ use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Services\HotelService;
+use Atankalama\Limpieza\Services\ListasOpcionesException;
+use Atankalama\Limpieza\Services\ListasOpcionesService;
 use Atankalama\Limpieza\Services\RevisionEntregaService;
 
 final class HabitacionesController
@@ -488,8 +490,12 @@ final class HabitacionesController
 
     /**
      * POST /api/habitaciones/{id}/nota
-     * Deja (o reemplaza) la nota de Recepción para la mucama. Body: {nota: string}.
+     * Deja (o reemplaza) la nota de Recepción para la mucama. Body: {opcion_ids: int[]}.
      * Gateado por habitaciones.agregar_nota (ver PermissionCheck en Kernel).
+     *
+     * v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el mensaje se arma con una o varias opciones de
+     * la lista «nota_recepcion» (Ajustes → Checklists y listas), separadas por « · ». Un «nota» escrito
+     * desde una pantalla vieja se rechaza con OPCION_REQUERIDA.
      */
     public function agregarNota(Request $request): Response
     {
@@ -498,9 +504,17 @@ final class HabitacionesController
             return Response::error('ID_INVALIDO', 'ID de habitación inválido.', 400);
         }
 
-        $nota = $request->inputString('nota');
-        if ($nota === '') {
-            return Response::error('PARAMETROS_INVALIDOS', 'El campo nota es requerido.', 400);
+        $ids = $request->input('opcion_ids');
+        if (!is_array($ids) || $ids === []) {
+            return Response::error('OPCION_REQUERIDA', 'Elige al menos un mensaje de la lista. Si no la ves, recarga la página.', 400);
+        }
+        try {
+            $nota = implode(' · ', (new ListasOpcionesService())->nombresActivos(
+                ListasOpcionesService::NOTA_RECEPCION,
+                array_values(array_map('intval', $ids))
+            ));
+        } catch (ListasOpcionesException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
         try {

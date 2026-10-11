@@ -78,20 +78,16 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
         form: {
             hotel_id: null,
             habitacion_id: null,
-            descripcion: '',
+            tipoId: null,
             asignadoIds: [],
             prioridad: 'normal',
         },
 
-        // Dictado por voz de la descripción (Web Speech API) — mismo patrón que
-        // auditoria-detalle.php (comentario de observación/rechazo).
-        grabando: false,
-        reconocimiento: null,
-        dictadoReinicios: 0,
-
-        get soportaDictado() {
-            return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-        },
+        // Tipo de problema (v7.4, gerencia 10/10/2026: sin cuadros de texto ni dictado): lista «ticket_tipo»
+        // de Ajustes → Checklists y listas. Se pide una vez por página.
+        tipos: [],
+        tiposCargando: false,
+        tiposError: '',
 
         // detail: { habitacionId, habitacionNumero, hotelId, hotelCodigo } — todos opcionales.
         async abrir(detail) {
@@ -129,83 +125,14 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             // Mientras envía no se cierra (ni con la X ni tocando afuera): el resultado
             // quedaría oculto y el trabajador no sabría si el reporte llegó.
             if (this.enviando) return;
-            this.detenerDictado();
             this.abierto = false;
             this.abrirBuscador = false;
             this.limpiarFotos();
         },
 
-        // Dicta la descripción por voz. El texto reconocido se agrega al que ya haya
-        // (no lo reemplaza), para poder mezclar teclado y voz. Ver auditoria-detalle.php,
-        // mismo patrón (reinicio automático en Safari/iOS, tope de seguridad, permisos).
-        toggleDictado() {
-            if (this.grabando) {
-                this.detenerDictado();
-                return;
-            }
-            if (!this.soportaDictado) return;
-
-            var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            var reco = new SpeechRecognition();
-            var self = this;
-            reco.lang = 'es-CL';
-            reco.continuous = true;
-            reco.interimResults = false;
-
-            reco.onresult = function (event) {
-                var textoNuevo = '';
-                for (var i = event.resultIndex; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        textoNuevo += event.results[i][0].transcript;
-                    }
-                }
-                textoNuevo = textoNuevo.trim();
-                if (textoNuevo === '') return;
-                self.dictadoReinicios = 0; // hubo voz real: el contador de seguridad se reinicia
-                var actual = self.form.descripcion.trim();
-                self.form.descripcion = (actual === '' ? textoNuevo : actual + ' ' + textoNuevo).slice(0, 500);
-            };
-
-            reco.onerror = function (event) {
-                // 'no-speech' (pausa) y 'aborted' (nuestro propio stop) son normales:
-                // no cortan el dictado, los maneja onend.
-                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                    self.grabando = false;
-                    self.error = 'Permiso de micrófono denegado.';
-                } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
-                    self.grabando = false;
-                    self.error = 'No pudimos usar el micrófono.';
-                }
-            };
-
-            reco.onend = function () {
-                // Safari/iOS ignora continuous y corta al primer silencio. Mientras no se
-                // toque "detener", reanudamos para poder hacer pausas y seguir hablando.
-                if (!self.grabando) return;
-                if (self.dictadoReinicios >= 30) { self.grabando = false; return; } // tope: micrófono en silencio
-                self.dictadoReinicios++;
-                setTimeout(function () {
-                    if (!self.grabando) return;
-                    try { reco.start(); } catch (e) { self.grabando = false; }
-                }, 250);
-            };
-
-            this.reconocimiento = reco;
-            this.dictadoReinicios = 0;
-            this.grabando = true;
-            reco.start();
-        },
-
-        detenerDictado() {
-            this.grabando = false;
-            this.dictadoReinicios = 0;
-            if (this.reconocimiento) {
-                try { this.reconocimiento.stop(); } catch (e) {}
-            }
-        },
 
         reset() {
-            this.form = { hotel_id: null, habitacion_id: null, descripcion: '', asignadoIds: [], prioridad: 'normal' };
+            this.form = { hotel_id: null, habitacion_id: null, tipoId: null, asignadoIds: [], prioridad: 'normal' };
             this.error = null;
             this.enviando = false;
             this.resultado = null;
@@ -244,7 +171,26 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             this.fotos = [];
         },
 
+        async cargarTipos() {
+            if (this.tipos.length > 0 || this.tiposCargando) return;
+            this.tiposCargando = true;
+            this.tiposError = '';
+            try {
+                var r = await apiFetch('/api/listas/ticket_tipo');
+                if (r && r.ok) {
+                    this.tipos = r.data.opciones || [];
+                } else {
+                    this.tiposError = (r && r.error && r.error.mensaje) || 'No pudimos cargar los tipos de problema.';
+                }
+            } catch (e) {
+                this.tiposError = 'No pudimos cargar los tipos de problema. Revisa tu señal y vuelve a abrir el formulario.';
+            } finally {
+                this.tiposCargando = false;
+            }
+        },
+
         async asegurarDatos() {
+            this.cargarTipos();
             if (this._datosCargados) return;
             try {
                 var rh = await apiFetch('/api/hoteles');
@@ -349,8 +295,7 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
         },
 
         formValido() {
-            return this.form.hotel_id !== null
-                && (this.form.descripcion || '').trim().length > 0;
+            return this.form.hotel_id !== null && this.form.tipoId !== null;
         },
 
         textoBotonEnviar() {
@@ -369,14 +314,10 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             var self = this;
             var avisoLento = setTimeout(function () { self.senalLenta = true; }, TICKET_AVISO_LENTO_MS);
             try {
-                var descripcion = (this.form.descripcion || '').trim();
-                // Título auto-generado desde la descripción (primeros 80 chars, sin saltos de línea)
-                var titulo = descripcion.replace(/\s+/g, ' ').slice(0, 80);
-
+                // El servidor arma el título y la descripción con el nombre del tipo elegido (v7.4).
                 var datos = new FormData();
                 datos.append('hotel_id', this.form.hotel_id);
-                datos.append('titulo', titulo);
-                datos.append('descripcion', descripcion);
+                datos.append('tipo_id', this.form.tipoId);
                 datos.append('prioridad', this.puedeEditarPrioridad ? this.form.prioridad : 'normal');
                 if (this.form.habitacion_id !== null) datos.append('habitacion_id', this.form.habitacion_id);
                 if (this.puedeAsignar) {
@@ -395,7 +336,6 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
                     }));
                     this.resultado = { id: r.data.ticket.id, fotosFallidas: fallidas.length };
                     this.idempotencyKey = null;
-                    this.detenerDictado();
                     this.limpiarFotos();
                 } else {
                     this.error = (r && r.error && r.error.mensaje) || 'No pudimos crear el ticket.';

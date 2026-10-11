@@ -27,9 +27,11 @@ final class RevisionEntregaRutasTest extends TestCase
     private const APIS = [
         ['GET', '/api/revision-entrega/formulario'],
         ['POST', '/api/revision-entrega'],
-        ['GET', '/api/revision-entrega/motivos'],
-        ['POST', '/api/revision-entrega/motivos'],
-        ['PUT', '/api/revision-entrega/motivos/1'],
+        // v7.3: los motivos de un NO se editan con las listas de selección (listas.editar).
+        ['GET', '/api/listas'],
+        ['POST', '/api/listas/no_recepcion'],
+        ['PUT', '/api/listas/no_recepcion/orden'],
+        ['PUT', '/api/listas/no_recepcion/1'],
         ['GET', '/api/revision-entrega/config'],
         ['PUT', '/api/revision-entrega/config'],
         ['POST', '/api/revision-entrega/1/relimpiar'],
@@ -103,10 +105,12 @@ final class RevisionEntregaRutasTest extends TestCase
     public function testRecepcionInspeccionaPeroNoConfigura(): void
     {
         $this->assertSame(200, $this->pedir('GET', '/api/revision-entrega/formulario', 'recepcion')->status);
-        $this->assertSame(403, $this->pedir('GET', '/api/revision-entrega/motivos', 'recepcion')->status);
+        $this->assertSame(403, $this->pedir('POST', '/api/listas/no_recepcion', 'recepcion', ['nombre' => 'Algo'])->status);
         $this->assertSame(403, $this->pedir('PUT', '/api/revision-entrega/config', 'recepcion', ['no_ensucia' => true])->status);
 
-        $this->assertSame(200, $this->pedir('GET', '/api/revision-entrega/motivos', 'supervisora')->status);
+        // v7.3 (decisión de Nicolás): los motivos los edita solo Admin; la supervisora mantiene el interruptor.
+        $this->assertSame(403, $this->pedir('POST', '/api/listas/no_recepcion', 'supervisora', ['nombre' => 'Algo'])->status);
+        $this->assertSame(200, $this->pedir('GET', '/api/listas/no_recepcion', 'recepcion')->status, 'leer las activas solo pide sesión');
         $this->assertSame(200, $this->pedir('PUT', '/api/revision-entrega/config', 'supervisora', ['no_ensucia' => true])->status);
         $this->assertSame(403, $this->pedir('GET', '/api/revision-entrega/formulario', 'supervisora')->status, 'la supervisora no inspecciona');
 

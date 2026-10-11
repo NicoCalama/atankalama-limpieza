@@ -108,7 +108,9 @@ Ver [habitaciones.md](habitaciones.md).
 | GET | `/api/habitaciones/{id}/historial` | `habitaciones.ver_historial` | Historial completo |
 | POST | `/api/habitaciones/{id}/iniciar` | asignada | Crear ejecución → `en_progreso`. 409 `YA_TIENE_HABITACION_EN_PROGRESO` si ya hay otra en curso. 409 `NO_ES_TU_HABITACION_ACTUAL` si el trabajador (sin `habitaciones.ver_todas`) intenta iniciar una que no es su habitación actual (orden de cola) |
 | POST | `/api/habitaciones/{id}/completar` | `habitaciones.marcar_completada` + asignada | → `completada_pendiente_auditoria` |
-| POST | `/api/habitaciones/{id}/saltar` | asignada | "No puedo terminar ahora": descarta la ejecución, `→ sucia`, al final de la cola + alerta `habitacion_saltada`. Body: `{ motivo }` |
+| POST | `/api/habitaciones/{id}/saltar` | asignada | "No puedo terminar ahora": descarta la ejecución, `→ sucia`, al final de la cola + alerta `habitacion_saltada`. Body: `{ opcion_id }` (v7.3: opción de la lista «saltar», §18b; sin ella 400 `OPCION_REQUERIDA`, desactivada 400 `OPCION_INVALIDA`) |
+| POST | `/api/habitaciones/{id}/nota` | `habitaciones.agregar_nota` | Mensaje de Recepción a la mucama (reemplaza el anterior; se borra solo al terminar la limpieza; push a quien la tiene hoy). Desde la v7.4 `{opcion_ids: [...]}`: una o varias opciones de la lista «nota_recepcion» (§18b), unidas con « · »; sin ellas 400 `OPCION_REQUERIDA` |
+| DELETE | `/api/habitaciones/{id}/nota` | `habitaciones.agregar_nota` | Quita el mensaje |
 
 ---
 
@@ -120,7 +122,7 @@ Ver [habitaciones.md](habitaciones.md) §6.
 |---|---|---|---|
 | POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote |
 | POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
-| POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
+| POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar: `{ habitacion_id, usuario_id, fecha, opcion_id }`. Desde la v7.3 `opcion_id` (lista «reasignar», §18b) es obligatorio: 400 `OPCION_REQUERIDA` / `OPCION_INVALIDA`. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia. Quitar una en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
 | GET | `/api/usuarios/{id}/cola` | propia, o `asignaciones.asignar_manual` | Cola del trabajador. Sin `habitaciones.ver_todas` devuelve solo la **habitación actual** (la que tiene en curso; si no, la primera pendiente); con `?vista=completa` sobre la propia cola, todas las del día (pestaña Habitaciones del trabajador) |
@@ -152,7 +154,7 @@ Ver [auditoria.md](auditoria.md).
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes. Por pieza: `id`, `numero`, `estado`, `es_nochero`, `auditoria_orden`, `se_va_hoy`, `cb_frontdesk_status`, `cloudbeds_room_name`, `hotel_codigo`, `tipo_nombre`, `ejecucion_id`, `trabajador_id` |
-| POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` | Veredicto |
+| POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` | Veredicto: `{ veredicto, motivo_id?, items_desmarcados? }`. Desde la v7.3 no hay comentario escrito: el rechazo exige `motivo_id` (lista «rechazo», §18b; 400 `OPCION_REQUERIDA`/`OPCION_INVALIDA`) y al menos un ítem; la observación exige al menos un ítem desmarcado (400 `OBSERVACION_SIN_ITEMS`) y su comentario lo arma el sistema («Observado: …»). Ver [auditoria.md](auditoria.md) |
 | GET | `/api/auditoria/{id}/historial` | `habitaciones.ver_historial` | Detalle histórico |
 | POST | `/api/auditoria/{habitacion_id}/iniciar` | `auditoria.ver_bandeja` | Marca el inicio de la inspección (`ejecuciones_checklist.auditoria_iniciada_at`) de la última ejecución completada; lo dispara el detalle al abrirse. Alimenta el KPI «tiempo por auditación» (v6.4). Devuelve `{ registrado: bool }` |
 
@@ -185,12 +187,14 @@ Ver [tickets.md](tickets.md). Los tickets incluyen `responsables` (lista de `{id
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/tickets` | `tickets.crear` | Crear |
+| POST | `/api/tickets` | `tickets.crear` | Crear. Multipart: `hotel_id`, `tipo_id` (v7.4: opción de la lista «ticket_tipo», §18b; su nombre es el título y la descripción; sin ella 400 `OPCION_REQUERIDA`), `habitacion_id?`, `prioridad?`, `usuario_ids[]?`, `fotos[]?` (máx. 3), `idempotency_key` |
 | GET | `/api/tickets` | `tickets.ver_todos` | Todos |
 | GET | `/api/tickets/mios` | `tickets.ver_propios` | Propios |
 | GET | `/api/tickets/{id}` | propietario o `tickets.ver_todos` | Detalle |
 | PUT | `/api/tickets/{id}/asignar` | `tickets.ver_todos`; con solo `tickets.ver_propios`, autoasignarse un ticket sin dueño («Tomar») | Asigna uno o varios responsables: `usuario_ids` (array), `usuario_id` o `grupo_rol`. Reemplaza la lista completa (tabla `tickets_asignados`); `asignado_a` conserva al responsable principal si sigue en la lista. Designar a alguien que no es Trabajador exige `tickets.asignar_a_cualquier_perfil` (403 `PERFIL_NO_ASIGNABLE`) |
 | PUT | `/api/tickets/{id}/estado` | `tickets.ver_todos` (cualquier transición) o ser **cualquiera de los responsables** (solo `en_progreso` / `resuelto`) | Cambiar estado |
+| GET | `/api/tickets/{id}/comentarios` | quien puede ver el ticket | Historial de comentarios |
+| POST | `/api/tickets/{id}/comentarios` | quien puede ver el ticket | `{opcion_id, avisar_supervisora?}`: desde la v7.4 el comentario es una respuesta de la lista «ticket_respuesta» (§18b); sin `opcion_id` 400 `OPCION_REQUERIDA` |
 
 ---
 
@@ -291,9 +295,26 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 | PUT | `/api/reportes/corte-hab-dia` | `reportes.editar_corte` | Fija el corte de habitaciones diarias (jornada completa) del bono de aseo para un mes: `{anio, mes, valor}` (1–100, un decimal). Los meses siguientes sin valor propio lo heredan. 400 `CORTE_INVALIDO` |
 | GET | `/api/reportes/exportar-mensual` | `reportes.ver` | `.xlsx` del mes con tres pestañas: «Trabajadores» (resumen por trabajador del hotel elegido, con RUT, «Hab. limpiadas» y las columnas del bono de aseo de RRHH), «Supervisores» (inspecciones por inspector, un bloque por hotel y uno con el total, siempre los dos hoteles) y, desde v7.1, «Recepción» (producción de la inspección pre-entrega por recepcionista, igual por bloques). Hasta el 04/10/2026 era un CSV solo de trabajadores |
 | GET | `/api/reportes/resumen-mensual-auditores` | `reportes.ver` | Resumen del mes de inspecciones por inspector: `total`, `aprobadas`, `aprobadas_observacion`, `rechazadas`, `observaciones` (casillas que desmarcó) y, desde v7, `recepcion_aprobadas` / `recepcion_rechazadas` (de las piezas que aprobó, lo que Recepción aprobó y no aprobó para entregar en el mes; desde v7.1, solo las revisadas mientras la pieza seguía aprobada) y `recepcion_calidad_pct` ((aprobadas − rechazadas) ÷ (aprobadas + rechazadas) × 100, mínimo 0, `null` sin revisiones) |
+| GET | `/api/reportes/recepcion-mensual` | `reportes.ver` | (v7.2, pestaña Mensual) `?anio&mes&hotel` → `{total, por_recepcionista: [{usuario_id, nombre, inspecciones}]}`: cuántas inspecciones pre-entrega hizo cada recepcionista en el mes, una por limpieza, sin SÍ/NO; `total` = la suma (igual que la hoja «Recepción» del Excel mensual) |
 | GET | `/api/reportes/auditorias-pendientes` | `reportes.ver` | Piezas limpiadas hoy sin veredicto, por turno |
 | GET | `/api/reportes/exportar-auditorias-pendientes` | `reportes.ver` | Excel de las inspecciones pendientes de hoy |
 | GET | `/api/reportes/revision-entrega` | `reportes.ver` | Sección «Inspección pre-entrega (Recepción)» (v7): `resumen {total, si, no, pct_no, a_sucia}`, `por_motivo` (solo NO), desde v7.1 `por_recepcionista` (`[{usuario_id, nombre, inspecciones, si, no, pct_no}]`: una por limpieza —revisar de nuevo la misma pieza sin re-limpieza no suma— y, dentro de una limpieza, el NO manda), `historial` (máx. 500, `truncado`) y `filtros`. Lee solo `revisiones_entrega`: ningún KPI cambia. Ignora `usuario_id` |
+
+---
+
+## 18b. Listas de selección (v7.3)
+
+Gerencia (10/10/2026): las acciones no llevan cuadro de texto, se elige de una lista. Ver [ajustes.md](ajustes.md) §2.3. Listas: `rechazo`, `reasignar`, `saltar` y `no_recepcion` (motivos del NO de la inspección pre-entrega, tabla propia). Las opciones no se borran: se desactivan.
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/listas` | `listas.editar` | `{listas: [{lista, activas, total}]}` para las tarjetas de Ajustes |
+| GET | `/api/listas/{lista}` | sesión | `{opciones: [{id, nombre, activo, orden}]}` activas y en orden, para elegir en la acción. Con `?todos=1` (exige `listas.editar`) también las desactivadas. 404 `LISTA_INVALIDA` |
+| POST | `/api/listas/{lista}` | `listas.editar` | `{nombre}` (2–60). 201 `{id}`; queda al final. 409 `OPCION_DUPLICADA` (sin distinguir mayúsculas ni tildes) |
+| PUT | `/api/listas/{lista}/{id}` | `listas.editar` | `{nombre?, activo?}` (`activo` booleano). 404 `OPCION_NO_ENCONTRADA`, 409 `OPCION_DUPLICADA` / `ULTIMA_OPCION_ACTIVA` |
+| PUT | `/api/listas/{lista}/orden` | `listas.editar` | `{ids: [...]}` con TODAS las opciones de la lista en el orden nuevo. 409 `ORDEN_DESACTUALIZADO` si no coinciden |
+
+Página: `GET /ajustes/checklists` (`checklists.editar` o `listas.editar`), pestaña «Listas» (`#listas`). Hasta la v7.2 los motivos del NO se editaban con `GET/POST/PUT /api/revision-entrega/motivos*` (`revision_entrega.configurar`): esos endpoints ya no existen.
 
 ---
 
@@ -304,10 +325,7 @@ Ver [revision-entrega.md](revision-entrega.md). Recepción revisa una pieza ante
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/api/revision-entrega/formulario` | `revision_entrega.registrar` | Lo que necesita la ventana del NO: `motivos` activos y `no_ensucia` (interruptor). La inspección vigente de cada pieza viaja en `GET /api/habitaciones` (`revision_vigente`) |
-| POST | `/api/revision-entrega` | `revision_entrega.registrar` | Multipart (o JSON sin foto): `habitacion_id`, `resultado` (`si`/`no`), `motivo_id` (obligatorio si `no`), `comentario` (≤300), `foto` (opcional, solo con `no`), `idempotency_key` (≤64). 201 `{revision, repetida: false, foto_fallida}`; misma clave → 200 `{repetida: true}` sin re-avisar. La foto nunca hace fallar el NO: si no se guardó, `foto_fallida` dice por qué. Con el interruptor prendido, un NO sobre una pieza aprobada la pasa a `sucia` y avisa `dirty` a Cloudbeds (`revision.paso_a_sucia`). Errores: 400 `PARAMETROS_INVALIDOS`/`RESULTADO_INVALIDO`/`MOTIVO_REQUERIDO`/`COMENTARIO_LARGO`, 404 `HABITACION_NO_ENCONTRADA`/`MOTIVO_NO_ENCONTRADO`, 413 `CUERPO_MUY_GRANDE` (superó `post_max_size`) |
-| GET | `/api/revision-entrega/motivos?todos=1` | `revision_entrega.configurar` | Catálogo de motivos (`todos=1` incluye inactivos) |
-| POST | `/api/revision-entrega/motivos` | `revision_entrega.configurar` | `{nombre}` (2–60). 201 `{id}`. 409 `MOTIVO_DUPLICADO` (sin distinguir mayúsculas ni «Ñ») |
-| PUT | `/api/revision-entrega/motivos/{id}` | `revision_entrega.configurar` | `{nombre?, activo?}`. No hay borrado: un motivo inactivo deja de aparecer en el NO y el historial lo conserva |
+| POST | `/api/revision-entrega` | `revision_entrega.registrar` | Multipart (o JSON sin foto): `habitacion_id`, `resultado` (`si`/`no`), `motivo_id` (obligatorio si `no`), `foto` (opcional, solo con `no`), `idempotency_key` (≤64). 201 `{revision, repetida: false, foto_fallida}`; misma clave → 200 `{repetida: true}` sin re-avisar. La foto nunca hace fallar el NO: si no se guardó, `foto_fallida` dice por qué. Con el interruptor prendido, un NO sobre una pieza aprobada la pasa a `sucia` y avisa `dirty` a Cloudbeds (`revision.paso_a_sucia`). Errores: 400 `PARAMETROS_INVALIDOS`/`RESULTADO_INVALIDO`/`MOTIVO_REQUERIDO`/`COMENTARIO_LARGO`, 404 `HABITACION_NO_ENCONTRADA`/`MOTIVO_NO_ENCONTRADO`, 413 `CUERPO_MUY_GRANDE` (superó `post_max_size`) |
 | GET | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}` (default `false`) |
 | PUT | `/api/revision-entrega/config` | `revision_entrega.configurar` | `{no_ensucia: bool}`: si un NO devuelve la pieza aprobada a sucia (guardado en `alertas_config` `revision_entrega_no_ensucia`) |
 | POST | `/api/revision-entrega/{id}/relimpiar` | `asignaciones.asignar_manual` | «Re-limpiar» de la supervisora: `{trabajador_id, prioridad}` (`prioridad: true` exige además `asignaciones.reordenar_cola_trabajador`, si no 403 `SIN_PERMISO`). Asigna hoy la pieza de un NO vigente sobre una pieza aprobada (como reasignar: pasa a sucia + `dirty` a Cloudbeds, aviso a la trabajadora con el motivo) y, con prioridad, la deja primera en su cola. 200 `{revision}` (con `relimpieza_trabajador`). Errores: 400 `PARAMETROS_INVALIDOS`, 404 `REVISION_NO_ENCONTRADA`/`TRABAJADOR_NO_ENCONTRADO`, 409 `RELIMPIEZA_NO_APLICA` (no es un NO sobre una pieza aprobada)/`REVISION_NO_VIGENTE` (la pieza cambió de estado). La limpieza que la rehace no cuenta en los KPIs |

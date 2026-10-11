@@ -14,11 +14,12 @@ Pedido de gerencia del 04/10/2026; diseño final de Nicolás del 05/10/2026.
 1. **Va dentro de Habitaciones, no en una pestaña aparte.** Cada tarjeta conserva su botón «N» de nochero y suma
    al pie un **botón grande «Inspección pre-entrega»** (del tamaño de la franja de estado). El botón abre una
    ventana: «¿La habitación está en condiciones para entregarse a un cliente?» con **SÍ** y **NO**. El NO abre una
-   segunda ventana con el checklist de motivos, observaciones y foto.
+   segunda ventana con el checklist de motivos y foto (desde la v7.3, sin observaciones escritas).
 2. **Recepción sin «Inicio»:** su pantalla principal es Habitaciones. Tampoco ve **Edificios y Mapeo** en Ajustes.
 3. **No es obligatoria.** Lo ideal es revisar todas las piezas antes de entregarlas, pero la app no bloquea nada.
 4. **Cualquier pieza, en cualquier estado.** El estado de aseo es contexto, nunca bloquea.
-5. **Un NO lleva UN motivo** del catálogo (obligatorio) + observaciones opcionales + una foto opcional.
+5. **Un NO lleva UN motivo** del catálogo (obligatorio) + una foto opcional. Hasta la v7.2 tenía además
+   «Observaciones» escritas; la v7.3 las quitó (gerencia, 10/10/2026: solo selección). Las de antes siguen en el historial.
 6. **Qué hace un NO lo decide un interruptor** en Ajustes → Inspección pre-entrega:
    - **Apagado (default):** solo queda registrado y avisa a las supervisoras. La pieza no cambia de estado y no se
      toca Cloudbeds. La supervisora decide con lo que ya existe (marcar sucia, reasignar).
@@ -28,8 +29,11 @@ Pedido de gerencia del 04/10/2026; diseño final de Nicolás del 05/10/2026.
      suma en los KPIs (decisión 10).
 7. **Para el KPI de calidad de las supervisoras:** cada SÍ y cada NO guarda una foto del momento (ver §2). El KPI
    todavía no se calcula: se arma cuando gerencia defina la fórmula (pendiente en [kpis-sueldos.md](kpis-sueldos.md)).
-8. **Catálogo de motivos:** lo manejan Supervisora y Admin (`revision_entrega.configurar`), no Recepción. Se siembran
-   8 motivos iniciales. Se crean, renombran y activan/desactivan; **no se borran ni se reordenan** (orden alfabético).
+8. **Catálogo de motivos:** desde la v7.3 se edita en **Ajustes → Checklists y listas** (lista «NO de la inspección
+   pre-entrega», permiso `listas.editar`, solo Admin por defecto; antes lo editaban Supervisora y Admin con
+   `revision_entrega.configurar`). Se siembran 8 motivos iniciales. Se crean, renombran, **ordenan** y
+   activan/desactivan; **no se borran**, y la lista conserva al menos uno activo. Sigue en su propia tabla
+   (`motivos_revision_entrega`, FK desde `revisiones_entrega`); ver [ajustes.md](ajustes.md) §2.3.
 9. **El botón de la tarjeta se reinicia cuando la pieza cambia de estado**, no a medianoche (05/10): el resultado
    («Aprobada» / «No aprobada») vale mientras la pieza siga igual; cuando se ensucia, empiezan a limpiarla o la
    aprueban, vuelve a «Inspección pre-entrega». Así un NO sin resolver no desaparece a las 00:00 y un SÍ no queda pegado
@@ -177,31 +181,35 @@ re-limpieza, quien la pidió). DDL en
   `asignaciones.asignar_manual`): motivo y observaciones, trabajadoras con turno hoy en el hotel de la pieza con su
   carga total, «Que sea la siguiente de su cola» (marcada por defecto) y el aviso de que no suma en los KPIs.
 - **Ventana** (`views/componentes/modal-inspeccion-pre-entrega.php`, en el layout solo con `revision_entrega.registrar`):
-  paso 1 SÍ / NO; paso 2 (NO) motivos en botones grandes, observaciones y «Tomar foto». Plazo de 45 s por envío con
+  paso 1 SÍ / NO; paso 2 (NO) motivos en botones grandes y «Tomar foto» (sin observaciones desde la v7.3). Plazo de 45 s por envío con
   aviso de «señal lenta» a los 10 s; sin respuesta, guarda la clave y ofrece reintentar sin duplicar.
 - **Menú:** Recepción ve Habitaciones · Inspección · Tickets · Ajustes. «Inicio» se oculta a quien no tiene Inicio
   propio (`Support\PantallaInicio`, por permisos: inspecciona sin administrar ni supervisar); `/home` lo lleva a
   Habitaciones en el servidor.
-- **Ajustes → Inspección pre-entrega** (`revision_entrega.configurar`): el interruptor y el catálogo de motivos.
+- **Ajustes → Inspección pre-entrega** (`revision_entrega.configurar`): el interruptor. Desde la v7.3 los motivos se
+  editan en Ajustes → Checklists y listas (la página deja un enlace).
 - **Ajustes → Edificios y Mapeo:** desde la v7 exige `habitaciones.gestionar_edificios` (antes alcanzaba con
   `habitaciones.ver_todas`, así que Recepción la veía y podía crear y borrar edificios).
 - **Detalle de la pieza:** tarjeta verde o roja con la última revisión (con `vigente`). Solo con
   `habitaciones.ver_todas`. Un NO vigente sobre una pieza aprobada trae «Re-limpiar» (o «Cambiar quién la re-limpia»)
   para quien puede asignar. Desde la v7 el detalle dice «Asignada hoy a …» en vez de «pendiente de asignación»
   cuando la pieza está en la cola de otra persona.
-- **Reportes → Inspección pre-entrega (Recepción):** Revisadas / Aprobadas (SÍ) / No aprobadas (NO), NO por motivo e
-  historial (máx. 500 filas). Mismo período y hotel que los KPIs; no cambia los indicadores.
+- **Reportes → pestaña «Recepción» → Inspección pre-entrega:** Revisadas / Aprobadas (SÍ) / No aprobadas (NO), «Por
+  recepcionista», NO por motivo e historial (máx. 500 filas). Mismo período y hotel que el resto de las pestañas; no
+  cambia los indicadores. Desde la v7.2 Reportes se ordena en pestañas y esta sección vive en la suya.
 - **Reportes → Supervisora · Inspección** y **Resumen mensual de inspecciones** (y la pestaña «Supervisores» del
   Excel): columna «Recepción», aprobadas en verde / no aprobadas en rojo (§3b).
 - **Vista guiada:** recorrido «Inspeccionar la pieza» en Habitaciones (solo para quien inspecciona, bandera
-  `inspecciona_entrega`), la pantalla `ajustes.revision_entrega` y un paso en Reportes → «Inspecciones y entregas».
+  `inspecciona_entrega`), la pantalla `ajustes.revision_entrega` y, desde la v7.2, el recorrido «Recepción y
+  pre-entrega» de Reportes (antes era un paso de «Inspecciones y entregas»).
 
 ## 5. Permisos
 
 `revision_entrega.registrar` (Recepción), `revision_entrega.configurar` (Supervisora) y
 `habitaciones.gestionar_edificios` (Supervisora; en prod, todo rol que tenía `ver_todas` menos Recepción). Admin
 tiene los tres. «Re-limpiar» no tiene permiso propio: es una asignación (`asignaciones.asignar_manual`, y
-`asignaciones.reordenar_cola_trabajador` para la prioridad). Ver [roles-permisos.md](roles-permisos.md). Endpoints en
+`asignaciones.reordenar_cola_trabajador` para la prioridad). Los motivos de un NO se editan con `listas.editar`
+(v7.3). Ver [roles-permisos.md](roles-permisos.md). Endpoints en
 [api-endpoints.md](api-endpoints.md) §19.
 
 ## 6. Pendientes y límites conocidos

@@ -11,6 +11,9 @@
  * Al crearse, el propio modal muestra la confirmación (número de ticket y fotos que no
  * subieron) hasta que la persona toca «Listo», y emite 'ticket-creado' con el ticket como
  * detail para que la página consumidora refresque sus listas.
+ *
+ * v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el problema se elige de la lista
+ * «ticket_tipo» (Ajustes → Checklists y listas) en vez de describirlo; su nombre es el título.
  */
 // Asignar de inmediato al crear: mismo permiso que ya gatea /asignar (panel "Asignar
 // responsable" de tickets.php) y el mismo componente se usa en toda la app (aquí y en
@@ -113,35 +116,29 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                     </template>
                 </div>
 
-                <!-- Descripción -->
+                <!-- Tipo de problema (v7.4, gerencia 10/10/2026: sin cuadros de texto). Lista «ticket_tipo» de
+                     Ajustes → Checklists y listas; su nombre es el título del ticket. La foto lo complementa. -->
                 <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Descripción del problema *</label>
-                        <template x-if="soportaDictado">
-                            <button type="button"
-                                    @click="toggleDictado()"
-                                    :aria-pressed="grabando"
-                                    :aria-label="grabando ? 'Detener dictado' : 'Dictar descripción por voz'"
-                                    class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition"
-                                    :class="grabando ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 animate-pulse' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
-                                <!-- SVG inline (no data-lucide): lucide.createIcons() reemplaza el nodo <i> por un
-                                     <svg> nuevo y Alpine pierde la referencia, dejando iconos huérfanos al alternar. -->
-                                <svg x-show="!grabando" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="9" y="2" width="6" height="13" rx="3"></rect>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                                    <path d="M12 19v3"></path>
-                                </svg>
-                                <svg x-show="grabando" x-cloak xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24"
-                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                                </svg>
+                    <p class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tipo de problema *</p>
+                    <template x-if="tiposCargando && tipos.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Cargando tipos...</p>
+                    </template>
+                    <template x-if="tiposError">
+                        <p class="text-sm text-red-600 dark:text-red-400" x-text="tiposError"></p>
+                    </template>
+                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de problema">
+                        <template x-for="t in tipos" :key="t.id">
+                            <button type="button" role="radio" :aria-checked="form.tipoId === t.id ? 'true' : 'false'"
+                                    @click="form.tipoId = t.id" :disabled="enviando"
+                                    :class="form.tipoId === t.id
+                                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    class="min-h-[48px] rounded-xl border-2 px-3 text-sm font-medium text-left">
+                                <span x-text="t.nombre"></span>
                             </button>
                         </template>
                     </div>
-                    <textarea x-model="form.descripcion" rows="4" maxlength="500" required
-                              placeholder="Cuéntanos qué pasa..."
-                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm"></textarea>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si no está en la lista, elige «Otro» y agrega una foto.</p>
                 </div>
 
                 <!-- Prioridad (opcional, solo quien tiene tickets.editar_prioridad) -->

@@ -402,9 +402,10 @@ final class Tours
                 'recorridos' => [
 
                     // ── 1. El corazón de la pantalla: los 3 veredictos. ──
+                    // v2 (v7.3): sin comentario escrito; observación = casillas, rechazo = motivo de la lista.
                     [
                         'id'       => 'veredicto',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Dar el veredicto',
                         'pregunta' => '¿Aprobar, con obs. o rechazar?',
                         'requiere' => [],
@@ -417,7 +418,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
                                 'titulo' => 'Con observación no es rechazar',
-                                'texto'  => '«Con observación» deja la pieza limpia igual, con una nota; «Rechazar» la manda de vuelta a sucia para re-limpiarla.',
+                                'texto'  => '«Con observación» deja la pieza limpia igual: la observación son las casillas que desmarcas. «Rechazar» la manda de vuelta a sucia, con un motivo de la lista.',
                             ],
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
@@ -430,7 +431,7 @@ final class Tours
                     // ── 2. El checklist ejecutado (ver + desmarcar). ──
                     [
                         'id'       => 'checklist',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Revisar lo hecho',
                         'pregunta' => '¿Cómo marco lo que quedó mal?',
                         'requiere' => [],
@@ -438,7 +439,14 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="aud2.checklist"]',
                                 'titulo' => 'Lo que marcó el trabajador',
-                                'texto'  => 'Acá ves lo que el trabajador marcó. En «con observación» o «rechazo», desmarca los ítems que quedaron mal antes de confirmar.',
+                                'texto'  => 'Acá ves lo que el trabajador marcó. En «con observación» o «rechazo», desmarca los ítems que quedaron mal: en la observación, esas casillas son la observación.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="aud2.motivo"]',
+                                'titulo' => 'El motivo del rechazo',
+                                'modo'   => 'dialogo',
+                                'abrir'  => 'Toca «Rechazar» y la ayuda sigue sola.',
+                                'texto'  => 'Al rechazar eliges el motivo de la lista, sin escribir. Las opciones se editan en Ajustes → Checklists y listas.',
                             ],
                         ],
                     ],
@@ -1161,61 +1169,73 @@ final class Tours
             'reportes' => [
                 'nombre' => 'Reportes y KPIs',
                 'capacidad' => 'reportes.ver',
+                // v7.2: la pantalla se ordena en 4 pestañas (Trabajadores, Supervisoras, Recepción, Mensual), un
+                // recorrido por pestaña. El contenido de cada pestaña existe solo con ella abierta (x-if): sus pasos
+                // van en modo 'dialogo' — la ayuda mira, no toca — y esperan a que la persona toque la pestaña.
                 'recorridos' => [
                     [
-                        'id' => 'filtrar', 'v' => 2,
-                        'titulo' => 'Leer los indicadores',
-                        'pregunta' => '¿Cómo veo los KPIs y la ficha del período?',
+                        'id' => 'trabajadores', 'v' => 3,
+                        'titulo' => 'Indicadores de trabajadores',
+                        'pregunta' => '¿Cómo veo los KPIs y la ficha de cada trabajadora?',
                         'requiere' => [],
                         'pasos' => [
+                            ['sel' => '[data-tour="rep.pestanas"]', 'titulo' => 'Cuatro pestañas',
+                             'texto' => 'Reportes se ordena en Trabajadores, Supervisoras, Recepción y Mensual. Cada pestaña carga solo lo suyo y la elegida se mantiene aunque recargues la página.'],
                             ['sel' => '[data-tour="rep.filtros"]', 'titulo' => 'Elige período y hotel',
-                             'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango «Desde»–«Hasta». Los selectores de hotel y trabajadora afinan los datos, que se recalculan al elegir.'],
+                             'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango. El hotel vale para todas las pestañas y la trabajadora afina solo esta.'],
                             ['sel' => '[data-tour="rep.kpis"]', 'titulo' => 'Los KPIs del equipo',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Trabajadores» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta resume un indicador del período: tiempo promedio, tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
                             ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
                              'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
                             ['sel' => '[data-tour="rep.ficha"]', 'titulo' => 'La ficha del trabajador',
                              'texto' => 'Por persona: lo que quedó bien, separando lo inspeccionado (A) de lo que nadie inspeccionó (B, cuenta igual a su favor), lo asignado y sus porcentajes. El color la compara con el grupo (amarillo se aleja, rojo lejos).'],
+                        ],
+                    ],
+                    [
+                        'id' => 'supervisoras', 'v' => 1,
+                        'titulo' => 'Supervisoras e inspección',
+                        'pregunta' => '¿Cómo va la inspección y qué quedó pendiente?',
+                        'requiere' => [],
+                        'pasos' => [
                             // Solo quien tiene reportes.ver_supervisoras ve esta sección (privacidad jerárquica de
                             // tiempos): la vista emite la bandera ve_supervisoras en data-vg-context.
                             ['sel' => '[data-tour="rep.supervisora"]', 'titulo' => 'La supervisora y su sección',
                              'requiere' => ['ve_supervisoras'],
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',
                              'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, tiempo por inspección y aporte. Lo aprobado solo por el sistema no cuenta.'],
+                            // También lleva 'abrir': si el paso anterior se filtra por permiso, este pasa a ser el primero.
+                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',
+                             'texto' => 'Este panel lista, por turno mañana y tarde, las piezas limpiadas hoy que nadie inspeccionó: sin veredicto o aprobadas solo por el sistema. Cada noche se envía por correo a los administradores.'],
                         ],
                     ],
                     [
-                        'id' => 'descargar', 'v' => 2,
-                        'titulo' => 'Descargar los reportes',
-                        'pregunta' => '¿Cómo exporto los datos a una planilla?',
+                        'id' => 'recepcion', 'v' => 1,
+                        'titulo' => 'Recepción y pre-entrega',
+                        'pregunta' => '¿Qué revisó Recepción antes de entregar?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
-                             'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores y de supervisores), los KPIs del período elegido arriba o las inspecciones pendientes de un día.'],
+                            ['sel' => '[data-tour="rep.revision_entrega"]', 'titulo' => 'La inspección pre-entrega',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Recepción» y la ayuda sigue sola.',
+                             'texto' => 'Cuenta los SÍ y los NO que Recepción registró antes de entregar, en el período y hotel elegidos. Abajo van la producción por recepcionista, los NO por motivo y el detalle con foto.'],
                         ],
                     ],
                     [
-                        'id' => 'mensuales', 'v' => 2,
+                        'id' => 'mensuales', 'v' => 3,
                         'titulo' => 'Consultar los resúmenes',
                         'pregunta' => '¿Cómo veo los totales de cada mes?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
-                             'texto' => 'Elige un mes y verás por trabajador las habitaciones limpiadas y las que quedaron bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Mensual» y la ayuda sigue sola.',
+                             'texto' => 'Elige el mes arriba y verás por trabajador lo limpiado y lo que quedó bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
                              'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó, cómo quedaron (aprobadas, con observación o rechazadas) y cuántas casillas del checklist desmarcó.'],
-                        ],
-                    ],
-                    [
-                        // v3 (v7): suma la sección «Inspección pre-entrega» (la pantalla ya tiene 4 recorridos, el tope).
-                        'id' => 'pendientes', 'v' => 3,
-                        'titulo' => 'Inspecciones y entregas',
-                        'pregunta' => '¿Qué quedó sin inspeccionar o sin entregar?',
-                        'requiere' => [],
-                        'pasos' => [
-                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
-                             'texto' => 'Este panel lista, por turno mañana y tarde, las piezas limpiadas hoy que nadie inspeccionó: sin veredicto o aprobadas solo por el sistema. Cada noche se envía por correo a los administradores.'],
-                            ['sel' => '[data-tour="rep.revision_entrega"]', 'titulo' => 'La inspección pre-entrega',
-                             'texto' => 'Cuenta los SÍ y los NO que Recepción registró antes de entregar, en el período y hotel elegidos. Abajo van los NO por motivo y el detalle con observaciones y foto.'],
+                            ['sel' => '[data-tour="rep.recepcion_mensual"]', 'titulo' => 'Recepción en el mes',
+                             'texto' => 'Arriba el total de inspecciones pre-entrega del mes y abajo cuántas hizo cada recepcionista, una por limpieza. El SÍ y el NO están en la pestaña Recepción.'],
+                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
+                             'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores, supervisores y Recepción), los KPIs del período o las inspecciones pendientes de un día.'],
                         ],
                     ],
                 ],
@@ -1228,17 +1248,14 @@ final class Tours
                 'capacidad' => 'revision_entrega.configurar',
                 'recorridos' => [
                     [
-                        'id' => 'configurar', 'v' => 1,
+                        // v2 (v7.3): los motivos de un NO pasaron a Ajustes → Checklists y listas (recorrido «listas»).
+                        'id' => 'configurar', 'v' => 2,
                         'titulo' => 'Configurar el NO',
                         'pregunta' => '¿Qué pasa cuando Recepción marca NO?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rev.interruptor"]', 'titulo' => 'Elige qué hace un NO',
                              'texto' => 'Con «Solo avisar», la pieza no cambia de estado y la supervisora decide. Con «Devolver a limpieza», si estaba aprobada vuelve a sucia y se avisa a Cloudbeds.'],
-                            ['sel' => '[data-tour="mot.nuevo"]', 'titulo' => 'Agrega un motivo',
-                             'texto' => 'Escribe la razón tal como la verá Recepción y toca «Agregar». Aparece en la lista de motivos cuando Recepción marca NO en la inspección.'],
-                            ['sel' => '[data-tour="mot.lista"]', 'titulo' => 'Renombra o desactiva',
-                             'texto' => 'El lápiz cambia el nombre y el interruptor lo desactiva. Un motivo inactivo deja de aparecer en el NO, pero el historial lo conserva.'],
                         ],
                     ],
                 ],
@@ -1295,38 +1312,64 @@ final class Tours
                 'nombre' => 'Editor de checklists',
                 'capacidad' => 'checklists.editar',
                 'recorridos' => [
+                    // v2 (v7.3): la página tiene dos pestañas y el contenido de cada una existe solo con ella
+                    // abierta (x-if): el primer paso espera en modo 'dialogo' a que se toque «Checklists».
                     [
-                        'id' => 'editar', 'v' => 1,
+                        'id' => 'editar', 'v' => 2,
                         'titulo' => 'Editar el checklist',
                         'pregunta' => '¿Cómo cambio los ítems y créditos de un tipo?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cada tipo, su checklist',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta es un tipo de habitación con sus ítems y créditos. Al tocar «Editar checklist» se abre el editor para agregar, quitar y reordenar ítems, y ponerles créditos.'],
                             ['sel' => '[data-tour="chk.intro"]', 'titulo' => 'Qué ítems dan créditos',
                              'texto' => 'Solo los ítems marcados «Obligatorio» suman créditos cuando el trabajador los completa. Los opcionales no dan créditos, así que el total premia lo que de verdad importa.'],
                         ],
                     ],
                     [
-                        'id' => 'por-hotel', 'v' => 1,
+                        'id' => 'por-hotel', 'v' => 2,
                         'titulo' => 'Separar por hotel',
                         'pregunta' => '¿Cómo le doy su propio checklist a cada hotel?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.por-hotel"]', 'titulo' => 'Un checklist por hotel',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'Al activar «Separar checklists por hotel», cada hotel puede tener su propia versión de un tipo; si no la tiene, usa la compartida. Aparece un selector «Compartido» y un botón por hotel para elegir cuál editas.'],
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Cambios solo de ese hotel',
                              'texto' => 'Con un hotel elegido, la tarjeta dice «Personalizar» cuando ese tipo todavía usa el compartido. Al guardar ahí, se crea o actualiza solo la versión de ese hotel; la compartida y la del otro hotel no cambian.'],
                         ],
                     ],
                     [
-                        'id' => 'ver-versiones', 'v' => 1,
+                        'id' => 'ver-versiones', 'v' => 2,
                         'titulo' => 'Ver versiones pasadas',
                         'pregunta' => '¿Dónde veo las versiones pasadas de un checklist?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="chk.tarjetas"]', 'titulo' => 'Abrir el historial',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Checklists» y la ayuda sigue sola.',
                              'texto' => 'El botón «Historial» de cada tarjeta abre las versiones anteriores del checklist, de solo lectura. No se pueden editar porque los reportes de días ya cerrados se calculan con ellas.'],
+                        ],
+                    ],
+                    [
+                        // v7.3 (gerencia, 10/10/2026): listas de selección, sin cuadros de texto.
+                        'id' => 'listas', 'v' => 1,
+                        'capacidad' => 'listas.editar',
+                        'titulo' => 'Listas para elegir',
+                        'pregunta' => '¿Cómo cambio las opciones de rechazar o saltar?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Dos pestañas',
+                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen en vez de escribir: rechazar, reasignar, saltar, el NO de Recepción, el mensaje a la mucama y los tickets.'],
+                            ['sel' => '[data-tour="lst.tarjetas"]', 'titulo' => 'Una tarjeta por acción',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Listas» y la ayuda sigue sola.',
+                             'texto' => 'Cada tarjeta dice quién usa la lista y cuándo, y cuántas opciones tiene activas. Tócala para editarla.'],
+                            ['sel' => '[data-tour="lst.opciones"]', 'titulo' => 'Ordena, renombra o apaga',
+                             'modo' => 'dialogo', 'abrir' => 'Abre una lista y la ayuda sigue sola.',
+                             'texto' => 'Las flechas cambian el orden, el lápiz el nombre y el interruptor apaga la opción. Una opción apagada sale de la lista pero queda en el historial, y cada lista conserva al menos una.'],
+                            ['sel' => '[data-tour="lst.nueva"]', 'titulo' => 'Agrega una opción',
+                             'modo' => 'dialogo',
+                             'texto' => 'Escribe la opción tal como la verá quien elige y toca «Agregar». Abajo, «Así lo ve» muestra los botones en el orden en que aparecen.'],
                         ],
                     ],
                 ],

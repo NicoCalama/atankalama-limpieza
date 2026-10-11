@@ -196,15 +196,13 @@ En la esquina superior derecha, el icono 🔔 muestra:
 
 ### Reportes Mensuales
 
-En la sección **"Reportes"**:
+En **"Reportes"**, pestaña **"Mensual"** (desde la v7.2 Reportes se ordena en cuatro pestañas):
 
-1. **Resumen mensual por trabajador**: ve cuántas habitaciones limpió cada trabajador en el mes + créditos/bonificaciones
-   - Selecciona el mes y hotel
-   - Puedes **descargar en CSV** (botón "Exportar")
-
-2. **Resumen de auditorías**: ve cuántas auditadas hizo cada supervisora/recepcionista, desglosadas por veredicto (aprobadas, con observación, rechazadas)
-   - Selecciona el mes y hotel
-   - Puedes **descargar en CSV** (botón "Exportar")
+1. Elige el **mes** y el **hotel** arriba: valen para los dos resúmenes.
+2. **Resumen mensual por trabajador**: cuántas habitaciones limpió cada trabajador en el mes, sus días, el bono de aseo de RRHH y sus créditos.
+3. **Resumen mensual de inspecciones**: cuántas inspecciones hizo cada supervisora, desglosadas por veredicto (aprobadas, con observación, rechazadas), y su calidad según Recepción.
+4. **Inspección pre-entrega del mes**: el total de inspecciones que hizo Recepción en el mes y, debajo, cuántas hizo cada recepcionista.
+5. Para bajarlo, usa **"Exportar Excel"** arriba a la derecha → «Resumen mensual» (un Excel con las hojas Trabajadores, Supervisores y Recepción).
 
 ---
 
@@ -389,18 +387,14 @@ En **Ajustes** → **Logs**:
 
 ### Reportes
 
-En **Reportes**:
+En **Reportes** hay cuatro pestañas (v7.2). La elegida se mantiene si recargas la página:
 
-1. **KPIs (Key Performance Indicators)**:
-   - Tiempo promedio de limpieza por trabajador
-   - Tasa de rechazo de auditoría
-   - Habitaciones por turno
-   - Filtrar por fecha, hotel, trabajador
-   - Descargar en CSV
+1. **Trabajadores**: KPIs del equipo (tiempo promedio, rechazo, eficiencia, créditos…), detalle por trabajadora y ficha de KPIs. Filtra por período, hotel y trabajadora.
+2. **Supervisoras**: «Supervisora · Inspección» (cobertura, rechazo, por turno y por inspectora, con su calidad según Recepción) e «Inspecciones pendientes al corte» de un día.
+3. **Recepción**: la inspección pre-entrega (SÍ / NO, por recepcionista, NO por motivo e historial).
+4. **Mensual**: resumen mensual por trabajador (con el «Corte hab./día» del bono), resumen mensual de inspecciones e inspección pre-entrega del mes (total y por recepcionista), con un solo selector de mes.
 
-2. **Resumen mensual por trabajador**: ver productividad y créditos del mes
-
-3. **Resumen de auditorías**: ver desempeño de supervisoras/recepción
+Para descargar, el botón **"Exportar Excel"** de arriba abre una ventana con las tres descargas: resumen mensual (Excel), KPIs del período (CSV) e inspecciones pendientes de un día (CSV).
 
 ---
 

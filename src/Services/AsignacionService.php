@@ -221,13 +221,16 @@ final class AsignacionService
         ?int $asignadoPor = null,
         bool $puedeMoverEnProgreso = false,
         ?string $notaAviso = null,
+        ?int $opcionId = null,
     ): Asignacion {
         // Hereda la franja de la asignación que reemplaza: rehacer una pieza es el MISMO ciclo
         // (pieza · fecha · franja) para los KPIs de la ficha (docs/kpis-sueldos.md), no una limpieza nueva.
         $franja = $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
         $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso, $notaAviso);
+        // $opcionId (v7.3): la opción de la lista «reasignar» que eligió la supervisora; null cuando
+        // reasigna el propio sistema (p. ej. «Re-limpiar» de la inspección pre-entrega).
         Logger::audit($asignadoPor, 'asignacion.reasignar', 'asignacion', $asignacion->id, [
-            'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo,
+            'habitacion_id' => $habitacionId, 'usuario_id' => $usuarioId, 'motivo' => $motivo, 'opcion_id' => $opcionId,
         ]);
         return $asignacion;
     }

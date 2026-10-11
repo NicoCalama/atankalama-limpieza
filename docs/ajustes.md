@@ -31,14 +31,52 @@ Header común: breadcrumb "Ajustes > {sección}", botón volver (móvil).
 | Roles y Permisos | `permisos.asignar_a_rol` | §3 |
 | Usuarios | `usuarios.ver` | delega a [usuarios.md](usuarios.md) |
 | Turnos | `turnos.ver` | delega a [turnos.md](turnos.md) |
-| Checklists | `checklists.ver` | delega a [checklist.md](checklist.md) §2 |
-| Inspección pre-entrega | `revision_entrega.configurar` | Qué hace un NO de Recepción (solo avisar / además devolver la pieza aprobada a sucia) y el catálogo de motivos (crear, renombrar, activar/desactivar). Delega a [revision-entrega.md](revision-entrega.md) (v7) |
+| Checklists y listas | `checklists.editar` o `listas.editar` | Dos pestañas (v7.3): «Checklists» delega a [checklist.md](checklist.md) §2; «Listas» = §2.3 |
+| Inspección pre-entrega | `revision_entrega.configurar` | Qué hace un NO de Recepción (solo avisar / además devolver la pieza aprobada a sucia). Desde la v7.3 los motivos se editan en «Checklists y listas». Delega a [revision-entrega.md](revision-entrega.md) (v7) |
 | Edificios y Mapeo | `habitaciones.gestionar_edificios` | Edificios y edificio/piso de cada pieza. Antes de la v7 se veía con `habitaciones.ver_todas` (Recepción incluida) |
 | Colores | `apariencia.editar` | Colores de tarjetas por estado y hotel: la supervisora elige un color base por concepto (key-value en `ui_config`); el backend deriva variantes claro/oscuro (`Helpers\Colores`) y el layout las inyecta como CSS vars para las clases `.chip-estado-*` / `.hotel-accent-*` de custom.css. Endpoints en [api-endpoints.md](api-endpoints.md) |
 | Alertas | `alertas.configurar_umbrales` | §4 |
 | Cloudbeds | `cloudbeds.configurar_credenciales` | §5 |
 | Logs | `logs.ver` | delega a [logs.md](logs.md) |
 | Versiones | (todos) | §8 |
+
+### 2.3 Listas de selección (v7.3)
+
+Pedido de gerencia (10/10/2026): **las acciones no llevan cuadro de texto, se elige de una lista** que se edita
+acá. Pestaña «Listas» de **Ajustes → Checklists y listas** (`views/ajustes/listas-opciones.php`, componente en
+`views/recursos/ajustes/listas-opciones.js`). Permiso **`listas.editar`**, solo Admin por defecto (se puede dar a
+otro rol desde Roles y permisos).
+
+| Lista | Lo ve | Cuándo | Se guarda |
+|---|---|---|---|
+| `rechazo` | Supervisora | Al rechazar en la inspección, además de los ítems fallidos | `auditorias.motivo_id` + el nombre en `comentario` |
+| `reasignar` | Supervisora | Al reasignar una pieza (ventana o arrastre en el tablero) | `audit_log` (`asignacion.reasignar`: `motivo` + `opcion_id`) |
+| `saltar` | Trabajadora | «No puedo limpiarla / terminarla ahora» | `audit_log` y la alerta P2 (`motivo` + `opcion_id`) |
+| `no_recepcion` | Recepción | NO de la inspección pre-entrega | `revisiones_entrega.motivo_id` (tabla propia `motivos_revision_entrega`) |
+| `nota_recepcion` (v7.4) | Recepción | Mensaje a la mucama (detalle de la pieza y menú de Habitaciones); **se pueden elegir varias** | `habitaciones.nota_recepcion` (los nombres unidos con « · ») |
+| `ticket_tipo` (v7.4) | Quien reporta | Tipo de problema al crear un ticket (reemplaza la descripción escrita) | `tickets.tipo_id` + el nombre como título y descripción |
+| `ticket_respuesta` (v7.4) | Quien atiende | Respuesta al comentar un ticket | `tickets_comentarios.comentario` (el nombre) |
+
+**Aprobar con observación no tiene lista:** la observación son las casillas que la supervisora desmarca (decisión
+de Nicolás, 10/10/2026).
+
+**Pantalla:** una tarjeta por lista, agrupadas por quién la usa (Supervisora / Trabajadora / Recepción / Tickets), con «Lo ve:
+… al …» y cuántas opciones activas tiene. Al tocarla se abre el editor (hoja desde abajo en el teléfono): ↑↓ para
+ordenar, lápiz para renombrar, interruptor para activar/desactivar, «+ Agregar» y **«Así lo ve …»**, los botones tal
+como los verá quien elige. Todo se guarda al instante.
+
+**Reglas** (`Services\ListasOpcionesService`):
+- Nombre de 2 a 60 caracteres; sin duplicados en la misma lista (sin distinguir mayúsculas ni tildes, en PHP).
+- **No se borran**: se desactivan y el historial las conserva. Cada lista conserva **al menos una activa**
+  (409 `ULTIMA_OPCION_ACTIVA`).
+- Ordenar exige mandar todas las opciones de la lista (409 `ORDEN_DESACTUALIZADO` si cambió entre medio).
+- Las acciones validan que la opción siga activa (400 `OPCION_INVALIDA`) y sin opción responden 400
+  `OPCION_REQUERIDA`. En el rechazo, saltar y reasignar se guarda el **nombre** tal como se vio: renombrar después
+  no cambia el historial (en el NO de Recepción sí, porque guarda el id, como desde la v7).
+- Ninguna opción tiene comportamiento especial («Huésped no ha salido» hace lo mismo que las demás): todas se
+  pueden renombrar o desactivar.
+
+Endpoints en [api-endpoints.md](api-endpoints.md) §18b.
 
 ---
 

@@ -333,9 +333,10 @@ Dentro del **detalle de la habitación** (no en la Home), mientras la ejecución
 está en progreso, aparece un botón secundario **"No puedo terminar esta ahora"**
 debajo del botón "Habitación terminada". Al tocarlo:
 
-1. Se abre un modal con motivos: "Huésped no ha salido", "Falta un insumo",
-   "Requiere mantención", "Otro" (con texto libre).
-2. Al confirmar → `POST /api/habitaciones/{id}/saltar` con `{ motivo }`.
+1. Se abre un modal con los motivos de la lista «saltar» (v7.3, editable en Ajustes →
+   Checklists y listas; iniciales: "Huésped no ha salido", "Falta un insumo",
+   "Requiere mantención", "Otro"). Sin texto libre (gerencia, 10/10/2026).
+2. Al confirmar → `POST /api/habitaciones/{id}/saltar` con `{ opcion_id }`.
 3. El backend:
    - Cierra (descarta) la ejecución en progreso — el progreso parcial se pierde,
      la próxima vez se empieza de cero.
