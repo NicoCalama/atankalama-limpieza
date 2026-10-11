@@ -2054,3 +2054,38 @@ en la v7, `cf03ce9`).
 pre-entrega» con la tabla «Por recepcionista»; el Excel mensual trae la pestaña «Recepción».
 
 **Vuelta atrás:** subir `build/limpieza-v71-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.26 Release "Reportes en pestañas" → v7.2
+
+Pedido de Nicolás (10/10/2026): «la sección Reportes creció mucho; la vamos a dividir en pestañas dedicadas:
+trabajadores, supervisoras, recepción y reportes mensuales». **Decisiones (plan aprobado el 10/10):**
+
+- **Cuatro pestañas** con los mismos bloques de antes, sin cambiar su contenido: **Trabajadores** (8 tarjetas de KPI,
+  detalle por trabajadora, ficha) · **Supervisoras** («Supervisora · Inspección», que sigue exigiendo
+  `reportes.ver_supervisoras`, e «Inspecciones pendientes al corte») · **Recepción** (inspección pre-entrega) ·
+  **Mensual** (resumen por trabajador y resumen de inspecciones).
+- **Carga perezosa:** cada pestaña pide sus datos al abrirse; un cambio de filtro recarga solo la abierta. Antes la
+  pantalla lanzaba 6 consultas pesadas al entrar.
+- **La pestaña va en la URL** (`/reportes#mensual`), Trabajadores por defecto. **Un solo mes** en Mensual para los dos
+  resúmenes (antes cada uno tenía el suyo); es el que propone el Excel.
+- **Vista guiada:** un recorrido por pestaña. Los pasos de una pestaña cerrada usan el modo «diálogo» del motor (la
+  franja pide tocar la pestaña y la ayuda sigue sola); el motor ahora también lleva a la vista el ancla de un
+  diálogo (`vista-guiada.js`, función `llevarAVista`).
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin cambios en los cron. Sin permisos nuevos. Backend sin cambios (mismos
+endpoints).
+
+**ZIP** `build/limpieza-v72-delta.zip`, con la fila de la v7.2 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0):
+- `limpieza/app_core/`: `views/reportes.php`, `src/Support/Tours.php`, `CHANGELOG.md` y
+  `public/assets/vista-guiada/vista-guiada.js` (la copia de `app_core`, §10).
+- **Docroot** `limpieza/assets/vista-guiada/vista-guiada.js` (la que sirve el navegador; `layout.php` le pone
+  `?v=filemtime`, así que no hace falta tocar `sw.js`).
+
+Vuelta atrás: `build/limpieza-v72-vuelta-atras.zip` (los mismos archivos en la v7.1, `4d5a48d`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:** badge **v7.2** (incógnito), `/api/health` 200, y en Reportes (Admin): se ven las 4 pestañas; cada una
+muestra sus bloques; recargar con `#mensual` abre Mensual; el «?» de Reportes ofrece los 4 recorridos.
+
+**Vuelta atrás:** subir `build/limpieza-v72-vuelta-atras.zip`. No hay datos que deshacer.

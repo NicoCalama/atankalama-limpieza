@@ -1161,61 +1161,71 @@ final class Tours
             'reportes' => [
                 'nombre' => 'Reportes y KPIs',
                 'capacidad' => 'reportes.ver',
+                // v7.2: la pantalla se ordena en 4 pestañas (Trabajadores, Supervisoras, Recepción, Mensual), un
+                // recorrido por pestaña. El contenido de cada pestaña existe solo con ella abierta (x-if): sus pasos
+                // van en modo 'dialogo' — la ayuda mira, no toca — y esperan a que la persona toque la pestaña.
                 'recorridos' => [
                     [
-                        'id' => 'filtrar', 'v' => 2,
-                        'titulo' => 'Leer los indicadores',
-                        'pregunta' => '¿Cómo veo los KPIs y la ficha del período?',
+                        'id' => 'trabajadores', 'v' => 3,
+                        'titulo' => 'Indicadores de trabajadores',
+                        'pregunta' => '¿Cómo veo los KPIs y la ficha de cada trabajadora?',
                         'requiere' => [],
                         'pasos' => [
+                            ['sel' => '[data-tour="rep.pestanas"]', 'titulo' => 'Cuatro pestañas',
+                             'texto' => 'Reportes se ordena en Trabajadores, Supervisoras, Recepción y Mensual. Cada pestaña carga solo lo suyo y la elegida se mantiene aunque recargues la página.'],
                             ['sel' => '[data-tour="rep.filtros"]', 'titulo' => 'Elige período y hotel',
-                             'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango «Desde»–«Hasta». Los selectores de hotel y trabajadora afinan los datos, que se recalculan al elegir.'],
+                             'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango. El hotel vale para todas las pestañas y la trabajadora afina solo esta.'],
                             ['sel' => '[data-tour="rep.kpis"]', 'titulo' => 'Los KPIs del equipo',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Trabajadores» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta resume un indicador del período: tiempo promedio, tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
                             ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
                              'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
                             ['sel' => '[data-tour="rep.ficha"]', 'titulo' => 'La ficha del trabajador',
                              'texto' => 'Por persona: lo que quedó bien, separando lo inspeccionado (A) de lo que nadie inspeccionó (B, cuenta igual a su favor), lo asignado y sus porcentajes. El color la compara con el grupo (amarillo se aleja, rojo lejos).'],
+                        ],
+                    ],
+                    [
+                        'id' => 'supervisoras', 'v' => 1,
+                        'titulo' => 'Supervisoras e inspección',
+                        'pregunta' => '¿Cómo va la inspección y qué quedó pendiente?',
+                        'requiere' => [],
+                        'pasos' => [
                             // Solo quien tiene reportes.ver_supervisoras ve esta sección (privacidad jerárquica de
                             // tiempos): la vista emite la bandera ve_supervisoras en data-vg-context.
                             ['sel' => '[data-tour="rep.supervisora"]', 'titulo' => 'La supervisora y su sección',
                              'requiere' => ['ve_supervisoras'],
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',
                              'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, tiempo por inspección y aporte. Lo aprobado solo por el sistema no cuenta.'],
+                            // También lleva 'abrir': si el paso anterior se filtra por permiso, este pasa a ser el primero.
+                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',
+                             'texto' => 'Este panel lista, por turno mañana y tarde, las piezas limpiadas hoy que nadie inspeccionó: sin veredicto o aprobadas solo por el sistema. Cada noche se envía por correo a los administradores.'],
                         ],
                     ],
                     [
-                        'id' => 'descargar', 'v' => 2,
-                        'titulo' => 'Descargar los reportes',
-                        'pregunta' => '¿Cómo exporto los datos a una planilla?',
+                        'id' => 'recepcion', 'v' => 1,
+                        'titulo' => 'Recepción y pre-entrega',
+                        'pregunta' => '¿Qué revisó Recepción antes de entregar?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
-                             'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores y de supervisores), los KPIs del período elegido arriba o las inspecciones pendientes de un día.'],
+                            ['sel' => '[data-tour="rep.revision_entrega"]', 'titulo' => 'La inspección pre-entrega',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Recepción» y la ayuda sigue sola.',
+                             'texto' => 'Cuenta los SÍ y los NO que Recepción registró antes de entregar, en el período y hotel elegidos. Abajo van la producción por recepcionista, los NO por motivo y el detalle con foto.'],
                         ],
                     ],
                     [
-                        'id' => 'mensuales', 'v' => 2,
+                        'id' => 'mensuales', 'v' => 3,
                         'titulo' => 'Consultar los resúmenes',
                         'pregunta' => '¿Cómo veo los totales de cada mes?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
-                             'texto' => 'Elige un mes y verás por trabajador las habitaciones limpiadas y las que quedaron bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Mensual» y la ayuda sigue sola.',
+                             'texto' => 'Elige el mes arriba y verás por trabajador lo limpiado y lo que quedó bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
                              'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó, cómo quedaron (aprobadas, con observación o rechazadas) y cuántas casillas del checklist desmarcó.'],
-                        ],
-                    ],
-                    [
-                        // v3 (v7): suma la sección «Inspección pre-entrega» (la pantalla ya tiene 4 recorridos, el tope).
-                        'id' => 'pendientes', 'v' => 3,
-                        'titulo' => 'Inspecciones y entregas',
-                        'pregunta' => '¿Qué quedó sin inspeccionar o sin entregar?',
-                        'requiere' => [],
-                        'pasos' => [
-                            ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
-                             'texto' => 'Este panel lista, por turno mañana y tarde, las piezas limpiadas hoy que nadie inspeccionó: sin veredicto o aprobadas solo por el sistema. Cada noche se envía por correo a los administradores.'],
-                            ['sel' => '[data-tour="rep.revision_entrega"]', 'titulo' => 'La inspección pre-entrega',
-                             'texto' => 'Cuenta los SÍ y los NO que Recepción registró antes de entregar, en el período y hotel elegidos. Abajo van los NO por motivo y el detalle con observaciones y foto.'],
+                            ['sel' => '[data-tour="rep.exportar"]', 'titulo' => 'Un solo botón para descargar',
+                             'texto' => '«Exportar Excel» abre una ventana para elegir qué bajar: el resumen mensual (con pestañas de trabajadores, supervisores y Recepción), los KPIs del período o las inspecciones pendientes de un día.'],
                         ],
                     ],
                 ],

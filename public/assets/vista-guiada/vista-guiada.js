@@ -389,8 +389,10 @@
             // diálogo seguidos), enganchamos directo; si no, mostramos la
             // franja y esperamos a que el ancla aparezca (por el hook de
             // Livewire o el observador de respaldo).
-            if (document.querySelector(paso.sel)) {
+            var yaVisible = document.querySelector(paso.sel);
+            if (yaVisible) {
                 mostrarVelo();
+                llevarAVista(yaVisible);
                 dibujarCaja(paso, false);
                 reposicionar();
                 return;
@@ -438,6 +440,7 @@
             esperandoDialogo = false;
             if (franja) { franja.remove(); franja = null; }
             mostrarVelo();
+            llevarAVista(elx);
             dibujarCaja(paso, false);
             reposicionar();
             return true;
@@ -451,6 +454,12 @@
     }
     function limpiarObservador() {
         if (observadorDialogo) { observadorDialogo.disconnect(); observadorDialogo = null; }
+    }
+    // El ancla de un «diálogo» también puede ser una pestaña recién abierta (Reportes, v7.2) cuyo
+    // contenido quedó fuera de la pantalla: se lleva a la vista igual que un paso normal.
+    function llevarAVista(elx) {
+        try { elx.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+        setTimeout(reposicionar, 260); // deja terminar el scroll suave antes de medir
     }
 
     function mostrarFranja(paso) {

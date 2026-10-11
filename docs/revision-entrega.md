@@ -189,12 +189,14 @@ re-limpieza, quien la pidió). DDL en
   `habitaciones.ver_todas`. Un NO vigente sobre una pieza aprobada trae «Re-limpiar» (o «Cambiar quién la re-limpia»)
   para quien puede asignar. Desde la v7 el detalle dice «Asignada hoy a …» en vez de «pendiente de asignación»
   cuando la pieza está en la cola de otra persona.
-- **Reportes → Inspección pre-entrega (Recepción):** Revisadas / Aprobadas (SÍ) / No aprobadas (NO), NO por motivo e
-  historial (máx. 500 filas). Mismo período y hotel que los KPIs; no cambia los indicadores.
+- **Reportes → pestaña «Recepción» → Inspección pre-entrega:** Revisadas / Aprobadas (SÍ) / No aprobadas (NO), «Por
+  recepcionista», NO por motivo e historial (máx. 500 filas). Mismo período y hotel que el resto de las pestañas; no
+  cambia los indicadores. Desde la v7.2 Reportes se ordena en pestañas y esta sección vive en la suya.
 - **Reportes → Supervisora · Inspección** y **Resumen mensual de inspecciones** (y la pestaña «Supervisores» del
   Excel): columna «Recepción», aprobadas en verde / no aprobadas en rojo (§3b).
 - **Vista guiada:** recorrido «Inspeccionar la pieza» en Habitaciones (solo para quien inspecciona, bandera
-  `inspecciona_entrega`), la pantalla `ajustes.revision_entrega` y un paso en Reportes → «Inspecciones y entregas».
+  `inspecciona_entrega`), la pantalla `ajustes.revision_entrega` y, desde la v7.2, el recorrido «Recepción y
+  pre-entrega» de Reportes (antes era un paso de «Inspecciones y entregas»).
 
 ## 5. Permisos
 

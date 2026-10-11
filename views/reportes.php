@@ -8,20 +8,21 @@
 ?>
 
 <div x-data="reportes()"
-     x-init="cargar(); cargarMensual(); cargarAudit(); cargarAuditPendientes()"
+     x-init="iniciar()"
+     @hashchange.window="leerPestanaDeUrl()"
      @visibilitychange.window="alVolverVisible()">
 
-    <!-- Header -->
-    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+    <!-- Header + pestañas (v7.2: la pantalla creció a 9 bloques; se ordena en 4 pestañas dedicadas) -->
+    <header class="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 pt-3">
         <div class="flex items-center justify-between max-w-5xl mx-auto gap-3">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
                 <a href="<?= u('/home') ?>" class="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2" aria-label="Volver">
                     <i data-lucide="arrow-left" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
                 </a>
                 <i data-lucide="bar-chart-3" class="w-6 h-6 text-gray-700 dark:text-gray-300 hidden md:block flex-shrink-0"></i>
                 <div class="min-w-0">
                     <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Reportes</h1>
-                    <p class="text-xs text-gray-500 dark:text-gray-400" x-text="subtitulo"></p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="subtituloTxt()"></p>
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
@@ -35,50 +36,80 @@
                 <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
             </div>
         </div>
+
+        <!-- Pestañas: en el teléfono, 4 columnas con el ícono arriba (caben las 4 en 375 px, sin desplazar);
+             desde md, en fila. La elegida queda en la URL (#mensual) para recargar sin perderla. -->
+        <nav class="max-w-5xl mx-auto mt-2 -mb-px grid grid-cols-4 md:flex md:gap-1" role="tablist" aria-label="Secciones de Reportes" data-tour="rep.pestanas">
+            <template x-for="p in pestanas" :key="p.id">
+                <button type="button" role="tab" @click="cambiarPestana(p.id)"
+                        :aria-selected="pestana === p.id ? 'true' : 'false'"
+                        :class="pestana === p.id
+                            ? 'border-blue-600 text-blue-700 dark:text-blue-300'
+                            : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+                        class="min-h-[44px] flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-1.5 px-1 md:px-3 py-1 border-b-2 text-[11px] md:text-sm font-medium whitespace-nowrap transition">
+                    <i :data-lucide="p.icono" class="w-4 h-4 flex-shrink-0"></i>
+                    <span x-text="p.label"></span>
+                </button>
+            </template>
+        </nav>
     </header>
 
     <main class="max-w-5xl mx-auto p-4 pb-24 md:pb-6 space-y-4">
 
-        <!-- Filtros -->
+        <!-- Filtros: cambian según la pestaña. Período (Trabajadores / Supervisoras / Recepción) o mes (Mensual);
+             el hotel es común a todas; la trabajadora solo filtra Trabajadores. -->
         <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4" data-tour="rep.filtros">
 
-            <!-- Presets de período -->
-            <div class="flex flex-wrap gap-2 mb-3">
-                <template x-for="p in presets" :key="p.valor">
-                    <button @click="setPreset(p.valor)"
-                            :class="preset === p.valor
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'"
-                            class="min-h-[36px] px-3 py-1.5 text-sm font-medium rounded-lg transition">
-                        <span x-text="p.label"></span>
-                    </button>
-                </template>
-            </div>
+            <template x-if="pestana !== 'mensual'">
+                <div>
+                    <!-- Presets de período -->
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <template x-for="p in presets" :key="p.valor">
+                            <button @click="setPreset(p.valor)"
+                                    :class="preset === p.valor
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                                    class="min-h-[36px] px-3 py-1.5 text-sm font-medium rounded-lg transition">
+                                <span x-text="p.label"></span>
+                            </button>
+                        </template>
+                    </div>
 
-            <!-- Rango personalizado -->
-            <div x-show="preset === 'personalizado'" x-cloak class="flex gap-2 mb-3">
-                <div class="flex-1">
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
-                    <input type="date" x-model="desde" @change="cargar()"
-                           class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100">
+                    <!-- Rango personalizado -->
+                    <div x-show="preset === 'personalizado'" x-cloak class="flex gap-2 mb-3">
+                        <div class="flex-1">
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
+                            <input type="date" x-model="desde" @change="alCambiarPeriodo()"
+                                   class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
+                            <input type="date" x-model="hasta" @change="alCambiarPeriodo()"
+                                   class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100">
+                        </div>
+                    </div>
                 </div>
-                <div class="flex-1">
-                    <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
-                    <input type="date" x-model="hasta" @change="cargar()"
-                           class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100">
+            </template>
+
+            <!-- Mes de la pestaña Mensual: uno solo para los dos resúmenes -->
+            <template x-if="pestana === 'mensual'">
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <label for="rep-mes" class="text-xs font-medium text-gray-600 dark:text-gray-300">Mes</label>
+                    <input id="rep-mes" type="month" x-model="mes" @change="alCambiarMes()"
+                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                 </div>
-            </div>
+            </template>
 
             <!-- Hotel + Trabajadora -->
             <div class="flex flex-wrap gap-2">
-                <select x-model="hotel" @change="cargar(); cargarMensual(); cargarAudit(); cargarAuditPendientes()"
+                <select x-model="hotel" @change="alCambiarHotel()" aria-label="Hotel"
                         class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
                     <option value="ambos">Ambos hoteles</option>
                     <option value="1_sur">Atankalama</option>
                     <option value="inn">Atankalama INN</option>
                 </select>
 
-                <select x-model="usuarioId" @change="cargar()"
+                <select x-show="pestana === 'trabajadores'" x-model="usuarioId" @change="alCambiarTrabajadora()" aria-label="Trabajadora"
                         class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 flex-1 min-w-[180px]">
                     <option value="">Todas las trabajadoras</option>
                     <template x-for="t in trabajadoras" :key="t.usuario_id">
@@ -86,47 +117,18 @@
                     </template>
                 </select>
 
-                <!-- Refrescar -->
-                <button @click="cargar()" :disabled="cargando"
+                <!-- Refrescar: vuelve a pedir lo de la pestaña abierta -->
+                <button @click="refrescar()" :disabled="cargandoPestana()"
                         class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700
                                hover:bg-gray-200 dark:hover:bg-gray-600 transition"
                         aria-label="Refrescar">
-                    <span :class="cargando ? 'animate-spin' : ''" class="inline-flex">
+                    <span :class="cargandoPestana() ? 'animate-spin' : ''" class="inline-flex">
                         <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
                     </span>
                 </button>
             </div>
         </div>
 
-        <!-- Estado cargando (primera carga) -->
-        <template x-if="cargando && !data">
-            <div class="flex flex-col items-center justify-center py-16 gap-3">
-                <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Calculando KPIs...</p>
-            </div>
-        </template>
-
-        <!-- Error -->
-        <template x-if="error && !data">
-            <div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
-                <i data-lucide="alert-circle" class="w-12 h-12 text-red-500"></i>
-                <p class="text-gray-600 dark:text-gray-400" x-text="error"></p>
-                <button @click="cargar()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-                    Reintentar
-                </button>
-            </div>
-        </template>
-        <!-- Error con datos anteriores en pantalla: no se deja pasar por el período nuevo -->
-        <template x-if="error && data">
-            <div class="flex flex-wrap items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
-                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
-                <p class="text-sm text-red-700 dark:text-red-300 flex-1 min-w-[200px]" x-text="error + ' Los números de abajo son de la consulta anterior.'"></p>
-                <button @click="cargar()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
-            </div>
-        </template>
         <!-- Aviso de una descarga que falló: flotante, para que se vea esté donde esté la pantalla -->
         <template x-if="avisoExport">
             <div role="alert" class="fixed z-50 bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:max-w-md shadow-lg flex flex-wrap items-center gap-3 bg-amber-50 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
@@ -196,7 +198,41 @@
             </div>
         </div>
 
-        <!-- Contenido principal -->
+        <!-- ═══════════════ Pestaña TRABAJADORES ═══════════════ -->
+        <template x-if="pestana === 'trabajadores'">
+        <div class="space-y-4">
+
+        <!-- Estado cargando (primera carga) -->
+        <template x-if="cargando && !data">
+            <div class="flex flex-col items-center justify-center py-16 gap-3">
+                <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Calculando KPIs...</p>
+            </div>
+        </template>
+
+        <!-- Error -->
+        <template x-if="error && !data">
+            <div class="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                <i data-lucide="alert-circle" class="w-12 h-12 text-red-500"></i>
+                <p class="text-gray-600 dark:text-gray-400" x-text="error"></p>
+                <button @click="cargarKpis()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
+                    Reintentar
+                </button>
+            </div>
+        </template>
+        <!-- Error con datos anteriores en pantalla: no se deja pasar por el período nuevo -->
+        <template x-if="error && data">
+            <div class="flex flex-wrap items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
+                <p class="text-sm text-red-700 dark:text-red-300 flex-1 min-w-[200px]" x-text="error + ' Los números de abajo son de la consulta anterior.'"></p>
+                <button @click="cargarKpis()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+            </div>
+        </template>
+
+        <!-- KPIs del equipo + detalle por trabajadora -->
         <template x-if="data">
             <div class="space-y-4">
 
@@ -417,11 +453,20 @@
             </template>
         </section>
 
-        <!-- ═══ Supervisora · Inspección (N1 + N2 + N3) ═══
-             Privacidad jerárquica de tiempos (jefatura, 16/09): nadie ve sus propios tiempos, solo el nivel
-             de arriba. Esta sección (tiempo por auditación de las supervisoras) se renderiza solo con
+        </div>
+        </template>
+        <!-- ═══════════════ fin pestaña TRABAJADORES ═══════════════ -->
+
+        <!-- Privacidad jerárquica de tiempos (jefatura, 16/09): nadie ve sus propios tiempos, solo el nivel
+             de arriba. «Supervisora · Inspección» (tiempo por auditación de las supervisoras) se renderiza solo con
              reportes.ver_supervisoras; el backend tampoco la envía sin el permiso. La bandera gatea el tour. -->
         <div data-vg-context='{"ve_supervisoras": <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>}' hidden></div>
+
+        <!-- ═══════════════ Pestaña SUPERVISORAS ═══════════════ -->
+        <template x-if="pestana === 'supervisoras'">
+        <div class="space-y-4">
+
+        <!-- ═══ Supervisora · Inspección (N1 + N2 + N3) ═══ -->
         <?php if ($usuario->tienePermiso('reportes.ver_supervisoras')): ?>
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.supervisora">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
@@ -578,9 +623,105 @@
         </section>
         <?php endif; ?>
 
-        <!-- Resumen mensual por trabajador (independiente del filtro de arriba) -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">
+        <!-- Auditorías pendientes al corte de las 23:50 (turno mañana/tarde) -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.auditorias_pendientes">
             <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i data-lucide="alarm-clock" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspecciones pendientes al corte</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Sin inspeccionar a tiempo = sin inspección registrada antes de las <strong>23:50</strong> de la fecha elegida.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="date" x-model="auditPendFecha" @change="cargarAuditPendientes()"
+                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
+                    <button @click="cargarAuditPendientes()" :disabled="auditPendCargando"
+                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                            aria-label="Refrescar">
+                        <span :class="auditPendCargando ? 'animate-spin' : ''" class="inline-flex">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
+                        </span>
+                    </button>
+                </div>
+            </header>
+
+            <template x-if="auditPendCargando && !auditPendData">
+                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+            </template>
+
+            <template x-if="auditPendError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="auditPendError"></p>
+                    <button @click="cargarAuditPendientes()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!auditPendError && auditPendData">
+                <div class="p-4 space-y-5">
+                    <template x-for="turno in ['mañana', 'tarde']" :key="turno">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="turnoLabel(turno)"></h3>
+                                <span class="text-xs text-gray-500 dark:text-gray-400"
+                                      x-text="auditPendData.turnos[turno].total + ' limpiadas · ' + auditPendData.turnos[turno].pendientes.length + ' sin inspeccionar a tiempo'"></span>
+                            </div>
+
+                            <template x-if="auditPendData.turnos[turno].pendientes.length === 0">
+                                <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Todo inspeccionado a tiempo.
+                                </p>
+                            </template>
+
+                            <template x-if="auditPendData.turnos[turno].pendientes.length > 0">
+                                <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hotel</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitación</th>
+                                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Nochero</th>
+                                                <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hora término</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                            <template x-for="p in auditPendData.turnos[turno].pendientes" :key="turno + '-' + p.habitacion_id + '-' + p.hora_termino">
+                                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="hotelLabelCodigo(p.hotel_codigo)"></td>
+                                                    <td class="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100" x-text="p.numero"></td>
+                                                    <td class="px-3 py-2 text-center" x-text="p.es_nochero ? 'Sí' : '—'"></td>
+                                                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
+                                                    <td class="px-3 py-2">
+                                                        <span :class="p.estado_auditoria === 'auditada_tarde' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                                              x-text="estadoPendiente(p.estado_auditoria)"></span>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </section>
+
+        </div>
+        </template>
+        <!-- ═══════════════ fin pestaña SUPERVISORAS ═══════════════ -->
+
+        <!-- ═══════════════ Pestaña MENSUAL ═══════════════ -->
+        <template x-if="pestana === 'mensual'">
+        <div class="space-y-4">
+
+        <!-- Resumen mensual por trabajador (mes y hotel de los filtros de la pestaña) -->
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.mensual">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
                     <div class="flex items-center gap-2 min-w-0">
                         <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
@@ -598,17 +739,6 @@
                     <template x-if="corteError">
                         <span class="text-xs text-red-600 dark:text-red-400" x-text="corteError"></span>
                     </template>
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="month" x-model="mensualMes" @change="cargarMensual()"
-                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="cargarMensual()" :disabled="mensualCargando"
-                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                            aria-label="Refrescar">
-                        <span :class="mensualCargando ? 'animate-spin' : ''" class="inline-flex">
-                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
-                        </span>
-                    </button>
                 </div>
             </header>
 
@@ -698,21 +828,10 @@
 
         <!-- Resumen mensual de auditorías por auditor (Supervisora / Recepción) -->
         <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.auditorias">
-            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center gap-2 min-w-0">
                     <i data-lucide="shield-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0"></i>
                     <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual de inspecciones</h2>
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="month" x-model="auditMes" @change="cargarAudit()"
-                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="cargarAudit()" :disabled="auditCargando"
-                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                            aria-label="Refrescar">
-                        <span :class="auditCargando ? 'animate-spin' : ''" class="inline-flex">
-                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
-                        </span>
-                    </button>
                 </div>
             </header>
 
@@ -771,93 +890,13 @@
             </template>
         </section>
 
-        <!-- Auditorías pendientes al corte de las 23:50 (turno mañana/tarde) -->
-        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden" data-tour="rep.auditorias_pendientes">
-            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3 justify-between">
-                <div class="flex items-center gap-2 min-w-0">
-                    <i data-lucide="alarm-clock" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"></i>
-                    <div class="min-w-0">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspecciones pendientes al corte</h2>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                            Sin inspeccionar a tiempo = sin inspección registrada antes de las <strong>23:50</strong> de la fecha elegida.
-                        </p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <input type="date" x-model="auditPendFecha" @change="cargarAuditPendientes()"
-                           class="min-h-[40px] px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200">
-                    <button @click="cargarAuditPendientes()" :disabled="auditPendCargando"
-                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                            aria-label="Refrescar">
-                        <span :class="auditPendCargando ? 'animate-spin' : ''" class="inline-flex">
-                            <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
-                        </span>
-                    </button>
-                </div>
-            </header>
+        </div>
+        </template>
+        <!-- ═══════════════ fin pestaña MENSUAL ═══════════════ -->
 
-            <template x-if="auditPendCargando && !auditPendData">
-                <div class="p-8 text-center text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
-            </template>
-
-            <template x-if="auditPendError">
-                <div class="p-8 text-center">
-                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="auditPendError"></p>
-                    <button @click="cargarAuditPendientes()" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
-                </div>
-            </template>
-
-            <template x-if="!auditPendError && auditPendData">
-                <div class="p-4 space-y-5">
-                    <template x-for="turno in ['mañana', 'tarde']" :key="turno">
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300" x-text="turnoLabel(turno)"></h3>
-                                <span class="text-xs text-gray-500 dark:text-gray-400"
-                                      x-text="auditPendData.turnos[turno].total + ' limpiadas · ' + auditPendData.turnos[turno].pendientes.length + ' sin inspeccionar a tiempo'"></span>
-                            </div>
-
-                            <template x-if="auditPendData.turnos[turno].pendientes.length === 0">
-                                <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Todo inspeccionado a tiempo.
-                                </p>
-                            </template>
-
-                            <template x-if="auditPendData.turnos[turno].pendientes.length > 0">
-                                <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-gray-50 dark:bg-gray-700/50">
-                                            <tr>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hotel</th>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Habitación</th>
-                                                <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Nochero</th>
-                                                <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Hora término</th>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Estado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                                            <template x-for="p in auditPendData.turnos[turno].pendientes" :key="turno + '-' + p.habitacion_id + '-' + p.hora_termino">
-                                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                    <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="hotelLabelCodigo(p.hotel_codigo)"></td>
-                                                    <td class="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100" x-text="p.numero"></td>
-                                                    <td class="px-3 py-2 text-center" x-text="p.es_nochero ? 'Sí' : '—'"></td>
-                                                    <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
-                                                    <td class="px-3 py-2">
-                                                        <span :class="p.estado_auditoria === 'auditada_tarde' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
-                                                              x-text="estadoPendiente(p.estado_auditoria)"></span>
-                                                    </td>
-                                                </tr>
-                                            </template>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-            </template>
-        </section>
+        <!-- ═══════════════ Pestaña RECEPCIÓN ═══════════════ -->
+        <template x-if="pestana === 'recepcion'">
+        <div class="space-y-4">
 
         <!-- Inspección pre-entrega de Recepción (v7, docs/revision-entrega.md). No cambia los KPIs de aseo;
              alimenta la columna «Calidad» de las supervisoras y, desde la v7.1, la producción por
@@ -869,17 +908,10 @@
                     <div class="min-w-0">
                         <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Inspección pre-entrega (Recepción)</h2>
                         <p class="text-xs text-gray-500 dark:text-gray-400">
-                            SÍ / NO que registró Recepción antes de entregar cada pieza. No cambia los indicadores de arriba. Mismo período y hotel que arriba.
+                            SÍ / NO que registró Recepción antes de entregar cada pieza, en el período y hotel elegidos. No cambia los indicadores de las trabajadoras.
                         </p>
                     </div>
                 </div>
-                <button @click="cargarRevisionEntrega()" :disabled="revEntregaCargando"
-                        class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                        aria-label="Refrescar">
-                    <span :class="revEntregaCargando ? 'animate-spin' : ''" class="inline-flex">
-                        <i data-lucide="rotate-cw" class="w-4 h-4 text-gray-600 dark:text-gray-400"></i>
-                    </span>
-                </button>
             </header>
 
             <template x-if="revEntregaCargando && !revEntrega">
@@ -1039,6 +1071,10 @@
             </template>
         </section>
 
+        </div>
+        </template>
+        <!-- ═══════════════ fin pestaña RECEPCIÓN ═══════════════ -->
+
     </main>
 </div>
 
@@ -1048,8 +1084,32 @@ function reportes() {
     var AYUDA_DIAS_TRABAJADOS = 'Días del período en que tuvo al menos una pieza o área común asignada, aunque sea una sola. '
         + 'No cuenta el día si todo lo asignado se retiró sin que lo trabajara (se autocanceló, se sacó del plan o se pasó a otra persona).';
 
+    // v7.2 — qué carga necesita cada pestaña. Las cargas son perezosas: se piden al abrir la pestaña y,
+    // si cambia un filtro, solo se recarga la abierta (las otras quedan «vencidas» hasta que se abran).
+    var VE_SUPERVISORAS = <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>;
+    var CARGAS_POR_PESTANA = {
+        trabajadores: ['kpis', 'ficha'],
+        supervisoras: VE_SUPERVISORAS ? ['ficha', 'pend'] : ['pend'], // la ficha trae la sección de supervisoras
+        recepcion:    ['rev'],
+        mensual:      ['mensual', 'audit'],
+    };
+    var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
     return {
         AYUDA_DIAS: AYUDA_DIAS_TRABAJADOS,
+
+        // DEFAULT APLICADO (aprobado por el usuario, 10/10/2026): la pestaña va en la URL (#mensual) y
+        // Trabajadores es la de entrada; un solo mes para los dos resúmenes mensuales.
+        pestana:  'trabajadores',
+        pestanas: [
+            { id: 'trabajadores', label: 'Trabajadores', icono: 'users' },
+            { id: 'supervisoras', label: 'Supervisoras', icono: 'shield-check' },
+            { id: 'recepcion',    label: 'Recepción',    icono: 'concierge-bell' },
+            { id: 'mensual',      label: 'Mensual',      icono: 'calendar' },
+        ],
+        // true = ya se pidió con los filtros actuales; false = hay que pedirla al abrir su pestaña.
+        vigente: { kpis: false, ficha: false, pend: false, rev: false, mensual: false, audit: false },
+
         data:         null,
         cargando:     false,
         error:        '',   // mensaje del último error de los KPIs ('' = sin error)
@@ -1096,10 +1156,10 @@ function reportes() {
             { clave: 'ritmo',            titulo: 'Ritmo',        fmt: 'ritmo',    cmp: true,  ayuda: 'Créditos de piezas de huésped por hora trabajada en ellas. Alerta hacia los dos lados.' },
         ],
 
-        subtitulo: 'Cargando...',
+        // Mes de la pestaña Mensual (YYYY-MM): lo comparten los dos resúmenes y es el que propone el Excel.
+        mes:               window.hoyServidor().slice(0, 7),
 
-        // Resumen mensual (independiente)
-        mensualMes:        window.hoyServidor().slice(0, 7), // YYYY-MM
+        // Resumen mensual por trabajador
         mensualData:       null,
         mensualCargando:   false,
         mensualError:      '',
@@ -1112,7 +1172,6 @@ function reportes() {
         puedeEditarCorte:  <?= $usuario->tienePermiso('reportes.editar_corte') ? 'true' : 'false' ?>,
 
         // Resumen mensual de auditorías
-        auditMes:        window.hoyServidor().slice(0, 7),
         auditData:       null,
         auditCargando:   false,
         auditError:      '',
@@ -1158,7 +1217,97 @@ function reportes() {
                 var d = new Date(hoyDate); d.setUTCDate(d.getUTCDate() - 29);
                 this.desde = fmt(d); this.hasta = fmt(hoyDate);
             }
-            if (valor !== 'personalizado') this.cargar();
+            if (valor !== 'personalizado') this.alCambiarPeriodo();
+        },
+
+        // ── Pestañas y carga perezosa (v7.2) ───────────────────────────────────
+        iniciar() {
+            this.leerPestanaDeUrl(false);
+            this.asegurar();
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        leerPestanaDeUrl(cargar = true) {
+            var id = (window.location.hash || '').replace('#', '');
+            if (!CARGAS_POR_PESTANA[id] || id === this.pestana) return;
+            this.pestana = id;
+            if (cargar) {
+                this.asegurar();
+                this.$nextTick(() => lucide.createIcons());
+            }
+        },
+
+        // replaceState y no location.hash: cambiar de pestaña no llena el historial (atrás sale de Reportes).
+        cambiarPestana(id) {
+            if (!CARGAS_POR_PESTANA[id]) return;
+            this.pestana = id;
+            try { history.replaceState(null, '', '#' + id); } catch (e) { /* sin historial: igual cambia */ }
+            this.asegurar();
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        invalidar(claves) {
+            claves.forEach(k => { this.vigente[k] = false; });
+        },
+
+        // Pide lo que la pestaña abierta necesita y todavía no está vigente con los filtros actuales.
+        asegurar() {
+            var cargadores = {
+                kpis: () => this.cargarKpis(), ficha: () => this.cargarFicha(), pend: () => this.cargarAuditPendientes(),
+                rev: () => this.cargarRevisionEntrega(), mensual: () => this.cargarMensual(), audit: () => this.cargarAudit(),
+            };
+            (CARGAS_POR_PESTANA[this.pestana] || []).forEach(k => {
+                if (this.vigente[k]) return;
+                this.vigente[k] = true;
+                cargadores[k]();
+            });
+        },
+
+        refrescar() {
+            this.invalidar(CARGAS_POR_PESTANA[this.pestana] || []);
+            this.asegurar();
+        },
+
+        cargandoPestana() {
+            var enCurso = {
+                kpis: this.cargando, ficha: this.fichaCargando, pend: this.auditPendCargando,
+                rev: this.revEntregaCargando, mensual: this.mensualCargando, audit: this.auditCargando,
+            };
+            return (CARGAS_POR_PESTANA[this.pestana] || []).some(k => enCurso[k]);
+        },
+
+        alCambiarPeriodo() {
+            this.invalidar(['kpis', 'ficha', 'rev']);
+            this.asegurar();
+        },
+
+        alCambiarHotel() {
+            this.invalidar(['kpis', 'ficha', 'pend', 'rev', 'mensual', 'audit']);
+            this.asegurar();
+        },
+
+        alCambiarTrabajadora() {
+            this.invalidar(['kpis']); // la trabajadora solo filtra las tarjetas de KPI
+            this.asegurar();
+        },
+
+        alCambiarMes() {
+            this.invalidar(['mensual', 'audit']);
+            this.asegurar();
+        },
+
+        subtituloTxt() {
+            var hotel = this.hotelLabel();
+            if (this.pestana === 'mensual') {
+                var p = (this.mes || '').split('-');
+                return p.length === 2 ? hotel + ' · ' + (MESES[parseInt(p[1], 10) - 1] || p[1]) + ' ' + p[0] : hotel;
+            }
+            // Con una trabajadora filtrada, el subtítulo dice de quién son las tarjetas.
+            var quien = (this.pestana === 'trabajadores' && this.usuarioId) ? ' · ' + (this.usuarioNombre || 'Trabajadora elegida') : '';
+            var rango = this.desde === this.hasta
+                ? this.fmtFecha(this.desde)
+                : this.fmtFecha(this.desde) + ' — ' + this.fmtFecha(this.hasta);
+            return hotel + quien + ' · ' + rango;
         },
 
         // Mensaje amable para una respuesta fallida. Un error NUNCA se muestra como «sin actividad»:
@@ -1169,7 +1318,7 @@ function reportes() {
             return 'No pudimos cargar esta información, intenta de nuevo en un momento.';
         },
 
-        async cargar() {
+        async cargarKpis() {
             var seq = ++this.kpisSeq;
             this.cargando = true;
             this.error    = '';
@@ -1177,8 +1326,6 @@ function reportes() {
                 var elegida = this.trabajadoras.find(t => String(t.usuario_id) === String(this.usuarioId));
                 if (elegida) this.usuarioNombre = elegida.nombre;
             }
-            this.cargarFicha(); // en paralelo, con los mismos filtros; no bloquea los KPIs clásicos
-            this.cargarRevisionEntrega(); // idem: misma fecha y hotel (v7)
             var resp = null;
             try {
                 var params = new URLSearchParams({
@@ -1201,7 +1348,6 @@ function reportes() {
                     }
                     this.data         = json.data;
                     this.trabajadoras = lista;
-                    this.subtitulo    = this.calcSubtitulo();
                 } else {
                     this.error = this.mensajeError(resp, json);
                 }
@@ -1216,8 +1362,8 @@ function reportes() {
         },
 
         async cargarMensual() {
-            // mensualMes viene como 'YYYY-MM'
-            var partes = (this.mensualMes || '').split('-');
+            // mes viene como 'YYYY-MM'
+            var partes = (this.mes || '').split('-');
             if (partes.length !== 2) return;
             var anio = parseInt(partes[0], 10);
             var mes  = parseInt(partes[1], 10);
@@ -1251,7 +1397,7 @@ function reportes() {
         },
 
         async guardarCorte() {
-            var partes = (this.mensualMes || '').split('-');
+            var partes = (this.mes || '').split('-');
             var valor = parseFloat(String(this.corteInput).replace(',', '.'));
             if (partes.length !== 2 || isNaN(valor)) {
                 this.corteError = 'Escribe un número de habitaciones por día.';
@@ -1300,15 +1446,6 @@ function reportes() {
                 : 'Turno tarde (18:00 en adelante)';
         },
 
-        calcSubtitulo() {
-            if (!this.data) return '';
-            var hotelLabel = { ambos: 'Ambos hoteles', '1_sur': 'Atankalama', inn: 'Atankalama INN' }[this.hotel] || 'Ambos hoteles';
-            // Con una trabajadora filtrada, el subtítulo dice de quién son las tarjetas.
-            var quien = this.usuarioId ? ' · ' + (this.usuarioNombre || 'Trabajadora elegida') : '';
-            if (this.desde === this.hasta) return hotelLabel + quien + ' · ' + this.fmtFecha(this.desde);
-            return hotelLabel + quien + ' · ' + this.fmtFecha(this.desde) + ' — ' + this.fmtFecha(this.hasta);
-        },
-
         estadoPendiente(estado) {
             return this.estadosPendiente[estado] || estado;
         },
@@ -1346,7 +1483,7 @@ function reportes() {
         },
 
         abrirExportar() {
-            this.exportarMes   = this.mensualMes;
+            this.exportarMes   = this.mes;
             this.exportarFecha = this.auditPendFecha;
             this.avisoExport   = '';
             this.exportarAbierto = true;
@@ -1398,7 +1535,7 @@ function reportes() {
         },
 
         async cargarAudit() {
-            var partes = (this.auditMes || '').split('-');
+            var partes = (this.mes || '').split('-');
             if (partes.length !== 2) return;
             var anio = parseInt(partes[0], 10);
             var mes  = parseInt(partes[1], 10);
@@ -1589,11 +1726,16 @@ function reportes() {
 
         filtrarPorTrabajadora(uid) {
             this.usuarioId = uid;
-            this.cargar(); // cargar() toma el nombre de la lista actual antes de pedir el período
+            this.alCambiarTrabajadora(); // cargarKpis() toma el nombre de la lista actual antes de pedir el período
         },
 
+        // Al volver a la pestaña del navegador se refresca solo lo que se está mirando; lo demás queda
+        // vencido y se pide al abrir su pestaña (antes se recargaba todo lo del período).
         alVolverVisible() {
-            if (!document.hidden && this.data) this.cargar();
+            // Al abrir la página el navegador también avisa «visible»: si la carga inicial sigue en curso, no se duplica.
+            if (document.hidden || this.cargandoPestana()) return;
+            this.invalidar(['kpis', 'ficha', 'rev', 'pend']);
+            this.asegurar();
         },
 
         tarjetasKpi() {
