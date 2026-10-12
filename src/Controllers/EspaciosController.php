@@ -67,7 +67,7 @@ final class EspaciosController
         }
     }
 
-    /** POST /api/espacios — crear { nombre, hotel, items: [] }. */
+    /** POST /api/espacios — crear { nombre, hotel, items: [], minimo_terminar_min? }. */
     public function crear(Request $request): Response
     {
         $nombre = $request->inputString('nombre');
@@ -76,7 +76,8 @@ final class EspaciosController
         $actorId = $request->usuario?->id;
 
         try {
-            $id = $this->espacios->crear($nombre, $hotel, $items, $actorId);
+            $minimo = $this->minimoDelRequest($request);
+            $id = $this->espacios->crear($nombre, $hotel, $items, $actorId, $minimo);
         } catch (EspacioException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -84,7 +85,7 @@ final class EspaciosController
         return Response::ok(['id' => $id], 201);
     }
 
-    /** PUT /api/espacios/{id} — editar { nombre, items: [] }. */
+    /** PUT /api/espacios/{id} — editar { nombre, items: [], minimo_terminar_min? }. */
     public function editar(Request $request): Response
     {
         $id = $request->rutaInt('id');
@@ -96,7 +97,8 @@ final class EspaciosController
         $actorId = $request->usuario?->id;
 
         try {
-            $this->espacios->editar($id, $nombre, $items, $actorId);
+            $minimo = $this->minimoDelRequest($request);
+            $this->espacios->editar($id, $nombre, $items, $actorId, $minimo);
         } catch (EspacioException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -173,5 +175,22 @@ final class EspaciosController
             }
         }
         return $out;
+    }
+
+    /**
+     * minimo_terminar_min del cuerpo (v7.6): null si no viene (pantalla abierta desde antes), el
+     * entero si es un número entero; cualquier otra cosa es un error. Que esté en la lista lo
+     * valida EspacioService.
+     */
+    private function minimoDelRequest(Request $request): ?int
+    {
+        $valor = $request->input('minimo_terminar_min');
+        if ($valor === null) {
+            return null;
+        }
+        if (is_int($valor) || (is_string($valor) && preg_match('/^\d+$/', $valor) === 1)) {
+            return (int) $valor;
+        }
+        throw new EspacioException('MINIMO_INVALIDO', 'Elige el tiempo mínimo de la lista.', 400);
     }
 }

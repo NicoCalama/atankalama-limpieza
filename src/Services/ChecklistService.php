@@ -1159,9 +1159,10 @@ final class ChecklistService
         if ($restante > 0) {
             $mm = intdiv($restante, 60);
             $ss = $restante % 60;
+            $minimoMin = intdiv($this->minimoTerminarSegundos($ejec->habitacionId) + 59, 60);
             throw new ChecklistException(
                 'DELAY_MINIMO',
-                sprintf('Debes esperar al menos 3 minutos desde que empezaste. Faltan %d:%02d.', $mm, $ss),
+                sprintf('Debes esperar al menos %d min desde que empezaste. Faltan %d:%02d.', $minimoMin, $mm, $ss),
                 409
             );
         }
@@ -1241,7 +1242,8 @@ final class ChecklistService
 
     /**
      * Segundos que faltan para poder completar() esta ejecución (0 si ya se puede).
-     * Sin excepción por nochero: aplica igual a todas las piezas. Solo aplica al
+     * Sin excepción por nochero; un área común puede tener su propio mínimo (v7.6, ver
+     * minimoTerminarSegundos()). Solo aplica al
      * flujo normal del trabajador — marcarLimpiaManual() y el forzado de Cloudbeds
      * no pasan por acá, quedan sin restricción a propósito.
      */
@@ -1251,9 +1253,36 @@ final class ChecklistService
         if ($inicio === false) {
             return 0;
         }
-        $minimo   = Config::getInt('CHECKLIST_DELAY_MINIMO_SEGUNDOS', self::DELAY_MINIMO_COMPLETAR_SEGUNDOS);
+        $minimo   = $this->minimoTerminarSegundos($ejec->habitacionId);
         $restante = $minimo - (time() - $inicio);
         return max(0, $restante);
+    }
+
+    /**
+     * El mínimo general (3 min; CHECKLIST_DELAY_MINIMO_SEGUNDOS lo cambia, p. ej. 0 en los tests).
+     * Es el que rige para las habitaciones y para un área común sin mínimo propio.
+     */
+    public static function minimoGeneralSegundos(): int
+    {
+        return Config::getInt('CHECKLIST_DELAY_MINIMO_SEGUNDOS', self::DELAY_MINIMO_COMPLETAR_SEGUNDOS);
+    }
+
+    /**
+     * Segundos mínimos desde que se empieza para poder completar esta pieza. v7.6 (decisión de
+     * Nicolás, 11/10/2026): un área común puede tener el suyo, en minutos, editable desde su
+     * tarjeta (habitaciones.minimo_terminar_min; 0 = sin mínimo). Las habitaciones, y las áreas
+     * que nadie editó (NULL), usan el general.
+     */
+    private function minimoTerminarSegundos(int $habitacionId): int
+    {
+        $fila = Database::fetchOne(
+            'SELECT es_espacio_comun, minimo_terminar_min FROM #__habitaciones WHERE id = ?',
+            [$habitacionId]
+        );
+        if ($fila !== null && (int) $fila['es_espacio_comun'] === 1 && $fila['minimo_terminar_min'] !== null) {
+            return max(0, (int) $fila['minimo_terminar_min']) * 60;
+        }
+        return self::minimoGeneralSegundos();
     }
 
     /**

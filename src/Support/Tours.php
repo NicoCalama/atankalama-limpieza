@@ -501,7 +501,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.tabla"]',
                                 'titulo' => 'Vista de tabla',
-                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
+                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos, tiempo mínimo). En el teléfono quedan mejor las tarjetas.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.exportar"]',
@@ -514,7 +514,7 @@ final class Tours
                     // ── 2. Armar un área y su checklist. Solo con permiso. ──
                     [
                         'id'        => 'crear',
-                        'v'         => 1,
+                        'v'         => 2,
                         'titulo'    => 'Crear o editar un área',
                         'pregunta'  => '¿Cómo armo un área nueva?',
                         'capacidad' => 'espacios.crear_editar',
@@ -523,7 +523,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.nueva"]',
                                 'titulo' => 'Un espacio y su checklist',
-                                'texto'  => 'Con «Nueva área» creas un espacio y su checklist (qué hacer al limpiarlo). Cada tarjeta también se puede editar o archivar.',
+                                'texto'  => 'Con «Nueva área» creas un espacio, su checklist y el tiempo mínimo para terminarla (antes no se puede apretar «terminar»). Cada tarjeta muestra ese tiempo y se puede editar o archivar.',
                             ],
                         ],
                     ],

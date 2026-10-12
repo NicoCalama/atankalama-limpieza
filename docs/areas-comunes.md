@@ -175,6 +175,28 @@ checklists por tipo). La API acepta `items: [{descripcion, creditos}]` (o string
 pelados, compat → créditos 1). Como todos los ítems de espacio son obligatorios,
 su peso siempre cuenta.
 
+**Tiempo mínimo para terminar (v7.6, decisión de Nicolás del 11/10/2026):** toda limpieza tiene un
+mínimo desde que se empieza antes de poder apretar «terminar» (antifraude; 3 min, `ChecklistService`,
+`CHECKLIST_DELAY_MINIMO_SEGUNDOS`). En las áreas ese mínimo hacía esperar en las chicas: 212 de 609
+áreas terminadas cerraron justo entre 3 y 4 min, y 16 quedaron con todo marcado y sin terminar (ver §2,
+«Tarjeta y cierre del día»). Ahora **cada área tiene el suyo, en minutos**, en
+`habitaciones.minimo_terminar_min`:
+
+- Se elige al crear o con «Editar» en la tarjeta, de una lista: sin mínimo (0), 1, 2, 3, 5 o 10 min
+  (`EspacioService::MINIMOS_TERMINAR_MIN`; otro valor → 400 `MINIMO_INVALIDO`). Mismo permiso que editar
+  el área (`espacios.crear_editar`).
+- `NULL` = el mínimo general (3 min): así quedan las áreas que existían antes de la v7.6 hasta que alguien
+  las edite. Las habitaciones usan siempre el general, aunque la columna tuviera un valor.
+- La tarjeta lo muestra («Mínimo 2 min para terminar» / «Sin tiempo mínimo») y la tabla en la columna
+  «Mín. para terminar». `GET /api/espacios` y `GET /api/espacios/{id}` traen el que rige
+  (`minimo_terminar_min`, entero, nunca `null`).
+- `POST /api/espacios` y `PUT /api/espacios/{id}` aceptan `minimo_terminar_min`. Si no viene (una pantalla
+  abierta desde antes de la v7.6), crear deja `NULL` y editar no lo toca.
+- Al limpiar, la cuenta regresiva del botón y el bloqueo de `completar()` usan ese valor; el mensaje dice
+  los minutos («Debes esperar al menos 2 min desde que empezaste»). Cambiarlo con un área en progreso rige
+  desde la próxima vez que se abra su checklist.
+- Lo marcado al pasar un área en progreso a otra persona sigue partiendo de cero (decidido el mismo día).
+
 ---
 
 ## 4. Exclusiones (para no contaminar lo existente)

@@ -217,6 +217,11 @@
                                     </div>
                                 </div>
                                 <p class="text-sm text-gray-600 dark:text-gray-400" x-text="esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
+                                <!-- v7.6: tiempo mínimo para terminar (se cambia con «Editar») -->
+                                <p class="text-xs text-gray-500 dark:text-gray-500 inline-flex items-center gap-1" title="Tiempo mínimo para terminar la limpieza">
+                                    <span class="inline-flex shrink-0"><i data-lucide="timer" class="w-3 h-3"></i></span>
+                                    <span x-text="textoMinimoTarjeta(esp.minimo_terminar_min)"></span>
+                                </p>
                                 <template x-if="esp.asignado_a_nombre">
                                     <p class="text-xs text-gray-500 dark:text-gray-500 inline-flex items-center gap-1">
                                         <span class="inline-flex shrink-0"><i data-lucide="user" class="w-3 h-3"></i></span>
@@ -293,6 +298,7 @@
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.asignado_a_nombre || '—'"></td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.items_count"></td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.creditos_total || 0"></td>
+                                        <td class="px-3 py-2 text-gray-700 dark:text-gray-300 whitespace-nowrap" x-text="textoMinimo(esp.minimo_terminar_min)"></td>
                                         <td class="px-3 py-2">
                                             <div class="flex items-center justify-end gap-1">
                                                 <template x-if="puedePedir">
@@ -359,6 +365,21 @@
                         <option value="1_sur">Atankalama</option>
                         <option value="inn">Atankalama Inn</option>
                     </select>
+                </div>
+
+                <!-- v7.6: los mismos valores que EspacioService::MINIMOS_TERMINAR_MIN -->
+                <div>
+                    <label for="esp-minimo" class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Tiempo mínimo para terminar</label>
+                    <select id="esp-minimo" x-model.number="form.minimo"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                        <option value="0">Sin mínimo</option>
+                        <option value="1">1 min</option>
+                        <option value="2">2 min</option>
+                        <option value="3">3 min</option>
+                        <option value="5">5 min</option>
+                        <option value="10">10 min</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">Desde que empiezan a limpiarla. Antes no se puede apretar «terminar».</p>
                 </div>
 
                 <div>
@@ -530,7 +551,8 @@ function espaciosApp() {
         _intervalId: null,
         toast: { visible: false, tipo: 'exito', mensaje: '' },
         modalForm: { abierto: false, enviando: false },
-        form: { id: null, nombre: '', hotel: '1_sur', items: [{ descripcion: '', creditos: 1 }] },
+        // minimo: minutos para poder terminar (v7.6); 3 = el mínimo de siempre.
+        form: { id: null, nombre: '', hotel: '1_sur', minimo: 3, items: [{ descripcion: '', creditos: 1 }] },
         // opcionId: motivo de la lista «reasignar» cuando pedirla es cambiarla de persona (v7.4.1);
         // forzarMotivo: el backend respondió OPCION_REQUERIDA (otro día, o lo que vio la pantalla quedó viejo).
         modalPedir: { abierto: false, enviando: false, espacio: null, fecha: '', opcionId: null, forzarMotivo: false },
@@ -561,7 +583,8 @@ function espaciosApp() {
             { clave: 'franja', etiqueta: 'Estado' },
             { clave: 'asignado_a_nombre', etiqueta: 'Asignada hoy' },
             { clave: 'items_count', etiqueta: 'Ítems' },
-            { clave: 'creditos_total', etiqueta: 'Créditos' }
+            { clave: 'creditos_total', etiqueta: 'Créditos' },
+            { clave: 'minimo_terminar_min', etiqueta: 'Mín. para terminar' }
         ],
 
         get puedeEditar() {
@@ -747,13 +770,13 @@ function espaciosApp() {
 
         // --- Crear / editar ---
         abrirCrear() {
-            this.form = { id: null, nombre: '', hotel: (this.hotel !== 'ambos' ? this.hotel : '1_sur'), items: [{ descripcion: '', creditos: 1 }] };
+            this.form = { id: null, nombre: '', hotel: (this.hotel !== 'ambos' ? this.hotel : '1_sur'), minimo: 3, items: [{ descripcion: '', creditos: 1 }] };
             this.modalForm = { abierto: true, enviando: false };
             this.$nextTick(function () { lucide.createIcons(); });
         },
         async abrirEditar(esp) {
             this.modalForm = { abierto: true, enviando: false };
-            this.form = { id: esp.id, nombre: esp.numero, hotel: esp.hotel_codigo, items: [{ descripcion: '', creditos: 1 }] };
+            this.form = { id: esp.id, nombre: esp.numero, hotel: esp.hotel_codigo, minimo: this.minimoDe(esp.minimo_terminar_min), items: [{ descripcion: '', creditos: 1 }] };
             try {
                 var r = await apiFetch('/api/espacios/' + esp.id);
                 if (r && r.ok) {
@@ -762,12 +785,26 @@ function espaciosApp() {
                     });
                     this.form.items = items.length ? items : [{ descripcion: '', creditos: 1 }];
                     this.form.nombre = r.data.espacio.numero;
+                    this.form.minimo = this.minimoDe(r.data.espacio.minimo_terminar_min);
                 }
             } catch (e) { /* deja el nombre básico */ }
             this.$nextTick(function () { lucide.createIcons(); });
         },
         cerrarForm() {
             this.modalForm.abierto = false;
+        },
+        // Minutos para terminar (v7.6). El servidor ya manda el que rige (3 si nadie lo cambió).
+        minimoDe(valor) {
+            var m = parseInt(valor, 10);
+            return isNaN(m) ? 3 : m;
+        },
+        textoMinimo(valor) {
+            var m = this.minimoDe(valor);
+            return m === 0 ? 'Sin mínimo' : m + ' min';
+        },
+        textoMinimoTarjeta(valor) {
+            var m = this.minimoDe(valor);
+            return m === 0 ? 'Sin tiempo mínimo' : 'Mínimo ' + m + ' min para terminar';
         },
         agregarItem() {
             this.form.items.push({ descripcion: '', creditos: 1 });
@@ -801,10 +838,11 @@ function espaciosApp() {
             this.modalForm.enviando = true;
             try {
                 var r;
+                var minimo = this.minimoDe(this.form.minimo);
                 if (this.form.id) {
-                    r = await apiPut('/api/espacios/' + this.form.id, { nombre: nombre, items: items });
+                    r = await apiPut('/api/espacios/' + this.form.id, { nombre: nombre, items: items, minimo_terminar_min: minimo });
                 } else {
-                    r = await apiPost('/api/espacios', { nombre: nombre, hotel: this.form.hotel, items: items });
+                    r = await apiPost('/api/espacios', { nombre: nombre, hotel: this.form.hotel, items: items, minimo_terminar_min: minimo });
                 }
                 if (r && r.ok) {
                     this.mostrarToast('exito', this.form.id ? 'Área actualizada.' : 'Área creada.');

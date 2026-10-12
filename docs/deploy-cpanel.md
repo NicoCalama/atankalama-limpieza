@@ -415,6 +415,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-10 | **Reportes en pestañas + listas de selección + mensaje a la mucama y tickets por selección** → **v7.2 + v7.3 + v7.4** en un deploy combinado (v7.2 `a595696` y `54d3b74`, v7.3 `90caa4f`, v7.4 `c5020aa`, CHANGELOG fechado y runbook `20f1273`; merge en `main` `fed2641`) | Pedidos del 10/10: Reportes en 4 pestañas (Nicolás) y, de gerencia, «sin cuadros de texto, solo selección», con las listas editables en Ajustes → Checklists y listas (permiso `listas.editar`, solo Admin). **Decisión de Nicolás:** las tres juntas, runbook §11.29. **Precheck** (~23:05): 1) vacío, 2) Supervisora y Admin, 3) 0. **SQL antes del ZIP** (§11.27 + §11.28, `build/limpieza-v74.sql`; probado antes en MariaDB 10.6 con Docker); comprobación: 6 listas (rechazo 8, reasignar 4, saltar 4, nota_recepcion 6, ticket_tipo 9, ticket_respuesta 5) y `listas.editar` solo en Admin. ZIP de 46 archivos (45 a `app_core/` y `vista-guiada.js` al docroot; `build/limpieza-v74-delta.zip`, idénticos a `main`) y `build/limpieza-v74-vuelta-atras.zip` (los 39 que pisa, en `4d5a48d`). Subido el 10/10 ~23:10. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (23:12), `vista-guiada.js` del docroot ya es el nuevo, y el smoke de §11.29 OK (Nicolás). **Gotcha:** phpMyAdmin abrió la pestaña SQL parada en `information_schema` (error #1109 «Tabla desconocida»): el precheck se corrió con las tablas calificadas (`cat6852_australia.limpieza_…`) y el SQL con la base elegida en el panel izquierdo. |
 | 2026-10-11 | **Motivo al cambiar de persona un área + ayuda al día + habitación de prueba** → **v7.4.1 + v7.5** en un deploy combinado (v7.4.1 `c52e0d5`, v7.5 `03c505b`, CHANGELOG fechado y runbook `d08e519`; en `main`) | v7.4.1: en Áreas comunes, «Pedir limpieza» a otra persona de un área que alguien tiene sin terminar pide el motivo de la lista «reasignar» (punto 3 aprobado por Nicolás) y tres textos de la ayuda guiada al día. v7.5 (pedido de Nicolás del 10/10): una «PRUEBA» por hotel (`habitaciones.es_prueba`, sin `cloudbeds_room_id`) que solo ve y se asigna quien tiene `habitaciones.ver_prueba` (Admin), fuera de KPIs, reparto y avisos, sin Novedades, con «Asignármela para probar». **Decisión de Nicolás:** las dos juntas, runbook §11.32. **Precheck** (~05:30): 1) 0, 2) vacío, 3) Atankalama → «Premium triple» (28), INN → «Atan Inn2 Hab Doble / Matrimonial» (24). **SQL antes del ZIP** (§11.31, `build/limpieza-v75.sql`; probado antes en MariaDB 10.6 con Docker): comprobación con dos «PRUEBA» (`aprobada`, sin roomID) y el permiso solo en Admin. ZIP de 32 archivos a `app_core/` (`build/limpieza-v75-delta.zip`, idénticos a `d08e519`) y `build/limpieza-v75-vuelta-atras.zip` (los 30 que pisa, en `fed2641`; volver atrás exige desactivar las «PRUEBA»). Subido el 11/10 ~05:38. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (05:39) y el smoke de §11.32 OK (Nicolás): badge v7.5, la «PRUEBA» con su ciclo completo como Admin, ausente para una supervisora, y el motivo en «Pedir limpieza» de Áreas comunes. Los registros de esa prueba quedan (fuera de Reportes por diseño). |
 | 2026-10-11 | **Preasignaciones de madrugada y asignadas justas** → **v7.5.1** (fix `cf1f1b7`, CHANGELOG fechado en el mismo commit; rama `v7.5.1-preasignaciones`, desde `c65214e`) | Origen: una supervisora avisó que lo preasignado el 10/10 para el 11/10 no estaba en la mañana. Diagnóstico (`build/diagnostico-preasignaciones-2026-10-11.sql`): `reconciliarPreasignaciones` retiró 132 de 155 preasignaciones a las 00:00 en punto (pantalla de Inicio o tablero abierta, se recargan cada minuto) con las piezas aún aprobadas de ayer; el sync las pasó a sucia 00:30–01:30. También el 28/09, 04/10 y 10/10. **Decisiones de Nicolás:** retiro de habitaciones recién desde las 06:00 (áreas a cualquier hora) y, desde los turnos del 01/10, la pieza pasada a otra persona sin empezarla no cuenta en Asignadas (rechazo igual, septiembre intacto). Runbook §11.33. Suite 789/789, PHPStan y linters OK; reproducido antes del deploy en un banco con reloj simulado (código de prod: se retiran; con el arreglo: no). Sin SQL. ZIP de 4 archivos a `app_core/` (`build/limpieza-v751-delta.zip`, idénticos a `cf1f1b7`) y `build/limpieza-v751-vuelta-atras.zip` (los mismos en `d08e519`). Subido el 11/10 ~09:45. Smoke OK (Nicolás): badge v7.5.1, `/api/health` 200 y la ayuda de «Asignadas» en Reportes. Verificación el 12/10 con la consulta de §11.33. |
+| 2026-10-12 | **Tiempo mínimo por área común** → **v7.6** (feat `684e278`, CHANGELOG fechado `076433c`; rama `v7.6-minimo-areas`, desde `7b4147f`) | Pedido de Nicolás (11/10) al revisar pendientes: el mínimo de 3 min para terminar hacía esperar en las áreas chicas (08/10: 212 de 609 áreas cerraron entre 3 y 4 min, 16 quedaron marcadas sin terminar). Cada área común tiene su propio mínimo **en minutos** (`habitaciones.minimo_terminar_min`), elegido de una lista (sin mínimo, 1, 2, 3, 5, 10) al crearla o con «Editar» en su tarjeta; las existentes siguen con 3 min (`NULL`) hasta que alguien las edite; las habitaciones no cambian; lo marcado al cambiar de persona sigue partiendo de cero. Runbook §11.34. Suite 797 (1 omitido), PHPStan y linters OK; verificado en un banco como supervisora y trabajadora, escritorio y 375 px. **SQL** (`build/limpieza-v76.sql`): el primer intento del `ALTER` sin la base escrita dio #1044 (phpMyAdmin parado en `information_schema`) y no se aplicó; con `cat6852_australia.` sí (comprobación = 1). ZIP de 9 archivos a `app_core/` (`build/limpieza-v76-delta.zip`, idénticos a `076433c`) y `build/limpieza-v76-vuelta-atras.zip` (8 en `cf1f1b7`). Subido el 12/10 ~05:05. Smoke OK (Nicolás): badge v7.6, `/api/health` 200 con `esquema: ok` (05:06), tarjetas con «Mínimo 3 min para terminar» y «Editar» en 3 min. |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -2567,3 +2568,74 @@ Y la consulta 2 del diagnóstico para el día siguiente: las preasignadas tienen
 asignación, no retiradas.
 
 **Vuelta atrás:** subir `build/limpieza-v751-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.34 Release "tiempo mínimo por área común" → v7.6
+
+Pedido de Nicolás (11/10/2026), al revisar los pendientes: el mínimo de 3 minutos para poder terminar una limpieza hacía
+esperar en las áreas chicas (diagnóstico del 08/10: 212 de 609 áreas cerraron justo entre 3 y 4 min, y 16 quedaron con
+todo marcado sin terminar). **Decisiones (plan aprobado el 11/10):**
+
+- **Cada área común tiene su propio mínimo, en minutos** (`habitaciones.minimo_terminar_min`), editable desde su tarjeta
+  («Editar») con el mismo permiso de editar áreas (`espacios.crear_editar`). Se elige de una lista: sin mínimo, 1, 2, 3,
+  5 o 10 min.
+- **Las áreas que ya existen siguen con 3 min** (`NULL` = el general) hasta que alguien las edite. **Las habitaciones no
+  cambian.**
+- La tarjeta y la tabla muestran el mínimo de cada área; el aviso al apretar «terminar» antes de tiempo dice los minutos.
+- Lo marcado al pasar un área en progreso a otra persona **sigue partiendo de cero**.
+
+Detalle en [areas-comunes.md](areas-comunes.md) §3.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- La columna no debe existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'minimo_terminar_min';
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_habitaciones ADD COLUMN minimo_terminar_min INT NULL;
+```
+
+Con la base escrita en la tabla: el 12/10/2026 la versión sin ella dio `#1044 - Acceso denegado … a la base de datos
+'information_schema'` (phpMyAdmin había quedado parado ahí) y no se aplicó. Es lo mismo que hace
+`scripts/migrate-add-minimo-terminar.php`. Comprobación: repetir el precheck → 1, y `/api/health`
+→ `checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el código nuevo lee la columna al listar
+las áreas y al abrir cualquier checklist (habitaciones incluidas).
+
+#### ZIP
+
+`build/limpieza-v76-delta.zip`, con la fila de la v7.6 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
+`git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin estáticos de
+`public/`):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
+  `scripts/migrate-add-minimo-terminar.php`.
+- `src/Controllers/EspaciosController.php`, `src/Services/{ChecklistService,EspacioService}.php`,
+  `src/Support/Tours.php`.
+- `views/espacios.php`.
+
+9 archivos (1 nuevo, la migración). Vuelta atrás: `build/limpieza-v76-vuelta-atras.zip` (los mismos en la v7.5.1,
+`cf1f1b7`; la migración puede quedar). El SQL puede quedar: la v7.5.1 no lee la columna y el verificador solo reclama
+lo que falta.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Una pantalla de Áreas comunes abierta desde antes edita sin
+mandar el mínimo y no lo toca, así que no hace falta avisar.
+
+**Smoke:** badge **v7.6** (incógnito), `/api/health` 200 con esquema ok, y en Áreas comunes: cada tarjeta dice
+«Mínimo 3 min para terminar» y la tabla tiene la columna «Mín. para terminar»; «Editar» en un área muestra «Tiempo
+mínimo para terminar» en **3 min** (cerrar con «Cancelar», sin guardar). Cambiar el mínimo de las áreas reales lo
+deciden las supervisoras.
+
+**Vuelta atrás:** subir `build/limpieza-v76-vuelta-atras.zip`. Las áreas que alguien haya editado vuelven a los 3 min
+(la columna queda, pero la v7.5.1 no la lee).
+
+**Desplegada el 12/10/2026 ~05:05** (SQL antes, con la base escrita; smoke OK). No lleva verificación al día siguiente:
+el cambio se ve en pantalla y no depende de procesos nocturnos. Cuando las supervisoras empiecen a cambiar mínimos, se
+puede ver cuáles eligieron con:
+
+```sql
+SELECT numero, minimo_terminar_min FROM cat6852_australia.limpieza_habitaciones
+ WHERE es_espacio_comun = 1 AND activa = 1 ORDER BY numero;
+```
