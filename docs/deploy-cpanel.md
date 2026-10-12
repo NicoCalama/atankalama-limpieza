@@ -2570,7 +2570,10 @@ asignación, no retiradas.
 **Verificada el 12/10/2026** (~06:05 Chile, consultas de Nicolás con la base escrita):
 
 - Retiros automáticos desde la medianoche: **1**, a las **06:00** en punto (una pieza que a esa hora seguía aprobada:
-  Cloudbeds no la marcó sucia, no necesitaba limpieza). Ninguno antes de las 06:00.
+  Cloudbeds no la marcó sucia, no necesitaba limpieza). Ninguno antes de las 06:00. Nicolás la ubicó: la habían
+  **cerrado por mantención el 11/10**, nadie durmió ahí, así que el retiro fue correcto. En el tablero se veía verde
+  (aprobada) y a las 06:00 salió de la cola de su trabajadora. Consultas en
+  `build/diagnostico-retiro-0600-2026-10-12.sql`.
 - Consulta 2 del diagnóstico, fila del 12/10: **112** preasignadas, **1** retirada por la app, 0 limpiadas todavía (el
   día recién empezaba). Para comparar, las noches con el problema: 04/10 = 109, 10/10 = 127 y 11/10 = 132 retiradas;
   los días normales, 0–2.
