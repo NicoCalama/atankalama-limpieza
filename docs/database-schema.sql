@@ -190,6 +190,7 @@ CREATE TABLE habitaciones (
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
     es_prueba               INTEGER NOT NULL DEFAULT 0 CHECK (es_prueba IN (0, 1)),  -- 1 = habitación de prueba (v7.5): sin Cloudbeds, fuera de KPIs y avisos, solo la ve habitaciones.ver_prueba. Ver docs/habitacion-prueba.md
+    minimo_terminar_min     INTEGER,                              -- v7.6, solo áreas comunes: minutos mínimos desde que se empieza para poder terminar (0 = sin mínimo); NULL = el general de 3 min. Valores en EspacioService::MINIMOS_TERMINAR_MIN. Ver docs/areas-comunes.md
     -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
     cb_frontdesk_status     TEXT CHECK (cb_frontdesk_status IN ('check-in', 'check-out', 'stayover', 'turnover', 'unused')),
     cb_ocupada              INTEGER CHECK (cb_ocupada IN (0, 1)),

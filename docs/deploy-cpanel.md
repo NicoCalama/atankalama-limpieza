@@ -2567,3 +2567,63 @@ Y la consulta 2 del diagnóstico para el día siguiente: las preasignadas tienen
 asignación, no retiradas.
 
 **Vuelta atrás:** subir `build/limpieza-v751-vuelta-atras.zip`. No hay datos que deshacer.
+
+### 11.34 Release "tiempo mínimo por área común" → v7.6
+
+Pedido de Nicolás (11/10/2026), al revisar los pendientes: el mínimo de 3 minutos para poder terminar una limpieza hacía
+esperar en las áreas chicas (diagnóstico del 08/10: 212 de 609 áreas cerraron justo entre 3 y 4 min, y 16 quedaron con
+todo marcado sin terminar). **Decisiones (plan aprobado el 11/10):**
+
+- **Cada área común tiene su propio mínimo, en minutos** (`habitaciones.minimo_terminar_min`), editable desde su tarjeta
+  («Editar») con el mismo permiso de editar áreas (`espacios.crear_editar`). Se elige de una lista: sin mínimo, 1, 2, 3,
+  5 o 10 min.
+- **Las áreas que ya existen siguen con 3 min** (`NULL` = el general) hasta que alguien las edite. **Las habitaciones no
+  cambian.**
+- La tarjeta y la tabla muestran el mínimo de cada área; el aviso al apretar «terminar» antes de tiempo dice los minutos.
+- Lo marcado al pasar un área en progreso a otra persona **sigue partiendo de cero**.
+
+Detalle en [areas-comunes.md](areas-comunes.md) §3.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- La columna no debe existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'minimo_terminar_min';
+```
+
+#### SQL (phpMyAdmin con `cat6852_australia` elegida en el panel izquierdo, ANTES del ZIP)
+
+```sql
+ALTER TABLE limpieza_habitaciones ADD COLUMN minimo_terminar_min INT NULL;
+```
+
+Es lo mismo que hace `scripts/migrate-add-minimo-terminar.php`. Comprobación: repetir el precheck → 1, y `/api/health`
+→ `checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el código nuevo lee la columna al listar
+las áreas y al abrir cualquier checklist (habitaciones incluidas).
+
+#### ZIP
+
+`build/limpieza-v76-delta.zip`, con la fila de la v7.6 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
+`git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin estáticos de
+`public/`):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
+  `scripts/migrate-add-minimo-terminar.php`.
+- `src/Controllers/EspaciosController.php`, `src/Services/{ChecklistService,EspacioService}.php`,
+  `src/Support/Tours.php`.
+- `views/espacios.php`.
+
+9 archivos (1 nuevo, la migración). Vuelta atrás: `build/limpieza-v76-vuelta-atras.zip` (los mismos en la v7.5.1,
+`cf1f1b7`; la migración puede quedar). El SQL puede quedar: la v7.5.1 no lee la columna y el verificador solo reclama
+lo que falta.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Una pantalla de Áreas comunes abierta desde antes edita sin
+mandar el mínimo y no lo toca, así que no hace falta avisar.
+
+**Smoke:** badge **v7.6** (incógnito), `/api/health` 200 con esquema ok, y en Áreas comunes: cada tarjeta dice
+«Mínimo 3 min para terminar» y la tabla tiene la columna «Mín. para terminar»; «Editar» en un área muestra «Tiempo
+mínimo para terminar» en **3 min** (cerrar con «Cancelar», sin guardar). Cambiar el mínimo de las áreas reales lo
+deciden las supervisoras.
+
+**Vuelta atrás:** subir `build/limpieza-v76-vuelta-atras.zip`. Las áreas que alguien haya editado vuelven a los 3 min
+(la columna queda, pero la v7.5.1 no la lee).
