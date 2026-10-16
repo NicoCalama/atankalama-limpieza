@@ -180,6 +180,11 @@ CREATE TABLE #__habitaciones (
     cb_huesped              VARCHAR(150),                         -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
     cb_huespedes            INT,                                  -- adultos+niños en la pieza hoy (si ya salieron, los que salieron hoy). getReservations
     cb_huespedes_llegan     INT,                                  -- adultos+niños que llegan hoy y aún no hacen check-in. getReservations
+    cb_bloqueo_tipo         VARCHAR(20) NULL CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),  -- v7.8, bloqueo en Cloudbeds (ver schema SQLite)
+    cb_bloqueo_motivo       VARCHAR(255) NULL,
+    cb_bloqueo_desde        VARCHAR(10) NULL,
+    cb_bloqueo_hasta        VARCHAR(10) NULL,
+    limpieza_completa_pendiente TINYINT NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1)),  -- v7.8: salió de un bloqueo, próxima limpieza completa
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
     -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
@@ -398,7 +403,8 @@ CREATE TABLE #__alertas_activas (
         'ticket_nuevo',
         'habitacion_saltada',
         'inventario_cambios_pendientes',
-        'aprobacion_deshecha'
+        'aprobacion_deshecha',
+        'habitacion_salio_bloqueo'
     )),
     prioridad           INT NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
     titulo              VARCHAR(200) NOT NULL,

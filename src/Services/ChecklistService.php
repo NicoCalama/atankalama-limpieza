@@ -1205,6 +1205,8 @@ final class ChecklistService
                 throw new ChecklistException('EJECUCION_NO_EDITABLE', 'Ejecución ya completada.', 409);
             }
             $this->habitaciones->cambiarEstado($ejec->habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $usuarioId, 'ui');
+            // La limpieza completa que pedía la salida de un bloqueo (v7.8) ya se hizo.
+            self::apagarLimpiezaCompletaPendiente($ejec->habitacionId);
         });
 
         // Áreas comunes pasan por la misma auditoría que las piezas de huésped —
@@ -1390,6 +1392,7 @@ final class ChecklistService
             }
 
             $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, $actorId, 'ui');
+            self::apagarLimpiezaCompletaPendiente($habitacionId);
 
             // Mismo criterio que completar(): la nota era para esta limpieza, y aunque haya
             // sido un atajo administrativo, ya cumplió su propósito.
@@ -1700,13 +1703,26 @@ final class ChecklistService
             return true;
         }
         $fila = Database::fetchOne(
-            'SELECT h.cb_frontdesk_status, h.cb_arrival_date, h.cb_ocupacion_sync_at, ho.sabanas_cada_n_dias
+            'SELECT h.cb_frontdesk_status, h.cb_arrival_date, h.cb_ocupacion_sync_at, h.limpieza_completa_pendiente,
+                    ho.sabanas_cada_n_dias
                FROM #__habitaciones h
                JOIN #__hoteles ho ON ho.id = h.hotel_id
               WHERE h.id = ?',
             [$habitacion->id]
         );
-        return $fila === null || $this->sabanas->llevaCambioSabanas($fila, date('Y-m-d'));
+        // La primera limpieza después de una mantención o de cerrada es completa, con sábanas (v7.8).
+        return $fila === null
+            || (int) $fila['limpieza_completa_pendiente'] === 1
+            || $this->sabanas->llevaCambioSabanas($fila, date('Y-m-d'));
+    }
+
+    /** v7.8: la pieza ya tuvo la limpieza completa que pedía la salida de un bloqueo en Cloudbeds. */
+    private static function apagarLimpiezaCompletaPendiente(int $habitacionId): void
+    {
+        Database::execute(
+            'UPDATE #__habitaciones SET limpieza_completa_pendiente = 0 WHERE id = ? AND limpieza_completa_pendiente = 1',
+            [$habitacionId]
+        );
     }
 
     /**

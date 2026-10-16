@@ -239,6 +239,24 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                 </template>
 
+                <!-- v7.8: mantención o cerrada en Cloudbeds. Ver docs/cloudbeds.md §4.5 -->
+                <template x-if="habitacion.cb_bloqueo_tipo">
+                    <div class="mt-3 rounded-lg p-3 border bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600">
+                        <div class="flex items-start gap-2">
+                            <span class="inline-flex shrink-0 mt-0.5"><i data-lucide="wrench" class="w-4 h-4 text-slate-700 dark:text-slate-300"></i></span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    <span x-text="{ mantencion: 'En mantención', cerrada: 'Cerrada' }[habitacion.cb_bloqueo_tipo] || 'Bloqueada en Cloudbeds'"></span><template x-if="habitacion.cb_bloqueo_hasta"><span> hasta el <span x-text="fechaCorta(habitacion.cb_bloqueo_hasta)"></span></span></template>
+                                </p>
+                                <template x-if="habitacion.cb_bloqueo_motivo">
+                                    <p class="text-sm text-slate-700 dark:text-slate-300" x-text="habitacion.cb_bloqueo_motivo"></p>
+                                </template>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Mientras dure no se asigna ni está en ninguna cola.</p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
                 <!-- Ocupación Cloudbeds: aviso visual (no bloquea) + actualizar antes de entrar -->
                 <template x-if="habitacion.cb_ocupada === true || puedeSincronizar">
                     <div class="mt-3 rounded-lg p-3 border"

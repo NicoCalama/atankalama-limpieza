@@ -24,7 +24,9 @@ use Atankalama\Limpieza\Models\Hotel;
  *  - tipo = el TIPO real de la habitación en Cloudbeds (roomTypeName), no maxGuests: dos piezas de
  *    igual capacidad pueden tener limpiezas distintas. Los tipos se crean on-the-fly (get-or-create
  *    por nombre) y cada tipo nuevo obtiene su checklist default (ChecklistService). Ver docs/checklist.md.
- *  - roomBlocked -> se importa con activa=0 (se conserva el mapeo y el histórico).
+ *  - roomBlocked (mantención, cerrada) NO desactiva la pieza desde la v7.8: es algo de días y lo
+ *    maneja el sync (BloqueosService, docs/cloudbeds.md §4.5). Hasta la v7.7 se importaba con
+ *    activa=0; esas piezas vuelven a activa=1 con el próximo import. Solo se cuentan (`bloqueadas`).
  *  - Upsert por (hotel_id, cloudbeds_room_id) resuelto en código (portable SQLite/MariaDB).
  *  - Las piezas de la app cuyo cloudbeds_room_id ya no venga de Cloudbeds se desactivan
  *    (activa=0); NUNCA se borran (histórico de ejecuciones/auditorías).
@@ -178,7 +180,8 @@ final class InventarioImportService
             }
             $tipoId = $tiposPorNombre[$tipoNombre] ?? null;
             $bloqueada = !empty($room['roomBlocked']);
-            $activaDeseada = $bloqueada ? 0 : 1;
+            // v7.8: un bloqueo (mantención, cerrada) no saca la pieza del inventario; lo maneja el sync.
+            $activaDeseada = 1;
 
             $existePorRoomId = isset($actualesPorRoomId[$roomId]);
 

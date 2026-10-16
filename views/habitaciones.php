@@ -304,6 +304,19 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                         <div class="mt-auto px-4 py-2.5 flex items-center gap-2" :class="claseBannerEstado(hab.estado)">
                             <span class="font-oswald text-sm font-semibold uppercase tracking-wide text-white" x-text="textoEstado(hab.estado)"></span>
                         </div>
+                        <!-- v7.8: mantención o cerrada en Cloudbeds. Mientras dura no se asigna ni está en ninguna
+                             cola; al terminar, la app genera su limpieza completa. Ver docs/cloudbeds.md §4.5 -->
+                        <template x-if="hab.cb_bloqueo_tipo">
+                            <div class="px-4 py-1.5 bg-slate-600 dark:bg-slate-700 text-white" :title="hab.cb_bloqueo_motivo || ''">
+                                <p class="flex items-center gap-1.5">
+                                    <span class="inline-flex shrink-0"><i data-lucide="wrench" class="w-3.5 h-3.5"></i></span>
+                                    <span class="font-oswald text-xs font-semibold uppercase tracking-wide" x-text="textoBloqueo(hab)"></span>
+                                </p>
+                                <template x-if="hab.cb_bloqueo_motivo">
+                                    <p class="text-[11px] leading-tight text-slate-100 truncate" x-text="hab.cb_bloqueo_motivo"></p>
+                                </template>
+                            </div>
+                        </template>
 
                         <!-- Franja de badges + "N" (nochero): siempre presente para que el botón
                              "N" tenga un lugar fijo (esquina inferior derecha); los badges de
@@ -1231,6 +1244,14 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         // Badges de ocupación y código de Cloudbeds: versión compartida en app.js.
         badgeOcupacion(fs) {
             return htmlBadgeOcupacion(fs);
+        },
+
+        // v7.8: «En mantención · hasta 18/10», «Cerrada», «Bloqueada en Cloudbeds».
+        textoBloqueo(hab) {
+            var nombres = { mantencion: 'En mantención', cerrada: 'Cerrada', bloqueada: 'Bloqueada en Cloudbeds' };
+            var texto = nombres[hab.cb_bloqueo_tipo] || nombres.bloqueada;
+            var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(hab.cb_bloqueo_hasta || '');
+            return m ? texto + ' · hasta ' + m[3] + '/' + m[2] : texto;
         },
 
         badgeCodigoRoomName(nombreCompleto) {

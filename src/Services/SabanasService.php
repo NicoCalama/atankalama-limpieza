@@ -84,7 +84,9 @@ final class SabanasService
         $n         = (int) ($fila['sabanas_cada_n_dias'] ?? 4);
 
         $fila['noches_estadia'] = $this->nochesEstadia($arrival, $hoy);
-        $fila['toca_sabanas'] = $this->tocaCambioSabanas($frontdesk, $arrival, $n, $hoy);
+        // v7.8: la primera limpieza después de una mantención o de cerrada también lleva sábanas.
+        $fila['toca_sabanas'] = ((int) ($fila['limpieza_completa_pendiente'] ?? 0)) === 1
+            || $this->tocaCambioSabanas($frontdesk, $arrival, $n, $hoy);
         return $fila;
     }
 

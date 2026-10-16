@@ -157,7 +157,11 @@ final class InventarioImportServiceTest extends TestCase
         $this->assertSame(2, (int) Database::fetchOne('SELECT COUNT(*) c FROM habitaciones')['c']);
     }
 
-    public function testRoomBlockedSeImportaInactiva(): void
+    /**
+     * v7.8: un bloqueo (mantención, cerrada) ya no saca la pieza del inventario: es algo de días y lo
+     * maneja el sync (BloqueosService). Solo se cuenta.
+     */
+    public function testRoomBlockedSeImportaActivaYSoloSeCuenta(): void
     {
         $this->encolarRooms([
             $this->room('CB_R1', '101-A', 2),
@@ -172,7 +176,21 @@ final class InventarioImportServiceTest extends TestCase
         $activa = (int) Database::fetchOne("SELECT activa FROM habitaciones WHERE cloudbeds_room_id = 'CB_R1'")['activa'];
         $bloqueada = (int) Database::fetchOne("SELECT activa FROM habitaciones WHERE cloudbeds_room_id = 'CB_R2'")['activa'];
         $this->assertSame(1, $activa);
-        $this->assertSame(0, $bloqueada);
+        $this->assertSame(1, $bloqueada);
+    }
+
+    /** La pieza que una versión anterior desactivó por estar bloqueada vuelve con el próximo import. */
+    public function testPiezaDesactivadaPorUnBloqueoViejoSeReactiva(): void
+    {
+        $this->encolarRooms([$this->room('CB_R2', '102-B', 2, blocked: true)]);
+        $this->servicio->importar('1_sur');
+        Database::execute("UPDATE habitaciones SET activa = 0 WHERE cloudbeds_room_id = 'CB_R2'");
+
+        $this->encolarRooms([$this->room('CB_R2', '102-B', 2, blocked: true)]);
+        $res = $this->servicio->importar('1_sur');
+
+        $this->assertSame(1, $res['totales']['actualizadas']);
+        $this->assertSame(1, (int) Database::fetchColumn("SELECT activa FROM habitaciones WHERE cloudbeds_room_id = 'CB_R2'"));
     }
 
     public function testColisionDePrefijoSeReportaYNoRompeElUnique(): void

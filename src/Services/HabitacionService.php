@@ -752,6 +752,8 @@ final class HabitacionService
             AlertaActiva::TIPO_APROBACION_DESHECHA => "habitacion:{$id}",
             AlertaActiva::TIPO_HABITACION_RECHAZADA => "habitacion:{$id}",
             AlertaActiva::TIPO_HABITACION_SALTADA => "saltada:{$id}",
+            // v7.8: salió de mantención/cerrada; si se aprueba por otro camino, ya no hace falta.
+            AlertaActiva::TIPO_HABITACION_SALIO_BLOQUEO => BloqueosService::dedupe($id),
         ] as $tipo => $dedupe) {
             try {
                 $this->alertas->resolverPorDedupe($tipo, $dedupe);

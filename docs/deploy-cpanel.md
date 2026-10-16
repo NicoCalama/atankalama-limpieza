@@ -2747,3 +2747,121 @@ estado.
 
 **Vuelta atrás:** subir `build/limpieza-v77-vuelta-atras.zip`. Vuelve a mostrarse siempre el ítem de sábanas y la salida
 deja de avisar.
+
+### 11.36 Release "habitaciones en mantención o cerradas" → v7.8
+
+Pedido de Nicolás (15/10/2026): que una pieza en mantención o cerrada en Cloudbeds se vea sola en la app y que al
+terminar se genere su limpieza, con cambio de sábanas. **Decisiones (plan aprobado el 16/10):**
+
+- En cada sync se leen los bloqueos del día (`getRoomBlocks`): `out_of_service` = **mantención**, `blocked_dates` =
+  **cerrada**; las reservas provisorias no cuentan. Si la lectura falla, la pieza queda «bloqueada» sin tipo (con
+  `roomBlocked`).
+- Mientras dura: franja en la tarjeta, no se asigna para hoy, sale de la cola de quien la tenía sin empezar (con aviso);
+  si ya la estaba limpiando, la termina.
+- Al terminar: sucia + `dirty` a Cloudbeds, **sin asignar** con alerta P2 a la supervisora, y limpieza completa con
+  sábanas.
+- Mantención y cerrada tienen **cada una su interruptor** en Ajustes → Cloudbeds (prendidos por defecto; permiso
+  `cloudbeds.configurar_credenciales`, hoy solo Admin).
+- La revisión diaria de inventario ya no desactiva piezas bloqueadas.
+
+Se apoya en la v7.7 (checklist adaptativo): **se despliegan juntas** (§11.35 + esta). Detalle en
+[cloudbeds.md](cloudbeds.md) §4.5.
+
+#### Verificación con Cloudbeds ANTES de subir (obligatoria)
+
+En el PC, con el `.env` que tiene las claves (solo lee, no escribe nada):
+
+```
+php -d curl.cainfo="C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt" scripts/diagnostico-bloqueos-cloudbeds.php
+```
+
+Tiene que mostrar los bloqueos de hoy de cada hotel. Comprobar con una pieza que esté en mantención y otra cerrada:
+1. que **no** diga `success=false` (si lo dice, la API key no tiene `read:roomblock`: pedir el permiso en Cloudbeds;
+   sin él la app funciona, pero solo sabe «bloqueada», sin tipo ni motivo, y usa el interruptor de mantención);
+2. que la de mantención salga como `out_of_service → app: mantencion` y la cerrada como `blocked_dates → app: cerrada`.
+   Si salen al revés u otro tipo, **no subir**: se ajusta `BloqueosService::tipoDesdeCloudbeds`.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) Las columnas no deben existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones'
+   AND column_name IN ('cb_bloqueo_tipo', 'cb_bloqueo_motivo', 'cb_bloqueo_desde', 'cb_bloqueo_hasta', 'limpieza_completa_pendiente');
+
+-- 2) Piezas desactivadas hoy: las que un import anterior desactivó por un bloqueo vuelven a activa con el próximo
+--    chequeo diario de inventario (la supervisora acepta la alerta «cambios de inventario»).
+SELECT ho.codigo, h.numero, h.cloudbeds_room_name
+  FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+ WHERE h.activa = 0 AND h.es_espacio_comun = 0
+ ORDER BY ho.codigo, h.numero;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP, después del SQL de §11.35)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_habitaciones
+  ADD COLUMN cb_bloqueo_tipo VARCHAR(20) NULL CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),
+  ADD COLUMN cb_bloqueo_motivo VARCHAR(255) NULL,
+  ADD COLUMN cb_bloqueo_desde VARCHAR(10) NULL,
+  ADD COLUMN cb_bloqueo_hasta VARCHAR(10) NULL,
+  ADD COLUMN limpieza_completa_pendiente TINYINT NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1));
+
+ALTER TABLE cat6852_australia.limpieza_alertas_activas
+  MODIFY COLUMN tipo VARCHAR(40) NOT NULL CHECK (tipo IN (
+    'cloudbeds_sync_failed', 'trabajador_en_riesgo', 'habitacion_rechazada', 'fin_turno_pendientes',
+    'trabajador_disponible', 'ticket_nuevo', 'habitacion_saltada', 'inventario_cambios_pendientes',
+    'aprobacion_deshecha', 'habitacion_salio_bloqueo'));
+```
+
+Con la base escrita en cada tabla (§11.34). Es lo mismo que hacen `scripts/migrate-add-bloqueos-cloudbeds.php` y
+`scripts/migrate-add-inventario-alerta.php` (los dos probados sobre la base SQLite del banco local, anterior a la v7.8:
+agregan y después no hacen nada). El `MODIFY` reemplaza el CHECK de la columna con la lista completa
+(ver incidente-2026-09-23.md §5: nada de `DROP CONSTRAINT`). Comprobación: precheck (1) → 5 y `/api/health` →
+`checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el sync escribe las columnas en cada
+lectura y la pantalla de Habitaciones las lee.
+
+#### ZIP
+
+`build/limpieza-v77-v78-delta.zip`, con las filas de la v7.7 y la v7.8 del `CHANGELOG.md` fechadas antes de armarlo
+(§10 paso 0), con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin
+estáticos de `public/`):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador).
+- `scripts/{migrate-add-con-cambio-sabanas,migrate-add-bloqueos-cloudbeds,diagnostico-bloqueos-cloudbeds}.php`.
+- `src/Controllers/{CloudbedsController,HomeController,PaginasController}.php`, `src/Core/Kernel.php`,
+  `src/Models/{AlertaActiva,EjecucionChecklist}.php`.
+- `src/Services/{AsignacionService,BloqueosService,ChecklistService,CloudbedsClient,CloudbedsSyncService,HabitacionService,HomeService,InventarioImportService,ReportesService,SabanasService}.php`.
+- `views/{ajustes,ajustes-cloudbeds,alertas,habitacion-detalle,habitaciones,home-admin,home-supervisora}.php`.
+
+Vuelta atrás: `build/limpieza-v77-v78-vuelta-atras.zip` (los mismos en la v7.6; los nuevos pueden quedar). Las
+columnas y el tipo de alerta pueden quedar: la v7.6 no los lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. **El primer sync después del deploy** anota todas las piezas
+que estén bloqueadas en ese momento y las saca de las colas de hoy con aviso a quien las tenía: subir antes de que
+empiece el turno (o avisar a las supervisoras).
+
+**Smoke:** badge **v7.8** (incógnito), `/api/health` 200 con esquema ok, y después del primer sync: en Habitaciones, las
+piezas que están en mantención o cerradas en Cloudbeds muestran la franja con su motivo; como Admin, Ajustes →
+Cloudbeds muestra los dos interruptores prendidos.
+
+**Verificación al día siguiente** (solo lee):
+
+```sql
+-- Piezas bloqueadas ahora y las que esperan su limpieza completa.
+SELECT ho.codigo, h.numero, h.estado, h.cb_bloqueo_tipo, h.cb_bloqueo_motivo, h.cb_bloqueo_hasta, h.limpieza_completa_pendiente
+  FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+ WHERE h.cb_bloqueo_tipo IS NOT NULL OR h.limpieza_completa_pendiente = 1
+ ORDER BY ho.codigo, h.numero;
+
+-- Avisos de salida de bloqueo y retiros de cola.
+SELECT levantada_at, resuelta_at, resolucion, titulo FROM cat6852_australia.limpieza_bitacora_alertas
+ WHERE tipo = 'habitacion_salio_bloqueo' ORDER BY levantada_at DESC LIMIT 20;
+SELECT created_at, accion, entidad_id, detalles_json FROM cat6852_australia.limpieza_audit_log
+ WHERE accion IN ('habitacion.bloqueo_inicio', 'habitacion.bloqueo_fin', 'asignacion.retirar_por_bloqueo')
+ ORDER BY id DESC LIMIT 30;
+```
+
+**Vuelta atrás:** subir `build/limpieza-v77-v78-vuelta-atras.zip`. Las piezas bloqueadas vuelven a comportarse como
+antes (siguen la condición clean/dirty de Cloudbeds) y desaparece Ajustes → Cloudbeds.

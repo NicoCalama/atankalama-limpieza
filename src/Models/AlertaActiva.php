@@ -17,6 +17,9 @@ final class AlertaActiva
     // La sincronización deshizo una aprobación del día porque Cloudbeds reportó la pieza
     // 'dirty'. Antes pasaba en silencio y alguien la volvía a limpiar sin saber por qué.
     public const TIPO_APROBACION_DESHECHA = 'aprobacion_deshecha';
+    // v7.8: una pieza salió de mantención o de cerrada en Cloudbeds y quedó sin asignar para su
+    // limpieza completa. Se resuelve al asignarla, al aprobarla o si vuelve a bloquearse.
+    public const TIPO_HABITACION_SALIO_BLOQUEO = 'habitacion_salio_bloqueo';
 
     public const TIPOS_VALIDOS = [
         self::TIPO_CLOUDBEDS_SYNC_FAILED,
@@ -28,6 +31,7 @@ final class AlertaActiva
         self::TIPO_HABITACION_SALTADA,
         self::TIPO_INVENTARIO_CAMBIOS,
         self::TIPO_APROBACION_DESHECHA,
+        self::TIPO_HABITACION_SALIO_BLOQUEO,
     ];
 
     public const PRIORIDAD_POR_TIPO = [
@@ -40,6 +44,7 @@ final class AlertaActiva
         self::TIPO_HABITACION_SALTADA => 2,
         self::TIPO_INVENTARIO_CAMBIOS => 2,
         self::TIPO_APROBACION_DESHECHA => 1,
+        self::TIPO_HABITACION_SALIO_BLOQUEO => 2,
     ];
 
     public function __construct(

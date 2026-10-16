@@ -34,6 +34,28 @@ final class CloudbedsSimulado implements HttpTransport
      */
     public ?\Closure $alLeer = null;
 
+    /**
+     * Bloqueos de hoy (getRoomBlocks, v7.8): roomID → {tipo de Cloudbeds, motivo, desde, hasta}. Una pieza con
+     * un bloqueo que no es reserva provisoria sale además con roomBlocked=true en getHousekeepingStatus.
+     *
+     * @var array<string, array{tipo: string, motivo: ?string, desde: ?string, hasta: ?string}>
+     */
+    private array $bloqueos = [];
+
+    /** Si es true, getRoomBlocks responde success=false (p. ej. la API key sin read:roomblock). */
+    public bool $fallarBloqueos = false;
+
+    /** $tipo como lo manda Cloudbeds: out_of_service (mantención), blocked_dates (cerrada) o courtesy_hold. */
+    public function bloquear(string $roomId, string $tipo = 'out_of_service', ?string $motivo = 'Pintura', ?string $hasta = null): void
+    {
+        $this->bloqueos[$roomId] = ['tipo' => $tipo, 'motivo' => $motivo, 'desde' => date('Y-m-d'), 'hasta' => $hasta];
+    }
+
+    public function desbloquear(string $roomId): void
+    {
+        unset($this->bloqueos[$roomId]);
+    }
+
     public function pieza(string $roomId, string $condicion, string $frontdesk, bool $ocupada): void
     {
         $this->piezas[$roomId] = ['condicion' => $condicion, 'frontdesk' => $frontdesk, 'ocupada' => $ocupada];
@@ -96,6 +118,7 @@ final class CloudbedsSimulado implements HttpTransport
                     'roomCondition' => $p['condicion'],
                     'frontdeskStatus' => $p['frontdesk'],
                     'roomOccupied' => $p['ocupada'],
+                    'roomBlocked' => isset($this->bloqueos[$roomId]) && $this->bloqueos[$roomId]['tipo'] !== 'courtesy_hold',
                 ];
             }
             if ($this->alLeer !== null) {
@@ -117,6 +140,24 @@ final class CloudbedsSimulado implements HttpTransport
                 $this->piezas[$roomId]['condicion'] = $condicion;
             }
             return $this->ok(['success' => true]);
+        }
+
+        if (str_ends_with($ruta, '/getRoomBlocks')) {
+            if ($this->fallarBloqueos) {
+                return $this->ok(['success' => false, 'message' => 'Simulado: la API key no tiene read:roomblock']);
+            }
+            $bloques = [];
+            foreach ($this->bloqueos as $roomId => $b) {
+                $bloques[] = [
+                    'roomBlockID' => 'RB_' . $roomId,
+                    'roomBlockType' => $b['tipo'],
+                    'roomBlockReason' => $b['motivo'],
+                    'startDate' => $b['desde'],
+                    'endDate' => $b['hasta'],
+                    'rooms' => [['roomID' => $roomId, 'isSource' => true]],
+                ];
+            }
+            return $this->ok(['success' => true, 'data' => ['propertyID' => 'CB', 'roomBlocks' => $bloques], 'count' => count($bloques), 'total' => count($bloques)]);
         }
 
         // Reservas (huéspedes, cantidades): datos secundarios que el sync tolera vacíos.

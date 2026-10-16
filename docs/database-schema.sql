@@ -200,6 +200,15 @@ CREATE TABLE habitaciones (
     cb_huesped              TEXT,                             -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
     cb_huespedes            INTEGER,                          -- adultos+niños en la pieza hoy (si ya salieron, los que salieron hoy). getReservations
     cb_huespedes_llegan     INTEGER,                          -- adultos+niños que llegan hoy y aún no hacen check-in. getReservations
+    -- Bloqueo en Cloudbeds (v7.8): mantención (out_of_service) o cerrada (blocked_dates), leído en cada sync con
+    -- getRoomBlocks; «bloqueada» = Cloudbeds la da bloqueada (roomBlocked) sin poder saber el tipo. NULL = no está bloqueada.
+    -- Mientras dura no se asigna ni está en ninguna cola. Ver docs/cloudbeds.md §4.5
+    cb_bloqueo_tipo         TEXT CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),
+    cb_bloqueo_motivo       TEXT,                             -- roomBlockReason de Cloudbeds (texto libre que escribe el hotel)
+    cb_bloqueo_desde        TEXT,                             -- YYYY-MM-DD
+    cb_bloqueo_hasta        TEXT,                             -- YYYY-MM-DD (endDate de Cloudbeds)
+    -- 1 = salió de un bloqueo y su próxima limpieza es completa, con cambio de sábanas (v7.8). Se apaga al terminarla.
+    limpieza_completa_pendiente INTEGER NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1)),
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
     -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
@@ -435,7 +444,8 @@ CREATE TABLE alertas_activas (
         'ticket_nuevo',
         'habitacion_saltada',
         'inventario_cambios_pendientes',
-        'aprobacion_deshecha'
+        'aprobacion_deshecha',
+        'habitacion_salio_bloqueo'
     )),
     prioridad           INTEGER NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
     titulo              TEXT NOT NULL,

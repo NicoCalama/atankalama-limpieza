@@ -164,7 +164,7 @@ final class EsquemaServiceTest extends TestCase
 
         $this->assertFalse($r['ok']);
         $this->assertSame(
-            ["alertas_activas.tipo: 'inventario_cambios_pendientes', 'aprobacion_deshecha'"],
+            ["alertas_activas.tipo: 'inventario_cambios_pendientes', 'aprobacion_deshecha', 'habitacion_salio_bloqueo'"],
             $r['checks']
         );
         $this->assertSame([], $r['columnas'], 'La tabla recreada tiene todas sus columnas');

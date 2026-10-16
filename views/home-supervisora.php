@@ -623,7 +623,8 @@ function homeSupervisora() {
                 'ticket_nuevo': 'wrench',
                 'habitacion_saltada': 'skip-forward',
                 'inventario_cambios_pendientes': 'refresh-cw',
-                'aprobacion_deshecha': 'rotate-ccw'
+                'aprobacion_deshecha': 'rotate-ccw',
+                'habitacion_salio_bloqueo': 'door-open'
             };
             return map[tipo] || 'bell';
         },
@@ -638,7 +639,8 @@ function homeSupervisora() {
                 'ticket_nuevo': 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400',
                 'habitacion_saltada': 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
                 'inventario_cambios_pendientes': 'bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400',
-                'aprobacion_deshecha': 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                'aprobacion_deshecha': 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+                'habitacion_salio_bloqueo': 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
             };
             return map[tipo] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
         },
@@ -680,6 +682,10 @@ function homeSupervisora() {
                 }
             } else if (al.tipo === 'trabajador_disponible') {
                 if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar habitaciones', clase: btnPrimario });
+            } else if (al.tipo === 'habitacion_salio_bloqueo') {
+                // v7.8: salió de mantención o de cerrada y necesita su limpieza completa. Se cierra sola al asignarla.
+                if (al.contexto && al.contexto.habitacion_id) botones.push({ accion: 'ir_habitacion', etiqueta: 'Ver habitación', clase: btnSecundario });
+                if (puedeAsignar) botones.push({ accion: 'asignar', etiqueta: 'Asignar', clase: btnPrimario });
             } else if (al.tipo === 'cloudbeds_sync_failed') {
                 if (al.contexto && al.contexto.habitacion_id) {
                     // Escritura fallida de UNA pieza: se cierra cuando una escritura de esa pieza

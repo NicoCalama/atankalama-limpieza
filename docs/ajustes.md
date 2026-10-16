@@ -130,6 +130,16 @@ Al guardar, se dispara recálculo inmediato de alertas predictivas.
 
 Permiso: `cloudbeds.configurar_credenciales`.
 
+**Estado (16/10/2026):** la pantalla `/ajustes/cloudbeds` existe desde la v7.8 y **solo tiene los interruptores de §5.0**.
+Lo de §5.1–5.4 es la especificación original y sigue sin pantalla (el sync se ve en el Inicio del Admin).
+
+### 5.0 Habitaciones en mantención o cerradas (v7.8)
+
+Dos interruptores: «Limpieza al salir de mantención» y «Limpieza al dejar de estar cerrada». Prendido = al
+terminar ese bloqueo en Cloudbeds, la pieza pasa a sucia, queda sin asignar con aviso P2 a la supervisora y su
+limpieza es completa, con cambio de sábanas. Apagado = solo se quita la etiqueta. Prendidos si nadie los tocó.
+API: `GET/PUT /api/cloudbeds/bloqueos-config` `{mantencion?: bool, cerrada?: bool}`. Ver [cloudbeds.md](cloudbeds.md) §4.5.
+
 ### 5.1 Credenciales
 
 **Importante:** las credenciales viven en `.env`, no en BD. La UI aquí solo muestra:

@@ -280,6 +280,24 @@ final class PaginasController
         ]);
     }
 
+    /** Ajustes → Cloudbeds (v7.8): qué hacer cuando una pieza sale de mantención o de cerrada. */
+    public function ajustesCloudbeds(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('cloudbeds.configurar_credenciales')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-cloudbeds', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Cloudbeds',
+        ]);
+    }
+
     public function ajustesImportarTurnos(Request $request): Response
     {
         if ($request->usuario === null) {
