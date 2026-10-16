@@ -2712,7 +2712,8 @@ código nuevo escribe la columna al empezar cualquier limpieza y Reportes la lee
 
 #### ZIP
 
-`build/limpieza-v77-delta.zip`, con la fila de la v7.7 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
+**Sale junto con la v7.8, en el ZIP combinado de §11.36** (`build/limpieza-v77-v78-delta.zip`); lo de abajo era el plan
+para subirla sola. `build/limpieza-v77-delta.zip`, con la fila de la v7.7 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
 `git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin estáticos de
 `public/`, sin vistas):
 - `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
