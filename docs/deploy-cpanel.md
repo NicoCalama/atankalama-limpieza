@@ -2650,3 +2650,100 @@ puede ver cuáles eligieron con:
 SELECT numero, minimo_terminar_min FROM cat6852_australia.limpieza_habitaciones
  WHERE es_espacio_comun = 1 AND activa = 1 ORDER BY numero;
 ```
+
+### 11.35 Release "sábanas al irse el huésped y checklist adaptativo" → v7.7
+
+Pedido de Nicolás (15/10/2026), al ver cómo se ven las tarjetas con y sin cambio de sábanas. **Decisiones (plan
+aprobado el 15/10):**
+
+- **Toca cambio de sábanas:** huésped que sigue, cada N noches (como antes); **huésped que se va hoy** y **«Cambio»**
+  (turnover: se va uno y llega otro el mismo día). «Llega hoy» y la pieza libre, no.
+- **Checklist adaptativo:** si la limpieza no lleva cambio de sábanas, los ítems marcados «Sábanas» en Ajustes →
+  Checklists **se ocultan** (no se exigen para terminar).
+- **Créditos:** esa limpieza vale **solo lo que se hizo** (sin los créditos del ítem oculto); el valor esperado de la
+  pieza en Reportes también baja, así que los porcentajes no castigan. **Conviene avisar a RRHH:** el aseo diario sin
+  sábanas da menos créditos que antes.
+- Se decide al empezar la limpieza y queda fijo. Ante la duda (sin ocupación de Cloudbeds, o una lectura que no es de
+  hoy), el ítem aparece como siempre.
+
+Detalle en [checklist.md](checklist.md) §3.9 y [ocupacion-y-sabanas.md](ocupacion-y-sabanas.md) §3.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La columna no debe existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_ejecuciones_checklist'
+   AND column_name = 'con_cambio_sabanas';
+
+-- 2) Qué ítems son «Sábanas» en los checklists vigentes de habitaciones: son los que se van a ocultar.
+SELECT th.nombre AS tipo, ct.hotel_id, ic.descripcion, ic.obligatorio, ic.creditos
+  FROM cat6852_australia.limpieza_items_checklist ic
+  JOIN cat6852_australia.limpieza_checklists_template ct ON ct.id = ic.template_id
+  JOIN cat6852_australia.limpieza_tipos_habitacion th ON th.id = ct.tipo_habitacion_id
+ WHERE ct.activo = 1 AND ct.habitacion_id IS NULL AND ic.activo = 1 AND ic.es_cambio_sabanas = 1
+ ORDER BY th.nombre, ct.hotel_id;
+
+-- 3) Checklists vigentes de habitaciones SIN ningún ítem «Sábanas»: para esos tipos no cambia nada.
+SELECT th.nombre AS tipo, ct.hotel_id
+  FROM cat6852_australia.limpieza_checklists_template ct
+  JOIN cat6852_australia.limpieza_tipos_habitacion th ON th.id = ct.tipo_habitacion_id
+ WHERE ct.activo = 1 AND ct.habitacion_id IS NULL
+   AND NOT EXISTS (SELECT 1 FROM cat6852_australia.limpieza_items_checklist ic
+                    WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.es_cambio_sabanas = 1)
+ ORDER BY th.nombre;
+```
+
+Si (2) o (3) no calzan con lo que quieren las supervisoras (por ejemplo, que «Retirar ropa de cama usada» también sea
+«Sábanas»), se corrige en Ajustes → Checklists, antes o después del deploy; no hace falta tocar código.
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_ejecuciones_checklist
+  ADD COLUMN con_cambio_sabanas TINYINT NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1));
+```
+
+Con la base escrita en la tabla (ver §11.34). Es lo mismo que hace `scripts/migrate-add-con-cambio-sabanas.php`
+(probado dos veces sobre una base SQLite anterior a la v7.7: agrega y después omite). Las limpiezas que ya existen
+quedan en 1 (con todos sus ítems), así que el historial y los KPIs pasados no cambian. Comprobación: repetir el
+precheck (1) → 1, y `/api/health` → `checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el
+código nuevo escribe la columna al empezar cualquier limpieza y Reportes la lee.
+
+#### ZIP
+
+`build/limpieza-v77-delta.zip`, con la fila de la v7.7 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
+`git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin estáticos de
+`public/`, sin vistas):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
+  `scripts/migrate-add-con-cambio-sabanas.php`.
+- `src/Models/EjecucionChecklist.php`, `src/Services/{ChecklistService,ReportesService,SabanasService}.php`.
+
+8 archivos (1 nuevo, la migración). Vuelta atrás: `build/limpieza-v77-vuelta-atras.zip` (los mismos en la v7.6; la
+migración puede quedar). La columna puede quedar: la v7.6 no la lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Una limpieza que ya estaba en curso al subir queda con todos
+sus ítems (la columna nace en 1), así que no hace falta avisar a las trabajadoras.
+
+**Smoke:** badge **v7.7** (incógnito), `/api/health` 200 con esquema ok, y en Habitaciones las piezas **«Se va hoy»** y
+**«Cambio»** muestran «Sábanas hoy». El checklist sin sábanas no se puede probar con la habitación PRUEBA (no tiene
+ocupación de Cloudbeds, así que siempre lleva sábanas): se verifica al día siguiente.
+
+**Verificación al día siguiente** (solo lee): cuántas limpiezas llevaron y cuántas no, y que las que no llevaron sean
+de huéspedes que siguen:
+
+```sql
+SELECT ec.con_cambio_sabanas, h.cb_frontdesk_status, COUNT(*) AS limpiezas
+  FROM cat6852_australia.limpieza_ejecuciones_checklist ec
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = ec.habitacion_id
+ WHERE ec.timestamp_inicio >= 'AAAA-MM-DDT03:00' AND h.es_espacio_comun = 0
+ GROUP BY ec.con_cambio_sabanas, h.cb_frontdesk_status
+ ORDER BY ec.con_cambio_sabanas, h.cb_frontdesk_status;
+```
+
+(`timestamp_inicio` está en UTC: las 03:00 UTC son las 00:00 de Chile en horario de verano.) Ojo, `cb_frontdesk_status`
+es el de la última lectura, no el del momento en que empezó la limpieza: una pieza de ayer puede salir hoy con otro
+estado.
+
+**Vuelta atrás:** subir `build/limpieza-v77-vuelta-atras.zip`. Vuelve a mostrarse siempre el ítem de sábanas y la salida
+deja de avisar.

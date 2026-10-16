@@ -289,7 +289,7 @@ CREATE TABLE #__items_checklist (
     descripcion         TEXT NOT NULL,
     obligatorio         TINYINT NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
     creditos            INT NOT NULL DEFAULT 1 CHECK (creditos >= 0),  -- peso de créditos del ítem; solo cuenta para créditos si obligatorio=1. Ver docs/creditos-rework.md
-    es_cambio_sabanas   TINYINT NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
+    es_cambio_sabanas   TINYINT NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas: se muestra y se exige solo en las limpiezas que llevan cambio de sábanas (ejecuciones_checklist.con_cambio_sabanas, v7.7). Ver docs/ocupacion-y-sabanas.md
     activo              TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (template_id) REFERENCES #__checklists_template(id) ON DELETE CASCADE
@@ -310,6 +310,7 @@ CREATE TABLE #__ejecuciones_checklist (
     timestamp_fin       VARCHAR(30),
     auditoria_iniciada_at VARCHAR(30),                   -- apertura de la pieza en inspección; KPI tiempo por auditación (ver schema SQLite)
     cerrada_por_sistema TINYINT NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1)),  -- la cerró el cierre de la noche sin que nadie apretara «terminar» (v6.19): sin créditos (ver schema SQLite)
+    con_cambio_sabanas  TINYINT NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1)),  -- v7.7: 0 = esta limpieza no lleva cambio de sábanas, sus ítems es_cambio_sabanas no aplican (ver schema SQLite)
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES #__asignaciones(id) ON DELETE CASCADE,

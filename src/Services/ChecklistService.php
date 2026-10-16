@@ -24,6 +24,7 @@ final class ChecklistService
         // Opcional, mismo motivo que en AsignacionService::$cloudbeds: sin default propio posible,
         // y obligatorio rompería los `new ChecklistService()` existentes.
         private readonly ?CloudbedsSyncService $cloudbeds = null,
+        private readonly SabanasService $sabanas = new SabanasService(),
     ) {
     }
 
@@ -736,16 +737,19 @@ final class ChecklistService
             $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_EN_PROGRESO, $usuarioId, 'ui');
         }
 
+        // Si esta limpieza lleva cambio de sábanas se decide al empezar y queda fijo (v7.7): si
+        // Cloudbeds cambia la ocupación a mitad de la limpieza, el checklist no cambia bajo los pies.
+        $conSabanas = $this->llevaCambioSabanas($habitacion);
         Database::execute(
-            'INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado) VALUES (?, ?, ?, ?, ?)',
-            [$habitacionId, $asignacion->id, $usuarioId, $templateId, EjecucionChecklist::ESTADO_EN_PROGRESO]
+            'INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, con_cambio_sabanas) VALUES (?, ?, ?, ?, ?, ?)',
+            [$habitacionId, $asignacion->id, $usuarioId, $templateId, EjecucionChecklist::ESTADO_EN_PROGRESO, $conSabanas ? 1 : 0]
         );
         $id = Database::lastInsertId();
 
         // Re-limpieza: hereda los ítems que quedaron bien del intento anterior si esta pieza
         // venía de un rechazo. Así el nuevo trabajador solo completa lo desmarcado y cada ítem
         // conserva a nombre de quién lo hizo (reparto de créditos). Ver docs/creditos-rework.md.
-        $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId, $asignacion->fecha, $asignacion->franja);
+        $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId, $asignacion->fecha, $asignacion->franja, $conSabanas);
 
         // Re-limpieza por un NO de la inspección pre-entrega (v7): si es esa, queda vinculada y no cuenta
         // en los KPIs. Nunca puede impedir que la trabajadora empiece: si falla, solo queda en el log.
@@ -761,6 +765,7 @@ final class ChecklistService
 
         Logger::audit($usuarioId, 'checklist.iniciar', 'ejecucion_checklist', $id, [
             'habitacion_id' => $habitacionId, 'template_id' => $templateId, 'items_heredados' => $heredados,
+            'con_cambio_sabanas' => $conSabanas,
         ]);
 
         $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$id]);
@@ -948,6 +953,8 @@ final class ChecklistService
             throw new ChecklistException('EJECUCION_NO_ENCONTRADA', 'Ejecución no encontrada.', 404);
         }
 
+        // Sin cambio de sábanas, los ítems «Sábanas» no se muestran (v7.7): ni a la trabajadora ni
+        // en la inspección, que lee esta misma lista.
         $items = Database::fetchAll(
             "SELECT ic.id, ic.orden, ic.descripcion, ic.obligatorio, ic.es_cambio_sabanas,
                     COALESCE(ei.marcado, 0) AS marcado,
@@ -956,7 +963,7 @@ final class ChecklistService
                FROM #__items_checklist ic
           LEFT JOIN #__ejecuciones_items ei
                  ON ei.item_id = ic.id AND ei.ejecucion_id = ?
-              WHERE ic.template_id = ? AND ic.activo = 1
+              WHERE ic.template_id = ? AND ic.activo = 1" . self::filtroSabanas($ejec->conCambioSabanas) . "
               ORDER BY ic.orden, ic.id",
             [$ejecucionId, $ejec->templateId]
         );
@@ -970,7 +977,7 @@ final class ChecklistService
         }
         unset($item);
 
-        $progreso = $this->calcularProgreso($ejecucionId, $ejec->templateId);
+        $progreso = $this->calcularProgreso($ejec);
 
         // No va dentro de toArrayPublico() (ese método oculta timestamps al trabajador
         // a propósito) — es un conteo regresivo derivado, no un timestamp absoluto.
@@ -1073,11 +1080,16 @@ final class ChecklistService
         $this->exigirAsignacionActiva($ejec);
 
         $item = Database::fetchOne(
-            'SELECT id FROM #__items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
+            'SELECT id, es_cambio_sabanas FROM #__items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
             [$itemId, $ejec->templateId]
         );
         if ($item === null) {
             throw new ChecklistException('ITEM_INVALIDO', 'El item no pertenece al template de esta ejecución.', 400);
+        }
+        // Ítem oculto (v7.7): la pantalla no lo muestra, pero tampoco se acepta por la API, porque
+        // marcarlo daría créditos de un trabajo que esta limpieza no lleva.
+        if (!$ejec->conCambioSabanas && (int) $item['es_cambio_sabanas'] === 1) {
+            throw new ChecklistException('ITEM_NO_APLICA', 'Esta limpieza no lleva cambio de sábanas.', 409);
         }
 
         $existente = Database::fetchOne(
@@ -1091,7 +1103,7 @@ final class ChecklistService
         if ($existente !== null && (int) $existente['marcado'] === 1
             && $existente['marcado_por'] !== null && (int) $existente['marcado_por'] !== $usuarioId) {
             if ($marcado) {
-                return $this->calcularProgreso($ejecucionId, $ejec->templateId);
+                return $this->calcularProgreso($ejec);
             }
             throw new ChecklistException('ITEM_HEREDADO', 'Este ítem ya lo dejó listo otra persona.', 403);
         }
@@ -1118,7 +1130,7 @@ final class ChecklistService
             ['item_id' => $itemId]
         );
 
-        return $this->calcularProgreso($ejecucionId, $ejec->templateId);
+        return $this->calcularProgreso($ejec);
     }
 
     /**
@@ -1146,7 +1158,7 @@ final class ChecklistService
         }
         $this->exigirAsignacionActiva($ejec);
 
-        $progreso = $this->calcularProgreso($ejecucionId, $ejec->templateId);
+        $progreso = $this->calcularProgreso($ejec);
         if ($progreso['obligatorios_pendientes'] > 0) {
             throw new ChecklistException('CHECKLIST_INCOMPLETO', 'Faltan items obligatorios por marcar.', 409);
         }
@@ -1369,9 +1381,11 @@ final class ChecklistService
 
                 $this->habitaciones->cambiarEstado($habitacionId, Habitacion::ESTADO_EN_PROGRESO, $actorId, 'ui');
 
+                // con_cambio_sabanas con la misma regla que una limpieza normal: en la inspección se
+                // ve el mismo checklist que habría tenido la trabajadora.
                 Database::execute(
-                    "INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_fin) VALUES (?, ?, ?, ?, 'completada', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-                    [$habitacionId, $asignacionId, $actorId, $templateId]
+                    "INSERT INTO #__ejecuciones_checklist (habitacion_id, asignacion_id, usuario_id, template_id, estado, timestamp_fin, con_cambio_sabanas) VALUES (?, ?, ?, ?, 'completada', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)",
+                    [$habitacionId, $asignacionId, $actorId, $templateId, $this->llevaCambioSabanas($habitacion) ? 1 : 0]
                 );
             }
 
@@ -1513,8 +1527,9 @@ final class ChecklistService
     }
 
     /** @return array{marcados:int,total:int,porcentaje:int,obligatorios_total:int,obligatorios_marcados:int,obligatorios_pendientes:int} */
-    private function calcularProgreso(int $ejecucionId, int $templateId): array
+    private function calcularProgreso(EjecucionChecklist $ejec): array
     {
+        // Los ítems «Sábanas» ocultos (v7.7) no cuentan: sin ellos se puede terminar.
         $fila = Database::fetchOne(
             "SELECT
                 SUM(CASE WHEN ic.activo = 1 THEN 1 ELSE 0 END) AS total,
@@ -1524,8 +1539,8 @@ final class ChecklistService
                FROM #__items_checklist ic
           LEFT JOIN #__ejecuciones_items ei
                  ON ei.item_id = ic.id AND ei.ejecucion_id = ?
-              WHERE ic.template_id = ?",
-            [$ejecucionId, $templateId]
+              WHERE ic.template_id = ?" . self::filtroSabanas($ejec->conCambioSabanas),
+            [$ejec->id, $ejec->templateId]
         );
         $total = (int) ($fila['total'] ?? 0);
         $marcados = (int) ($fila['marcados'] ?? 0);
@@ -1552,8 +1567,11 @@ final class ChecklistService
             return;
         }
         $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+        // Un ítem «Sábanas» que esta limpieza no llevaba (v7.7) no se vio en la inspección: no se acepta.
+        $ejec = $this->obtenerEjecucion($ejecucionId);
         $validos = Database::fetchAll(
-            "SELECT id FROM #__items_checklist WHERE template_id = ? AND id IN ($placeholders)",
+            "SELECT ic.id FROM #__items_checklist ic WHERE ic.template_id = ? AND ic.id IN ($placeholders)"
+                . self::filtroSabanas($ejec === null || $ejec->conCambioSabanas),
             array_merge([$templateId], $itemIds)
         );
         $validosIds = array_map(static fn(array $f) => (int) $f['id'], $validos);
@@ -1596,8 +1614,11 @@ final class ChecklistService
      * (R4, v6.17). Un rechazo de ayer que nadie rehízo no le regala sus ítems a la limpieza de
      * hoy: la pieza se volvió a ensuciar, es otro aseo, y los créditos iban a parar a quien la
      * limpió ayer (y a contar en el día de hoy).
+     *
+     * Si la ejecución nueva no lleva cambio de sábanas (v7.7), los ítems «Sábanas» no se heredan:
+     * quedarían marcados y ocultos, dando créditos de un trabajo que esta limpieza no lleva.
      */
-    private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId, string $fecha, ?string $franja): int
+    private function heredarItemsSiEsRelimpieza(int $habitacionId, int $nuevaEjecucionId, int $templateId, string $fecha, ?string $franja, bool $conSabanas = true): int
     {
         $anterior = Database::fetchOne(
             "SELECT ec.id, ec.template_id, a.veredicto, asg.fecha, asg.franja
@@ -1643,6 +1664,9 @@ final class ChecklistService
         // el mismo texto, gana el primero: alcanza uno solo para no violar el UNIQUE de la tabla).
         $porDescripcion = [];
         foreach ($this->itemsDelTemplate($templateId) as $item) {
+            if (!$conSabanas && (int) $item['es_cambio_sabanas'] === 1) {
+                continue;
+            }
             $porDescripcion[$item['descripcion']] ??= (int) $item['id'];
         }
 
@@ -1663,5 +1687,34 @@ final class ChecklistService
         }
 
         return $heredados;
+    }
+
+    /**
+     * ¿La limpieza que empieza ahora en esta pieza lleva cambio de sábanas? Regla en
+     * SabanasService::llevaCambioSabanas() con la última ocupación que trajo el sync de Cloudbeds.
+     * Las áreas comunes no tienen ocupación ni ítems de sábanas: siempre «sí» (nada se oculta).
+     */
+    private function llevaCambioSabanas(Habitacion $habitacion): bool
+    {
+        if ($habitacion->esEspacioComun) {
+            return true;
+        }
+        $fila = Database::fetchOne(
+            'SELECT h.cb_frontdesk_status, h.cb_arrival_date, h.cb_ocupacion_sync_at, ho.sabanas_cada_n_dias
+               FROM #__habitaciones h
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE h.id = ?',
+            [$habitacion->id]
+        );
+        return $fila === null || $this->sabanas->llevaCambioSabanas($fila, date('Y-m-d'));
+    }
+
+    /**
+     * Condición SQL que deja fuera los ítems «Sábanas» de una limpieza que no lleva cambio de
+     * sábanas (v7.7). Espera el alias `ic` de items_checklist. Sin parámetros: es una constante.
+     */
+    private static function filtroSabanas(bool $conCambioSabanas): string
+    {
+        return $conCambioSabanas ? '' : ' AND ic.es_cambio_sabanas = 0';
     }
 }

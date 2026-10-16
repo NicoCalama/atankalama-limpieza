@@ -1,6 +1,6 @@
 # Ocupación y cambio de sábanas (Gaps A y B)
 
-**Versión:** 1.0 — 2026-07-02
+**Versión:** 1.1 — 2026-10-15 (v7.7: la salida y el turnover también avisan, y el checklist se adapta — §3.4)
 **Estado:** Implementado y verificado (2026-07-02) — suite 247+/247+, sync real + UI verificados, revisión independiente sin bloqueantes. Pendiente prod: correr `scripts/migrate-add-ocupacion-sabanas.php` (incluye backfill del ítem de sábanas).
 
 Documenta dos features del relevamiento de Rodrigo que salen del **mismo** endpoint de Cloudbeds:
@@ -86,34 +86,53 @@ cama, no tres. **Solo se muestra; los créditos no cambian** (tema aparte, a con
 
 ## 3. Parte B — Cambio de sábanas cada N días
 
-### 3.1 Regla (MVP: cadencia desde la llegada)
-Para una pieza en `stayover`:
-
+### 3.1 Regla (MVP: cadencia desde la llegada; v7.7: + salida y turnover)
 ```
 noches       = hoy − cb_arrival_date
-toca_sabanas = (noches > 0) AND (noches % N == 0)      -- avisa los días N, 2N, 3N…
+toca_sabanas = frontdesk IN ('check-out', 'turnover')                       -- se va hoy (v7.7)
+               OR (frontdesk = 'stayover' AND noches > 0 AND noches % N == 0) -- sigue: días N, 2N, 3N…
 ```
+
+**v7.7 (Nicolás, 15/10/2026):** el huésped que se va hoy, o el turnover («Cambio»: se va uno y llega otro el
+mismo día), también avisa. Antes solo el `stayover`, porque se daba por hecho que la limpieza de salida lleva
+sábanas; con el checklist adaptativo (§3.4) eso ya no se puede suponer en silencio. Cloudbeds calcula
+`frontdeskStatus` por fecha: la pieza sigue en `check-out`/`turnover` todo el día, también después de que el
+huésped salió (la regla del turnover de la v6.20 lo confirmó en producción con la pieza vacía), así que el
+aviso sigue ahí cuando la trabajadora llega a limpiarla. «Llega hoy» (`check-in`) y la pieza libre (`unused`)
+no avisan: la cama se hizo en la limpieza de salida del huésped anterior.
 
 - **N configurable por hotel** (`hoteles.sabanas_cada_n_dias`, default **4**, por Rodrigo).
 - Las noches se cuentan en días calendario (en UTC): con la hora de Chile, el día del cambio de horario de septiembre dura 23 h y toda estadía que lo cruzaba contaba una noche menos (corregido el 07/10/2026).
-- Es literal a "cada N días avisa". **No rastrea el cambio real** (arrival-based): no toca la
-  obligatoriedad del checklist ni, por lo tanto, el conteo de créditos.
-- Solo aplica a `stayover`. En check-in/check-out/turnover el aseo ya trae sábanas frescas.
+- Es literal a "cada N días avisa". **No rastrea el cambio real** (arrival-based). *(Hasta la v7.7 tampoco
+  tocaba la obligatoriedad del checklist; desde la v7.7 sí, ver §3.4.)*
 
 **Trade-off aceptado (MVP):** si el aviso de un día se pasa por alto, no reaparece hasta el siguiente
-múltiplo de N. Un modelo más preciso (rastrear el último cambio real + ítem de sábanas opcional que se
-marca solo cuando toca) es una **mejora futura** — pero ese cambio vuelve opcional un ítem hoy
-obligatorio, lo que ripplearía en el KPI de créditos (conteo de obligatorios); por eso queda fuera del MVP.
+múltiplo de N. Rastrear el último cambio real sigue siendo una **mejora futura**. *(La otra mitad de esa
+mejora —que el ítem de sábanas se exija solo cuando toca, con su efecto en créditos— es la v7.7, §3.4.)*
 
 ### 3.2 Datos
-- Config **`hoteles.sabanas_cada_n_dias`** (default `4`) — editable por hotel desde Ajustes.
-- **`items_checklist.es_cambio_sabanas`** (0/1) — solo para **etiquetar** en la UI cuál es el ítem de
-  sábanas (no se usa para rastrear el cambio en el MVP).
+- Config **`hoteles.sabanas_cada_n_dias`** (default `4`). **No tiene pantalla** (al 15/10/2026): se cambia
+  por SQL. *(Este documento decía «editable desde Ajustes»; nunca se construyó.)*
+- **`items_checklist.es_cambio_sabanas`** (0/1) — cuál es el ítem de sábanas del checklist (toggle
+  «Sábanas» en Ajustes → Checklists). Desde la v7.7 decide qué se oculta (§3.4).
+- **`ejecuciones_checklist.con_cambio_sabanas`** (0/1, v7.7) — si esa limpieza llevó cambio de sábanas.
 
 ### 3.3 Surfacing
-- Badge **"Cambio de sábanas / Sábanas hoy"** en la pieza (coordinador, listado de habitaciones) y en
-  la cola/home del trabajador cuando `toca_sabanas`.
-- En el checklist del trabajador, el ítem de sábanas lleva una etiqueta "Sábanas" (informativa).
+- Badge **«Sábanas hoy»** en la tarjeta de Habitaciones (supervisora y trabajadora) y **«Cambio de
+  sábanas»** en la tarjeta «Habitación actual» del Inicio de la trabajadora, cuando `toca_sabanas`.
+- En el checklist, el ítem de sábanas lleva la etiqueta «Sábanas» (y desde la v7.7 solo aparece cuando la
+  limpieza lleva cambio de sábanas).
+
+### 3.4 Checklist adaptativo (v7.7)
+Pedido de Nicolás (15/10/2026): el checklist se adapta al cambio de sábanas. Al empezar la limpieza se
+decide si lleva cambio de sábanas con la regla de §3.1 (`SabanasService::llevaCambioSabanas`) y queda
+anotado en la ejecución; si no lleva, los ítems «Sábanas» no aparecen, no se exigen para terminar y **no dan
+créditos** (la pieza vale lo que se hizo; decisión de Nicolás). **Ante la duda sí lleva**: sin ocupación de
+Cloudbeds, o con una lectura que no es de hoy. Detalle completo en [checklist.md](checklist.md) §3.9.
+
+Ojo: depende de qué ítems estén marcados «Sábanas» en cada checklist de producción. El checklist base
+marca solo «Hacer cama con sábanas limpias»; «Retirar ropa de cama usada» no, así que hoy se pide
+también en el aseo diario. Marcarlo o no es decisión de la supervisora en Ajustes → Checklists.
 
 ---
 
@@ -122,10 +141,12 @@ obligatorio, lo que ripplearía en el KPI de créditos (conteo de obligatorios);
 - **A — dónde guardar la ocupación:** columnas `cb_*` en `habitaciones` (1:1, sin JOINs). ✅
 - **B — alcance de N:** **por hotel** (`hoteles.sabanas_cada_n_dias`, default 4). ✅
 - **B — cómo se calcula:** **cadencia desde la llegada** (`noches % N == 0`), arrival-based, sin
-  rastrear el cambio real → no toca la obligatoriedad del checklist ni el KPI de créditos (ver §3.1). ✅
+  rastrear el cambio real (ver §3.1). ✅
 - **B — cómo se avisa:** **badge** en habitaciones + cola/home del trabajador (sin alerta nueva). ✅
-- **Pendiente de decisión futura:** modelo preciso de sábanas (rastrear último cambio + ítem opcional),
-  que ripplearía en créditos; y si conviene una alerta P2 a la supervisora.
+- **v7.7 (15/10/2026):** la salida y el turnover también avisan; el checklist oculta los ítems «Sábanas»
+  cuando la limpieza no lleva cambio de sábanas, y esa pieza vale solo los créditos de lo que se hizo. ✅
+- **Pendiente de decisión futura:** rastrear el último cambio real; y si conviene una alerta P2 a la
+  supervisora.
 
 ---
 

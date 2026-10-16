@@ -1035,7 +1035,7 @@ final class ReportesService
         $vueltas = $this->vueltasPorEjecucion($desde, $hasta);
         $ciclo = static fn (array $f): string => $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '')
             . ':' . ($vueltas[(int) $f['ejecucion_id']] ?? 0);
-        $creditosPorTemplate = []; // cache template_id → créditos obligatorios vigentes
+        $creditosPorTemplate = []; // cache "template_id:con_sabanas" → créditos obligatorios vigentes
 
         // ── N2: rechazadas (R) por dueño de la ejecución, una vez por ciclo; pierde TODOS los créditos
         // obligatorios del checklist de esa pieza (versión exacta: ec.template_id). Solo piezas de
@@ -1044,7 +1044,8 @@ final class ReportesService
         $h = $this->hotelCond($hotel, $p);
         $rechazos = []; // uid → ciclo → lista cronológica de timestamp_inicio de sus intentos rechazados
         foreach (Database::fetchAll(
-            "SELECT ec.id AS ejecucion_id, ec.usuario_id, u.nombre, ec.habitacion_id, ec.timestamp_inicio, ec.template_id, asg.fecha, asg.franja
+            "SELECT ec.id AS ejecucion_id, ec.usuario_id, u.nombre, ec.habitacion_id, ec.timestamp_inicio, ec.template_id,
+                    ec.con_cambio_sabanas, asg.fecha, asg.franja
                FROM #__ejecuciones_checklist ec
                JOIN #__auditorias a ON a.ejecucion_id = ec.id AND a.veredicto = 'rechazado'
                JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
@@ -1066,7 +1067,7 @@ final class ReportesService
             }
             $asegurar($filas, $uid, (string) $f['nombre']);
             $filas[$uid]['rechazadas_hab']++;
-            $filas[$uid]['rechazadas_creditos'] += $this->creditosObligatorios((int) $f['template_id'], $creditosPorTemplate);
+            $filas[$uid]['rechazadas_creditos'] += $this->creditosObligatorios((int) $f['template_id'], $creditosPorTemplate, (int) $f['con_cambio_sabanas'] === 1);
         }
 
         // ── N1: créditos y habitaciones en dos etapas, por quien marcó el ítem (marcado_por), sobre
@@ -1214,14 +1215,15 @@ final class ReportesService
         //    ahí no había nada que hacer. Si la pieza pasó después a otra persona, tampoco cuenta
         //    desde los turnos del 01/10/2026 (PASADA_A_OTRA_NO_CUENTA_DESDE); antes sí (pegajoso).
         //    Con ejecución suya (p. ej. la limpió mal, la rechazaron y la rehizo otra) sigue contando.
-        // Créditos = checklist obligatorio vigente: el de la ejecución si la hubo (exacto), si no
-        // el que la app elegiría hoy (templateParaHabitacion).
+        // Créditos = checklist obligatorio vigente: el de la ejecución si la hubo (exacto, y sin los
+        // ítems «Sábanas» si esa limpieza no los llevaba, v7.7), si no el que la app elegiría hoy
+        // (templateParaHabitacion), completo.
         // asignaciones.fecha es DATE local: se compara contra desde/hasta sin pasar por UTC.
         $pX = [$desde, $hasta];
         $hX = $this->hotelCond($hotel, $pX);
         $ejecucionesDe = []; // asignacion_id → sus ejecuciones
         foreach (Database::fetchAll(
-            "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado, ec.cerrada_por_sistema,
+            "SELECT ec.id, ec.asignacion_id, ec.template_id, ec.estado, ec.cerrada_por_sistema, ec.con_cambio_sabanas,
                     CASE WHEN " . self::CON_TRABAJO . " THEN 1 ELSE 0 END AS con_trabajo,
                     CASE WHEN " . self::sinRelimpieza() . " THEN 0 ELSE 1 END AS es_relimpieza
                FROM #__ejecuciones_checklist ec
@@ -1263,7 +1265,7 @@ final class ReportesService
         foreach ($esperado as $f) {
             $uid  = (int) $f['usuario_id'];
             $base = $f['habitacion_id'] . ':' . $f['fecha'] . ':' . ($f['franja'] ?? '') . ':';
-            $trabajadas = []; // vuelta → template de su limpieza
+            $trabajadas = []; // vuelta → [template de su limpieza, ¿llevaba cambio de sábanas?]
             $soloAtajo  = false;
             $relimpio   = false; // trabajó la re-limpieza de un NO de la inspección pre-entrega
             foreach ($ejecucionesDe[(int) $f['id']] ?? [] as $x) {
@@ -1277,7 +1279,7 @@ final class ReportesService
                 // que nadie terminó y cerró el sistema de noche (v6.19) le sigue contando como asignada:
                 // no suma créditos ni pieza hecha, así que le queda como asignada y no hecha.
                 if ((int) $x['con_trabajo'] === 1 || $x['estado'] === 'en_progreso' || (int) $x['cerrada_por_sistema'] === 1) {
-                    $trabajadas[$vueltas[(int) $x['id']] ?? 0] ??= (int) $x['template_id'];
+                    $trabajadas[$vueltas[(int) $x['id']] ?? 0] ??= [(int) $x['template_id'], (int) $x['con_cambio_sabanas'] === 1];
                 } else {
                     $soloAtajo = true;
                 }
@@ -1297,15 +1299,15 @@ final class ReportesService
             } else {
                 $cuenta = true;
             }
-            foreach ($trabajadas as $vuelta => $templateId) {
+            foreach ($trabajadas as $vuelta => $limpieza) {
                 $c = $base . $vuelta;
                 $ciclosE[$uid][$c] ??= [
                     'nombre' => (string) $f['nombre'], 'habitacion_id' => (int) $f['habitacion_id'],
-                    'cuenta' => false, 'template_id' => null,
+                    'cuenta' => false, 'template_id' => null, 'con_sabanas' => true,
                 ];
                 $ciclosE[$uid][$c]['cuenta'] = $ciclosE[$uid][$c]['cuenta'] || $cuenta;
-                if ($ciclosE[$uid][$c]['template_id'] === null && $templateId !== null) {
-                    $ciclosE[$uid][$c]['template_id'] = $templateId;
+                if ($ciclosE[$uid][$c]['template_id'] === null && $limpieza !== null) {
+                    [$ciclosE[$uid][$c]['template_id'], $ciclosE[$uid][$c]['con_sabanas']] = $limpieza;
                 }
             }
         }
@@ -1335,7 +1337,7 @@ final class ReportesService
                     continue;
                 }
                 $filas[$uid]['esperado_hab']++;
-                $filas[$uid]['esperado_creditos'] += $this->creditosObligatorios($templateId, $creditosPorTemplate);
+                $filas[$uid]['esperado_creditos'] += $this->creditosObligatorios($templateId, $creditosPorTemplate, $e['con_sabanas']);
             }
         }
 
@@ -1848,14 +1850,16 @@ final class ReportesService
 
     /**
      * Créditos obligatorios vigentes de un template (los que vale una pieza entera para E y R).
+     * Una limpieza sin cambio de sábanas no tuvo los ítems «Sábanas» (v7.7): vale sin ellos.
      *
-     * @param array<int, int> $cache template_id → créditos, lo mantiene el llamador
+     * @param array<string, int> $cache "template_id:con_sabanas" → créditos, lo mantiene el llamador
      */
-    private function creditosObligatorios(int $templateId, array &$cache): int
+    private function creditosObligatorios(int $templateId, array &$cache, bool $conSabanas = true): int
     {
-        return $cache[$templateId] ??= (int) Database::fetchColumn(
+        return $cache[$templateId . ':' . (int) $conSabanas] ??= (int) Database::fetchColumn(
             'SELECT COALESCE(SUM(creditos), 0) FROM #__items_checklist
-              WHERE template_id = ? AND obligatorio = 1 AND activo = 1',
+              WHERE template_id = ? AND obligatorio = 1 AND activo = 1'
+                . ($conSabanas ? '' : ' AND es_cambio_sabanas = 0'),
             [$templateId]
         );
     }
