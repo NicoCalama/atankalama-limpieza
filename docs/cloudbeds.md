@@ -258,8 +258,11 @@ paginado). Cada bloqueo trae `roomBlockType`, `roomBlockReason`, `startDate`, `e
 
 Si `getRoomBlocks` falla (p. ej. la API key no tiene el permiso), el sync usa solo `roomBlocked` de
 `getHousekeepingStatus` y la pieza queda `bloqueada`, sin tipo ni motivo. Se guardan también
-`cb_bloqueo_motivo`, `cb_bloqueo_desde` y `cb_bloqueo_hasta`. **Pendiente al 16/10/2026: verificar con una
-pieza real** que la API key tenga `read:roomblock` y que «mantención» llegue como `out_of_service`.
+`cb_bloqueo_motivo`, `cb_bloqueo_desde` y `cb_bloqueo_hasta`. **Verificado el 16/10/2026** con las claves reales
+(`scripts/diagnostico-bloqueos-cloudbeds.php`, solo lectura): la API key tiene `read:roomblock` en los dos hoteles y
+la 107 del INN, en mantención, llega como `out_of_service` con motivo «MANTECION CAMBIO DE CERAMICA», del 10/10 al
+18/10, y con `roomBlocked=true`. Ese día no había ninguna cerrada: `blocked_dates` = cerrada sigue sin
+comprobarse con un caso real.
 
 **Mientras dura** (decisiones de Nicolás):
 - La tarjeta de Habitaciones muestra la franja «EN MANTENCIÓN · HASTA 19/10» / «CERRADA» con el motivo, y el

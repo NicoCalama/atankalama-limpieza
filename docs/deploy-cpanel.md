@@ -2781,6 +2781,11 @@ Tiene que mostrar los bloqueos de hoy de cada hotel. Comprobar con una pieza que
 2. que la de mantención salga como `out_of_service → app: mantencion` y la cerrada como `blocked_dates → app: cerrada`.
    Si salen al revés u otro tipo, **no subir**: se ajusta `BloqueosService::tipoDesdeCloudbeds`.
 
+**Hecho el 16/10/2026 ~04:20:** permiso OK en los dos hoteles; 1 Sur sin bloqueos; INN: 107-JUK2 2S `out_of_service →
+app: mantencion`, «MANTECION CAMBIO DE CERAMICA», 10/10–18/10. No había ninguna cerrada para comprobar
+`blocked_dates`: repetir si aparece una antes del deploy. Al subir, la 107 mostrará la franja de mantención en el
+primer sync (hoy Cloudbeds la tiene `clean`, o sea aprobada en la app).
+
 #### Precheck (phpMyAdmin, solo lee)
 
 ```sql
