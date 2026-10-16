@@ -24,7 +24,15 @@ final class CloudbedsSyncService
         private readonly HotelService $hoteles = new HotelService(),
         private readonly HabitacionService $habitaciones = new HabitacionService(),
         private readonly AlertasService $alertas = new AlertasService(),
+        // v7.8: mantención y cerradas. Opcional para no romper los `new CloudbedsSyncService($client)`
+        // existentes; se arma perezoso en bloqueos() con los mismos servicios de este sync.
+        private ?BloqueosService $bloqueosSvc = null,
     ) {
+    }
+
+    private function bloqueos(): BloqueosService
+    {
+        return $this->bloqueosSvc ??= new BloqueosService($this->habitaciones, new AsignacionService(), $this->alertas);
     }
 
     /** Default de cadencia del sync automático (minutos) si la config no existe. */
@@ -163,6 +171,9 @@ final class CloudbedsSyncService
                 // Cuántos huéspedes hay en cada pieza (getReservations). Mismo criterio: si falla,
                 // la pieza queda sin el número y el sync de limpieza sigue.
                 $mapaCantidades = $this->mapaCantidadHuespedes($hotel->cloudbedsPropertyId, $hotel->codigo, date('Y-m-d'));
+                // Mantención y cerradas de hoy (getRoomBlocks, v7.8). null si falló: entonces solo se
+                // sabe si cada pieza está bloqueada (roomBlocked), sin el tipo.
+                $mapaBloqueos = $this->mapaBloqueos($hotel->cloudbedsPropertyId, $hotel->codigo, date('Y-m-d'));
 
                 foreach ($rooms as $room) {
                     if (!is_array($room)) {
@@ -199,6 +210,20 @@ final class CloudbedsSyncService
                         $mapaCantidades[$cloudbedsRoomId]['actuales'] ?? null,
                         $mapaCantidades[$cloudbedsRoomId]['llegan'] ?? null,
                     );
+
+                    // Mantención o cerrada (v7.8): se anota, la pieza sale de las colas de hoy y, al
+                    // terminar el bloqueo, se le genera la limpieza completa. Esa vuelta ya decidió el
+                    // estado de la pieza: el resto del recorrido la deja para el sync siguiente.
+                    $bloqueo = BloqueosService::bloqueoDeLaPieza($cloudbedsRoomId, $mapaBloqueos, !empty($room['roomBlocked']));
+                    $resultadoBloqueo = $this->bloqueos()->aplicar($hab, $bloqueo, date('Y-m-d'));
+                    if ($resultadoBloqueo === BloqueosService::SALIO_CON_LIMPIEZA) {
+                        $actualizada = $this->habitaciones->obtener($hab->id);
+                        if ($actualizada !== null) {
+                            $this->escribirEstadoDirty($actualizada);
+                        }
+                        $actualizadas++;
+                        continue;
+                    }
 
                     $cambiaria = ($cleaningStatus === 'dirty' && $hab->estaEnEstadoTerminal())
                         || ($cleaningStatus === 'clean' && !in_array($hab->estado, Habitacion::ESTADOS_APROBADOS, true));
@@ -239,7 +264,10 @@ final class CloudbedsSyncService
                         // inspeccionada— y le sumaba un cambio de estado de hoy, que es de
                         // donde aprobadaHoy() saca «¿se aprobó hoy?». Se deja como está.
                         Habitacion::ESTADO_APROBADA_AUTOMATICA,
-                    ], true)) {
+                    ], true) && !$this->limpiezaCompletaPendiente($hab)) {
+                        // Salvo (v7.8, la condición de arriba) la que salió de mantención o de cerrada:
+                        // no se da por limpia hasta que alguien haga su limpieza completa, aunque
+                        // Cloudbeds la marque 'clean' (p. ej. si el aviso 'dirty' al liberarla no llegó).
                         // Decisión de negocio (2026-08-21): Cloudbeds es la fuente madre del
                         // estado real. Si ya reporta 'clean' pero acá sigue sucia/en_progreso/
                         // pendiente auditoría/rechazada, se fuerza a 'aprobada' saltando checklist
@@ -625,6 +653,44 @@ final class CloudbedsSyncService
             ]);
         }
         return $mapa;
+    }
+
+    /**
+     * roomID → bloqueo de hoy (mantención, cerrada o reserva provisoria), desde getRoomBlocks (v7.8).
+     * null si la lectura falló —p. ej. la API key no tiene el permiso read:roomblock—: entonces el
+     * sync usa solo roomBlocked de getHousekeepingStatus y la pieza queda «bloqueada» sin tipo.
+     * Nunca lanza: un fallo acá no debe abortar el sync de limpieza.
+     *
+     * @return array<string, array{tipo: ?string, motivo: ?string, desde: ?string, hasta: ?string}>|null
+     */
+    private function mapaBloqueos(string $propertyId, string $hotelCodigo, string $hoy): ?array
+    {
+        try {
+            $respuesta = $this->client->obtenerBloqueosHabitaciones($propertyId, $hoy);
+            if (($respuesta['success'] ?? null) !== true || !is_array($respuesta['data'] ?? null)) {
+                Logger::warning('cloudbeds', 'getRoomBlocks sin success=true: se usa solo roomBlocked', [
+                    'hotel' => $hotelCodigo,
+                    'mensaje' => is_string($respuesta['message'] ?? null) ? $respuesta['message'] : null,
+                ]);
+                return null;
+            }
+            return BloqueosService::mapaPorPieza(array_values(array_filter($respuesta['data'], 'is_array')));
+        } catch (\Throwable $e) {
+            Logger::warning('cloudbeds', 'getRoomBlocks falló: se usa solo roomBlocked', [
+                'hotel' => $hotelCodigo,
+                'mensaje' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /** ¿La pieza salió de un bloqueo y todavía nadie hizo su limpieza completa? (v7.8) */
+    private function limpiezaCompletaPendiente(Habitacion $hab): bool
+    {
+        return (int) Database::fetchColumn(
+            'SELECT limpieza_completa_pendiente FROM #__habitaciones WHERE id = ?',
+            [$hab->id]
+        ) === 1;
     }
 
     /**

@@ -443,7 +443,7 @@ final class HomeController
             'estado' => $estadoDisplay,
             'hotel_codigo' => $item['hotel_codigo'],
             'franja' => $item['franja'] ?? null,  // ventana de la limpieza (día/noche), si aplica
-            'toca_sabanas' => (bool) ($item['toca_sabanas'] ?? false),  // stayover al que hoy le toca cambio de sábanas
+            'toca_sabanas' => (bool) ($item['toca_sabanas'] ?? false),  // hoy toca cambio de sábanas: sigue (cada N noches), se va hoy o turnover (v7.7)
             // Recuadro de huéspedes de la tarjeta «Habitación actual», como lo mostraba
             // Flexkeeping: ocupación, cuántos hay (o salieron hoy), fechas y cuántos llegan hoy.
             // MariaDB devuelve los enteros como string: se castean acá.

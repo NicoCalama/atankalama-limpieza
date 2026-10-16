@@ -169,6 +169,7 @@ Mostrar de un vistazo qué necesita **acción inmediata** de la supervisora. Las
 - 📍 Trabajador disponible sin carga
 - 🔧 Ticket de mantenimiento (nuevo/sin atender)
 - ⏭️ Habitación saltada por un trabajador (no la pudo terminar)
+- 🚪 Habitación que salió de mantención o de cerrada en Cloudbeds y necesita su limpieza completa (v7.8)
 
 **Prioridad 3 (Menos urgente):**
 - ⏸️ Trabajador disponible (indicador de que tiene capacidad para recibir carga)
@@ -244,6 +245,18 @@ Ejemplo: "🔧 Aire acondicionado Hab 205 — No enciende"
 Botones:
 - **"Marcar atendido"** → marca como resuelto (sin reasignar a otro equipo)
 - **"Escalar a Mantenimiento"** → asigna a equipo de mantenimiento (futuro, Fase 2)
+
+#### **Alerta: Habitación salió de mantención o de cerrada (Prioridad 2, v7.8)**
+
+Tipo `habitacion_salio_bloqueo`. Ejemplo: "Habitación 205 salió de mantención — Necesita una limpieza completa,
+con cambio de sábanas. Está sin asignar."
+
+Botones:
+- **"Ver habitación"** → abre la ficha de la pieza
+- **"Asignar"** → abre Asignaciones (con `asignaciones.asignar_manual`)
+
+Se resuelve sola al asignarla para hoy, al aprobarla por cualquier camino o si vuelve a bloquearse. Solo sale
+si el interruptor de ese tipo está prendido en Ajustes → Cloudbeds. Ver [cloudbeds.md](cloudbeds.md) §4.5.
 
 **Registro automático:** toda acción sobre una alerta queda registrada en `bitacora_alertas` con: `alerta_id`, `accion`, `usuario_id`, `timestamp`, `datos_json` (detalles de la acción).
 

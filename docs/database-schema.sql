@@ -200,6 +200,15 @@ CREATE TABLE habitaciones (
     cb_huesped              TEXT,                             -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
     cb_huespedes            INTEGER,                          -- adultos+niños en la pieza hoy (si ya salieron, los que salieron hoy). getReservations
     cb_huespedes_llegan     INTEGER,                          -- adultos+niños que llegan hoy y aún no hacen check-in. getReservations
+    -- Bloqueo en Cloudbeds (v7.8): mantención (out_of_service) o cerrada (blocked_dates), leído en cada sync con
+    -- getRoomBlocks; «bloqueada» = Cloudbeds la da bloqueada (roomBlocked) sin poder saber el tipo. NULL = no está bloqueada.
+    -- Mientras dura no se asigna ni está en ninguna cola. Ver docs/cloudbeds.md §4.5
+    cb_bloqueo_tipo         TEXT CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),
+    cb_bloqueo_motivo       TEXT,                             -- roomBlockReason de Cloudbeds (texto libre que escribe el hotel)
+    cb_bloqueo_desde        TEXT,                             -- YYYY-MM-DD
+    cb_bloqueo_hasta        TEXT,                             -- YYYY-MM-DD (endDate de Cloudbeds)
+    -- 1 = salió de un bloqueo y su próxima limpieza es completa, con cambio de sábanas (v7.8). Se apaga al terminarla.
+    limpieza_completa_pendiente INTEGER NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1)),
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
     -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
@@ -314,7 +323,7 @@ CREATE TABLE items_checklist (
     descripcion         TEXT NOT NULL,
     obligatorio         INTEGER NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
     creditos            INTEGER NOT NULL DEFAULT 1 CHECK (creditos >= 0),  -- peso de créditos del ítem; solo cuenta para créditos si obligatorio=1. Ver docs/creditos-rework.md
-    es_cambio_sabanas   INTEGER NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
+    es_cambio_sabanas   INTEGER NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas: se muestra y se exige solo en las limpiezas que llevan cambio de sábanas (ejecuciones_checklist.con_cambio_sabanas, v7.7). Ver docs/ocupacion-y-sabanas.md
     activo              INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (template_id) REFERENCES checklists_template(id) ON DELETE CASCADE
@@ -337,6 +346,7 @@ CREATE TABLE ejecuciones_checklist (
     timestamp_fin       TEXT,                            -- se setea al marcar "habitación terminada"
     auditoria_iniciada_at TEXT,                          -- instante en que la supervisora ABRIÓ la pieza para inspeccionarla (se sobreescribe en cada apertura); KPI "tiempo por auditación" = auditorias.created_at − este valor. Ver docs/kpis-sueldos.md (Supervisora S1.2)
     cerrada_por_sistema INTEGER NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1)),  -- 1 = nadie apretó «terminar»: la cerró el cierre de la noche (v6.19). No da créditos ni cuenta como limpieza hecha. Ver docs/checklist.md
+    con_cambio_sabanas  INTEGER NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1)),  -- v7.7: ¿esta limpieza lleva cambio de sábanas? Se decide al empezar (SabanasService::llevaCambioSabanas). 0 = los ítems es_cambio_sabanas no se muestran, no se exigen ni dan créditos. Las limpiezas anteriores a la v7.7 quedan en 1 (todos los ítems). Ver docs/checklist.md
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE CASCADE,
@@ -434,7 +444,8 @@ CREATE TABLE alertas_activas (
         'ticket_nuevo',
         'habitacion_saltada',
         'inventario_cambios_pendientes',
-        'aprobacion_deshecha'
+        'aprobacion_deshecha',
+        'habitacion_salio_bloqueo'
     )),
     prioridad           INTEGER NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
     titulo              TEXT NOT NULL,

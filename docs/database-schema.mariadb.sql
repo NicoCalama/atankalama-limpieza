@@ -180,6 +180,11 @@ CREATE TABLE #__habitaciones (
     cb_huesped              VARCHAR(150),                         -- guestName de getReservationAssignments (texto libre; puede incluir empresa)
     cb_huespedes            INT,                                  -- adultos+niños en la pieza hoy (si ya salieron, los que salieron hoy). getReservations
     cb_huespedes_llegan     INT,                                  -- adultos+niños que llegan hoy y aún no hacen check-in. getReservations
+    cb_bloqueo_tipo         VARCHAR(20) NULL CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),  -- v7.8, bloqueo en Cloudbeds (ver schema SQLite)
+    cb_bloqueo_motivo       VARCHAR(255) NULL,
+    cb_bloqueo_desde        VARCHAR(10) NULL,
+    cb_bloqueo_hasta        VARCHAR(10) NULL,
+    limpieza_completa_pendiente TINYINT NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1)),  -- v7.8: salió de un bloqueo, próxima limpieza completa
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
     -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
@@ -289,7 +294,7 @@ CREATE TABLE #__items_checklist (
     descripcion         TEXT NOT NULL,
     obligatorio         TINYINT NOT NULL DEFAULT 1 CHECK (obligatorio IN (0, 1)),
     creditos            INT NOT NULL DEFAULT 1 CHECK (creditos >= 0),  -- peso de créditos del ítem; solo cuenta para créditos si obligatorio=1. Ver docs/creditos-rework.md
-    es_cambio_sabanas   TINYINT NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas; solo etiqueta en la UI (informativo). Ver docs/ocupacion-y-sabanas.md
+    es_cambio_sabanas   TINYINT NOT NULL DEFAULT 0 CHECK (es_cambio_sabanas IN (0, 1)),  -- 1 = ítem de sábanas: se muestra y se exige solo en las limpiezas que llevan cambio de sábanas (ejecuciones_checklist.con_cambio_sabanas, v7.7). Ver docs/ocupacion-y-sabanas.md
     activo              TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (template_id) REFERENCES #__checklists_template(id) ON DELETE CASCADE
@@ -310,6 +315,7 @@ CREATE TABLE #__ejecuciones_checklist (
     timestamp_fin       VARCHAR(30),
     auditoria_iniciada_at VARCHAR(30),                   -- apertura de la pieza en inspección; KPI tiempo por auditación (ver schema SQLite)
     cerrada_por_sistema TINYINT NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1)),  -- la cerró el cierre de la noche sin que nadie apretara «terminar» (v6.19): sin créditos (ver schema SQLite)
+    con_cambio_sabanas  TINYINT NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1)),  -- v7.7: 0 = esta limpieza no lleva cambio de sábanas, sus ítems es_cambio_sabanas no aplican (ver schema SQLite)
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES #__asignaciones(id) ON DELETE CASCADE,
@@ -397,7 +403,8 @@ CREATE TABLE #__alertas_activas (
         'ticket_nuevo',
         'habitacion_saltada',
         'inventario_cambios_pendientes',
-        'aprobacion_deshecha'
+        'aprobacion_deshecha',
+        'habitacion_salio_bloqueo'
     )),
     prioridad           INT NOT NULL CHECK (prioridad IN (0, 1, 2, 3)),
     titulo              VARCHAR(200) NOT NULL,

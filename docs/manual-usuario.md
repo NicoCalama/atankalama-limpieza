@@ -90,6 +90,11 @@ Cada habitación en la cola muestra:
    - Verificar toallas limpias
    - etc.
 
+   La tarea de sábanas (con la etiqueta «Sábanas») aparece **solo cuando a esa habitación le toca cambio
+   de sábanas**: cuando el huésped se va hoy, cuando se va uno y llega otro, o cada 4 noches si el huésped
+   sigue. Esas habitaciones muestran «Sábanas hoy» en su tarjeta y «Cambio de sábanas» en tu Inicio. Si no
+   aparece, ese día no se cambian.
+
 4. **A medida que terminas cada tarea**, toca el checkbox para marcar como hecho
 5. **La app guarda cada marca automáticamente** (aunque se cierre la app, los cambios se guardan)
 

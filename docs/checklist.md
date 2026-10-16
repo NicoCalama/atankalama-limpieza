@@ -21,7 +21,7 @@ Una habitación puede tener múltiples ejecuciones a lo largo del tiempo (una po
 ### 2.1 Estructura
 
 - Un template = N items ordenados.
-- Cada item: `orden`, `descripcion`, `obligatorio` (default true), `creditos` (peso, default 1), `es_cambio_sabanas` (etiqueta).
+- Cada item: `orden`, `descripcion`, `obligatorio` (default true), `creditos` (peso, default 1), `es_cambio_sabanas` (ítem de sábanas: solo aparece en las limpiezas que llevan cambio de sábanas, §3.9).
 - Items `obligatorio=0` son opcionales (no bloquean el botón "habitación terminada", pero siguen siendo marcables) y **no otorgan créditos** (el peso `creditos` solo cuenta si el item es obligatorio; ver [creditos-rework.md](creditos-rework.md)).
 
 ### 2.2 Ejemplos (MVP seed)
@@ -45,7 +45,7 @@ Admin edita desde **Ajustes → Checklists** (`/ajustes/checklists`, `ChecklistS
 - Editar descripción.
 - Toggle `obligatorio`.
 - Fijar el **peso de créditos** por item (input visible solo en items obligatorios; ver [creditos-rework.md](creditos-rework.md)).
-- Toggle `es_cambio_sabanas` (etiqueta de sábanas).
+- Toggle `es_cambio_sabanas` («Sábanas»): el ítem solo aparece en las limpiezas que llevan cambio de sábanas (§3.9).
 - Agregar items nuevos.
 - Quitar un item → simplemente no viaja en la versión nueva; el item viejo queda intacto en su versión.
 
@@ -237,6 +237,38 @@ y franja). Por eso:
 Sin columnas nuevas: sale de `auditorias` (comentario, auditor) y de `ejecuciones_items.desmarcado_por_auditor`
 del intento rechazado. El aviso de la campanita que recibe la trabajadora al rechazarse la pieza
 (`AuditoriaService::crearAlertaRechazo`, con el comentario en el texto) no cambia.
+
+### 3.9 Checklist adaptativo al cambio de sábanas (v7.7)
+
+Pedido de Nicolás (15/10/2026). El checklist muestra el ítem de sábanas **solo en las limpiezas que llevan
+cambio de sábanas**. Qué ítem es el de sábanas lo dice el toggle `es_cambio_sabanas` («Sábanas») de cada
+ítem en Ajustes → Checklists (§2.3); un checklist puede tener más de uno, o ninguno (entonces nada cambia).
+
+**Cuándo lleva** (`SabanasService::llevaCambioSabanas`, la misma regla del aviso «Sábanas hoy», ver
+[ocupacion-y-sabanas.md](ocupacion-y-sabanas.md) §3.1):
+- el huésped **sigue** y hoy cumple N, 2N, 3N… noches desde la llegada (N por hotel, default 4);
+- el huésped **se va hoy** (`check-out`) o se va uno y llega otro el mismo día (`turnover`, «Cambio»).
+
+«Llega hoy» y la pieza libre no llevan. **Ante la duda sí lleva** (todos los ítems, como antes de la v7.7):
+sin ocupación de Cloudbeds, con una lectura que no es de hoy (el sync no anduvo) o con un huésped que sigue
+sin fecha de llegada. Las áreas comunes siempre muestran todos sus ítems.
+
+**Se decide al empezar** (`ChecklistService::iniciarEjecucion`, también el atajo «Marcar limpia») y queda
+en `ejecuciones_checklist.con_cambio_sabanas`. Si Cloudbeds cambia la ocupación a mitad de la limpieza, el
+checklist no cambia; reanudar devuelve la misma decisión. Una re-limpieza es una ejecución nueva: decide de
+nuevo.
+
+**Sin cambio de sábanas** (`con_cambio_sabanas = 0`), los ítems «Sábanas»:
+- no viajan en `GET /api/ejecuciones/{id}` (ni a la trabajadora ni a la inspección, que lee la misma lista)
+  y no cuentan en el progreso: «Habitación terminada» se desbloquea sin ellos;
+- no se pueden marcar por la API (`409 ITEM_NO_APLICA`) ni desmarcar en la inspección
+  (`ITEMS_DESMARCADOS_INVALIDO`), y no se heredan en una re-limpieza;
+- **no dan créditos** (decisión de Nicolás: la pieza vale lo que se hizo). En Reportes, el valor esperado de
+  la pieza y los créditos que pierde un rechazo se calculan sin ellos para esa limpieza, así que una limpieza
+  perfecta sin sábanas no queda como incompleta. Una asignación que nadie empezó vale el checklist completo.
+
+Las limpiezas anteriores a la v7.7 quedan en `con_cambio_sabanas = 1`: el historial y los KPIs ya cerrados no
+cambian. Tests: `tests/Integration/ChecklistSabanasAdaptativoTest.php`, `tests/Unit/SabanasServiceTest.php`.
 
 ---
 

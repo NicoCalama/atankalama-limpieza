@@ -61,6 +61,7 @@ Wrapper en `src/Services/CloudbedsClient.php`. Métodos:
 | `obtenerEstadosHabitaciones(string $propertyId, ?string $fecha = null): array` | `GET /getHousekeepingStatus` | Estados de limpieza (data plano: `roomID` + `roomCondition`) |
 | `obtenerAsignacionesReservas(string $propertyId, ?string $fecha = null): array` | `GET /getReservationAssignments` | Nombre del huésped por pieza (`cb_huesped`) |
 | `obtenerReservasDelDia(string $propertyId, string $fecha): array` | `GET /getReservations` | Cantidad de huéspedes por pieza (`cb_huespedes`, `cb_huespedes_llegan`; v6.14). Filtra `checkInTo`/`checkOutFrom` = el día, `datesQueryMode=rooms`, `includeAllRooms=true`; paginado. Ver `docs/ocupacion-y-sabanas.md` §2.5 |
+| `obtenerBloqueosHabitaciones(string $propertyId, string $fecha): array` | `GET /getRoomBlocks` | Mantención y cerradas del día (v7.8, §4.5). Requiere `read:roomblock` en la API key |
 | `actualizarEstadoHabitacion(string $propertyId, string $roomId, string $estadoCloudbeds): HttpResponse` | `POST /postHousekeepingStatus` | Cambiar a Clean/Dirty |
 
 Nota: endpoints validados contra la API v1.1 real el 30/06/2026. **`getRoomsStatus` NO existe (devuelve 404)** — el endpoint correcto para leer estados de limpieza es `getHousekeepingStatus`. `getRooms` está **paginado** (`count`/`total`); trae 20 por página aunque la propiedad tenga más. **Usar `mcp__context7__query-docs` si hay dudas** sobre la API actual.
@@ -76,7 +77,7 @@ multi-limpieza automática (ver `docs/ocupacion-y-sabanas.md`):
 | `roomID` | string | match con `habitaciones.cloudbeds_room_id` |
 | `roomCondition` | `clean` / `dirty` | estado de limpieza (lo único que usamos hoy) |
 | `roomOccupied` | bool | ocupada ahora |
-| `roomBlocked` | bool | fuera de servicio |
+| `roomBlocked` | bool | bloqueada (mantención, cerrada… sin decir cuál): respaldo de §4.5 si falla `getRoomBlocks` |
 | **`frontdeskStatus`** | `check-in` / `check-out` / `stayover` / `turnover` / `unused` | **ocupación del día** (llega / sigue / se va / día-noche) |
 | **`arrivalDate`** | `YYYY-MM-DD` o `-` | entrada del huésped actual → noches de estadía (sábanas) |
 | **`departureDate`** | `YYYY-MM-DD` o `-` | salida prevista |
@@ -232,6 +233,72 @@ reseteos a sucia al reasignar y al desasignar (antes eran un `UPDATE` directo, s
 `habitaciones.updated_at`, con el supuesto de que solo lo movía `cambiarEstado()`. Era falso: también
 lo mueven la nota de Recepción, marcar o desmarcar nochero, editar la estructura y el vencimiento de
 nocheros de las 16:00. Con eso, una aprobación de ayer con una nota de hoy pasaba por «de hoy».
+
+### 4.5 Habitaciones en mantención o cerradas (v7.8)
+
+Pedido de Nicolás (15/10/2026): que una pieza en mantención o cerrada en Cloudbeds se vea en la app sin
+intervención de nadie, y que al terminar se genere su limpieza. **Antes de la v7.8** la app solo leía
+`roomBlocked` en la revisión diaria de inventario: proponía desactivar la pieza (alerta «cambios de
+inventario», que había que aceptar) y, mientras tanto, la pieza seguía en las colas según la condición
+clean/dirty de Cloudbeds. Caso real: la pieza retirada a las 06:00 del 12/10/2026 (§11.33 de
+deploy-cpanel.md) estaba en mantención y se veía aprobada.
+
+**Lectura** (`CloudbedsSyncService::sincronizar`, en cada sync de 10–30 min): por hotel,
+`GET /getRoomBlocks` con `startDate = endDate = hoy` (`CloudbedsClient::obtenerBloqueosHabitaciones`,
+paginado). Cada bloqueo trae `roomBlockType`, `roomBlockReason`, `startDate`, `endDate` y `rooms[].roomID`
+([referencia](https://developers.cloudbeds.com/reference/get_getroomblocks-2.md)). Requiere el permiso
+**`read:roomblock`** en la API key. Se traduce (`BloqueosService::tipoDesdeCloudbeds`):
+
+| Cloudbeds | App (`habitaciones.cb_bloqueo_tipo`) |
+|---|---|
+| `out_of_service` | `mantencion` |
+| `blocked_dates` (o `blocked`) | `cerrada` |
+| `courtesy_hold` (reserva provisoria) | no es un bloqueo |
+| otro / desconocido | `bloqueada` |
+
+Si `getRoomBlocks` falla (p. ej. la API key no tiene el permiso), el sync usa solo `roomBlocked` de
+`getHousekeepingStatus` y la pieza queda `bloqueada`, sin tipo ni motivo. Se guardan también
+`cb_bloqueo_motivo`, `cb_bloqueo_desde` y `cb_bloqueo_hasta`. **Verificado el 16/10/2026** con las claves reales
+(`scripts/diagnostico-bloqueos-cloudbeds.php`, solo lectura): la API key tiene `read:roomblock` en los dos hoteles y
+la 107 del INN, en mantención, llega como `out_of_service` con motivo «MANTECION CAMBIO DE CERAMICA», del 10/10 al
+18/10, y con `roomBlocked=true`. Ese día no había ninguna cerrada: `blocked_dates` = cerrada sigue sin
+comprobarse con un caso real.
+
+**Mientras dura** (decisiones de Nicolás):
+- La tarjeta de Habitaciones muestra la franja «EN MANTENCIÓN · HASTA 19/10» / «CERRADA» con el motivo, y el
+  detalle de la pieza un aviso.
+- No se asigna para hoy (`409 HABITACION_BLOQUEADA`); sí se puede preasignar para otro día. No sale en el
+  pool de hoy del tablero, ni en auto-asignar, ni en el conteo de «sin asignar» del Inicio.
+- Si alguien la tenía en su cola de hoy sin empezar, sale con el aviso «Habitación retirada de tu cola»
+  (`AsignacionService::retirarPorBloqueo`, en cada sync: también saca una preasignación que llega a su
+  día). Si ya la estaba limpiando, la termina.
+- La condición clean/dirty de Cloudbeds sigue mandando sobre el estado, como siempre.
+- La revisión diaria de inventario **ya no la desactiva** (`InventarioImportService`): las que una versión
+  anterior desactivó por un bloqueo vuelven a `activa = 1` con el próximo import.
+
+**Al terminar** (la pieza deja de venir bloqueada), si el interruptor de su tipo está prendido
+(`BloqueosService::salir`):
+- pasa a sucia (si no lo estaba) y se le avisa `dirty` a Cloudbeds;
+- si nadie la está limpiando, se sueltan sus asignaciones de hoy (una ya terminada la devolvería a la cola
+  de quien la limpió antes del bloqueo; sus créditos no cambian) y queda **sin asignar**, con la alerta
+  P2 `habitacion_salio_bloqueo` («Habitación 205 salió de mantención — Necesita una limpieza completa, con
+  cambio de sábanas»), botones «Ver habitación» y «Asignar». Se resuelve sola al asignarla para hoy, al
+  aprobarla o si vuelve a bloquearse;
+- `habitaciones.limpieza_completa_pendiente = 1`: su próxima limpieza lleva cambio de sábanas aunque la
+  regla normal no lo pida (`ChecklistService::llevaCambioSabanas`, ver checklist.md §3.9), y la tarjeta
+  muestra «Sábanas hoy». El sync no la da por limpia aunque Cloudbeds diga `clean`. Se apaga al terminar
+  esa limpieza (también con «Marcar limpia»).
+
+Una pieza que espera inspección no se vuelve a ensuciar (la limpieza ya está hecha): solo se quita la
+etiqueta.
+
+**Interruptores** (Ajustes → Cloudbeds, permiso `cloudbeds.configurar_credenciales`, Admin por defecto):
+«Limpieza al salir de mantención» y «Limpieza al dejar de estar cerrada», en `alertas_config`
+(`bloqueo_limpieza_al_salir_mantencion` / `_cerrada`). Sin fila = prendido. Apagado, al terminar el
+bloqueo solo se quita la etiqueta. Una pieza `bloqueada` (sin tipo) sigue al de mantención.
+
+Tests: `tests/Integration/BloqueosCloudbedsTest.php` (contra `CloudbedsSimulado`, que ahora responde
+`getRoomBlocks` y `roomBlocked`), `tests/Unit/BloqueosServiceTest.php`.
 
 ---
 

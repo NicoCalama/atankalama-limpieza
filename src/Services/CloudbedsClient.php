@@ -42,6 +42,10 @@ final class CloudbedsClient
     /** Tope de páginas anti-loop (100 * 20 = 2000 reservas en un día). */
     private const RESERVAS_MAX_PAGINAS = 20;
 
+    /** getRoomBlocks (v7.8): bloqueos de un día; con 156 piezas en total, una página alcanza. */
+    private const BLOQUEOS_PAGE_SIZE = 100;
+    private const BLOQUEOS_MAX_PAGINAS = 10;
+
     private readonly string $baseUrl;
     private readonly string $apiKey;
 
@@ -298,6 +302,56 @@ final class CloudbedsClient
             'count' => count($reservas),
             'total' => $total,
         ];
+    }
+
+    /**
+     * Bloqueos de habitaciones que tocan `fecha` (GET /getRoomBlocks con startDate = endDate =
+     * fecha): mantención (`out_of_service`), cerrada (`blocked_dates`) y reservas provisorias
+     * (`courtesy_hold`), cada uno con roomBlockReason, startDate, endDate y rooms[].roomID. v7.8,
+     * ver docs/cloudbeds.md §4.5. Requiere el permiso `read:roomblock` en la API key.
+     *
+     * La documentación de Cloudbeds trae `data` como objeto { propertyID, roomBlocks: [...] }; se
+     * acepta también `data` como lista de bloqueos. Paginado (pageSize 100). Devuelve
+     * { success: true, data: [bloqueos] }, o la primera respuesta tal cual si no trae success=true.
+     *
+     * @return array<string, mixed>
+     */
+    public function obtenerBloqueosHabitaciones(string $propertyId, string $fecha): array
+    {
+        $apiKey = $this->claveParaPropiedad($propertyId);
+        $bloqueos = [];
+        $pagina = 0;
+        do {
+            $pagina++;
+            $query = http_build_query([
+                'propertyID' => $propertyId,
+                'startDate' => $fecha,
+                'endDate' => $fecha,
+                'pageNumber' => $pagina,
+                'pageSize' => self::BLOQUEOS_PAGE_SIZE,
+            ]);
+            $respuesta = $this->ejecutarConReintentos('GET', '/getRoomBlocks?' . $query, $apiKey)->json();
+            if (($respuesta['success'] ?? null) !== true) {
+                if ($pagina === 1) {
+                    return $respuesta;
+                }
+                // Una página que falla no puede pasar por «no hay más»: una pieza bloqueada que
+                // faltara se daría por liberada y se le generaría una limpieza.
+                throw new CloudbedsException(
+                    'GETROOMBLOCKS_PAGINA_FALLIDA',
+                    "getRoomBlocks falló en la página {$pagina}: los bloqueos quedarían incompletos."
+                );
+            }
+            $data = $respuesta['data'] ?? [];
+            $lista = is_array($data['roomBlocks'] ?? null) ? $data['roomBlocks'] : (array_is_list((array) $data) ? (array) $data : []);
+            $nuevos = array_values(array_filter($lista, 'is_array'));
+            foreach ($nuevos as $bloqueo) {
+                $bloqueos[] = $bloqueo;
+            }
+            $total = is_numeric($respuesta['total'] ?? null) ? (int) $respuesta['total'] : null;
+        } while ($total !== null && $nuevos !== [] && count($bloqueos) < $total && $pagina < self::BLOQUEOS_MAX_PAGINAS);
+
+        return ['success' => true, 'data' => $bloqueos];
     }
 
     /**

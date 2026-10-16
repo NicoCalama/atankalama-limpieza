@@ -252,7 +252,8 @@ final class HomeService
             "SELECT COUNT(*) AS c
                FROM #__habitaciones h
           LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
-              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.es_prueba = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL",
+              WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.es_prueba = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL
+                AND " . BloqueosService::sqlSinBloqueo(),  // v7.8: la bloqueada en Cloudbeds hoy no se asigna
             [$fecha, $hotelId]
         )['c'] ?? 0);
 

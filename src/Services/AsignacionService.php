@@ -60,6 +60,16 @@ final class AsignacionService
                 403
             );
         }
+        // v7.8: una pieza en mantención o cerrada en Cloudbeds no se asigna para hoy. Sí se puede
+        // preasignar para otro día: si ese día sigue bloqueada, el sync la saca de la cola.
+        if ($fecha === date('Y-m-d') && ($bloqueo = BloqueosService::bloqueoActual($habitacionId)) !== null) {
+            $hasta = $bloqueo['hasta'] !== null ? ' hasta el ' . date('d/m/Y', (int) strtotime($bloqueo['hasta'])) : '';
+            throw new AsignacionException(
+                'HABITACION_BLOQUEADA',
+                'La habitación está ' . BloqueosService::comoEsta($bloqueo['tipo']) . "{$hasta}. No se puede asignar hoy.",
+                409
+            );
+        }
         $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
         $this->desactivarAsignacionesActivas($habitacionId, $fecha);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
@@ -116,6 +126,10 @@ final class AsignacionService
             AlertaActiva::TIPO_TRABAJADOR_DISPONIBLE,
             HomeService::dedupeDisponible($usuarioId, $fecha)
         );
+        // v7.8: la pieza que salió de mantención o de cerrada ya tiene quién la limpie hoy.
+        if ($fecha === date('Y-m-d')) {
+            $this->alertas->resolverPorDedupe(AlertaActiva::TIPO_HABITACION_SALIO_BLOQUEO, BloqueosService::dedupe($habitacionId));
+        }
 
         $asignacion = $this->obtener($id)
             ?? throw new AsignacionException('ASIGNACION_NO_CREADA', 'Error al crear asignación.', 500);
@@ -183,6 +197,7 @@ final class AsignacionService
                       AND h.activa = 1
                       AND h.es_espacio_comun = 0
                       AND ' . HabitacionesPrueba::sqlSinPrueba() . '
+                      AND ' . BloqueosService::sqlSinBloqueo() . '
                       AND a.id IS NULL';
         $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA];
         if ($filtroHotel !== null) {
@@ -333,6 +348,67 @@ final class AsignacionService
     }
 
     /**
+     * v7.8: la pieza quedó en mantención o cerrada en Cloudbeds. Sale de la cola de hoy de quien la
+     * tenga, con aviso, salvo que ya la esté limpiando (o la haya limpiado): esa limpieza se termina.
+     * Lo llama el sync en cada lectura mientras dure el bloqueo, así que también saca una
+     * preasignación que recién llega a su día. Devuelve cuántas asignaciones retiró.
+     *
+     * $comoEsta: «en mantención», «cerrada»… (BloqueosService::comoEsta), para el aviso.
+     */
+    public function retirarPorBloqueo(int $habitacionId, string $fecha, string $comoEsta): int
+    {
+        $filas = Database::fetchAll(
+            'SELECT a.id, a.usuario_id, h.numero
+               FROM #__asignaciones a
+               JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE a.habitacion_id = ? AND a.fecha = ? AND a.activa = 1
+                AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)',
+            [$habitacionId, $fecha]
+        );
+        foreach ($filas as $f) {
+            Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE id = ? AND activa = 1', [(int) $f['id']]);
+            Logger::audit(null, 'asignacion.retirar_por_bloqueo', 'asignacion', (int) $f['id'], [
+                'habitacion_id' => $habitacionId,
+                'usuario_id' => (int) $f['usuario_id'],
+                'fecha' => $fecha,
+            ]);
+            $this->notificaciones->crear(
+                (int) $f['usuario_id'],
+                'asignacion',
+                'Habitación retirada de tu cola',
+                "La habitación #{$f['numero']} quedó {$comoEsta} y ya no está en tu cola.",
+                Url::a('/home')
+            );
+        }
+        return count($filas);
+    }
+
+    /**
+     * v7.8: la pieza salió de mantención o de cerrada y necesita una limpieza nueva, que la supervisora
+     * asigna. Se desactivan sus asignaciones de hoy (ya terminadas, o sin empezar): si no, la pieza
+     * volvería sola a la cola de quien la limpió antes del bloqueo. Sin aviso: la pieza no estaba
+     * pendiente en la cola de nadie. El llamador no la llama si alguien la está limpiando.
+     */
+    public function soltarParaLimpiezaNueva(int $habitacionId, string $fecha): int
+    {
+        $ids = array_map(
+            static fn(array $f): int => (int) $f['id'],
+            Database::fetchAll(
+                'SELECT id FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
+                [$habitacionId, $fecha]
+            )
+        );
+        foreach ($ids as $id) {
+            Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE id = ?', [$id]);
+            Logger::audit(null, 'asignacion.soltar_tras_bloqueo', 'asignacion', $id, [
+                'habitacion_id' => $habitacionId,
+                'fecha' => $fecha,
+            ]);
+        }
+        return count($ids);
+    }
+
+    /**
      * Reordena la cola de un trabajador (array de habitacion_ids en orden deseado).
      *
      * @param list<int> $ordenHabitaciones
@@ -444,7 +520,8 @@ final class AsignacionService
             // cb_frontdesk_status viaja para que la supervisora vea, al elegir a quién asignar,
             // cuáles son "cambio" (check-out/turnover, urgentes) vs "sigue" (stayover) — solo
             // informativo, no filtra el pool. Ver AsignacionService::vistaConsolidada().
-            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cb_frontdesk_status,
+            // Las bloqueadas en Cloudbeds (mantención/cerrada, v7.8) no salen: hoy no se pueden asignar.
+            $sqlSin ='SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cb_frontdesk_status,
                               ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -453,6 +530,7 @@ final class AsignacionService
                         WHERE h.activa = 1
                           AND h.es_espacio_comun = 0
                           AND h.estado IN (\'sucia\', \'rechazada\')
+                          AND ' . BloqueosService::sqlSinBloqueo() . '
                           AND a.id IS NULL';
         } else {
             // Planificación a futuro: no hay "estado real" que consultar (nadie sabe si la pieza
@@ -600,7 +678,7 @@ final class AsignacionService
         // Cloudbeds), esa ejecución está vencida y no debe ganarle a las pendientes.
         $filas = Database::fetchAll(
             "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.es_prueba, h.cb_frontdesk_status, h.cb_arrival_date,
-                    h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan,
+                    h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan, h.limpieza_completa_pendiente,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
                     (h.estado = 'en_progreso' AND EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
                              WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id

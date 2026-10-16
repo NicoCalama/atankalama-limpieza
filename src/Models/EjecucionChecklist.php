@@ -21,6 +21,8 @@ final class EjecucionChecklist
         public readonly ?string $timestampFin,
         /** Apertura de la pieza en inspección (KPI tiempo por auditación); null si nunca se abrió. */
         public readonly ?string $auditoriaIniciadaAt = null,
+        /** ¿Esta limpieza lleva cambio de sábanas? Si no, los ítems «Sábanas» no aplican (v7.7). */
+        public readonly bool $conCambioSabanas = true,
     ) {
     }
 
@@ -39,6 +41,7 @@ final class EjecucionChecklist
             timestampInicio: (string) $fila['timestamp_inicio'],
             timestampFin: $fila['timestamp_fin'] !== null ? (string) $fila['timestamp_fin'] : null,
             auditoriaIniciadaAt: $abierta !== null ? (string) $abierta : null,
+            conCambioSabanas: ((int) ($fila['con_cambio_sabanas'] ?? 1)) === 1,
         );
     }
 
@@ -52,6 +55,7 @@ final class EjecucionChecklist
             'usuario_id' => $this->usuarioId,
             'template_id' => $this->templateId,
             'estado' => $this->estado,
+            'con_cambio_sabanas' => $this->conCambioSabanas,
         ];
     }
 }

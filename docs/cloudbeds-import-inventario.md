@@ -35,6 +35,9 @@
 >   (auto-create en `InventarioImportService` + red anti-500 en `iniciarEjecucion`), así que las piezas
 >   son usables desde el arranque; la supervisora personaliza por UI después.
 > - **#5 → `roomBlocked` se importa con `activa=0`** (conserva el mapeo y el histórico). Hoy: 2 piezas.
+>   **Cambiado en la v7.8 (16/10/2026):** un bloqueo ya no desactiva la pieza; lo maneja el sync en cada
+>   lectura (mantención/cerrada con su etiqueta, fuera de las colas y limpieza al terminar, ver
+>   [cloudbeds.md](cloudbeds.md) §4.5). Las desactivadas por un bloqueo vuelven a `activa=1` con el próximo import.
 > - **#6 → Upsert idempotente, corrida on-demand.** Match por `(hotel_id, cloudbeds_room_id)` en
 >   código (portable SQLite/MariaDB). Las piezas cuyo room_id desaparece de Cloudbeds → `activa=0`,
 >   nunca se borran. No hay cron todavía (decisión aparte).

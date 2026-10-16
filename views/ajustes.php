@@ -93,6 +93,14 @@ $secciones = [
         'visible' => $usuario->tienePermiso('alertas.configurar_umbrales'),
     ],
     [
+        'ruta' => '/ajustes/cloudbeds',
+        'icono' => 'cloud',
+        'label' => 'Cloudbeds',
+        'letra_indice' => 1, // C[l]oudbeds (C, o, u, s ya están tomadas; d, b, e reservadas)
+        'descripcion' => 'Qué pasa cuando una habitación sale de mantención o de cerrada',
+        'visible' => $usuario->tienePermiso('cloudbeds.configurar_credenciales'),
+    ],
+    [
         'ruta' => '/reportes',
         'icono' => 'bar-chart-3',
         'label' => 'Reportes',

@@ -6,6 +6,7 @@ namespace Atankalama\Limpieza\Controllers;
 
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
+use Atankalama\Limpieza\Services\BloqueosService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsException;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
@@ -72,5 +73,38 @@ final class CloudbedsController
         $this->servicio()->actualizarConfig($cambios, $request->usuario?->id);
 
         return Response::ok(['mensaje' => 'Configuración actualizada.']);
+    }
+
+    /**
+     * GET /api/cloudbeds/bloqueos-config (v7.8): los interruptores de Ajustes → Cloudbeds.
+     * {mantencion: bool, cerrada: bool} = ¿al terminar ese bloqueo se genera la limpieza completa?
+     */
+    public function bloqueosConfig(Request $request): Response
+    {
+        return Response::ok((new BloqueosService())->config());
+    }
+
+    /** PUT /api/cloudbeds/bloqueos-config {mantencion?: bool, cerrada?: bool} */
+    public function guardarBloqueosConfig(Request $request): Response
+    {
+        $cambios = [];
+        foreach ([BloqueosService::TIPO_MANTENCION, BloqueosService::TIPO_CERRADA] as $tipo) {
+            $valor = $request->input($tipo);
+            if ($valor === null) {
+                continue;
+            }
+            if (!is_bool($valor)) {
+                return Response::error('PARAMETROS_INVALIDOS', 'Elige si se genera la limpieza o no.', 400);
+            }
+            $cambios[$tipo] = $valor;
+        }
+        if ($cambios === []) {
+            return Response::error('CAMPOS_REQUERIDOS', 'No llegó ningún cambio.', 400);
+        }
+        $svc = new BloqueosService();
+        foreach ($cambios as $tipo => $valor) {
+            $svc->configurar($tipo, $valor, (int) $request->usuario?->id);
+        }
+        return Response::ok($svc->config());
     }
 }

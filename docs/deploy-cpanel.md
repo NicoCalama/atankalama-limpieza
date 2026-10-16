@@ -2650,3 +2650,233 @@ puede ver cuáles eligieron con:
 SELECT numero, minimo_terminar_min FROM cat6852_australia.limpieza_habitaciones
  WHERE es_espacio_comun = 1 AND activa = 1 ORDER BY numero;
 ```
+
+### 11.35 Release "sábanas al irse el huésped y checklist adaptativo" → v7.7
+
+Pedido de Nicolás (15/10/2026), al ver cómo se ven las tarjetas con y sin cambio de sábanas. **Decisiones (plan
+aprobado el 15/10):**
+
+- **Toca cambio de sábanas:** huésped que sigue, cada N noches (como antes); **huésped que se va hoy** y **«Cambio»**
+  (turnover: se va uno y llega otro el mismo día). «Llega hoy» y la pieza libre, no.
+- **Checklist adaptativo:** si la limpieza no lleva cambio de sábanas, los ítems marcados «Sábanas» en Ajustes →
+  Checklists **se ocultan** (no se exigen para terminar).
+- **Créditos:** esa limpieza vale **solo lo que se hizo** (sin los créditos del ítem oculto); el valor esperado de la
+  pieza en Reportes también baja, así que los porcentajes no castigan. **Conviene avisar a RRHH:** el aseo diario sin
+  sábanas da menos créditos que antes.
+- Se decide al empezar la limpieza y queda fijo. Ante la duda (sin ocupación de Cloudbeds, o una lectura que no es de
+  hoy), el ítem aparece como siempre.
+
+Detalle en [checklist.md](checklist.md) §3.9 y [ocupacion-y-sabanas.md](ocupacion-y-sabanas.md) §3.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La columna no debe existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_ejecuciones_checklist'
+   AND column_name = 'con_cambio_sabanas';
+
+-- 2) Qué ítems son «Sábanas» en los checklists vigentes de habitaciones: son los que se van a ocultar.
+SELECT th.nombre AS tipo, ct.hotel_id, ic.descripcion, ic.obligatorio, ic.creditos
+  FROM cat6852_australia.limpieza_items_checklist ic
+  JOIN cat6852_australia.limpieza_checklists_template ct ON ct.id = ic.template_id
+  JOIN cat6852_australia.limpieza_tipos_habitacion th ON th.id = ct.tipo_habitacion_id
+ WHERE ct.activo = 1 AND ct.habitacion_id IS NULL AND ic.activo = 1 AND ic.es_cambio_sabanas = 1
+ ORDER BY th.nombre, ct.hotel_id;
+
+-- 3) Checklists vigentes de habitaciones SIN ningún ítem «Sábanas»: para esos tipos no cambia nada.
+SELECT th.nombre AS tipo, ct.hotel_id
+  FROM cat6852_australia.limpieza_checklists_template ct
+  JOIN cat6852_australia.limpieza_tipos_habitacion th ON th.id = ct.tipo_habitacion_id
+ WHERE ct.activo = 1 AND ct.habitacion_id IS NULL
+   AND NOT EXISTS (SELECT 1 FROM cat6852_australia.limpieza_items_checklist ic
+                    WHERE ic.template_id = ct.id AND ic.activo = 1 AND ic.es_cambio_sabanas = 1)
+ ORDER BY th.nombre;
+```
+
+Si (2) o (3) no calzan con lo que quieren las supervisoras (por ejemplo, que «Retirar ropa de cama usada» también sea
+«Sábanas»), se corrige en Ajustes → Checklists, antes o después del deploy; no hace falta tocar código.
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_ejecuciones_checklist
+  ADD COLUMN con_cambio_sabanas TINYINT NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1));
+```
+
+Con la base escrita en la tabla (ver §11.34). Es lo mismo que hace `scripts/migrate-add-con-cambio-sabanas.php`
+(probado dos veces sobre una base SQLite anterior a la v7.7: agrega y después omite). Las limpiezas que ya existen
+quedan en 1 (con todos sus ítems), así que el historial y los KPIs pasados no cambian. Comprobación: repetir el
+precheck (1) → 1, y `/api/health` → `checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el
+código nuevo escribe la columna al empezar cualquier limpieza y Reportes la lee.
+
+#### ZIP
+
+**Sale junto con la v7.8, en el ZIP combinado de §11.36** (`build/limpieza-v77-v78-delta.zip`); lo de abajo era el plan
+para subirla sola. `build/limpieza-v77-delta.zip`, con la fila de la v7.7 del `CHANGELOG.md` fechada antes de armarlo (§10 paso 0), con
+`git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin estáticos de
+`public/`, sin vistas):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador),
+  `scripts/migrate-add-con-cambio-sabanas.php`.
+- `src/Models/EjecucionChecklist.php`, `src/Services/{ChecklistService,ReportesService,SabanasService}.php`.
+
+8 archivos (1 nuevo, la migración). Vuelta atrás: `build/limpieza-v77-vuelta-atras.zip` (los mismos en la v7.6; la
+migración puede quedar). La columna puede quedar: la v7.6 no la lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Una limpieza que ya estaba en curso al subir queda con todos
+sus ítems (la columna nace en 1), así que no hace falta avisar a las trabajadoras.
+
+**Smoke:** badge **v7.7** (incógnito), `/api/health` 200 con esquema ok, y en Habitaciones las piezas **«Se va hoy»** y
+**«Cambio»** muestran «Sábanas hoy». El checklist sin sábanas no se puede probar con la habitación PRUEBA (no tiene
+ocupación de Cloudbeds, así que siempre lleva sábanas): se verifica al día siguiente.
+
+**Verificación al día siguiente** (solo lee): cuántas limpiezas llevaron y cuántas no, y que las que no llevaron sean
+de huéspedes que siguen:
+
+```sql
+SELECT ec.con_cambio_sabanas, h.cb_frontdesk_status, COUNT(*) AS limpiezas
+  FROM cat6852_australia.limpieza_ejecuciones_checklist ec
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = ec.habitacion_id
+ WHERE ec.timestamp_inicio >= 'AAAA-MM-DDT03:00' AND h.es_espacio_comun = 0
+ GROUP BY ec.con_cambio_sabanas, h.cb_frontdesk_status
+ ORDER BY ec.con_cambio_sabanas, h.cb_frontdesk_status;
+```
+
+(`timestamp_inicio` está en UTC: las 03:00 UTC son las 00:00 de Chile en horario de verano.) Ojo, `cb_frontdesk_status`
+es el de la última lectura, no el del momento en que empezó la limpieza: una pieza de ayer puede salir hoy con otro
+estado.
+
+**Vuelta atrás:** subir `build/limpieza-v77-vuelta-atras.zip`. Vuelve a mostrarse siempre el ítem de sábanas y la salida
+deja de avisar.
+
+### 11.36 Release "habitaciones en mantención o cerradas" → v7.8
+
+Pedido de Nicolás (15/10/2026): que una pieza en mantención o cerrada en Cloudbeds se vea sola en la app y que al
+terminar se genere su limpieza, con cambio de sábanas. **Decisiones (plan aprobado el 16/10):**
+
+- En cada sync se leen los bloqueos del día (`getRoomBlocks`): `out_of_service` = **mantención**, `blocked_dates` =
+  **cerrada**; las reservas provisorias no cuentan. Si la lectura falla, la pieza queda «bloqueada» sin tipo (con
+  `roomBlocked`).
+- Mientras dura: franja en la tarjeta, no se asigna para hoy, sale de la cola de quien la tenía sin empezar (con aviso);
+  si ya la estaba limpiando, la termina.
+- Al terminar: sucia + `dirty` a Cloudbeds, **sin asignar** con alerta P2 a la supervisora, y limpieza completa con
+  sábanas.
+- Mantención y cerrada tienen **cada una su interruptor** en Ajustes → Cloudbeds (prendidos por defecto; permiso
+  `cloudbeds.configurar_credenciales`, hoy solo Admin).
+- La revisión diaria de inventario ya no desactiva piezas bloqueadas.
+
+Se apoya en la v7.7 (checklist adaptativo): **se despliegan juntas** (§11.35 + esta). Detalle en
+[cloudbeds.md](cloudbeds.md) §4.5.
+
+#### Verificación con Cloudbeds ANTES de subir (obligatoria)
+
+En el PC, con el `.env` que tiene las claves (solo lee, no escribe nada):
+
+```
+php -d curl.cainfo="C:/Program Files/Git/mingw64/etc/ssl/certs/ca-bundle.crt" scripts/diagnostico-bloqueos-cloudbeds.php
+```
+
+Tiene que mostrar los bloqueos de hoy de cada hotel. Comprobar con una pieza que esté en mantención y otra cerrada:
+1. que **no** diga `success=false` (si lo dice, la API key no tiene `read:roomblock`: pedir el permiso en Cloudbeds;
+   sin él la app funciona, pero solo sabe «bloqueada», sin tipo ni motivo, y usa el interruptor de mantención);
+2. que la de mantención salga como `out_of_service → app: mantencion` y la cerrada como `blocked_dates → app: cerrada`.
+   Si salen al revés u otro tipo, **no subir**: se ajusta `BloqueosService::tipoDesdeCloudbeds`.
+
+**Hecho el 16/10/2026 ~04:20:** permiso OK en los dos hoteles; 1 Sur sin bloqueos; INN: 107-JUK2 2S `out_of_service →
+app: mantencion`, «MANTECION CAMBIO DE CERAMICA», 10/10–18/10. No había ninguna cerrada para comprobar
+`blocked_dates`: repetir si aparece una antes del deploy. Al subir, la 107 mostrará la franja de mantención en el
+primer sync (hoy Cloudbeds la tiene `clean`, o sea aprobada en la app).
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) Las columnas no deben existir. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones'
+   AND column_name IN ('cb_bloqueo_tipo', 'cb_bloqueo_motivo', 'cb_bloqueo_desde', 'cb_bloqueo_hasta', 'limpieza_completa_pendiente');
+
+-- 2) Piezas desactivadas hoy: las que un import anterior desactivó por un bloqueo vuelven a activa con el próximo
+--    chequeo diario de inventario (la supervisora acepta la alerta «cambios de inventario»).
+SELECT ho.codigo, h.numero, h.cloudbeds_room_name
+  FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+ WHERE h.activa = 0 AND h.es_espacio_comun = 0
+ ORDER BY ho.codigo, h.numero;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP, después del SQL de §11.35)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_habitaciones
+  ADD COLUMN cb_bloqueo_tipo VARCHAR(20) NULL CHECK (cb_bloqueo_tipo IN ('mantencion', 'cerrada', 'bloqueada')),
+  ADD COLUMN cb_bloqueo_motivo VARCHAR(255) NULL,
+  ADD COLUMN cb_bloqueo_desde VARCHAR(10) NULL,
+  ADD COLUMN cb_bloqueo_hasta VARCHAR(10) NULL,
+  ADD COLUMN limpieza_completa_pendiente TINYINT NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1));
+
+ALTER TABLE cat6852_australia.limpieza_alertas_activas
+  MODIFY COLUMN tipo VARCHAR(40) NOT NULL CHECK (tipo IN (
+    'cloudbeds_sync_failed', 'trabajador_en_riesgo', 'habitacion_rechazada', 'fin_turno_pendientes',
+    'trabajador_disponible', 'ticket_nuevo', 'habitacion_saltada', 'inventario_cambios_pendientes',
+    'aprobacion_deshecha', 'habitacion_salio_bloqueo'));
+```
+
+Con la base escrita en cada tabla (§11.34). Es lo mismo que hacen `scripts/migrate-add-bloqueos-cloudbeds.php` y
+`scripts/migrate-add-inventario-alerta.php` (los dos probados sobre la base SQLite del banco local, anterior a la v7.8:
+agregan y después no hacen nada). El `MODIFY` reemplaza el CHECK de la columna con la lista completa
+(ver incidente-2026-09-23.md §5: nada de `DROP CONSTRAINT`). Comprobación: precheck (1) → 5 y `/api/health` →
+`checks.esquema.ok: true` después del ZIP. **El ZIP no se sube sin el SQL:** el sync escribe las columnas en cada
+lectura y la pantalla de Habitaciones las lee.
+
+#### ZIP
+
+`build/limpieza-v77-v78-delta.zip`, con las filas de la v7.7 y la v7.8 del `CHANGELOG.md` fechadas antes de armarlo
+(§10 paso 0), con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/`. Todo a `limpieza/app_core/` (sin
+estáticos de `public/`):
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador).
+- `scripts/{migrate-add-con-cambio-sabanas,migrate-add-bloqueos-cloudbeds,diagnostico-bloqueos-cloudbeds}.php`.
+- `src/Controllers/{CloudbedsController,HomeController,PaginasController}.php`, `src/Core/Kernel.php`,
+  `src/Models/{AlertaActiva,EjecucionChecklist}.php`.
+- `src/Services/{AsignacionService,BloqueosService,ChecklistService,CloudbedsClient,CloudbedsSyncService,HabitacionService,HomeService,InventarioImportService,ReportesService,SabanasService}.php`.
+- `views/{ajustes,ajustes-cloudbeds,alertas,habitacion-detalle,habitaciones,home-admin,home-supervisora}.php`.
+
+Vuelta atrás: `build/limpieza-v77-v78-vuelta-atras.zip` (los mismos en la v7.6; los nuevos pueden quedar). Las
+columnas y el tipo de alerta pueden quedar: la v7.6 no los lee.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. **El primer sync después del deploy** anota todas las piezas
+que estén bloqueadas en ese momento y las saca de las colas de hoy con aviso a quien las tenía: subir antes de que
+empiece el turno (o avisar a las supervisoras).
+
+**Smoke:** badge **v7.8** (incógnito), `/api/health` 200 con esquema ok, y después del primer sync: en Habitaciones, las
+piezas que están en mantención o cerradas en Cloudbeds muestran la franja con su motivo; como Admin, Ajustes →
+Cloudbeds muestra los dos interruptores prendidos.
+
+**Verificación al día siguiente** (solo lee):
+
+```sql
+-- Piezas bloqueadas ahora y las que esperan su limpieza completa.
+SELECT ho.codigo, h.numero, h.estado, h.cb_bloqueo_tipo, h.cb_bloqueo_motivo, h.cb_bloqueo_hasta, h.limpieza_completa_pendiente
+  FROM cat6852_australia.limpieza_habitaciones h
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+ WHERE h.cb_bloqueo_tipo IS NOT NULL OR h.limpieza_completa_pendiente = 1
+ ORDER BY ho.codigo, h.numero;
+
+-- Avisos de salida de bloqueo y retiros de cola.
+SELECT levantada_at, resuelta_at, resolucion, titulo FROM cat6852_australia.limpieza_bitacora_alertas
+ WHERE tipo = 'habitacion_salio_bloqueo' ORDER BY levantada_at DESC LIMIT 20;
+SELECT created_at, accion, entidad_id, detalles_json FROM cat6852_australia.limpieza_audit_log
+ WHERE accion IN ('habitacion.bloqueo_inicio', 'habitacion.bloqueo_fin', 'asignacion.retirar_por_bloqueo')
+ ORDER BY id DESC LIMIT 30;
+```
+
+**Vuelta atrás:** subir `build/limpieza-v77-v78-vuelta-atras.zip`. Las piezas bloqueadas vuelven a comportarse como
+antes (siguen la condición clean/dirty de Cloudbeds) y desaparece Ajustes → Cloudbeds.
+
+**Desplegada el 16/10/2026 ~04:20** junto con la v7.7 (ZIP desde `5bdb1bd`). **El ZIP se subió ANTES del SQL** (error de
+orden, el mismo de la v6.15.1): durante ~5 min `/api/health` dio 503 con «Faltan migraciones: 7 elemento(s)» y el sync
+manual de las 04:22 (07:22 UTC, id 14459) falló en los dos hoteles al leer `cb_bloqueo_tipo`. Con el SQL corrido a las
+~04:25, health 200 y esquema ok; ninguna pieza quedó «en progreso» sin su ejecución (consulta de §11.36 vacía). Precheck:
+los 16 tipos tienen «Hacer cama con sábanas limpias» como único ítem «Sábanas»; la única pieza desactivada es la 118 del 1
+Sur, sin `cloudbeds_room_name` (no es un bloqueo). **Verificado a las 04:30:** sync manual 14460 `exito` y la 107 del INN
+con `mantencion` / «MANTECION CAMBIO DE CERAMICA» / hasta 2026-10-18 (estado `aprobada_automatica`). Queda por ver: la
+primera salida de un bloqueo real (la 107, después del 18/10) con su limpieza completa y el aviso P2.

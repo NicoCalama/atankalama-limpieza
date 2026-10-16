@@ -120,7 +120,7 @@ Ver [habitaciones.md](habitaciones.md) §6.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote |
+| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote. v7.8: una pieza en mantención o cerrada en Cloudbeds no se asigna para hoy → 409 `HABITACION_BLOQUEADA` (sí para otro día) |
 | POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
 | POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar: `{ habitacion_id, usuario_id, fecha, opcion_id }`. Desde la v7.3 `opcion_id` (lista «reasignar», §18b) es obligatorio: 400 `OPCION_REQUERIDA` / `OPCION_INVALIDA`. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia. Quitar una en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
@@ -142,8 +142,8 @@ Ver [checklist.md](checklist.md).
 | PUT | `/api/checklists/config` | `checklists.editar` | Activa/desactiva el toggle. Body `{ tipos_por_hotel: bool }` → `{ tipos_por_hotel }` |
 | POST | `/api/checklists/templates` | `checklists.crear_nuevos` | Crear template *(no implementado en MVP)* |
 | PUT | `/api/checklists/templates/{id}` | `checklists.editar` | Editar ítems: descripción, orden, `obligatorio`, peso de `creditos`, `es_cambio_sabanas`. Body `{ nombre?, items: [{id?, descripcion, obligatorio, creditos, es_cambio_sabanas?}], hotel_codigo? }`. Con `hotel_codigo` (y el toggle activo) el guardado crea/actualiza el **override de ese hotel** sin tocar el compartido. **Copy-on-write:** no muta el template enviado — crea la versión siguiente y responde `{ template_id, version, items }` con el id **nuevo** (el cliente debe descartar el viejo) |
-| GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución: `{ ejecucion, items, progreso, delay_restante_segundos, rechazo }`. En la re-limpieza de un rechazo del mismo ciclo, `rechazo` = `{ comentario, auditor_nombre, items: [item_id] }` (si no, `null`) y cada ítem trae `rechazado_por_supervisora` 0/1 (v6.21, ver [checklist.md](checklist.md) §3.8) |
-| PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada | Tap-a-tap |
+| GET | `/api/ejecuciones/{id}` | asignada o `habitaciones.ver_todas` | Estado ejecución: `{ ejecucion, items, progreso, delay_restante_segundos, rechazo }`. `ejecucion.con_cambio_sabanas` (v7.7): si es `false`, `items` y `progreso` vienen sin los ítems «Sábanas» (ver docs/checklist.md §3.9). En la re-limpieza de un rechazo del mismo ciclo, `rechazo` = `{ comentario, auditor_nombre, items: [item_id] }` (si no, `null`) y cada ítem trae `rechazado_por_supervisora` 0/1 (v6.21, ver [checklist.md](checklist.md) §3.8) |
+| PUT | `/api/ejecuciones/{id}/items/{item_id}` | asignada | Tap-a-tap. `409 ITEM_NO_APLICA` si es un ítem «Sábanas» y la limpieza no lleva cambio de sábanas (v7.7) |
 
 ---
 
@@ -224,6 +224,8 @@ Ver [cloudbeds.md](cloudbeds.md).
 | POST | `/api/cloudbeds/sync` | `cloudbeds.forzar_sincronizacion` | Sync manual |
 | GET | `/api/cloudbeds/historial` | `cloudbeds.ver_estado_sincronizacion` | Histórico |
 | PUT | `/api/cloudbeds/config` | `cloudbeds.configurar_credenciales` | Editar `cloudbeds_config` |
+| GET | `/api/cloudbeds/bloqueos-config` | `cloudbeds.configurar_credenciales` | v7.8: `{mantencion: bool, cerrada: bool}` = ¿al terminar ese bloqueo se genera la limpieza completa? (default `true`, en `alertas_config`). Ver docs/cloudbeds.md §4.5 |
+| PUT | `/api/cloudbeds/bloqueos-config` | `cloudbeds.configurar_credenciales` | v7.8: `{mantencion?: bool, cerrada?: bool}`; responde la config completa |
 
 ---
 

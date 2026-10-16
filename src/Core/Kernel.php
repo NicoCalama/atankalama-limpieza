@@ -82,6 +82,7 @@ final class Kernel
         $router->get('/ajustes/versiones', [$paginas, 'ajustesVersiones'], [$optionalAuth]);
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/ajustes/revision-entrega', [$paginas, 'ajustesRevisionEntrega'], [$optionalAuth]);
+        $router->get('/ajustes/cloudbeds', [$paginas, 'ajustesCloudbeds'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
@@ -229,6 +230,15 @@ final class Kernel
             new PermissionCheck('cloudbeds.ver_estado_sincronizacion'),
         ]);
         $router->put('/api/cloudbeds/config', [$cloudbeds, 'actualizarConfig'], [
+            $authCheck,
+            new PermissionCheck('cloudbeds.configurar_credenciales'),
+        ]);
+        // v7.8: interruptores de Ajustes → Cloudbeds (limpieza al salir de mantención / de cerrada).
+        $router->get('/api/cloudbeds/bloqueos-config', [$cloudbeds, 'bloqueosConfig'], [
+            $authCheck,
+            new PermissionCheck('cloudbeds.configurar_credenciales'),
+        ]);
+        $router->put('/api/cloudbeds/bloqueos-config', [$cloudbeds, 'guardarBloqueosConfig'], [
             $authCheck,
             new PermissionCheck('cloudbeds.configurar_credenciales'),
         ]);
