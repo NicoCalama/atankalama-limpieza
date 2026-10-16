@@ -319,7 +319,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="hab.reportar"]',
                                 'titulo' => 'Deja constancia de la avería',
-                                'texto'  => 'Con «Reportar un problema» avisas una avería de esta pieza (algo roto, algo que falta) y puedes adjuntar fotos. Queda como ticket para mantención.',
+                                'texto'  => 'Con «Reportar un problema» avisas una avería de esta pieza (algo roto, algo que falta). Puedes sumar un comentario y fotos para que mantención llegue con lo necesario.',
                             ],
                         ],
                     ],
@@ -645,7 +645,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="tk.nuevo"]',
                                 'titulo' => 'Deja constancia de la avería',
-                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (una avería, algo roto) y puedes adjuntar hasta 3 fotos. Queda registrado para que alguien lo resuelva.',
+                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (una avería, algo roto). Puedes sumar un comentario y hasta 3 fotos para que sepan qué llevar.',
                             ],
                         ],
                     ],
@@ -729,7 +729,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="tk.nuevo"]',
                                 'titulo' => 'Deja constancia de la avería',
-                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (algo roto, algo que falta) y puedes adjuntar hasta 3 fotos. Queda registrado para que lo resuelvan.',
+                                'texto'  => 'Con «Nuevo» reportas un problema de mantención (algo roto, algo que falta). Puedes sumar un comentario y hasta 3 fotos para que sepan qué llevar.',
                             ],
                         ],
                     ],

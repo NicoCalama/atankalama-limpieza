@@ -27,7 +27,7 @@ Tabla `tickets` (ver [database-schema.sql](database-schema.sql)):
 | `habitacion_id` | FK opcional | Si el ticket es sobre una habitación específica |
 | `hotel_id` | FK | Obligatorio |
 | `titulo` | TEXT | "Lámpara quemada", "Fuga en baño" |
-| `descripcion` | TEXT | Detalle. Desde la v7.4, igual al título (el tipo elegido) |
+| `descripcion` | TEXT | Detalle. Desde la v7.4, igual al título (el tipo elegido); desde la v7.9, el comentario opcional si lo escribieron (§5.1) |
 | `tipo_id` | FK NULL | v7.4: opción de la lista «ticket_tipo» (Ajustes → Checklists y listas); NULL en los de antes y en los del copilot |
 | `prioridad` | ENUM | `baja`, `normal`, `alta`, `urgente` |
 | `estado` | ENUM | `abierto`, `en_progreso`, `resuelto`, `cerrado` |
@@ -75,6 +75,12 @@ Transición `resuelto → abierto` (reabrir) es posible si alguien detecta que n
      texto ni dictado) se elige de la lista «ticket_tipo» de Ajustes → Checklists y listas; su nombre es
      el título y la descripción del ticket. Si no está, «Otro» + una foto. Hasta la v7.3 era una
      descripción escrita (con dictado) y el título salía de sus primeros 80 caracteres.
+   - **Comentario** (opcional, máx. 500 caracteres): v7.9 (gerencia, 16/10/2026), para cualquier tipo,
+     para que mantención sepa el detalle y llegue con lo necesario. Si lo escriben, es la `descripcion`
+     del ticket (sin espacios en los bordes; más de 500 → 400 `COMENTARIO_MUY_LARGO`); si no, la
+     descripción sigue siendo el nombre del tipo. Se ve bajo el título en la bandeja y como «Comentario»
+     en el detalle, y viaja a novedades con la descripción. Cuando la descripción es igual al título
+     (tickets sin comentario) no se repite en pantalla. No se edita después de creado.
    - **Fotos** (opcional, máx. 3).
    - **Prioridad** (solo con `tickets.editar_prioridad`; default normal).
 3. POST `/api/tickets` → crea fila, estado `abierto`.

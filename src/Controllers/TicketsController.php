@@ -22,6 +22,9 @@ final class TicketsController
     /** Máximo de fotos por acción (crear o cerrar). Ver docs/tickets.md. */
     private const MAX_FOTOS = 3;
 
+    /** v7.9: largo máximo del comentario opcional al crear un ticket (mismo tope que el textarea). */
+    public const MAX_COMENTARIO = 500;
+
     public function __construct(
         private readonly TicketService $svc = new TicketService(),
         private readonly ImagenAdjuntoService $imagenes = new ImagenAdjuntoService(),
@@ -181,8 +184,8 @@ final class TicketsController
     }
 
     /**
-     * POST /api/tickets — multipart/form-data. Campos de texto igual que antes
-     * (hotel_id, titulo, descripcion, prioridad, habitacion_id) + fotos[] opcional (máx. 3).
+     * POST /api/tickets — multipart/form-data. Campos de texto: hotel_id, tipo_id (v7.4), comentario
+     * opcional (v7.9), prioridad, habitacion_id + fotos[] opcional (máx. 3).
      * Si una foto falla al procesarse NO aborta la creación del ticket: es peor perder
      * el reporte completo por un problema de imagen. Las fallidas van en adjuntos_fallidos.
      */
@@ -208,6 +211,21 @@ final class TicketsController
             $titulo = $descripcion = (new ListasOpcionesService())->opcionActiva('ticket_tipo', $tipoId)['nombre'];
         } catch (ListasOpcionesException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        // v7.9 (gerencia, 16/10/2026): comentario opcional en todo ticket, para que mantención sepa el detalle
+        // y llegue con lo necesario. Si viene, es la descripción (la ve mantención y viaja a novedades); si no,
+        // la descripción sigue siendo el nombre del tipo. Saltos de línea a «\n» antes de medir: el navegador
+        // los manda como «\r\n» y el textarea los cuenta como uno.
+        $comentario = trim(str_replace(["\r\n", "\r"], "\n", $request->inputString('comentario')));
+        if (mb_strlen($comentario) > self::MAX_COMENTARIO) {
+            return Response::error(
+                'COMENTARIO_MUY_LARGO',
+                'El comentario puede tener hasta ' . self::MAX_COMENTARIO . ' caracteres. Acórtalo un poco y vuelve a enviarlo.',
+                400
+            );
+        }
+        if ($comentario !== '') {
+            $descripcion = $comentario;
         }
         $prioridadSolicitada = $request->inputString('prioridad', Ticket::PRIORIDAD_NORMAL);
         // Igual que asignado_a abajo: fijar la prioridad al crear (no la de por defecto)

@@ -187,7 +187,7 @@ Ver [tickets.md](tickets.md). Los tickets incluyen `responsables` (lista de `{id
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/tickets` | `tickets.crear` | Crear. Multipart: `hotel_id`, `tipo_id` (v7.4: opción de la lista «ticket_tipo», §18b; su nombre es el título y la descripción; sin ella 400 `OPCION_REQUERIDA`), `habitacion_id?`, `prioridad?`, `usuario_ids[]?`, `fotos[]?` (máx. 3), `idempotency_key` |
+| POST | `/api/tickets` | `tickets.crear` | Crear. Multipart: `hotel_id`, `tipo_id` (v7.4: opción de la lista «ticket_tipo», §18b; su nombre es el título y la descripción; sin ella 400 `OPCION_REQUERIDA`), `comentario?` (v7.9: máx. 500 caracteres; si viene, es la descripción; más largo 400 `COMENTARIO_MUY_LARGO`), `habitacion_id?`, `prioridad?`, `usuario_ids[]?`, `fotos[]?` (máx. 3), `idempotency_key` |
 | GET | `/api/tickets` | `tickets.ver_todos` | Todos |
 | GET | `/api/tickets/mios` | `tickets.ver_propios` | Propios |
 | GET | `/api/tickets/{id}` | propietario o `tickets.ver_todos` | Detalle |

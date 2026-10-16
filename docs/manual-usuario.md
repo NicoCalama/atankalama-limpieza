@@ -242,10 +242,11 @@ Si detectas un problema en una habitación (ej. lámpara rota, fuga de agua):
 1. Toca la habitación
 2. Busca el botón **"Levantar ticket"** o **"Reportar problema"**
 3. Llena el formulario:
-   - **Título**: "Lámpara de noche rota" o similar
-   - **Descripción**: detalles del problema
-   - **Prioridad**: Normal, Urgente, Baja
-4. Haz clic en **"Enviar ticket"**
+   - **Tipo de problema**: elígelo de la lista (ej. «Luz o ampolleta», «Fuga o problema de agua»); si no está, elige «Otro»
+   - **Comentario** (opcional, hasta 500 caracteres): el detalle para que mantención llegue con lo necesario (ej. «gotea la llave del lavamanos»)
+   - **Fotos** (opcional, hasta 3)
+   - **Prioridad**: solo si tu perfil puede elegirla (Normal, Urgente, Alta, Baja)
+4. Haz clic en **"Crear ticket"**
 5. El Admin recibirá una notificación y asignará a mantenimiento
 
 ### Auditar Habitaciones

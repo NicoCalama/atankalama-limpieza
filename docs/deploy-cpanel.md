@@ -416,6 +416,8 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-11 | **Motivo al cambiar de persona un área + ayuda al día + habitación de prueba** → **v7.4.1 + v7.5** en un deploy combinado (v7.4.1 `c52e0d5`, v7.5 `03c505b`, CHANGELOG fechado y runbook `d08e519`; en `main`) | v7.4.1: en Áreas comunes, «Pedir limpieza» a otra persona de un área que alguien tiene sin terminar pide el motivo de la lista «reasignar» (punto 3 aprobado por Nicolás) y tres textos de la ayuda guiada al día. v7.5 (pedido de Nicolás del 10/10): una «PRUEBA» por hotel (`habitaciones.es_prueba`, sin `cloudbeds_room_id`) que solo ve y se asigna quien tiene `habitaciones.ver_prueba` (Admin), fuera de KPIs, reparto y avisos, sin Novedades, con «Asignármela para probar». **Decisión de Nicolás:** las dos juntas, runbook §11.32. **Precheck** (~05:30): 1) 0, 2) vacío, 3) Atankalama → «Premium triple» (28), INN → «Atan Inn2 Hab Doble / Matrimonial» (24). **SQL antes del ZIP** (§11.31, `build/limpieza-v75.sql`; probado antes en MariaDB 10.6 con Docker): comprobación con dos «PRUEBA» (`aprobada`, sin roomID) y el permiso solo en Admin. ZIP de 32 archivos a `app_core/` (`build/limpieza-v75-delta.zip`, idénticos a `d08e519`) y `build/limpieza-v75-vuelta-atras.zip` (los 30 que pisa, en `fed2641`; volver atrás exige desactivar las «PRUEBA»). Subido el 11/10 ~05:38. Smoke: `/api/health` 200 con `checks.esquema.ok: true` (05:39) y el smoke de §11.32 OK (Nicolás): badge v7.5, la «PRUEBA» con su ciclo completo como Admin, ausente para una supervisora, y el motivo en «Pedir limpieza» de Áreas comunes. Los registros de esa prueba quedan (fuera de Reportes por diseño). |
 | 2026-10-11 | **Preasignaciones de madrugada y asignadas justas** → **v7.5.1** (fix `cf1f1b7`, CHANGELOG fechado en el mismo commit; rama `v7.5.1-preasignaciones`, desde `c65214e`) | Origen: una supervisora avisó que lo preasignado el 10/10 para el 11/10 no estaba en la mañana. Diagnóstico (`build/diagnostico-preasignaciones-2026-10-11.sql`): `reconciliarPreasignaciones` retiró 132 de 155 preasignaciones a las 00:00 en punto (pantalla de Inicio o tablero abierta, se recargan cada minuto) con las piezas aún aprobadas de ayer; el sync las pasó a sucia 00:30–01:30. También el 28/09, 04/10 y 10/10. **Decisiones de Nicolás:** retiro de habitaciones recién desde las 06:00 (áreas a cualquier hora) y, desde los turnos del 01/10, la pieza pasada a otra persona sin empezarla no cuenta en Asignadas (rechazo igual, septiembre intacto). Runbook §11.33. Suite 789/789, PHPStan y linters OK; reproducido antes del deploy en un banco con reloj simulado (código de prod: se retiran; con el arreglo: no). Sin SQL. ZIP de 4 archivos a `app_core/` (`build/limpieza-v751-delta.zip`, idénticos a `cf1f1b7`) y `build/limpieza-v751-vuelta-atras.zip` (los mismos en `d08e519`). Subido el 11/10 ~09:45. Smoke OK (Nicolás): badge v7.5.1, `/api/health` 200 y la ayuda de «Asignadas» en Reportes. **Verificada el 12/10** (§11.33, Nicolás, ~06:05): ninguna preasignación retirada antes de las 06:00; 1 retirada a las 06:00 en punto, de 112 preasignadas para el 12/10 (las noches del 10/10 y el 11/10 fueron 127 y 132). |
 | 2026-10-12 | **Tiempo mínimo por área común** → **v7.6** (feat `684e278`, CHANGELOG fechado `076433c`; rama `v7.6-minimo-areas`, desde `7b4147f`) | Pedido de Nicolás (11/10) al revisar pendientes: el mínimo de 3 min para terminar hacía esperar en las áreas chicas (08/10: 212 de 609 áreas cerraron entre 3 y 4 min, 16 quedaron marcadas sin terminar). Cada área común tiene su propio mínimo **en minutos** (`habitaciones.minimo_terminar_min`), elegido de una lista (sin mínimo, 1, 2, 3, 5, 10) al crearla o con «Editar» en su tarjeta; las existentes siguen con 3 min (`NULL`) hasta que alguien las edite; las habitaciones no cambian; lo marcado al cambiar de persona sigue partiendo de cero. Runbook §11.34. Suite 797 (1 omitido), PHPStan y linters OK; verificado en un banco como supervisora y trabajadora, escritorio y 375 px. **SQL** (`build/limpieza-v76.sql`): el primer intento del `ALTER` sin la base escrita dio #1044 (phpMyAdmin parado en `information_schema`) y no se aplicó; con `cat6852_australia.` sí (comprobación = 1). ZIP de 9 archivos a `app_core/` (`build/limpieza-v76-delta.zip`, idénticos a `076433c`) y `build/limpieza-v76-vuelta-atras.zip` (8 en `cf1f1b7`). Subido el 12/10 ~05:05. Smoke OK (Nicolás): badge v7.6, `/api/health` 200 con `esquema: ok` (05:06), tarjetas con «Mínimo 3 min para terminar» y «Editar» en 3 min. |
+| 2026-10-16 | **Sábanas al irse + checklist adaptativo + mantención y cerradas desde Cloudbeds** → **v7.7 + v7.8** en un deploy combinado (v7.7 `2955c38`, v7.8 `84ca60c`, verificación con Cloudbeds real `51d5ed1`, CHANGELOG fechado `5bdb1bd`, registro `2aa0eaa`; ramas `v7.7-sabanas-adaptativo` → `v7.8-bloqueos-cloudbeds`, desde `afed222`; merge en main `d76d791`) | v7.7: «Sábanas hoy» también cuando el huésped se va hoy o hay «Cambio», y el checklist oculta el ítem de sábanas (sin créditos) cuando la limpieza no las lleva. v7.8: `getRoomBlocks` en cada sync (mantención y cerradas), franja en la tarjeta, sin asignar mientras dura y limpieza completa al terminar, con interruptores en Ajustes → Cloudbeds (solo Admin). Runbooks §11.35 + §11.36. **El ZIP se subió ANTES del SQL** (como en la v6.15.1): ~5 min con `/api/health` 503 y el sync manual 14459 fallido; con el SQL corrido (~04:25) todo volvió y ninguna pieza quedó huérfana; verificado a las 04:30 (sync 14460 `exito`, 107 del INN en mantención hasta el 18/10). **El badge siguió en v7.6:** las filas de la v7.7 y la v7.8 del `CHANGELOG.md` no terminaban en « \|» y el parser las saltaba; arreglado en `d62c23d` (el `ChangelogTest` ahora exige que toda fila «\| **v» se lea) y re-subido el `CHANGELOG.md`: badge v7.8. Smoke visual ~04:55 OK. |
+| 2026-10-16 | **Comentario opcional al crear un ticket** → **v7.9** (feat `15e92d9`, CHANGELOG fechado `4a01c3c`; rama `v7.9-ticket-comentario`, desde `d62c23d`) | Pedido de gerencia del mismo día: desde la v7.4 (sin cuadros de texto) el ticket nuevo solo tenía el tipo de problema y fotos, y mantención llegaba sin saber el detalle ni qué llevar. «Reportar problema» suma «Comentario (opcional)», máx. 500, para cualquier tipo (decisiones de Nicolás: solo **al crear**, tope 500); se guarda en `tickets.descripcion` (sin comentario sigue siendo el nombre del tipo; más de 500 → 400 `COMENTARIO_MUY_LARGO`) y llega a Novedades con la descripción. En Tickets se ve bajo el título y como «Comentario» en el detalle; la descripción igual al título ya no se repite (el tipo salía dos veces desde la v7.4). Runbook §11.37. Suite 827 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev), PHPStan OK; verificado en un banco como trabajadora (375 px, desde la pieza) y supervisora (tabla en escritorio y modal en claro). **Sin SQL.** ZIP de 7 archivos a `app_core/` (`build/limpieza-v79-delta.zip`, idénticos a `4a01c3c`) y `build/limpieza-v79-vuelta-atras.zip` (los 7 en `d62c23d`). Subido el 16/10 ~19:00. Smoke OK (Nicolás). |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -2880,3 +2882,62 @@ los 16 tipos tienen «Hacer cama con sábanas limpias» como único ítem «Sáb
 Sur, sin `cloudbeds_room_name` (no es un bloqueo). **Verificado a las 04:30:** sync manual 14460 `exito` y la 107 del INN
 con `mantencion` / «MANTECION CAMBIO DE CERAMICA» / hasta 2026-10-18 (estado `aprobada_automatica`). Queda por ver: la
 primera salida de un bloqueo real (la 107, después del 18/10) con su limpieza completa y el aviso P2.
+
+**El badge siguió en v7.6 después del deploy:** las filas de la v7.7 y la v7.8 del `CHANGELOG.md` no terminaban en « |»
+(`Changelog::PATRON_FILA` lo exige) y el parser las saltaba sin avisar. Arreglado en `d62c23d`: las dos filas con su « |»
+y el `ChangelogTest` ahora falla si alguna fila que empieza con «| **v» no se lee. Re-subido el `CHANGELOG.md`: badge
+**v7.8**. Smoke visual completo ~04:55: la 107 del INN con la franja «EN MANTENCIÓN · HASTA 18/10» bajo «APROBADA
+AUTO.» y Ajustes → Cloudbeds con los dos interruptores prendidos.
+
+### 11.37 Release "comentario opcional en los tickets" → v7.9
+
+Origen: pedido de gerencia del 16/10/2026. Desde la v7.4 (sin cuadros de texto) el ticket nuevo solo tenía el tipo de
+problema y fotos; mantención llegaba sin saber el detalle ni qué llevar.
+
+**Qué cambia** (plan aprobado por Nicolás el 16/10/2026: el comentario va **al crear**, tope **500**):
+
+- **«Reportar problema»** (`views/componentes/modal-ticket-nuevo.php` + su JS): campo «Comentario (opcional)» bajo el
+  tipo de problema, para cualquier tipo, con contador «N / 500». Es el mismo modal en Tickets, en «Reportar un
+  problema» de la pieza y en la inspección pre-entrega.
+- **Backend** (`TicketsController::crear`, `MAX_COMENTARIO = 500`): `comentario` opcional; sin espacios en los bordes y
+  con los saltos de línea como «\n» antes de medir. Si viene, es la `descripcion` del ticket; si no, sigue siendo el
+  nombre del tipo (v7.4). Más de 500 → 400 `COMENTARIO_MUY_LARGO`, sin crear el ticket. La copia a Novedades ya mandaba
+  la descripción: el comentario llega solo.
+- **Tickets** (`views/tickets.php` + `tickets.js`, `comentarioDe()`): el comentario se ve bajo el título en la tarjeta y
+  en la tabla, y como «Comentario» en el detalle. Si la descripción es igual al título (los tickets de la v7.4 sin
+  comentario) no se muestra: antes el tipo salía dos veces. Los tickets anteriores a la v7.4 siguen mostrando su
+  descripción.
+- **Ayuda «?»**: los tres recorridos «Reportar un problema» mencionan el comentario (sin subir su versión).
+
+**Sin SQL** (usa la columna `tickets.descripcion`, que ya existe), sin `.env`, sin `vendor/`, sin estáticos de `public/`,
+sin cambios en los cron.
+
+**ZIP** `build/limpieza-v79-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae
+en `public_html/`) y **la fila de la v7.9 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0; la fila tiene que
+terminar en « |» o el badge no cambia, como pasó con la v7.7/v7.8). 7 archivos: `CHANGELOG.md`,
+`src/Controllers/TicketsController.php`, `src/Support/Tours.php`, `views/componentes/modal-ticket-nuevo.php`,
+`views/recursos/componentes/modal-ticket-nuevo.js`, `views/recursos/tickets/tickets.js` y `views/tickets.php`. Vuelta
+atrás: `build/limpieza-v79-vuelta-atras.zip` (los mismos siete en la v7.8, `d62c23d`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Avisar que recarguen la página quienes tengan Tickets abierto
+(los JS van con `?v=` por fecha de archivo, así que basta con recargar).
+
+**Smoke:** badge **v7.9** (incógnito), `/api/health` 200, y con la habitación PRUEBA (no avisa a supervisoras ni llega a
+Novedades, v7.5): «Reportar un problema» muestra «Comentario (opcional)»; crear un ticket con un comentario corto, ver
+en Tickets que sale bajo el título y en el detalle como «Comentario»; después cerrarlo.
+
+**Verificación al día siguiente** (uso real del comentario):
+
+```sql
+-- Tickets desde el deploy (16/10 ~19:00 Chile = 22:00 UTC): cuántos traen comentario (descripción distinta del
+-- título). Día en UTC (created_at es ISO 8601 en UTC); incluye el ticket del smoke en la PRUEBA.
+SELECT LEFT(created_at, 10) AS dia_utc, COUNT(*) AS tickets,
+       SUM(descripcion <> titulo) AS con_comentario
+  FROM cat6852_australia.limpieza_tickets
+ WHERE created_at >= '2026-10-16T22:00'
+ GROUP BY LEFT(created_at, 10)
+ ORDER BY dia_utc;
+```
+
+**Desplegada el 16/10/2026 ~19:00** (ZIP desde `4a01c3c`, sin SQL). Smoke OK (Nicolás). Queda por ver: el uso real del
+comentario (consulta de arriba).
