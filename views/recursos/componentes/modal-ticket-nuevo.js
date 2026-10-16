@@ -79,6 +79,7 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             hotel_id: null,
             habitacion_id: null,
             tipoId: null,
+            comentario: '', // v7.9: opcional, máx. 500 — mantención ve el detalle
             asignadoIds: [],
             prioridad: 'normal',
         },
@@ -132,7 +133,7 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
 
 
         reset() {
-            this.form = { hotel_id: null, habitacion_id: null, tipoId: null, asignadoIds: [], prioridad: 'normal' };
+            this.form = { hotel_id: null, habitacion_id: null, tipoId: null, comentario: '', asignadoIds: [], prioridad: 'normal' };
             this.error = null;
             this.enviando = false;
             this.resultado = null;
@@ -314,10 +315,12 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             var self = this;
             var avisoLento = setTimeout(function () { self.senalLenta = true; }, TICKET_AVISO_LENTO_MS);
             try {
-                // El servidor arma el título y la descripción con el nombre del tipo elegido (v7.4).
+                // El servidor arma el título con el nombre del tipo elegido (v7.4); la descripción es el
+                // comentario si lo escribieron (v7.9) o, si no, el mismo nombre del tipo.
                 var datos = new FormData();
                 datos.append('hotel_id', this.form.hotel_id);
                 datos.append('tipo_id', this.form.tipoId);
+                if (this.form.comentario.trim() !== '') datos.append('comentario', this.form.comentario.trim());
                 datos.append('prioridad', this.puedeEditarPrioridad ? this.form.prioridad : 'normal');
                 if (this.form.habitacion_id !== null) datos.append('habitacion_id', this.form.habitacion_id);
                 if (this.puedeAsignar) {

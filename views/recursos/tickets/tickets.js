@@ -551,6 +551,13 @@ function ticketsApp() {
             return codigo || '';
         },
 
+        // Desde la v7.4 un ticket sin comentario guarda el nombre del tipo también como descripción: no se
+        // repite bajo el título. Con comentario (v7.9) o en los tickets de antes de la v7.4, sí se muestra.
+        comentarioDe(t) {
+            var descripcion = ((t && t.descripcion) || '').trim();
+            return descripcion !== '' && descripcion !== ((t && t.titulo) || '').trim() ? descripcion : '';
+        },
+
         etiquetaPrioridad(p) {
             if (p === 'urgente') return 'Urgente';
             if (p === 'alta') return 'Alta';

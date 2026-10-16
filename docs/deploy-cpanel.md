@@ -2880,3 +2880,53 @@ los 16 tipos tienen «Hacer cama con sábanas limpias» como único ítem «Sáb
 Sur, sin `cloudbeds_room_name` (no es un bloqueo). **Verificado a las 04:30:** sync manual 14460 `exito` y la 107 del INN
 con `mantencion` / «MANTECION CAMBIO DE CERAMICA» / hasta 2026-10-18 (estado `aprobada_automatica`). Queda por ver: la
 primera salida de un bloqueo real (la 107, después del 18/10) con su limpieza completa y el aviso P2.
+
+### 11.37 Release "comentario opcional en los tickets" → v7.9
+
+Origen: pedido de gerencia del 16/10/2026. Desde la v7.4 (sin cuadros de texto) el ticket nuevo solo tenía el tipo de
+problema y fotos; mantención llegaba sin saber el detalle ni qué llevar.
+
+**Qué cambia** (plan aprobado por Nicolás el 16/10/2026: el comentario va **al crear**, tope **500**):
+
+- **«Reportar problema»** (`views/componentes/modal-ticket-nuevo.php` + su JS): campo «Comentario (opcional)» bajo el
+  tipo de problema, para cualquier tipo, con contador «N / 500». Es el mismo modal en Tickets, en «Reportar un
+  problema» de la pieza y en la inspección pre-entrega.
+- **Backend** (`TicketsController::crear`, `MAX_COMENTARIO = 500`): `comentario` opcional; sin espacios en los bordes y
+  con los saltos de línea como «\n» antes de medir. Si viene, es la `descripcion` del ticket; si no, sigue siendo el
+  nombre del tipo (v7.4). Más de 500 → 400 `COMENTARIO_MUY_LARGO`, sin crear el ticket. La copia a Novedades ya mandaba
+  la descripción: el comentario llega solo.
+- **Tickets** (`views/tickets.php` + `tickets.js`, `comentarioDe()`): el comentario se ve bajo el título en la tarjeta y
+  en la tabla, y como «Comentario» en el detalle. Si la descripción es igual al título (los tickets de la v7.4 sin
+  comentario) no se muestra: antes el tipo salía dos veces. Los tickets anteriores a la v7.4 siguen mostrando su
+  descripción.
+- **Ayuda «?»**: los tres recorridos «Reportar un problema» mencionan el comentario (sin subir su versión).
+
+**Sin SQL** (usa la columna `tickets.descripcion`, que ya existe), sin `.env`, sin `vendor/`, sin estáticos de `public/`,
+sin cambios en los cron.
+
+**ZIP** `build/limpieza-v79-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae
+en `public_html/`) y **la fila de la v7.9 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0; la fila tiene que
+terminar en « |» o el badge no cambia, como pasó con la v7.7/v7.8). 7 archivos: `CHANGELOG.md`,
+`src/Controllers/TicketsController.php`, `src/Support/Tours.php`, `views/componentes/modal-ticket-nuevo.php`,
+`views/recursos/componentes/modal-ticket-nuevo.js`, `views/recursos/tickets/tickets.js` y `views/tickets.php`. Vuelta
+atrás: `build/limpieza-v79-vuelta-atras.zip` (los mismos siete en la v7.8, `d62c23d`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Avisar que recarguen la página quienes tengan Tickets abierto
+(los JS van con `?v=` por fecha de archivo, así que basta con recargar).
+
+**Smoke:** badge **v7.9** (incógnito), `/api/health` 200, y con la habitación PRUEBA (no avisa a supervisoras ni llega a
+Novedades, v7.5): «Reportar un problema» muestra «Comentario (opcional)»; crear un ticket con un comentario corto, ver
+en Tickets que sale bajo el título y en el detalle como «Comentario»; después cerrarlo.
+
+**Verificación al día siguiente** (uso real del comentario):
+
+```sql
+-- Tickets desde el deploy: cuántos traen comentario (descripción distinta del título). Día en UTC (created_at es
+-- ISO 8601 en UTC); cambiar la fecha por la del deploy.
+SELECT LEFT(created_at, 10) AS dia_utc, COUNT(*) AS tickets,
+       SUM(descripcion <> titulo) AS con_comentario
+  FROM cat6852_australia.limpieza_tickets
+ WHERE created_at >= '2026-10-17'
+ GROUP BY LEFT(created_at, 10)
+ ORDER BY dia_utc;
+```

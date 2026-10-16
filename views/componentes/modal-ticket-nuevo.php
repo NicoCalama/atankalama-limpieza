@@ -14,6 +14,7 @@
  *
  * v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el problema se elige de la lista
  * «ticket_tipo» (Ajustes → Checklists y listas) en vez de describirlo; su nombre es el título.
+ * v7.9 (gerencia, 16/10/2026): además, un comentario opcional (máx. 500) para dar el detalle a mantención.
  */
 // Asignar de inmediato al crear: mismo permiso que ya gatea /asignar (panel "Asignar
 // responsable" de tickets.php) y el mismo componente se usa en toda la app (aquí y en
@@ -138,7 +139,17 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                             </button>
                         </template>
                     </div>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si no está en la lista, elige «Otro» y agrega una foto.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Si no está en la lista, elige «Otro» y explícalo en el comentario o con una foto.</p>
+                </div>
+
+                <!-- Comentario (v7.9, gerencia 16/10/2026): opcional en todo ticket, para que mantención sepa el
+                     detalle y llegue con lo necesario. Se guarda como la descripción del ticket. -->
+                <div>
+                    <label for="ticket-nuevo-comentario" class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Comentario (opcional)</label>
+                    <textarea id="ticket-nuevo-comentario" x-model="form.comentario" rows="3" maxlength="500" :disabled="enviando"
+                              placeholder="Ej.: la llave del lavamanos gotea; falta una ampolleta"
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm disabled:opacity-60"></textarea>
+                    <p class="mt-1 text-xs text-right text-gray-500 dark:text-gray-400" x-text="form.comentario.length + ' / 500'"></p>
                 </div>
 
                 <!-- Prioridad (opcional, solo quien tiene tickets.editar_prioridad) -->

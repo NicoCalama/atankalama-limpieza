@@ -196,7 +196,7 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                         <span class="text-xs text-gray-500 dark:text-gray-400" x-text="nombreHotelCorto(t.hotel_codigo)"></span>
                                     </div>
                                     <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.titulo"></p>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-0.5" x-text="t.descripcion"></p>
+                                    <p x-show="comentarioDe(t)" class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mt-0.5 break-words" x-text="comentarioDe(t)"></p>
                                     <p class="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                         <span x-text="'Por ' + (t.levantado_por_nombre || 'usuario')"></span>
                                         · <span x-text="fechaRelativa(t.created_at)"></span>
@@ -252,7 +252,7 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                         </td>
                                         <td class="px-4 py-3 max-w-xs">
                                             <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="t.titulo"></p>
-                                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="t.descripcion"></p>
+                                            <p x-show="comentarioDe(t)" class="text-xs text-gray-500 dark:text-gray-400 truncate" x-text="comentarioDe(t)" :title="comentarioDe(t)"></p>
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
                                             <span x-text="nombreHotelCorto(t.hotel_codigo)"></span>
@@ -314,10 +314,13 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                     </div>
 
                     <div class="space-y-3 text-sm">
-                        <div>
-                            <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Descripción</p>
-                            <p class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap" x-text="detalle.ticket.descripcion"></p>
-                        </div>
+                        <!-- v7.9: el comentario de quien reportó (o la descripción de los tickets de antes de la v7.4) -->
+                        <template x-if="comentarioDe(detalle.ticket)">
+                            <div>
+                                <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Comentario</p>
+                                <p class="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words" x-text="comentarioDe(detalle.ticket)"></p>
+                            </div>
+                        </template>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
