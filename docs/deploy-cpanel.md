@@ -2871,3 +2871,12 @@ SELECT created_at, accion, entidad_id, detalles_json FROM cat6852_australia.limp
 
 **Vuelta atrás:** subir `build/limpieza-v77-v78-vuelta-atras.zip`. Las piezas bloqueadas vuelven a comportarse como
 antes (siguen la condición clean/dirty de Cloudbeds) y desaparece Ajustes → Cloudbeds.
+
+**Desplegada el 16/10/2026 ~04:20** junto con la v7.7 (ZIP desde `5bdb1bd`). **El ZIP se subió ANTES del SQL** (error de
+orden, el mismo de la v6.15.1): durante ~5 min `/api/health` dio 503 con «Faltan migraciones: 7 elemento(s)» y el sync
+manual de las 04:22 (07:22 UTC, id 14459) falló en los dos hoteles al leer `cb_bloqueo_tipo`. Con el SQL corrido a las
+~04:25, health 200 y esquema ok; ninguna pieza quedó «en progreso» sin su ejecución (consulta de §11.36 vacía). Precheck:
+los 16 tipos tienen «Hacer cama con sábanas limpias» como único ítem «Sábanas»; la única pieza desactivada es la 118 del 1
+Sur, sin `cloudbeds_room_name` (no es un bloqueo). **Verificado a las 04:30:** sync manual 14460 `exito` y la 107 del INN
+con `mantencion` / «MANTECION CAMBIO DE CERAMICA» / hasta 2026-10-18 (estado `aprobada_automatica`). Queda por ver: la
+primera salida de un bloqueo real (la 107, después del 18/10) con su limpieza completa y el aviso P2.
