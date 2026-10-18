@@ -261,20 +261,12 @@ if ($hora < 12) {
                                         <span class="text-xs font-medium text-gray-600 dark:text-gray-400">Tickets abiertos</span>
                                     </div>
                                     <p class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="metricas.tickets_abiertos"></p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        <template x-if="metricas.tiempo_promedio_minutos !== null">
-                                            <span x-text="'Tiempo prom: ' + metricas.tiempo_promedio_minutos + ' min'"></span>
-                                        </template>
-                                        <template x-if="metricas.tiempo_promedio_minutos === null">
-                                            <span>Sin datos de tiempo</span>
-                                        </template>
-                                    </p>
                                 </div>
                             </div>
 
-                            <!-- 3 KPIs con barras multicolor -->
+                            <!-- 2 KPIs con barras multicolor (el tiempo promedio salió en la v7.10) -->
                             <div data-tour="hadm.kpis" class="space-y-3">
-                                <template x-for="kpi in ['tiempo_promedio', 'tasa_rechazo', 'eficiencia_equipo']" :key="kpi">
+                                <template x-for="kpi in ['tasa_rechazo', 'eficiencia_equipo']" :key="kpi">
                                     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
                                         <div class="flex items-center justify-between mb-2">
                                             <div class="flex items-center gap-2 min-w-0">
@@ -653,14 +645,12 @@ function homeAdmin() {
         // --- KPIs ---
 
         etiquetaKpi(kpi) {
-            if (kpi === 'tiempo_promedio') return 'Tiempo promedio por habitación';
             if (kpi === 'tasa_rechazo') return 'Tasa de rechazo';
             if (kpi === 'eficiencia_equipo') return 'Eficiencia del equipo';
             return kpi;
         },
 
         iconoKpi(kpi) {
-            if (kpi === 'tiempo_promedio') return 'clock';
             if (kpi === 'tasa_rechazo') return 'x-circle';
             if (kpi === 'eficiencia_equipo') return 'trending-up';
             return 'bar-chart-3';
@@ -703,7 +693,6 @@ function homeAdmin() {
         metaKpi(kpi) {
             var k = this.kpisActuales && this.kpisActuales[kpi];
             if (!k) return '';
-            if (kpi === 'tiempo_promedio') return '≤ ' + k.meta + ' ' + k.unidad;
             if (kpi === 'tasa_rechazo') return '≤ ' + k.meta + k.unidad;
             return '≥ ' + k.meta + k.unidad;
         },
@@ -711,7 +700,6 @@ function homeAdmin() {
         porcentajeBarraKpi(kpi) {
             var k = this.kpisActuales && this.kpisActuales[kpi];
             if (!k) return 0;
-            if (kpi === 'tiempo_promedio') return k.porcentaje || 0;
             if (kpi === 'tasa_rechazo') {
                 if (k.valor === null || k.valor === undefined) return 0;
                 return Math.min(100, Math.round(k.valor * 10));

@@ -2941,3 +2941,62 @@ SELECT LEFT(created_at, 10) AS dia_utc, COUNT(*) AS tickets,
 
 **Desplegada el 16/10/2026 ~19:00** (ZIP desde `4a01c3c`, sin SQL). Smoke OK (Nicolás). Queda por ver: el uso real del
 comentario (consulta de arriba).
+
+### 11.38 Release "sin tiempos mínimos ni KPIs de tiempo" → v7.10
+
+Origen: Nicolás, 18/10/2026. Primero pidió que las piezas marcadas como nochero no tuvieran el bloqueo de tiempo para
+terminarlas, y en seguida amplió el pedido: sin bloqueo de tiempo para ninguna limpieza y fuera los KPIs de tiempo.
+
+**Qué cambia** (plan aprobado por Nicolás el 18/10/2026: **se mantienen** las alertas predictivas, **sale** el tiempo por
+auditación, versión **v7.10**):
+
+- **Sin tiempo mínimo para terminar** (`ChecklistService::completar()` y `estadoEjecucion()`): se fueron los 3 min
+  (`CHECKLIST_DELAY_MINIMO_SEGUNDOS`, el 409 `DELAY_MINIMO` y `delay_restante_segundos`). En
+  `views/habitacion-detalle.php` el botón «Habitación terminada» se habilita apenas está todo marcado, sin «Puedes
+  terminar en m:ss». Vale para habitaciones (también nocheras) y áreas comunes.
+- **Áreas comunes** (`EspacioService`, `EspaciosController`, `views/espacios.php`): sale el mínimo propio de la v7.6 —
+  el selector de crear/editar, «Mínimo N min para terminar» de la tarjeta y la columna de la tabla. La API ya no lo
+  devuelve y crear/editar ignoran `minimo_terminar_min` si una pantalla vieja lo manda. La columna
+  `habitaciones.minimo_terminar_min` **queda en la BD sin uso** (no se borra: así no hay SQL).
+- **Reportes** (`ReportesService`, `views/reportes.php`): salen la tarjeta «Tiempo prom. limpieza», la columna «T. Prom.»
+  del detalle por trabajadora y del Excel «KPIs del período», «T. prom.» y «Ritmo» de la ficha (y de su comparación con
+  el equipo) y «T. por insp.» de las inspectoras. Los demás números no cambian (verificado contra `main` en el banco).
+- **Inicio del Admin** (`HomeService`, `views/home-admin.php`): dos indicadores (rechazo y eficiencia); sale «Tiempo
+  promedio por habitación» y el «Tiempo prom.» de la tarjeta de tickets.
+- **Ayuda «?»** (`src/Support/Tours.php`): los textos de Áreas comunes, Reportes e Inicio del Admin ya no hablan de
+  tiempos (sin subir versiones).
+- **No cambia:** los timestamps de inicio y fin se siguen grabando (alertas predictivas «trabajador en riesgo», días
+  trabajados, historial) y `auditoria_iniciada_at` también; el bono de RRHH no usaba tiempos.
+
+**Sin SQL**, sin `.env` (si el `.env` de producción tuviera `CHECKLIST_DELAY_MINIMO_SEGUNDOS`, ya no se lee), sin
+`vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v710-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v7.10 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0; la fila
+tiene que terminar en « |»). 12 archivos: `CHANGELOG.md`, `src/Controllers/EspaciosController.php`,
+`src/Controllers/ReportesController.php`, `src/Services/ChecklistService.php`, `src/Services/EspacioService.php`,
+`src/Services/HomeService.php`, `src/Services/ReportesService.php`, `src/Support/Tours.php`, `views/espacios.php`,
+`views/habitacion-detalle.php`, `views/home-admin.php` y `views/reportes.php`. Vuelta atrás:
+`build/limpieza-v710-vuelta-atras.zip` (los mismos doce en la v7.9, `20332d4`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Quien tenga abierta una pieza a medio limpiar puede seguir: la
+pantalla vieja todavía muestra la cuenta regresiva, pero al recargar desaparece y el servidor ya no bloquea.
+
+**Smoke:** badge **v7.10** (incógnito), `/api/health` 200, y con la habitación PRUEBA: «Asignármela para probar»,
+empezar, marcar todo → «Habitación terminada» habilitado al tiro (sin «Puedes terminar en…»), terminar y que pase a
+inspección. Reportes sin «T. prom.» ni «Ritmo»; Inicio del Admin con dos indicadores; Áreas comunes sin «Mínimo».
+
+**Verificación al día siguiente** (opcional: cuántas limpiezas terminan muy rápido ahora que no hay mínimo):
+
+```sql
+-- Limpiezas terminadas por la persona desde el deploy, por día UTC: total y cuántas en menos de 3 min.
+SELECT LEFT(ec.timestamp_fin, 10) AS dia_utc, COUNT(*) AS terminadas,
+       SUM(TIMESTAMPDIFF(SECOND,
+             STR_TO_DATE(LEFT(ec.timestamp_inicio, 19), '%Y-%m-%dT%H:%i:%s'),
+             STR_TO_DATE(LEFT(ec.timestamp_fin, 19), '%Y-%m-%dT%H:%i:%s')) < 180) AS menos_de_3_min
+  FROM cat6852_australia.limpieza_ejecuciones_checklist ec
+ WHERE ec.timestamp_fin >= 'AAAA-MM-DDTHH:MM'   -- hora UTC del deploy
+   AND ec.cerrada_por_sistema = 0
+ GROUP BY LEFT(ec.timestamp_fin, 10)
+ ORDER BY dia_utc;
+```

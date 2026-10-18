@@ -60,7 +60,7 @@ efecto afuera); la historia de la pieza, la auditoría y los registros se guarda
 1. Abrir «PRUEBA» desde Habitaciones y tocar **«Asignármela para probar»** (quien tiene el permiso y puede asignar;
    no hace falta turno: así no se le da turno al Admin, que dispararía alertas predictivas). Queda sucia y en la
    cola de hoy. También se puede asignar desde Asignaciones a otra persona con el permiso y turno ese día.
-2. Limpiarla con el checklist (rige el mínimo de 3 minutos de cualquier limpieza), inspeccionarla, hacer el NO de
+2. Limpiarla con el checklist (sin tiempo mínimo desde la v7.10), inspeccionarla, hacer el NO de
    Recepción, dejarle la nota, levantar un ticket, saltarla o reasignarla, según lo que se quiera probar.
 3. Para repetir, «Asignármela para probar» de nuevo: si quedó aprobada o rechazada, pasa a sucia.
 

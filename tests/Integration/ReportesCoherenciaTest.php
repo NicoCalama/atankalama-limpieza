@@ -118,8 +118,6 @@ final class ReportesCoherenciaTest extends TestCase
         $this->assertNotContains('Berta', $nombres, 'a Berta se la resolvieron: no le queda nada asignado');
 
         $k = $this->rep->kpis($this->hoy, $this->hoy, 'ambos');
-        $this->assertEquals(30.0, $k['tiempo_promedio']['valor'], 'la limpieza de 0 min del atajo no baja el promedio');
-        $this->assertSame('1 limpiezas', $k['tiempo_promedio']['contexto']);
         $this->assertStringContainsString('1 trabaj.', $k['productividad']['contexto']);
     }
 

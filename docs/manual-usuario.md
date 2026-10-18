@@ -395,7 +395,7 @@ En **Ajustes** → **Logs**:
 
 En **Reportes** hay cuatro pestañas (v7.2). La elegida se mantiene si recargas la página:
 
-1. **Trabajadores**: KPIs del equipo (tiempo promedio, rechazo, eficiencia, créditos…), detalle por trabajadora y ficha de KPIs. Filtra por período, hotel y trabajadora.
+1. **Trabajadores**: KPIs del equipo (rechazo, eficiencia, créditos…), detalle por trabajadora y ficha de KPIs. Filtra por período, hotel y trabajadora.
 2. **Supervisoras**: «Supervisora · Inspección» (cobertura, rechazo, por turno y por inspectora, con su calidad según Recepción) e «Inspecciones pendientes al corte» de un día.
 3. **Recepción**: la inspección pre-entrega (SÍ / NO, por recepcionista, NO por motivo e historial).
 4. **Mensual**: resumen mensual por trabajador (con el «Corte hab./día» del bono), resumen mensual de inspecciones e inspección pre-entrega del mes (total y por recepcionista), con un solo selector de mes.

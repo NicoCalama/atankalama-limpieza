@@ -175,7 +175,13 @@ checklists por tipo). La API acepta `items: [{descripcion, creditos}]` (o string
 pelados, compat → créditos 1). Como todos los ítems de espacio son obligatorios,
 su peso siempre cuenta.
 
-**Tiempo mínimo para terminar (v7.6, decisión de Nicolás del 11/10/2026):** toda limpieza tiene un
+**Sin tiempo mínimo desde la v7.10 (decisión de Nicolás del 18/10/2026):** ninguna limpieza, de
+habitación o de área, tiene ya un mínimo para terminar. Se sacaron el selector de «Editar», el texto de
+la tarjeta y la columna de la tabla; `GET /api/espacios` ya no trae `minimo_terminar_min` y crear/editar
+ignoran el campo si una pantalla vieja lo manda. La columna `habitaciones.minimo_terminar_min` queda en
+la BD sin uso (sin SQL en el deploy). Lo que sigue es la historia de la v7.6.
+
+**Tiempo mínimo para terminar (v7.6, decisión de Nicolás del 11/10/2026; RETIRADO en la v7.10):** toda limpieza tenía un
 mínimo desde que se empieza antes de poder apretar «terminar» (antifraude; 3 min, `ChecklistService`,
 `CHECKLIST_DELAY_MINIMO_SEGUNDOS`). En las áreas ese mínimo hacía esperar en las chicas: 212 de 609
 áreas terminadas cerraron justo entre 3 y 4 min, y 16 quedaron con todo marcado y sin terminar (ver §2,

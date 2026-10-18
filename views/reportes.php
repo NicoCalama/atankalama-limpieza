@@ -307,7 +307,6 @@
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Trabajadora</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
-                                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">T. Prom.</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Rechazo</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Eficiencia</th>
                                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Créditos</th>
@@ -327,8 +326,6 @@
                                             </td>
                                             <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
                                                 x-text="t.dias_trabajados"></td>
-                                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
-                                                x-text="fmtKpi(t.kpis.tiempo_promedio)"></td>
                                             <td class="px-4 py-3 text-right font-medium"
                                                 :class="claseKpi(t.kpis.tasa_rechazo)"
                                                 x-text="fmtKpi(t.kpis.tasa_rechazo)"></td>
@@ -457,9 +454,9 @@
         </template>
         <!-- ═══════════════ fin pestaña TRABAJADORES ═══════════════ -->
 
-        <!-- Privacidad jerárquica de tiempos (jefatura, 16/09): nadie ve sus propios tiempos, solo el nivel
-             de arriba. «Supervisora · Inspección» (tiempo por auditación de las supervisoras) se renderiza solo con
-             reportes.ver_supervisoras; el backend tampoco la envía sin el permiso. La bandera gatea el tour. -->
+        <!-- Privacidad jerárquica (jefatura, 16/09): «Supervisora · Inspección» se renderiza solo con
+             reportes.ver_supervisoras; el backend tampoco la envía sin el permiso. La bandera gatea el tour.
+             (Desde la v7.10 ya no trae el tiempo por auditación.) -->
         <div data-vg-context='{"ve_supervisoras": <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>}' hidden></div>
 
         <!-- ═══════════════ Pestaña SUPERVISORAS ═══════════════ -->
@@ -569,7 +566,6 @@
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprob.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">C/obs.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechaz.</th>
-                                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Minutos promedio desde que abre la pieza hasta que da el veredicto. Solo inspecciones desde que se activó la medición.">T. por insp.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Lo que ella inspeccionó sobre todo lo limpiado en la sección.">Aporte cobert.</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, revisadas mientras seguían aprobadas y según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Calidad según Recepción: (aprobadas − no aprobadas) ÷ las que Recepción revisó × 100, con las mismas piezas de la columna «Recepción». Cada NO pesa el doble (18 SÍ y 2 NO = 80 %). Nunca baja de 0 %. Sin revisiones de Recepción en el período: —.">Calidad</th>
@@ -587,10 +583,6 @@
                                             <td class="px-3 py-2 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="i.con_observacion"></td>
                                             <td class="px-3 py-2 text-right text-red-700 dark:text-red-400 font-semibold" x-text="i.rechazadas"></td>
                                             <td class="px-3 py-2 text-right whitespace-nowrap">
-                                                <span class="text-gray-700 dark:text-gray-300" x-text="i.tiempo_auditacion === null ? '—' : (i.tiempo_auditacion + ' min')"></span>
-                                                <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="i.tiempo_auditacion === null ? 'sin medición' : deltaTxt(i.cmp.tiempo_auditacion, ' min')"></span>
-                                            </td>
-                                            <td class="px-3 py-2 text-right whitespace-nowrap">
                                                 <span class="text-gray-700 dark:text-gray-300" x-text="fmtPct(i.aporte_cobertura_pct)"></span>
                                                 <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.aporte_cobertura_pct, ' pts')"></span>
                                             </td>
@@ -606,7 +598,6 @@
                                         <td class="px-3 py-2 font-semibold">Promedio</td>
                                         <td class="px-3 py-2 text-right" x-text="fmtNull(ficha.supervisoras.comparativa.total.promedio)"></td>
                                         <td class="px-3 py-2" colspan="3"></td>
-                                        <td class="px-3 py-2 text-right" x-text="ficha.supervisoras.comparativa.tiempo_auditacion.promedio === null ? '—' : (ficha.supervisoras.comparativa.tiempo_auditacion.promedio + ' min')"></td>
                                         <td class="px-3 py-2 text-right" x-text="fmtPct(ficha.supervisoras.comparativa.aporte_cobertura_pct.promedio)"></td>
                                         <td class="px-3 py-2"></td>
                                         <td class="px-3 py-2"></td>
@@ -1194,16 +1185,13 @@ function reportes() {
             { clave: 'ab',               titulo: 'Audit. / no',  fmt: 'ab',       cmp: false, ayuda: 'Créditos auditados por una persona / no auditados (cuentan igual como aprobados).' },
             { clave: 'habitaciones',     titulo: 'Piezas',       fmt: 'num',      cmp: true,  ayuda: 'Piezas de huésped que quedaron bien, una por limpieza (el nochero de la tarde y el turnover cuentan otra). Tras un rechazo la pieza sigue contando como rechazada para esa persona, la rehaga quien la rehaga.' },
             { clave: 'cobertura_pct',    titulo: 'Cobert.',      fmt: 'pct',      cmp: false, ayuda: 'Qué parte de sus piezas fue inspeccionada por una persona (señal de la supervisión, no del trabajador).' },
-            { clave: 'tiempo_promedio',  titulo: 'T. prom.',     fmt: 'min',      cmp: true,  ayuda: 'Minutos promedio por pieza. Alerta hacia los dos lados: muy lento o sospechosamente rápido.' },
             { clave: 'esperado',         titulo: 'Asignadas',    fmt: 'esperado', cmp: false, ayuda: 'Lo asignado en el período: piezas · créditos del checklist vigente, una por limpieza pedida (el nochero de la tarde y el turnover suman otra). Pegajoso: no se quita al rechazar. Una asignación retirada sin trabajo no cuenta, y desde el 01/10/2026 tampoco la que pasó a otra persona sin que la empezaras.' },
             { clave: 'realizacion_pct',  titulo: 'Realiz.',      fmt: 'pct',      cmp: true,  ayuda: '(Aprobadas + Rechazadas) ÷ Asignadas — cuánto de lo asignado ejecutó.' },
             { clave: 'cumplimiento_pct', titulo: 'Cumplim.',     fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ Asignadas — cuánto de lo asignado quedó bien.' },
             { clave: 'calidad_pct',      titulo: 'Calidad',      fmt: 'pct',      cmp: true,  ayuda: 'Aprobadas ÷ (Aprobadas + Rechazadas) — de lo que hizo, cuánto pasó.' },
             { clave: 'rechazo_pct',      titulo: 'Rechazo',      fmt: 'pct',      cmp: true,  ayuda: 'Rechazadas ÷ (Aprobadas + Rechazadas) — lo que hubo que rehacer.' },
             { clave: 'eficiencia_pct',   titulo: 'Eficiencia',   fmt: 'pct',      cmp: true,  ayuda: 'Créditos aprobados ÷ créditos asignados, solo piezas de huésped. Un rechazo baja este número: rehaciendo uno mismo se recupera la mitad al segundo intento y nada desde el tercero.' },
-            { clave: 'creditos_por_hab', titulo: 'Créd./pieza',  fmt: 'num',      cmp: true,  ayuda: 'Créditos de piezas de huésped ÷ piezas: dificultad o mezcla del trabajo (informativo, sin rojo).' },
-            { clave: 'ritmo',            titulo: 'Ritmo',        fmt: 'ritmo',    cmp: true,  ayuda: 'Créditos de piezas de huésped por hora trabajada en ellas. Alerta hacia los dos lados.' },
-        ],
+            { clave: 'creditos_por_hab', titulo: 'Créd./pieza',  fmt: 'num',      cmp: true,  ayuda: 'Créditos de piezas de huésped ÷ piezas: dificultad o mezcla del trabajo (informativo, sin rojo).' },        ],
 
         // Mes de la pestaña Mensual (YYYY-MM): lo comparten los dos resúmenes y es el que propone el Excel.
         mes:               window.hoyServidor().slice(0, 7),
@@ -1743,8 +1731,6 @@ function reportes() {
             var v = t[c.clave];
             switch (c.fmt) {
                 case 'pct':      return this.fmtPct(v);
-                case 'min':      return v === null ? '—' : (v + ' min');
-                case 'ritmo':    return v === null ? '—' : (v + ' cr/h');
                 case 'ab':       return t.creditos_auditados + ' / ' + t.creditos_no_auditados;
                 case 'esperado': return t.esperado_hab + ' · ' + t.esperado_creditos + ' cr';
                 default:         return this.fmtNull(v);
@@ -1755,7 +1741,7 @@ function reportes() {
             if (!this.ficha || !c.cmp) return '';
             var s = this.ficha.comparativa[c.clave];
             if (!s || s.promedio === null) return '—';
-            var sufijo = c.fmt === 'pct' ? ' %' : (c.fmt === 'min' ? ' min' : (c.fmt === 'ritmo' ? ' cr/h' : ''));
+            var sufijo = c.fmt === 'pct' ? ' %' : '';
             return s.promedio + sufijo + (s.sigma !== null ? ' ±' + s.sigma : '');
         },
 
@@ -1829,7 +1815,6 @@ function reportes() {
         tarjetasKpi() {
             if (!this.data) return [];
             var defs = [
-                { clave: 'tiempo_promedio',    titulo: 'Tiempo prom. limpieza' },
                 { clave: 'tasa_rechazo',       titulo: 'Tasa de rechazo' },
                 { clave: 'eficiencia',         titulo: 'Eficiencia del equipo' },
                 { clave: 'creditos',           titulo: 'Créditos obtenidos' },
@@ -1843,8 +1828,8 @@ function reportes() {
 
         anchoBarra(kpi) {
             if (kpi.valor === null || kpi.meta === null) return 0;
-            // Para KPIs donde menor es mejor (rechazo, tiempo, desmarcados): invertir
-            var menorMejor = ['tasa_rechazo', 'tiempo_promedio', 'tasa_desmarcados'].includes(kpi.clave);
+            // Para KPIs donde menor es mejor (rechazo, desmarcados): invertir
+            var menorMejor = ['tasa_rechazo', 'tasa_desmarcados'].includes(kpi.clave);
             if (menorMejor) {
                 // 100% = exactamente en meta, 0% = doble de meta
                 var pct = Math.max(0, Math.min(100, (1 - (kpi.valor - kpi.meta) / kpi.meta) * 100));

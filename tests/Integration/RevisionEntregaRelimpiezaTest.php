@@ -197,7 +197,7 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $ana = $this->ficha($this->ana);
         $this->assertSame([1, 1, 0], [$ana['habitaciones'], $ana['esperado_hab'], $ana['rechazadas_hab']], 'a Ana no se le toca nada');
         $berta = $this->ficha($this->berta);
-        $this->assertSame([0, 0, 0, 0], [$berta['habitaciones'], $berta['esperado_hab'], $berta['creditos'], $berta['ejecuciones']], 'a Berta no le suma');
+        $this->assertSame([0, 0, 0], [$berta['habitaciones'], $berta['esperado_hab'], $berta['creditos']], 'a Berta no le suma');
         $this->assertSame(1, $berta['dias_trabajados'] ?? null, 'pero el día sí cuenta como trabajado');
 
         $rep = new ReportesService();
@@ -227,7 +227,6 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $this->assertTrue($this->svc->obtener($rev)['relimpieza_iniciada']);
         $ana = $this->ficha($this->ana);
         $this->assertSame([1, 1], [$ana['habitaciones'], $ana['esperado_hab']], 'una sola pieza, no dos');
-        $this->assertSame(1, $ana['ejecuciones'], 'solo el tiempo de la limpieza original');
     }
 
     public function testUnPedidoDeOtroDiaNoSeVincula(): void

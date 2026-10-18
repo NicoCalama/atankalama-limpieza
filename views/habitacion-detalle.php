@@ -477,9 +477,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <!-- Botón "Habitación terminada" -->
                     <template x-if="puedeEditar">
                         <button @click="confirmarCompletar()" data-tour="hab.terminar"
-                                :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente || delayRestante > 0"
+                                :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-xl transition shadow-sm">
-                            <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : (delayRestante > 0 ? 'Puedes terminar en ' + textoDelayRestante() : 'Habitación terminada')))"></span>
+                            <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada'))"></span>
                         </button>
                     </template>
 
@@ -729,11 +729,6 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         iniciando: false,
         sincronizando: false,
         completando: false,
-        // Delay mínimo de 5 min antes de poder completar (piezas no-nochero). Conteo
-        // regresivo client-side derivado de delay_restante_segundos del backend — nunca
-        // se le muestra al trabajador un timestamp absoluto (ver estadoEjecucion()).
-        delayRestante: 0,
-        _delayTimer: null,
         mostrarConfirmar: false,
         mostrarSaltar: false,
         saltando: false,
@@ -940,39 +935,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                             return it;
                         });
                         this.progreso = rEjec.data.progreso;
-                        this.iniciarDelayRestante(rEjec.data.delay_restante_segundos || 0);
                     }
                 }
             } catch (e) {
                 // Silencioso — checklist no disponible para este rol/estado.
             }
-        },
-
-        // Arranca (o no) el conteo regresivo del delay mínimo para completar. Decrementa
-        // cada segundo del lado del cliente — no vuelve a pedirle nada al servidor hasta
-        // que el trabajador toque "Habitación terminada".
-        iniciarDelayRestante(segundos) {
-            if (this._delayTimer) {
-                clearInterval(this._delayTimer);
-                this._delayTimer = null;
-            }
-            this.delayRestante = segundos;
-            if (segundos <= 0) return;
-            var self = this;
-            this._delayTimer = setInterval(function () {
-                self.delayRestante = Math.max(0, self.delayRestante - 1);
-                if (self.delayRestante === 0) {
-                    clearInterval(self._delayTimer);
-                    self._delayTimer = null;
-                }
-            }, 1000);
-        },
-
-        // mm:ss para el botón "Habitación terminada" mientras corre el delay.
-        textoDelayRestante() {
-            var mm = Math.floor(this.delayRestante / 60);
-            var ss = this.delayRestante % 60;
-            return mm + ':' + (ss < 10 ? '0' : '') + ss;
         },
 
         // v7.5: asignarse la habitación de prueba para hoy (la deja sucia si estaba aprobada o rechazada).

@@ -90,26 +90,6 @@ final class ReportesFichaTest extends TestCase
         // 105 — Ana, asignada pero nunca iniciada (solo Esperado).
         $asig->asignarManual($this->hab['105'], $this->ana, $fecha);
 
-        // Tiempos deterministas: cada limpieza duró 30 min (fin = inicio + 30). Se fija por SQL
-        // para no depender del reloj; la ventana sigue siendo "hoy" porque el inicio no cambia.
-        foreach (Database::fetchAll('SELECT id, timestamp_inicio FROM ejecuciones_checklist') as $f) {
-            $fin = (new \DateTimeImmutable((string) $f['timestamp_inicio'], new \DateTimeZone('UTC')))
-                ->modify('+30 minutes')->format('Y-m-d\TH:i:s.v\Z');
-            Database::execute('UPDATE ejecuciones_checklist SET timestamp_fin = ? WHERE id = ?', [$fin, (int) $f['id']]);
-        }
-
-        // Tiempo por auditación de la 101: Sofía la abrió 5 minutos antes de aprobar.
-        $a101 = Database::fetchOne(
-            'SELECT a.created_at, a.ejecucion_id FROM auditorias a WHERE a.habitacion_id = ?',
-            [$this->hab['101']]
-        );
-        $abierta = (new \DateTimeImmutable((string) $a101['created_at'], new \DateTimeZone('UTC')))
-            ->modify('-5 minutes')->format('Y-m-d\TH:i:s.v\Z');
-        Database::execute(
-            'UPDATE ejecuciones_checklist SET auditoria_iniciada_at = ? WHERE id = ?',
-            [$abierta, (int) $a101['ejecucion_id']]
-        );
-
         $this->rep = new ReportesService();
     }
 
@@ -162,13 +142,17 @@ final class ReportesFichaTest extends TestCase
         $this->assertSame(50.0, $b['eficiencia_pct']);
     }
 
-    public function testTiempoYRitmo(): void
+    public function testSinKpisDeTiempo(): void
     {
+        // v7.10: la ficha ya no mide tiempos (decisión de Nicolás, 18/10/2026).
+        $ficha = $this->rep->fichaKpis(date('Y-m-d'), date('Y-m-d'), 'ambos');
         $t = $this->filaDe('Ana');
-        $this->assertSame(30.0, $t['tiempo_promedio']);
-        $this->assertSame(1.0, $t['horas'], '2 limpiezas de 30 min');
-        // Ritmo = créditos por hora trabajada.
-        $this->assertSame(round(2 * $this->n / 1.0, 1), $t['ritmo']);
+        foreach (['tiempo_promedio', 'minutos_total', 'horas', 'ritmo', 'ejecuciones'] as $clave) {
+            $this->assertArrayNotHasKey($clave, $t);
+            $this->assertArrayNotHasKey($clave, $ficha['comparativa']);
+        }
+        $this->assertArrayNotHasKey('tiempo_auditacion', $ficha['supervisoras']['inspectoras'][0]);
+        $this->assertArrayNotHasKey('tiempo_auditacion', $ficha['supervisoras']['comparativa']);
     }
 
     public function testComparacionConElGrupoRespetaElMinimoDeDatos(): void
@@ -267,7 +251,7 @@ final class ReportesFichaTest extends TestCase
         $this->assertSame(2, $s['por_turno'][1]['completadas']);
     }
 
-    public function testInspectorasConTiempoPorAuditacionYAporte(): void
+    public function testInspectorasConAporte(): void
     {
         $sup = $this->rep->fichaKpis(date('Y-m-d'), date('Y-m-d'), 'ambos')['supervisoras'];
         $this->assertCount(1, $sup['inspectoras'], 'el usuario Sistema no es inspectora');
@@ -276,9 +260,6 @@ final class ReportesFichaTest extends TestCase
         $this->assertSame(2, $sofia['total']);
         $this->assertSame(1, $sofia['aprobadas']);
         $this->assertSame(1, $sofia['rechazadas']);
-        // Solo la 101 tiene apertura registrada: 5 minutos hasta el veredicto.
-        $this->assertSame(1, $sofia['n_tiempo']);
-        $this->assertSame(5.0, $sofia['tiempo_auditacion']);
         // Aporte: 2 inspeccionadas por ella sobre 4 limpiadas en la sección.
         $this->assertSame(50.0, $sofia['aporte_cobertura_pct']);
         // Promedio simple entre inspectoras (una sola → Δ 0).
@@ -530,7 +511,7 @@ final class ReportesFichaTest extends TestCase
     public function testEspaciosComunesSumanCreditosPeroNoEntranEnLosRatios(): void
     {
         // Ana limpia además el lobby (área común, sin inspección): sus créditos suman al total del N1,
-        // pero Eficiencia, Créd./pieza y Ritmo se miden solo sobre piezas de huésped.
+        // pero Eficiencia y Créd./pieza se miden solo sobre piezas de huésped.
         $this->crearPieza('Lobby', true);
         $this->limpiarEnFecha('Lobby', $this->ana, date('Y-m-d'));
 
@@ -541,8 +522,6 @@ final class ReportesFichaTest extends TestCase
         $this->assertSame(3, $t['esperado_hab'], 'el lobby tampoco entra al esperado');
         $this->assertSame(66.7, $t['eficiencia_pct'], '2N / 3N: el lobby no infla la eficiencia');
         $this->assertSame((float) $this->n, $t['creditos_por_hab']);
-        $this->assertSame(1.0, $t['horas'], 'horas solo de piezas de huésped');
-        $this->assertSame(round(2 * $this->n / 1.0, 1), $t['ritmo']);
     }
 
     public function testMetasDeLaSeccionSonConfigurables(): void

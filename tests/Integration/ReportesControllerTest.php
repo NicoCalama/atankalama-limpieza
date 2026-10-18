@@ -99,8 +99,8 @@ final class ReportesControllerTest extends TestCase
             ['desde' => '2026-09-01', 'hasta' => '2026-09-30', 'hotel' => '1_sur', 'usuario_id' => $this->ana],
             $data['filtros']
         );
-        $this->assertSame('1 limpiezas', $data['kpis']['tiempo_promedio']['contexto']);
-        $this->assertEquals(30, $data['kpis']['tiempo_promedio']['valor']);
+        $this->assertSame(1, $data['kpis']['limpiadas']['valor']);
+        $this->assertArrayNotHasKey('tiempo_promedio', $data['kpis'], 'sin KPIs de tiempo desde la v7.10');
     }
 
     public function testLaFichaUsaElRangoDeLaUrl(): void

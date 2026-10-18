@@ -324,27 +324,7 @@ final class HomeService
             [$hotelId]
         )['c'] ?? 0);
 
-        // Tiempo promedio (min) de ejecuciones cerradas hoy en este hotel, sin el personal de apoyo
-        // ni las que terminó el cierre de la noche porque nadie apretó «terminar» (v6.19).
-        $paramsTiempo = [$hotelId, $diaDesde, $diaHasta];
-        $sinApoyoTiempo = RbacService::sqlSinPermiso('e.usuario_id', RbacService::PERMISO_EXCLUIDO_KPIS, $paramsTiempo);
-        $tiempoProm = Database::fetchOne(
-            'SELECT AVG(' . Database::diffMinutosSql('e.timestamp_inicio', 'e.timestamp_fin') . ') AS prom
-               FROM #__ejecuciones_checklist e
-               JOIN #__habitaciones h ON h.id = e.habitacion_id
-              WHERE h.hotel_id = ?
-                AND h.es_espacio_comun = 0
-                AND h.es_prueba = 0
-                AND e.cerrada_por_sistema = 0
-                AND e.timestamp_fin IS NOT NULL
-                AND e.timestamp_fin >= ? AND e.timestamp_fin < ?
-                AND ' . $sinApoyoTiempo,
-            $paramsTiempo
-        );
-        $tiempoPromMin = ($tiempoProm !== null && $tiempoProm['prom'] !== null)
-            ? (int) round((float) $tiempoProm['prom'])
-            : null;
-
+        // (El tiempo promedio por pieza salió del Inicio en la v7.10, decisión de Nicolás del 18/10/2026.)
         return [
             'habitaciones' => [
                 'limpias' => $limpias,
@@ -365,7 +345,6 @@ final class HomeService
                 'disponibles' => $disponibles,
             ],
             'tickets_abiertos' => $ticketsAbiertos,
-            'tiempo_promedio_minutos' => $tiempoPromMin,
             // Base de la tasa de rechazo del KPI: como `auditorias`, pero sin el personal de apoyo.
             'auditorias_kpi' => [
                 'rechazadas' => (int) ($audKpi['rechazadas'] ?? 0),
@@ -375,31 +354,14 @@ final class HomeService
     }
 
     /**
-     * Calcula KPIs (tiempo promedio, tasa de rechazo, eficiencia) para un hotel.
+     * Calcula KPIs (tasa de rechazo, eficiencia) para un hotel. El tiempo promedio salió en la v7.10.
      *
      * @param array<string, mixed> $metricas
      * @return array<string, mixed>
      */
     public function kpisHotel(int $hotelId, string $fecha, array $metricas): array
     {
-        // KPI 1: tiempo promedio
-        $metaTiempo = 30;
-        $tiempoValor = $metricas['tiempo_promedio_minutos'];
-        if ($tiempoValor === null) {
-            $tiempoEstado = 'SIN_DATOS';
-            $tiempoPct = 0;
-        } else {
-            if ($tiempoValor <= $metaTiempo) {
-                $tiempoEstado = 'OK';
-            } elseif ($tiempoValor <= $metaTiempo * 1.05) {
-                $tiempoEstado = 'ALERTA';
-            } else {
-                $tiempoEstado = 'CRITICO';
-            }
-            $tiempoPct = $tiempoValor > 0 ? min(100, (int) round($metaTiempo * 100 / $tiempoValor)) : 0;
-        }
-
-        // KPI 2: tasa de rechazo
+        // KPI 1: tasa de rechazo
         $metaRechazo = 5.0;
         $totalAud = (int) $metricas['auditorias_kpi']['total'];
         $rech = (int) $metricas['auditorias_kpi']['rechazadas'];
@@ -414,7 +376,7 @@ final class HomeService
             $rechEstado = 'CRITICO';
         }
 
-        // KPI 3: eficiencia de equipo = completadas / asignadas
+        // KPI 2: eficiencia de equipo = completadas / asignadas
         $metaEf = 85;
         // Numerador y denominador sobre la MISMA base: las asignaciones de hoy. Antes el numerador
         // contaba todas las piezas limpias del hotel (incluidas las de días anteriores) y el KPI
@@ -442,13 +404,6 @@ final class HomeService
         }
 
         return [
-            'tiempo_promedio' => [
-                'valor' => $tiempoValor,
-                'unidad' => 'min',
-                'meta' => $metaTiempo,
-                'estado' => $tiempoEstado,
-                'porcentaje' => $tiempoPct,
-            ],
             'tasa_rechazo' => [
                 'valor' => $tasa,
                 'unidad' => '%',
@@ -483,7 +438,6 @@ final class HomeService
         $audsKpi = ['rechazadas' => 0, 'total' => 0];
         $trab = ['en_turno' => 0, 'disponibles' => 0];
         $tickets = 0;
-        $tiempos = [];
         foreach ($porHotel as $m) {
             foreach ($habs as $k => $_) {
                 $habs[$k] += (int) $m['habitaciones'][$k];
@@ -498,18 +452,13 @@ final class HomeService
                 $trab[$k] += (int) $m['trabajadores'][$k];
             }
             $tickets += (int) $m['tickets_abiertos'];
-            if ($m['tiempo_promedio_minutos'] !== null) {
-                $tiempos[] = (int) $m['tiempo_promedio_minutos'];
-            }
         }
-        $tiempoProm = $tiempos === [] ? null : (int) round(array_sum($tiempos) / count($tiempos));
         return [
             'habitaciones' => $habs,
             'auditorias' => $auds,
             'auditorias_kpi' => $audsKpi,
             'trabajadores' => $trab,
             'tickets_abiertos' => $tickets,
-            'tiempo_promedio_minutos' => $tiempoProm,
         ];
     }
 
@@ -532,22 +481,6 @@ final class HomeService
      */
     public function kpisDesdeMetricasConsolidadas(array $metricas): array
     {
-        $metaTiempo = 30;
-        $tiempoValor = $metricas['tiempo_promedio_minutos'];
-        if ($tiempoValor === null) {
-            $tiempoEstado = 'SIN_DATOS';
-            $tiempoPct = 0;
-        } else {
-            if ($tiempoValor <= $metaTiempo) {
-                $tiempoEstado = 'OK';
-            } elseif ($tiempoValor <= $metaTiempo * 1.05) {
-                $tiempoEstado = 'ALERTA';
-            } else {
-                $tiempoEstado = 'CRITICO';
-            }
-            $tiempoPct = $tiempoValor > 0 ? min(100, (int) round($metaTiempo * 100 / $tiempoValor)) : 0;
-        }
-
         $totalAud = (int) $metricas['auditorias_kpi']['total'];
         $rech = (int) $metricas['auditorias_kpi']['rechazadas'];
         $tasa = $totalAud > 0 ? round($rech * 100 / $totalAud, 1) : 0.0;
@@ -577,13 +510,6 @@ final class HomeService
         }
 
         return [
-            'tiempo_promedio' => [
-                'valor' => $tiempoValor,
-                'unidad' => 'min',
-                'meta' => $metaTiempo,
-                'estado' => $tiempoEstado,
-                'porcentaje' => $tiempoPct,
-            ],
             'tasa_rechazo' => [
                 'valor' => $tasa,
                 'unidad' => '%',

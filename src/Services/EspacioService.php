@@ -24,12 +24,6 @@ final class EspacioService
     private const NOMBRE_MAX = 20;
 
     /**
-     * Minutos que se pueden elegir como mínimo para terminar un área (v7.6; 0 = sin mínimo). La
-     * lista de views/espacios.php ofrece estos mismos valores.
-     */
-    public const MINIMOS_TERMINAR_MIN = [0, 1, 2, 3, 5, 10];
-
-    /**
      * Estados en que la limpieza que alguien tiene asignada todavía no está hecha: pedírsela a otra
      * persona es cambiarla de persona y lleva motivo (v7.4.1). Por inspeccionar o aprobada, en
      * cambio, ya se limpió: pedirla de nuevo es una limpieza nueva, sin motivo.
@@ -84,18 +78,6 @@ final class EspacioService
     }
 
     /**
-     * Minutos que rigen para terminar un área: los suyos, o el mínimo general si nadie se los
-     * cambió (NULL; las áreas que existían antes de la v7.6 siguen con 3 min).
-     */
-    public static function minimoTerminarEfectivoMin(mixed $valorColumna): int
-    {
-        if ($valorColumna !== null) {
-            return max(0, (int) $valorColumna);
-        }
-        return intdiv(ChecklistService::minimoGeneralSegundos() + 59, 60);
-    }
-
-    /**
      * Lista los espacios activos (opcionalmente filtrados por hotel), con su hotel, estado,
      * cantidad de ítems del checklist, quién lo tiene asignado hoy y la franja de su tarjeta.
      *
@@ -118,7 +100,7 @@ final class EspacioService
         }
 
         $filas = Database::fetchAll(
-            'SELECT h.id, h.numero, h.estado, h.minimo_terminar_min, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+            'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
                     (SELECT u.nombre
                        FROM #__asignaciones a
                        JOIN #__usuarios u ON u.id = a.usuario_id
@@ -149,7 +131,6 @@ final class EspacioService
             $f['franja'] = self::franjaVisible((string) $f['estado'], $f['asignada_hoy']);
             // v7.4.1: pedírsela hoy a otra persona es cambiarla de persona (la pantalla pide el motivo).
             $f['cambio_pide_motivo'] = $f['asignada_hoy'] && in_array($f['estado'], self::ESTADOS_LIMPIEZA_PENDIENTE, true);
-            $f['minimo_terminar_min'] = self::minimoTerminarEfectivoMin($f['minimo_terminar_min']);
             return $f;
         }, $filas);
     }
@@ -171,7 +152,8 @@ final class EspacioService
         if ($espacio === null) {
             throw new EspacioException('ESPACIO_NO_ENCONTRADO', 'Área común no encontrada.', 404);
         }
-        $espacio['minimo_terminar_min'] = self::minimoTerminarEfectivoMin($espacio['minimo_terminar_min'] ?? null);
+        // Columna de la v7.6 que quedó sin uso al sacar el tiempo mínimo (v7.10): no se expone.
+        unset($espacio['minimo_terminar_min']);
 
         $items = Database::fetchAll(
             'SELECT ic.id, ic.orden, ic.descripcion, ic.creditos
@@ -191,25 +173,22 @@ final class EspacioService
      *
      * @param list<string|array{descripcion?: string, creditos?: int|string}> $items ítems del
      *        checklist (todos obligatorios); acepta strings o {descripcion, creditos}
-     * @param int|null $minimoTerminarMin minutos mínimos para terminar (v7.6), uno de
-     *        MINIMOS_TERMINAR_MIN; null = el general
      * @return int id del espacio creado
      */
-    public function crear(string $nombre, string $hotelCodigo, array $items, ?int $actorId = null, ?int $minimoTerminarMin = null): int
+    public function crear(string $nombre, string $hotelCodigo, array $items, ?int $actorId = null): int
     {
         $nombre = $this->validarNombre($nombre);
         $items = $this->normalizarItems($items);
-        $this->validarMinimoTerminar($minimoTerminarMin);
         $hotelId = $this->hotelIdPorCodigo($hotelCodigo);
         $this->asegurarNombreLibre($hotelId, $nombre, null);
 
-        $espacioId = Database::transaction(function () use ($nombre, $hotelId, $items, $minimoTerminarMin): int {
+        $espacioId = Database::transaction(function () use ($nombre, $hotelId, $items): int {
             $tipoId = $this->tipoAreaComunId();
 
             Database::execute(
-                'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, es_espacio_comun, minimo_terminar_min)
-                 VALUES (?, ?, ?, NULL, ?, 1, ?)',
-                [$hotelId, $nombre, $tipoId, Habitacion::ESTADO_APROBADA, $minimoTerminarMin]
+                'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, es_espacio_comun)
+                 VALUES (?, ?, ?, NULL, ?, 1)',
+                [$hotelId, $nombre, $tipoId, Habitacion::ESTADO_APROBADA]
             );
             $espacioId = Database::lastInsertId();
 
@@ -228,7 +207,6 @@ final class EspacioService
 
         Logger::audit($actorId, 'espacio.crear', 'habitacion', $espacioId, [
             'nombre' => $nombre, 'hotel' => $hotelCodigo, 'items' => count($items),
-            'minimo_terminar_min' => $minimoTerminarMin,
         ]);
 
         return $espacioId;
@@ -239,30 +217,20 @@ final class EspacioService
      * inactivos, se insertan los nuevos) para no romper el FK de ejecuciones históricas.
      *
      * @param list<string|array{descripcion?: string, creditos?: int|string}> $items
-     * @param int|null $minimoTerminarMin minutos mínimos para terminar (v7.6), uno de
-     *        MINIMOS_TERMINAR_MIN; null = no se toca (una pantalla abierta desde antes de la v7.6
-     *        no lo manda y no debe borrárselo)
      */
-    public function editar(int $id, string $nombre, array $items, ?int $actorId = null, ?int $minimoTerminarMin = null): void
+    public function editar(int $id, string $nombre, array $items, ?int $actorId = null): void
     {
         $detalle = $this->obtenerDetalle($id);
         $espacio = $detalle['espacio'];
         $nombre = $this->validarNombre($nombre);
         $items = $this->normalizarItems($items);
-        $this->validarMinimoTerminar($minimoTerminarMin);
         $this->asegurarNombreLibre((int) $espacio['hotel_id'], $nombre, $id);
 
-        Database::transaction(function () use ($id, $nombre, $items, $minimoTerminarMin): void {
+        Database::transaction(function () use ($id, $nombre, $items): void {
             Database::execute(
                 "UPDATE #__habitaciones SET numero = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
                 [$nombre, $id]
             );
-            if ($minimoTerminarMin !== null) {
-                Database::execute(
-                    'UPDATE #__habitaciones SET minimo_terminar_min = ? WHERE id = ?',
-                    [$minimoTerminarMin, $id]
-                );
-            }
 
             $template = Database::fetchOne(
                 'SELECT id FROM #__checklists_template WHERE habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
@@ -287,15 +255,7 @@ final class EspacioService
 
         Logger::audit($actorId, 'espacio.editar', 'habitacion', $id, [
             'nombre' => $nombre, 'items' => count($items),
-            'minimo_terminar_min' => $minimoTerminarMin,
         ]);
-    }
-
-    private function validarMinimoTerminar(?int $minutos): void
-    {
-        if ($minutos !== null && !in_array($minutos, self::MINIMOS_TERMINAR_MIN, true)) {
-            throw new EspacioException('MINIMO_INVALIDO', 'Elige el tiempo mínimo de la lista.', 400);
-        }
     }
 
     /**

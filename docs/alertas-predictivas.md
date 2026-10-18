@@ -139,6 +139,9 @@ editar la estructura, y con eso una aprobación de ayer pasaba por «de hoy».
 ### 4.1 Variables
 
 - `tiempo_promedio_personal` — media de `timestamp_fin - timestamp_inicio` de las últimas 20 ejecuciones del trabajador (filtrando outliers > 2σ). Si tiene <5 ejecuciones históricas → usa `tiempo_promedio_global` del tipo de habitación.
+  Desde la v7.10 (18/10/2026) ya no hay tiempo mínimo para terminar una limpieza: si alguien termina muy
+  rápido, su promedio baja y la alerta avisa más tarde. Se mantuvo igual por decisión de Nicolás (no es
+  un KPI sino un aviso a la supervisora); el filtro de 2σ descarta los casos aislados.
 - `habitaciones_restantes` — count de asignaciones activas del día, estado ∈ `{sucia, en_progreso, rechazada}`.
 - `tiempo_restante_turno` — minutos hasta `usuarios_turnos.hora_fin`.
 - `margen_seguridad_minutos` — default **15 min**. Configurable en `alertas_config.margen_seguridad_minutos`.
