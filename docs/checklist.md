@@ -183,7 +183,8 @@ Si el trabajador cierra la app y vuelve a entrar:
   `409 DELAY_MINIMO` en el backend), y desde la v7.6 cada área común podía tener su propio mínimo.
 
 Al tocarlo:
-- Confirmación modal: "¿Confirmar que terminaste esta habitación? Pasará a auditoría."
+- **Sin ventana de confirmación** (v7.10.1, pedido de Nicolás del 18/10/2026): termina al tiro. Hasta la v7.10
+  salía «¿Habitación terminada? … Pasará a inspección y no podrás editarla.» con Cancelar / Confirmar.
 - POST `/api/habitaciones/{id}/completar`:
   - Valida 100% obligatorios marcados (backend también, no solo frontend).
   - Setea `ejecuciones_checklist.estado='completada'`, `timestamp_fin=now`.

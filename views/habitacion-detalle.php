@@ -476,7 +476,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
 
                     <!-- Botón "Habitación terminada" -->
                     <template x-if="puedeEditar">
-                        <button @click="confirmarCompletar()" data-tour="hab.terminar"
+                        <button @click="terminar()" data-tour="hab.terminar"
                                 :disabled="progreso.obligatorios_pendientes > 0 || completando || completarPendiente"
                                 class="w-full min-h-[56px] bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-lg font-semibold rounded-xl transition shadow-sm">
                             <span x-text="completarPendiente ? 'Confirmando...' : (completando ? 'Enviando...' : (progreso.obligatorios_pendientes > 0 ? 'Faltan items obligatorios' : 'Habitación terminada'))"></span>
@@ -604,28 +604,6 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </button>
             </template>
 
-            <!-- Modal confirmación completar -->
-            <div x-show="mostrarConfirmar" x-cloak
-                 class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-                 @click.self="mostrarConfirmar = false">
-                <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-6 shadow-xl">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">¿Habitación terminada?</h3>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-5">
-                        Confirma que terminaste esta habitación. Pasará a inspección y no podrás editarla.
-                    </p>
-                    <div class="flex gap-3">
-                        <button @click="mostrarConfirmar = false"
-                                class="flex-1 min-h-[44px] px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition">
-                            Cancelar
-                        </button>
-                        <button @click="completar()" :disabled="completando"
-                                class="flex-1 min-h-[44px] px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-medium rounded-lg transition">
-                            <span x-text="completando ? 'Enviando...' : 'Confirmar'"></span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Modal "No puedo terminar ahora" -->
             <div x-show="mostrarSaltar" x-cloak
                  class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
@@ -729,7 +707,6 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         iniciando: false,
         sincronizando: false,
         completando: false,
-        mostrarConfirmar: false,
         mostrarSaltar: false,
         saltando: false,
         mostrarMarcarLimpia: false,
@@ -1286,9 +1263,11 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             });
         },
 
-        confirmarCompletar() {
+        // «Habitación terminada» termina al tiro, sin ventana de confirmación (v7.10.1, pedido de
+        // Nicolás del 18/10/2026): el botón solo se prende con todo lo obligatorio marcado.
+        terminar() {
             if (this.progreso.obligatorios_pendientes > 0) return;
-            this.mostrarConfirmar = true;
+            this.completar();
         },
 
         async completar() {
@@ -1297,7 +1276,6 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             try {
                 var json = await apiPost('/api/habitaciones/' + this.habitacionId + '/completar', {});
                 if (json && json.ok) {
-                    this.mostrarConfirmar = false;
                     window.location.href = u('/home');
                     return;
                 }
@@ -1309,7 +1287,6 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
                 // ChecklistService::ultimaEjecucionCompletadaPorUsuario). En vez de un
                 // alert() que bloquea y desanima al trabajador, se encola y se reintenta
                 // solo; el aviso queda en el banner de "Confirmando..." en vez de un error.
-                this.mostrarConfirmar = false;
                 this.encolarCompletar();
                 this.procesarCola();
             } finally {
