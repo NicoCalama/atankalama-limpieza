@@ -3003,3 +3003,26 @@ SELECT LEFT(ec.timestamp_fin, 10) AS dia_utc, COUNT(*) AS terminadas,
 ```
 
 **Desplegada el 18/10/2026 ~18:45** (ZIP desde `dd8fb6c`, sin SQL). Smoke OK (Nicolás). Lo único que pidió cambiar: la ventana «¿Habitación terminada?» que pide confirmar al terminar (sale en la v7.10.1, §11.39).
+
+### 11.39 Release "terminar sin ventana de confirmación" → v7.10.1
+
+Origen: Nicolás, 18/10/2026, en el smoke de la v7.10: al apretar «Habitación terminada» salía la ventana «¿Habitación
+terminada? Confirma que terminaste esta habitación. Pasará a inspección y no podrás editarla.» y pidió sacarla.
+
+**Qué cambia:** `views/habitacion-detalle.php` — «Habitación terminada» llama directo al `POST /completar` (método
+`terminar()`); se fue el modal con Cancelar / Confirmar. El botón sigue prendiéndose solo con todo lo obligatorio
+marcado, y si se corta la red el terminar se encola y se reintenta como antes («Confirmando...»). Vale para habitaciones
+y áreas comunes (es la misma pantalla).
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v7101-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.10.1 del `CHANGELOG.md` fechada antes de armarlo. 2 archivos:
+`CHANGELOG.md` y `views/habitacion-detalle.php`. Vuelta atrás: `build/limpieza-v7101-vuelta-atras.zip` (los mismos dos
+en la v7.10, `8e7c364`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Quien tenga una pieza abierta verá la ventana hasta que
+recargue.
+
+**Smoke:** badge **v7.10.1** (incógnito), `/api/health` 200, y con la habitación PRUEBA: empezar, marcar todo y apretar
+«Habitación terminada» → vuelve al Inicio sin preguntar, y la PRUEBA queda por inspeccionar.
