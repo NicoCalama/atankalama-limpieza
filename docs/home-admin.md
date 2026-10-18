@@ -314,6 +314,8 @@ Cada contador es una tarjeta con:
 ```
 
 > **Nota:** "Tiempo promedio de limpieza" NO es un contador — es un KPI con meta y estado. Ver §6.4 KPI 1.
+> **v7.10 (18/10/2026):** el KPI de tiempo promedio salió del Inicio (decisión de Nicolás); quedan la
+> tasa de rechazo y la eficiencia del equipo. El JSON ya no trae `tiempo_promedio` ni `tiempo_promedio_minutos`.
 
 ### 6.4 Contenido — KPIs (3)
 
@@ -324,7 +326,7 @@ Cada KPI es una tarjeta con:
 - Barra visual
 - Estado (🟢 OK / 🟡 ALERTA / 🔴 CRÍTICO)
 
-**KPI 1: Tiempo promedio de limpieza**
+**KPI 1: Tiempo promedio de limpieza** — RETIRADO en la v7.10 (18/10/2026)
 ```
 ┌────────────────────────────────────┐
 │  ⏱️  Tiempo promedio                │
@@ -813,7 +815,7 @@ Estos son los 10 comportamientos **no negociables** que deben verificarse antes 
 
 1. [ ] **Eficiencia = (completadas / asignadas) × 100**, NO incluye `no_asignadas`.
 2. [ ] **Tasa de rechazo = (rechazadas / total_auditadas) × 100** — % sobre lo auditado, no sobre todas las habitaciones.
-3. [ ] **Tiempo promedio** solo suma habitaciones completadas (excluye en progreso y pendientes).
+3. [ ] ~~**Tiempo promedio** solo suma habitaciones completadas (excluye en progreso y pendientes).~~ (KPI retirado en la v7.10)
 4. [ ] Las **métricas consolidadas** ("Ambos hoteles") suman correctamente; las métricas por hotel NO incluyen datos del otro.
 5. [ ] Los **permisos se validan en backend** — si el usuario no tiene un permiso, la sección NO aparece en el JSON (no solo se oculta en UI).
 6. [ ] **NO se exponen API keys, tokens completos ni credenciales** en el JSON del endpoint, ni siquiera parciales (solo estados).

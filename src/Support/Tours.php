@@ -501,7 +501,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.tabla"]',
                                 'titulo' => 'Vista de tabla',
-                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos, tiempo mínimo). En el teléfono quedan mejor las tarjetas.',
+                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.exportar"]',
@@ -523,7 +523,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.nueva"]',
                                 'titulo' => 'Un espacio y su checklist',
-                                'texto'  => 'Con «Nueva área» creas un espacio, su checklist y el tiempo mínimo para terminarla (antes no se puede apretar «terminar»). Cada tarjeta muestra ese tiempo y se puede editar o archivar.',
+                                'texto'  => 'Con «Nueva área» creas un espacio y su checklist (qué hacer al limpiarlo). Cada tarjeta también se puede editar o archivar.',
                             ],
                         ],
                     ],
@@ -1079,8 +1079,8 @@ final class Tours
                         'pasos' => [
                             ['sel' => '[data-tour="hadm.contadores"]', 'titulo' => 'Los cuatro contadores',
                              'texto' => 'Estos cuatro contadores resumen el día: habitaciones limpias, inspecciones, trabajadores en turno y tickets abiertos. Se recalculan según el hotel que elijas.'],
-                            ['sel' => '[data-tour="hadm.kpis"]', 'titulo' => 'Los tres indicadores',
-                             'texto' => 'Estas barras muestran el tiempo promedio por pieza, la tasa de rechazo y la eficiencia del equipo. Cada una se pinta verde, ámbar o roja según su meta.'],
+                            ['sel' => '[data-tour="hadm.kpis"]', 'titulo' => 'Los dos indicadores',
+                             'texto' => 'Estas barras muestran la tasa de rechazo y la eficiencia del equipo. Cada una se pinta verde, ámbar o roja según su meta.'],
                         ],
                     ],
                     [
@@ -1185,9 +1185,9 @@ final class Tours
                              'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango. El hotel vale para todas las pestañas y la trabajadora afina solo esta.'],
                             ['sel' => '[data-tour="rep.kpis"]', 'titulo' => 'Los KPIs del equipo',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Trabajadores» y la ayuda sigue sola.',
-                             'texto' => 'Cada tarjeta resume un indicador del período: tiempo promedio, tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
+                             'texto' => 'Cada tarjeta resume un indicador del período: tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
                             ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
-                             'texto' => 'La tabla desglosa a cada persona: tiempo, rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
+                             'texto' => 'La tabla desglosa a cada persona: rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],
                             ['sel' => '[data-tour="rep.ficha"]', 'titulo' => 'La ficha del trabajador',
                              'texto' => 'Por persona: lo que quedó bien, separando lo inspeccionado (A) de lo que nadie inspeccionó (B, cuenta igual a su favor), lo asignado y sus porcentajes. El color la compara con el grupo (amarillo se aleja, rojo lejos).'],
                         ],
@@ -1198,12 +1198,12 @@ final class Tours
                         'pregunta' => '¿Cómo va la inspección y qué quedó pendiente?',
                         'requiere' => [],
                         'pasos' => [
-                            // Solo quien tiene reportes.ver_supervisoras ve esta sección (privacidad jerárquica de
-                            // tiempos): la vista emite la bandera ve_supervisoras en data-vg-context.
+                            // Solo quien tiene reportes.ver_supervisoras ve esta sección (privacidad jerárquica):
+                            // la vista emite la bandera ve_supervisoras en data-vg-context.
                             ['sel' => '[data-tour="rep.supervisora"]', 'titulo' => 'La supervisora y su sección',
                              'requiere' => ['ve_supervisoras'],
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',
-                             'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, tiempo por inspección y aporte. Lo aprobado solo por el sistema no cuenta.'],
+                             'texto' => 'Arriba, la sección frente a la meta: cobertura, rechazo y aprobación a la primera, con tendencia y por turno. Abajo, cada inspectora: piezas, aporte y lo que dijo Recepción. Lo aprobado solo por el sistema no cuenta.'],
                             // También lleva 'abrir': si el paso anterior se filtra por permiso, este pasa a ser el primero.
                             ['sel' => '[data-tour="rep.auditorias_pendientes"]', 'titulo' => 'Lo que falta inspeccionar hoy',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Supervisoras» y la ayuda sigue sola.',

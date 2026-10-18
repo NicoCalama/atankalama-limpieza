@@ -149,7 +149,8 @@ final class ReportesDiasTrabajadosTest extends TestCase
         $this->assertSame(['11111111-1', 'Ana', 'Tiempo parcial'], array_slice($mensual[6], 0, 3));
 
         $csv = $this->rep->exportarCsv($this->hoy, $this->hoy, 'ambos');
-        $this->assertStringContainsString('"Trabajadora";"Jornada";"Días trabajados";"T. Prom. (min)"', $csv);
+        // Sin «T. Prom. (min)» desde la v7.10: la columna siguiente es el rechazo.
+        $this->assertStringContainsString('"Trabajadora";"Jornada";"Días trabajados";"Rechazo (%)"', $csv);
         $this->assertStringContainsString('"Ana";"Tiempo parcial";"1";', $csv);
     }
 

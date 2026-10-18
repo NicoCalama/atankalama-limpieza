@@ -75,8 +75,9 @@ final class ReportesZonaHorariaTest extends TestCase
 
         $kpis = $this->rep->kpis(self::DIA_LOCAL, self::DIA_LOCAL, 'ambos');
 
-        $this->assertNotNull(
-            $kpis['tiempo_promedio']['valor'],
+        $this->assertSame(
+            1,
+            $kpis['limpiadas']['valor'],
             'Una limpieza de las 21:00 del 15/07 debe aparecer en el reporte del 15/07.'
         );
         // Créditos es un número (los mismos de la ficha), no un % desde la v6.15.
@@ -90,7 +91,7 @@ final class ReportesZonaHorariaTest extends TestCase
         // El bug hacía justo esto: el trabajo de anoche engordaba el reporte de hoy.
         $kpis = $this->rep->kpis(self::DIA_SIGUIENTE_LOCAL, self::DIA_SIGUIENTE_LOCAL, 'ambos');
 
-        $this->assertNull($kpis['tiempo_promedio']['valor'], 'El 16/07 no se limpió nada.');
+        $this->assertNull($kpis['limpiadas']['valor'], 'El 16/07 no se limpió nada.');
         $this->assertSame('sin_datos', $kpis['creditos']['estado']);
     }
 

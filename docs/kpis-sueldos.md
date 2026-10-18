@@ -17,6 +17,11 @@
 > 16/09 (Asignadas, gradualidad 100/50/0, cobertura del equipo). Próximo: pieza 3 (reporte de
 > sueldos por RUT, export xlsx).
 > **Última actualización:** 17/09/2026.
+>
+> **v7.10 (18/10/2026, decisión de Nicolás): la app ya no mide tiempos.** Se retiraron el tiempo
+> promedio por habitación (KPI 1.2), el ritmo (créditos/hora, N2), el tiempo por auditación (S1.2) y el
+> tiempo mínimo para terminar una limpieza. Las secciones de esos KPIs quedan abajo como historia,
+> marcadas «RETIRADO». Los timestamps se siguen grabando (alertas predictivas, días trabajados).
 
 ## Alcance y decisiones base (confirmadas)
 
@@ -100,7 +105,10 @@ rol están definidos.
 - **Estado:** ✅ definición **confirmada**. La app hoy ya suma A+B junto
   (`ReportesService::resumenMensual`); falta **separar A de B** y generalizar a rango libre.
 
-### KPI 1.2 — Tiempo promedio por habitación
+### KPI 1.2 — Tiempo promedio por habitación (RETIRADO en la v7.10)
+
+- **Retirado el 18/10/2026 (v7.10, decisión de Nicolás):** no se calcula ni se muestra en Reportes,
+  la ficha, el Excel ni el Inicio del Admin. Lo que sigue es la definición que tuvo.
 
 - **Qué mide:** minutos promedio que tarda el trabajador en dejar una pieza terminada.
 - **Fórmula:** `AVG(timestamp_fin − timestamp_inicio)` en minutos, de ejecuciones
@@ -234,9 +242,10 @@ recuperás como mucho la **mitad** de esos créditos (segundo intento) y **nada*
 ### Créditos promedio por habitación
 **Créditos ÷ habitaciones.** Indica la dificultad/mezcla del trabajo de cada persona.
 
-### Tiempos
+### Tiempos (RETIRADOS en la v7.10)
 - **Tiempo promedio por habitación** (definido en Nivel 1).
 - **Ritmo = créditos/hora** (o hab/hora): productividad temporal real.
+- Ambos salieron de la ficha el 18/10/2026 (v7.10, decisión de Nicolás).
 
 ### Nota técnica (escrita al definir; resuelta al construir — ver «Cómo quedó construido»)
 - Implementar "asignado pegajoso + acumulativo" depende de cómo la app registra las
@@ -313,7 +322,7 @@ muestra 4 datos: **tu valor · promedio del equipo · Δ (tu valor − promedio)
 |---|---|---|
 | Créditos, Habitaciones, % Realización, % Cumplimiento, % Calidad, Eficiencia | más = mejor | muy **por debajo** del promedio |
 | % Rechazo | menos = mejor | muy **por encima** |
-| **Tiempo por habitación** · **Ritmo (créditos/hora)** | **dos lados** | muy lejos **hacia cualquier lado** (lento *o* sospechosamente rápido) |
+| ~~**Tiempo por habitación** · **Ritmo (créditos/hora)**~~ (retirados en la v7.10) | **dos lados** | muy lejos **hacia cualquier lado** (lento *o* sospechosamente rápido) |
 | Créditos promedio/habitación | contextual | desviación **informativa** (carga más pesada/liviana), sin rojo |
 
 **Por qué el tiempo es de dos lados:** un valor muy por **debajo** del promedio no es
@@ -379,7 +388,10 @@ requisito, no como opción. En la práctica hay un turno por día.
   por ella.
 - **Estado:** ✅ confirmado. Falta generalizar de mes a rango libre.
 
-### KPI S1.2 — Tiempo por auditación
+### KPI S1.2 — Tiempo por auditación (RETIRADO en la v7.10)
+
+- **Retirado el 18/10/2026 (v7.10, decisión de Nicolás):** salió de «Supervisora · Inspección».
+  `ejecuciones_checklist.auditoria_iniciada_at` se sigue grabando, sin uso visible.
 - **Qué mide:** minutos promedio que le toma auditar una pieza — qué tan eficiente es auditando.
 - **Fórmula:** `AVG(fin − inicio)` en minutos por pieza auditada.
 - **Fuente:** ⚠️ **requiere cambio (decisión 15/09, opción C).** Hoy `auditorias` solo guarda
@@ -508,7 +520,7 @@ Aplica a los 3 porcentajes del N2 (cobertura, rechazo, aprobación a la primera)
 ### Lente 2 (secundaria) — Entre supervisoras, en lo personal
 Aplica a las métricas personales de auditoría del N1, para ver **quién audita y quién se queda
 atrás**:
-- **Piezas auditadas** por cada una · **tiempo por auditación** · **aporte a la cobertura**
+- **Piezas auditadas** por cada una · ~~**tiempo por auditación**~~ (retirado en la v7.10) · **aporte a la cobertura**
   (piezas que auditó ella ÷ total limpiadas de la sección).
 - **Versión simple (NO σ):** por cada supervisora → su valor · **promedio simple** del grupo · Δ
   (su valor − promedio). Nada más. Motivo: con 2-3 personas el σ sería ruidoso; el promedio simple
@@ -729,3 +741,4 @@ re-clean **<5%**.
 | 10/10/2026 | **Calidad según Recepción (v7, fórmula de gerencia; KPI S2.4):** gerencia aprobó la inspección pre-entrega tal cual y dio la fórmula de calidad de las supervisoras: `(aprobadas − rechazadas) ÷ totales`. **Decisiones de Nicolás:** los totales son **solo lo que revisó Recepción** (aprobadas + rechazadas de la columna «Recepción»; lo aprobado sin revisar no entra) y el resultado tiene **mínimo 0 %** (nunca negativo). Columna «Calidad» en «Supervisora · Inspección» y en el «Resumen mensual de inspecciones», y «Recepción: calidad %» en el Excel mensual (TOTAL con los SÍ y NO sumados). La app entrega el %; el monto del bono no se calcula en la app. |
 | 10/10/2026 | **v7.1 — calidad solo con la pieza aprobada y producción de Recepción (decisiones de Nicolás):** (a) a la supervisora solo le cuentan los SÍ/NO de Recepción hechos con la pieza Aprobada o Aprobada c/obs. (un NO a una pieza que ya se ensució no le baja la calidad; se calcula al leer, así que corrige lo ya registrado); (b) nuevo **KPI R1 «Producción de la inspección pre-entrega»** por recepcionista, **una por limpieza** (revisar de nuevo sin re-limpieza no suma; dentro de una limpieza el NO manda), en Reportes («Por recepcionista») y en la pestaña «Recepción» del Excel mensual. Límite conocido: una pieza que Cloudbeds aprueba por fuera queda ligada a la última aprobación de la app. |
 | 11/10/2026 | **Asignadas: la pieza pasada a otra persona sin empezarla ya no cuenta (v7.5.1, decisión de Nicolás):** «los créditos son para quien limpió, y no es justo que a alguien le baje la eficiencia por piezas que no tocó». Origen: la app retiraba a medianoche las preasignaciones (132 el 11/10) y, al dárselas la supervisora a otra persona, a quien las tenía le quedaban como asignadas y no hechas. Desde los turnos del **01/10/2026** una asignación sin trabajo que pasó a otra persona no cuenta en Asignadas (por cualquier motivo: retiro de la app, reparto de carga, ausencia). **El rechazo sigue igual** (la limpió, quedó mal y la rehizo otra: le sigue contando). Septiembre conserva la regla anterior para no mover sus números. |
+| 18/10/2026 | **v7.10 — sin tiempos (decisión de Nicolás):** primero pidió quitar el tiempo mínimo para terminar a las piezas marcadas como nochero y en seguida amplió el pedido: sin tiempo mínimo para ninguna limpieza (habitaciones y áreas comunes, incluido el mínimo propio de cada área de la v7.6) y fuera los KPIs de tiempo: tiempo promedio por habitación (tarjeta de Reportes, columna del detalle y del Excel, ficha), ritmo (créditos/hora), tiempo por auditación de las supervisoras y el KPI «Tiempo promedio por habitación» del Inicio del Admin. Se **mantienen** las alertas predictivas «trabajador en riesgo», que usan el tiempo promedio personal (no son un KPI sino un aviso a la supervisora); sin el mínimo, quien termina muy rápido baja su promedio y la alerta avisa más tarde. El bono de RRHH no usaba tiempos: sin cambios. |

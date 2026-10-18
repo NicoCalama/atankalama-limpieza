@@ -168,7 +168,6 @@ final class ReportesService
                 'Trabajadora',
                 'Jornada',
                 'Días trabajados',
-                'T. Prom. (min)',
                 'Rechazo (%)',
                 'Eficiencia (%)',
                 'Créditos',
@@ -182,7 +181,6 @@ final class ReportesService
                     $t['nombre'],
                     self::jornadaLabel($t['jornada']),
                     $t['dias_trabajados'],
-                    $k['tiempo_promedio']['valor'] ?? '',
                     $k['tasa_rechazo']['valor'] ?? '',
                     $k['eficiencia']['valor'] ?? '',
                     $k['creditos']['valor'] ?? '',
@@ -648,7 +646,8 @@ final class ReportesService
     // ─── KPIs de arriba, armados desde la ficha ───────────────────────────────
 
     /**
-     * Las 7 tarjetas (y cada fila del detalle). Tiempo, eficiencia y créditos salen de la ficha.
+     * Las tarjetas (y cada fila del detalle). Eficiencia y créditos salen de la ficha; el tiempo
+     * promedio salió en la v7.10.
      * Rechazo y aprobación a la 1ª del EQUIPO salen de la sección de inspección: solo veredictos
      * humanos y por fecha de limpieza, porque el cierre automático no es una inspección. Los de UNA
      * trabajadora salen de su fila de la ficha, donde lo que aprobó el cierre automático cuenta como
@@ -667,14 +666,6 @@ final class ReportesService
         $suma = static fn (string $campo): int|float => array_sum(array_column($filas, $campo));
         $metaRec = (float) $config['meta_rechazo'];
         $metaApr = (float) $config['meta_aprobacion'];
-
-        // Tiempo por limpieza: piezas de huésped, sin el atajo «Marcar limpia». La trabajadora ve
-        // exactamente el de su fila de la ficha; el equipo, el promedio de todas las limpiezas.
-        $ejecuciones = (int) $suma('ejecuciones');
-        $tiempo = $usuarioId !== null
-            ? ($filas[0]['tiempo_promedio'] ?? null)
-            : ($ejecuciones > 0 ? round((float) $suma('minutos_total') / $ejecuciones, 1) : null);
-        $metaTiempo = 30.0;
 
         if ($seccion !== null) {
             $rechazo      = $seccion['rechazo_pct'];
@@ -696,13 +687,6 @@ final class ReportesService
         $metaEfic    = 85.0;
 
         return [
-            'tiempo_promedio' => [
-                'valor'    => $tiempo,
-                'unidad'   => 'min',
-                'meta'     => $metaTiempo,
-                'contexto' => "{$ejecuciones} limpiezas",
-                'estado'   => $tiempo === null ? 'sin_datos' : ($tiempo <= $metaTiempo ? 'ok' : ($tiempo <= $metaTiempo * 1.15 ? 'alerta' : 'critico')),
-            ],
             'tasa_rechazo' => [
                 'valor'    => $rechazo,
                 'unidad'   => '%',
@@ -911,11 +895,12 @@ final class ReportesService
     // ─── Ficha de KPIs (docs/kpis-sueldos.md) ─────────────────────────────────
     //
     // Implementa la ficha completa: Trabajador N1 (créditos y habitaciones en DOS ETAPAS
-    // auditadas/no auditadas + cobertura derivada, tiempo), N2 (triángulo Esperado·Aprobado·
-    // Rechazado → % realización/cumplimiento/calidad/rechazo, eficiencia, créditos por hab,
-    // ritmo) y N3 (comparación con el grupo: promedio, Δ y semáforo por σ); y Supervisora
-    // N1 (piezas auditadas por veredicto, tiempo por auditación), N2 (cobertura, % rechazo,
-    // % aprobación de la sección) y N3 (sección vs metas + tendencia; entre inspectoras).
+    // auditadas/no auditadas + cobertura derivada), N2 (triángulo Esperado·Aprobado·
+    // Rechazado → % realización/cumplimiento/calidad/rechazo, eficiencia, créditos por hab)
+    // y N3 (comparación con el grupo: promedio, Δ y semáforo por σ); y Supervisora
+    // N1 (piezas auditadas por veredicto), N2 (cobertura, % rechazo, % aprobación de la
+    // sección) y N3 (sección vs metas + tendencia; entre inspectoras). Sin KPIs de tiempo
+    // desde la v7.10 (tiempo promedio, ritmo y tiempo por auditación; decisión de Nicolás 18/10/2026).
     //
     // Ventanas: los KPIs del trabajador y la cobertura van por FECHA DE LIMPIEZA
     // (ec.timestamp_inicio); los conteos personales de la inspectora por FECHA DE AUDITORÍA
@@ -929,7 +914,7 @@ final class ReportesService
     /**
      * Ejecución con trabajo real: su DUEÑA marcó al menos un ítem. El atajo «Marcar limpia»
      * (ChecklistService::marcarLimpiaManual) crea una ejecución SIN ítems a nombre de quien lo usó,
-     * con inicio = fin: no es una limpieza de esa persona y no entra a tiempos, productividad,
+     * con inicio = fin: no es una limpieza de esa persona y no entra a productividad,
      * rechazos ni Asignadas. Tampoco cuenta una re-limpieza que solo trae ítems HEREDADOS de otra
      * persona y se cerró con el atajo sin que la dueña marcara nada. marcado_por sobrevive al
      * desmarcado del auditor, así que un rechazo con todos los ítems desmarcados sigue contando.
@@ -940,14 +925,14 @@ final class ReportesService
     /**
      * La terminó la persona: no la cerró el cierre de la noche (v6.19, decisión de Nicolás del
      * 08/10/2026). La pieza quedó aprobada para liberarla al día siguiente, pero quien no apretó
-     * «terminar» no recibe créditos de ella ni cuenta como limpieza hecha ni en los tiempos; sí
+     * «terminar» no recibe créditos de ella ni cuenta como limpieza hecha; sí
      * sigue contando como asignada (Asignadas y días trabajados). Requiere el alias `ec`.
      */
     private const NO_CERRADA_POR_SISTEMA = 'ec.cerrada_por_sistema = 0';
 
     /**
      * La limpieza NO es la re-limpieza de un NO de la inspección pre-entrega (v7, decisión de Nicolás
-     * 05/10/2026): esa re-limpieza no suma ni resta en los KPIs de aseo (piezas, créditos, tiempos,
+     * 05/10/2026): esa re-limpieza no suma ni resta en los KPIs de aseo (piezas, créditos,
      * productividad, rechazos, Asignadas, bono) ni en los de inspección (cobertura, rechazo, aprobación a la
      * primera, inspecciones por inspectora). El NO le cuenta a la supervisora que había aprobado la pieza
      * (columna «Recepción»). Ver RevisionEntregaService::vincularRelimpieza().
@@ -958,9 +943,6 @@ final class ReportesService
     {
         return "NOT EXISTS (SELECT 1 FROM #__revisiones_entrega rle WHERE rle.relimpieza_ejecucion_id = {$colEjecucion})";
     }
-    /** Antifraude del tiempo por auditación: fuera de [30 s, 4 h] se considera ruido (pausas, aperturas accidentales). */
-    private const AUDITACION_MIN_MINUTOS = 0.5;
-    private const AUDITACION_MAX_MINUTOS = 240.0;
     /**
      * Recuperación gradual de créditos cuando la MISMA persona rehace su pieza rechazada en el mismo
      * ciclo, según cuántos rechazos previos suyos tuvo esa pieza (regla de jefatura, 16/09/2026):
@@ -996,8 +978,8 @@ final class ReportesService
             'config'       => $config,
             'trabajadores' => $trabajadores,
             'comparativa'  => $comparativa,
-            // Privacidad jerárquica: la sección de las supervisoras (con sus tiempos) solo viaja a
-            // quien tiene reportes.ver_supervisoras; el controller decide, el servicio obedece.
+            // Privacidad jerárquica: la sección de las supervisoras solo viaja a quien tiene
+            // reportes.ver_supervisoras; el controller decide, el servicio obedece.
             'supervisoras' => $incluirSupervisoras ? $this->fichaSupervisoras($desde, $hasta, $hotel, $config) : null,
         ];
     }
@@ -1019,7 +1001,6 @@ final class ReportesService
                     'hab_auditadas' => 0, 'hab_no_auditadas' => 0, 'habitaciones' => 0,
                     'esperado_hab' => 0, 'esperado_creditos' => 0,
                     'rechazadas_hab' => 0, 'rechazadas_creditos' => 0,
-                    'ejecuciones' => 0, 'minutos_total' => 0.0, 'tiempo_promedio' => null,
                     'dias_trabajados' => 0, 'jornada' => null, 'rut' => null, 'items_observados' => 0,
                 ];
             }
@@ -1177,32 +1158,8 @@ final class ReportesService
             $filas[$uid]['items_observados'] = (int) $f['n'];
         }
 
-        // ── N1/N2: tiempo promedio y minutos trabajados (dueño de la ejecución) ──
-        $p = Fechas::rangoUtc($desde, $hasta);
-        $h = $this->hotelCond($hotel, $p);
-        $diff = Database::diffMinutosSql('ec.timestamp_inicio', 'ec.timestamp_fin');
-        foreach (Database::fetchAll(
-            "SELECT ec.usuario_id, u.nombre, COUNT(*) AS n,
-                    AVG({$diff}) AS tiempo_promedio, SUM({$diff}) AS minutos_total
-               FROM #__ejecuciones_checklist ec
-               JOIN #__usuarios u ON u.id = ec.usuario_id
-               JOIN #__habitaciones h ON h.id = ec.habitacion_id
-               JOIN #__hoteles ho ON ho.id = h.hotel_id
-              WHERE ec.timestamp_fin IS NOT NULL
-                AND ec.estado IN ('completada', 'auditada')
-                AND " . self::CON_TRABAJO . "
-                AND " . self::sinRelimpieza() . "
-                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
-                    {$h}
-              GROUP BY ec.usuario_id, u.nombre",
-            $p
-        ) as $f) {
-            $uid = (int) $f['usuario_id'];
-            $asegurar($filas, $uid, (string) $f['nombre']);
-            $filas[$uid]['ejecuciones']     = (int) $f['n'];
-            $filas[$uid]['tiempo_promedio'] = round((float) $f['tiempo_promedio'], 1);
-            $filas[$uid]['minutos_total']   = round((float) $f['minutos_total'], 1);
-        }
+        // (Tiempo promedio y minutos trabajados salieron de la ficha en la v7.10, decisión de Nicolás
+        // del 18/10/2026: la app ya no mide tiempos en sus KPIs. Ver docs/kpis-sueldos.md.)
 
         // ── N2: Asignadas (E). Una vez por pieza por persona POR CICLO, PEGAJOSO: cuenta aunque la
         // rechacen y la rehaga otra persona (regla de la ficha). Por asignación:
@@ -1369,18 +1326,15 @@ final class ReportesService
             $aHab = $t['habitaciones'];
             $rHab = $t['rechazadas_hab'];
             $eHab = $t['esperado_hab'];
-            $horas = $t['minutos_total'] / 60;
 
             $t['cobertura_pct']    = $this->pct($t['hab_auditadas'], $t['hab_auditadas'] + $t['hab_no_auditadas']);
             $t['realizacion_pct']  = $this->pct($aHab + $rHab, $eHab);
             $t['cumplimiento_pct'] = $this->pct($aHab, $eHab);
             $t['calidad_pct']      = $this->pct($aHab, $aHab + $rHab);
             $t['rechazo_pct']      = $this->pct($rHab, $aHab + $rHab);
-            // Ratios del N2 sobre piezas de huésped (creditos_hab): mismo universo que E, piezas y horas.
+            // Ratios del N2 sobre piezas de huésped (creditos_hab): mismo universo que E y piezas.
             $t['eficiencia_pct']   = $this->pct($t['creditos_hab'], $t['esperado_creditos']);
             $t['creditos_por_hab'] = $aHab > 0 ? round($t['creditos_hab'] / $aHab, 1) : null;
-            $t['ritmo']            = $horas > 0 ? round($t['creditos_hab'] / $horas, 1) : null;
-            $t['horas']            = round($horas, 1);
         }
         unset($t);
 
@@ -1433,9 +1387,8 @@ final class ReportesService
      * Trabajador N3: promedio y desviación estándar (σ) del equipo por KPI, y por persona
      * Δ + semáforo. Solo entran al promedio (y reciben semáforo) quienes tienen al menos
      * `min_datos` piezas trabajadas (aprobadas + rechazadas) en el período. Dirección por KPI según la ficha: más=mejor,
-     * menos=mejor, dos lados (tiempo y ritmo: muy lento O sospechosamente rápido alertan),
-     * o informativo (créditos por hab: sin rojo). Muta $trabajadores agregando 'cmp' y
-     * 'datos_suficientes'.
+     * menos=mejor o informativo (créditos por hab: sin rojo). Tiempo y ritmo (que alertaban hacia los dos
+     * lados) salieron en la v7.10. Muta $trabajadores agregando 'cmp' y 'datos_suficientes'.
      *
      * @param list<array<string, mixed>> $trabajadores
      * @param array{sigma_amarillo:int, sigma_rojo:int, min_datos:int, meta_cobertura:int, meta_rechazo:int, meta_aprobacion:int} $config
@@ -1448,7 +1401,6 @@ final class ReportesService
             'realizacion_pct' => 'mas_mejor', 'cumplimiento_pct' => 'mas_mejor',
             'calidad_pct' => 'mas_mejor', 'eficiencia_pct' => 'mas_mejor',
             'rechazo_pct' => 'menos_mejor',
-            'tiempo_promedio' => 'dos_lados', 'ritmo' => 'dos_lados',
             'creditos_por_hab' => 'informativo',
         ];
 
@@ -1498,7 +1450,6 @@ final class ReportesService
                 $ladoAlerta = match ($dir) {
                     'mas_mejor'   => $delta < 0,
                     'menos_mejor' => $delta > 0,
-                    'dos_lados'   => true,
                     default       => false,
                 };
                 if ($dir === 'informativo') {
@@ -1562,16 +1513,13 @@ final class ReportesService
         // ── N1 por inspectora (fecha de AUDITORÍA), veredictos humanos, sin el usuario Sistema ──
         $p = Fechas::rangoUtc($desde, $hasta);
         $h = $this->hotelCond($hotel, $p);
-        $dur = Database::diffMinutosSql('ec.auditoria_iniciada_at', 'a.created_at');
-        $durValida = "ec.auditoria_iniciada_at IS NOT NULL AND {$dur} >= " . self::AUDITACION_MIN_MINUTOS . " AND {$dur} <= " . self::AUDITACION_MAX_MINUTOS;
+        // Sin tiempo por auditación desde la v7.10 (decisión de Nicolás, 18/10/2026).
         $inspectoras = [];
         foreach (Database::fetchAll(
             "SELECT u.id AS usuario_id, u.nombre, COUNT(*) AS total,
                     SUM(CASE WHEN a.veredicto = 'aprobado' THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto = 'aprobado_con_observacion' THEN 1 ELSE 0 END) AS con_observacion,
-                    SUM(CASE WHEN a.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas,
-                    AVG(CASE WHEN {$durValida} THEN {$dur} ELSE NULL END) AS tiempo_auditacion,
-                    SUM(CASE WHEN {$durValida} THEN 1 ELSE 0 END) AS n_tiempo
+                    SUM(CASE WHEN a.veredicto = 'rechazado' THEN 1 ELSE 0 END) AS rechazadas
                FROM #__auditorias a
                JOIN #__usuarios u ON u.id = a.auditor_id
                JOIN #__ejecuciones_checklist ec ON ec.id = a.ejecucion_id
@@ -1586,7 +1534,6 @@ final class ReportesService
               ORDER BY u.nombre",
             $p
         ) as $f) {
-            $nTiempo = (int) $f['n_tiempo'];
             $inspectoras[] = [
                 'usuario_id'        => (int) $f['usuario_id'],
                 'nombre'            => (string) $f['nombre'],
@@ -1594,8 +1541,6 @@ final class ReportesService
                 'aprobadas'         => (int) $f['aprobadas'],
                 'con_observacion'   => (int) $f['con_observacion'],
                 'rechazadas'        => (int) $f['rechazadas'],
-                'tiempo_auditacion' => $nTiempo > 0 ? round((float) $f['tiempo_auditacion'], 1) : null,
-                'n_tiempo'          => $nTiempo,
                 // Aporte a la cobertura: lo que ELLA auditó sobre todo lo limpiado en la sección.
                 'aporte_cobertura_pct' => $this->pct((int) $f['total'], $actual['completadas']),
             ];
@@ -1603,7 +1548,7 @@ final class ReportesService
 
         // ── N3 entre inspectoras: promedio simple + Δ (son pocas: sin σ, a propósito) ──
         $comparativa = [];
-        foreach (['total', 'tiempo_auditacion', 'aporte_cobertura_pct'] as $kpi) {
+        foreach (['total', 'aporte_cobertura_pct'] as $kpi) {
             $valores = array_filter(array_column($inspectoras, $kpi), static fn ($v) => $v !== null);
             $comparativa[$kpi] = [
                 'promedio' => $valores === [] ? null : round(array_sum($valores) / count($valores), 1),
@@ -1625,7 +1570,7 @@ final class ReportesService
         // el período anterior y en este no inspeccionó) va al final, fuera del promedio.
         $inspectoras = $this->conRecepcion($inspectoras, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
             'total' => 0, 'aprobadas' => 0, 'con_observacion' => 0, 'rechazadas' => 0,
-            'tiempo_auditacion' => null, 'n_tiempo' => 0, 'aporte_cobertura_pct' => null,
+            'aporte_cobertura_pct' => null,
             'cmp' => array_fill_keys(array_keys($comparativa), null),
         ]);
 
@@ -1868,7 +1813,7 @@ final class ReportesService
 
     private function hotelCond(string $hotel, array &$params): string
     {
-        // Excluye áreas comunes de los KPIs de piezas (tiempos, tasas de auditoría, productividad):
+        // Excluye áreas comunes de los KPIs de piezas (tasas de auditoría, productividad):
         // cada query que usa este helper joinea #__habitaciones con alias 'h'. Un solo punto para no
         // contaminar tasas. Ver docs/areas-comunes.md. Los CRÉDITOS usan hotelCondCreditos (abajo).
         // v7.5: tampoco la habitación de prueba (docs/habitacion-prueba.md).
@@ -1928,7 +1873,6 @@ final class ReportesService
     private function kpiMetadata(): array
     {
         return [
-            'tiempo_promedio'    => 'Tiempo promedio de limpieza',
             'tasa_rechazo'       => 'Tasa de rechazo',
             'eficiencia'         => 'Eficiencia del equipo',
             'creditos'           => 'Créditos obtenidos',

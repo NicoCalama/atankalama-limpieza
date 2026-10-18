@@ -17,7 +17,7 @@ El Admin es el controlador del sistema — máxima confiabilidad requerida.
 - [ ] Las alertas P0-P1 aparecen si existen (query a tabla `alertas_tecnicas`)
 - [ ] Eficiencia = (completadas / asignadas) × 100, NO incluye no_asignadas
 - [ ] Tasa de rechazo = (rechazadas / total_auditadas) × 100 (no % de todas)
-- [ ] Tiempo promedio solo suma habitaciones completadas (no en progreso/pendientes)
+- [ ] ~~Tiempo promedio solo suma habitaciones completadas (no en progreso/pendientes)~~ (KPI retirado en la v7.10)
 - [ ] El endpoint `GET /api/home/admin` retorna JSON completo en <500ms
 - [ ] Cada métrica tiene una fuente de datos verificable (query específica)
 - [ ] Los cálculos de KPI son independientes y no reutilizan datos erróneos

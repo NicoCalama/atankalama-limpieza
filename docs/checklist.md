@@ -178,6 +178,9 @@ Si el trabajador cierra la app y vuelve a entrar:
 - **Deshabilitado** mientras haya items obligatorios sin marcar.
 - **Habilitado** cuando el porcentaje de items obligatorios marcados == 100%.
 - Items opcionales no cuentan para este gate (pero sí se muestran en UI).
+- **Sin tiempo mínimo** desde que se empezó (v7.10, decisión de Nicolás del 18/10/2026). Hasta la v7.9
+  había que esperar 3 min (antifraude, con cuenta regresiva «Puedes terminar en m:ss» en el botón y
+  `409 DELAY_MINIMO` en el backend), y desde la v7.6 cada área común podía tener su propio mínimo.
 
 Al tocarlo:
 - Confirmación modal: "¿Confirmar que terminaste esta habitación? Pasará a auditoría."
@@ -278,8 +281,9 @@ cambian. Tests: `tests/Integration/ChecklistSabanasAdaptativoTest.php`, `tests/U
 
 Usos:
 - **Tiempo promedio personal**: se calcula como `AVG(timestamp_fin - timestamp_inicio)` para las últimas N ejecuciones del trabajador. Input de alertas predictivas (ver [alertas-predictivas.md](alertas-predictivas.md)).
-- **KPIs internos** en Home Admin (tiempo promedio general, outliers).
-- **Reportes Fase 2** (post-MVP).
+- ~~**KPIs internos** en Home Admin (tiempo promedio general, outliers).~~ Desde la v7.10 (18/10/2026)
+  ni el Inicio ni Reportes muestran KPIs de tiempo; los timestamps quedan para las alertas predictivas,
+  los días trabajados y el historial.
 
 El trabajador solo ve un reloj de "habitaciones hoy" y su `kpis.ver_propios` — nunca el timestamp exacto.
 

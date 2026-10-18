@@ -102,7 +102,6 @@ final class CierreSinTerminarTest extends TestCase
         // La 305 le sigue contando como asignada y no hecha, y ese día como trabajado.
         $this->assertSame(1, $ficha['Beto']['esperado_hab']);
         $this->assertSame(1, $ficha['Beto']['dias_trabajados']);
-        $this->assertSame(0, $ficha['Beto']['ejecuciones'], 'no entra a los tiempos');
 
         // El resumen mensual (el de sueldos) dice lo mismo.
         $mensual = array_column($rep->resumenMensual((int) date('Y'), (int) date('n'), 'ambos'), null, 'nombre');

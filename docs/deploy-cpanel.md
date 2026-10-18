@@ -418,6 +418,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-12 | **Tiempo mínimo por área común** → **v7.6** (feat `684e278`, CHANGELOG fechado `076433c`; rama `v7.6-minimo-areas`, desde `7b4147f`) | Pedido de Nicolás (11/10) al revisar pendientes: el mínimo de 3 min para terminar hacía esperar en las áreas chicas (08/10: 212 de 609 áreas cerraron entre 3 y 4 min, 16 quedaron marcadas sin terminar). Cada área común tiene su propio mínimo **en minutos** (`habitaciones.minimo_terminar_min`), elegido de una lista (sin mínimo, 1, 2, 3, 5, 10) al crearla o con «Editar» en su tarjeta; las existentes siguen con 3 min (`NULL`) hasta que alguien las edite; las habitaciones no cambian; lo marcado al cambiar de persona sigue partiendo de cero. Runbook §11.34. Suite 797 (1 omitido), PHPStan y linters OK; verificado en un banco como supervisora y trabajadora, escritorio y 375 px. **SQL** (`build/limpieza-v76.sql`): el primer intento del `ALTER` sin la base escrita dio #1044 (phpMyAdmin parado en `information_schema`) y no se aplicó; con `cat6852_australia.` sí (comprobación = 1). ZIP de 9 archivos a `app_core/` (`build/limpieza-v76-delta.zip`, idénticos a `076433c`) y `build/limpieza-v76-vuelta-atras.zip` (8 en `cf1f1b7`). Subido el 12/10 ~05:05. Smoke OK (Nicolás): badge v7.6, `/api/health` 200 con `esquema: ok` (05:06), tarjetas con «Mínimo 3 min para terminar» y «Editar» en 3 min. |
 | 2026-10-16 | **Sábanas al irse + checklist adaptativo + mantención y cerradas desde Cloudbeds** → **v7.7 + v7.8** en un deploy combinado (v7.7 `2955c38`, v7.8 `84ca60c`, verificación con Cloudbeds real `51d5ed1`, CHANGELOG fechado `5bdb1bd`, registro `2aa0eaa`; ramas `v7.7-sabanas-adaptativo` → `v7.8-bloqueos-cloudbeds`, desde `afed222`; merge en main `d76d791`) | v7.7: «Sábanas hoy» también cuando el huésped se va hoy o hay «Cambio», y el checklist oculta el ítem de sábanas (sin créditos) cuando la limpieza no las lleva. v7.8: `getRoomBlocks` en cada sync (mantención y cerradas), franja en la tarjeta, sin asignar mientras dura y limpieza completa al terminar, con interruptores en Ajustes → Cloudbeds (solo Admin). Runbooks §11.35 + §11.36. **El ZIP se subió ANTES del SQL** (como en la v6.15.1): ~5 min con `/api/health` 503 y el sync manual 14459 fallido; con el SQL corrido (~04:25) todo volvió y ninguna pieza quedó huérfana; verificado a las 04:30 (sync 14460 `exito`, 107 del INN en mantención hasta el 18/10). **El badge siguió en v7.6:** las filas de la v7.7 y la v7.8 del `CHANGELOG.md` no terminaban en « \|» y el parser las saltaba; arreglado en `d62c23d` (el `ChangelogTest` ahora exige que toda fila «\| **v» se lea) y re-subido el `CHANGELOG.md`: badge v7.8. Smoke visual ~04:55 OK. |
 | 2026-10-16 | **Comentario opcional al crear un ticket** → **v7.9** (feat `15e92d9`, CHANGELOG fechado `4a01c3c`; rama `v7.9-ticket-comentario`, desde `d62c23d`) | Pedido de gerencia del mismo día: desde la v7.4 (sin cuadros de texto) el ticket nuevo solo tenía el tipo de problema y fotos, y mantención llegaba sin saber el detalle ni qué llevar. «Reportar problema» suma «Comentario (opcional)», máx. 500, para cualquier tipo (decisiones de Nicolás: solo **al crear**, tope 500); se guarda en `tickets.descripcion` (sin comentario sigue siendo el nombre del tipo; más de 500 → 400 `COMENTARIO_MUY_LARGO`) y llega a Novedades con la descripción. En Tickets se ve bajo el título y como «Comentario» en el detalle; la descripción igual al título ya no se repite (el tipo salía dos veces desde la v7.4). Runbook §11.37. Suite 827 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev), PHPStan OK; verificado en un banco como trabajadora (375 px, desde la pieza) y supervisora (tabla en escritorio y modal en claro). **Sin SQL.** ZIP de 7 archivos a `app_core/` (`build/limpieza-v79-delta.zip`, idénticos a `4a01c3c`) y `build/limpieza-v79-vuelta-atras.zip` (los 7 en `d62c23d`). Subido el 16/10 ~19:00. Smoke OK (Nicolás). |
+| 2026-10-18 | **Sin tiempo mínimo para terminar ni KPIs de tiempo** → **v7.10** (feat `b7f3e53`, CHANGELOG fechado `dd8fb6c`; rama `v7.10-sin-tiempos`, desde `20332d4`) | Pedido de Nicolás del mismo día: empezó por sacar el bloqueo de tiempo a las piezas nochero y lo amplió a todas las limpiezas y a los KPIs de tiempo. Sin los 3 min para terminar (habitaciones y áreas comunes; sale el mínimo por área de la v7.6, cuya columna queda en la BD sin uso), y fuera tiempo promedio, ritmo y tiempo por auditación de Reportes y el tiempo promedio del Inicio del Admin. Decisiones de Nicolás: se mantienen las alertas predictivas, sale el tiempo por auditación. Runbook §11.38. Suite 823 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev). ZIP de 12 archivos, **sin SQL**; subido ~18:45 y smoke OK (Nicolás). |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -2941,3 +2942,64 @@ SELECT LEFT(created_at, 10) AS dia_utc, COUNT(*) AS tickets,
 
 **Desplegada el 16/10/2026 ~19:00** (ZIP desde `4a01c3c`, sin SQL). Smoke OK (Nicolás). Queda por ver: el uso real del
 comentario (consulta de arriba).
+
+### 11.38 Release "sin tiempos mínimos ni KPIs de tiempo" → v7.10
+
+Origen: Nicolás, 18/10/2026. Primero pidió que las piezas marcadas como nochero no tuvieran el bloqueo de tiempo para
+terminarlas, y en seguida amplió el pedido: sin bloqueo de tiempo para ninguna limpieza y fuera los KPIs de tiempo.
+
+**Qué cambia** (plan aprobado por Nicolás el 18/10/2026: **se mantienen** las alertas predictivas, **sale** el tiempo por
+auditación, versión **v7.10**):
+
+- **Sin tiempo mínimo para terminar** (`ChecklistService::completar()` y `estadoEjecucion()`): se fueron los 3 min
+  (`CHECKLIST_DELAY_MINIMO_SEGUNDOS`, el 409 `DELAY_MINIMO` y `delay_restante_segundos`). En
+  `views/habitacion-detalle.php` el botón «Habitación terminada» se habilita apenas está todo marcado, sin «Puedes
+  terminar en m:ss». Vale para habitaciones (también nocheras) y áreas comunes.
+- **Áreas comunes** (`EspacioService`, `EspaciosController`, `views/espacios.php`): sale el mínimo propio de la v7.6 —
+  el selector de crear/editar, «Mínimo N min para terminar» de la tarjeta y la columna de la tabla. La API ya no lo
+  devuelve y crear/editar ignoran `minimo_terminar_min` si una pantalla vieja lo manda. La columna
+  `habitaciones.minimo_terminar_min` **queda en la BD sin uso** (no se borra: así no hay SQL).
+- **Reportes** (`ReportesService`, `views/reportes.php`): salen la tarjeta «Tiempo prom. limpieza», la columna «T. Prom.»
+  del detalle por trabajadora y del Excel «KPIs del período», «T. prom.» y «Ritmo» de la ficha (y de su comparación con
+  el equipo) y «T. por insp.» de las inspectoras. Los demás números no cambian (verificado contra `main` en el banco).
+- **Inicio del Admin** (`HomeService`, `views/home-admin.php`): dos indicadores (rechazo y eficiencia); sale «Tiempo
+  promedio por habitación» y el «Tiempo prom.» de la tarjeta de tickets.
+- **Ayuda «?»** (`src/Support/Tours.php`): los textos de Áreas comunes, Reportes e Inicio del Admin ya no hablan de
+  tiempos (sin subir versiones).
+- **No cambia:** los timestamps de inicio y fin se siguen grabando (alertas predictivas «trabajador en riesgo», días
+  trabajados, historial) y `auditoria_iniciada_at` también; el bono de RRHH no usaba tiempos.
+
+**Sin SQL**, sin `.env` (si el `.env` de producción tuviera `CHECKLIST_DELAY_MINIMO_SEGUNDOS`, ya no se lee), sin
+`vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v710-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y **la fila de la v7.10 del `CHANGELOG.md` fechada antes de armarlo** (§10 paso 0; la fila
+tiene que terminar en « |»). 12 archivos: `CHANGELOG.md`, `src/Controllers/EspaciosController.php`,
+`src/Controllers/ReportesController.php`, `src/Services/ChecklistService.php`, `src/Services/EspacioService.php`,
+`src/Services/HomeService.php`, `src/Services/ReportesService.php`, `src/Support/Tours.php`, `views/espacios.php`,
+`views/habitacion-detalle.php`, `views/home-admin.php` y `views/reportes.php`. Vuelta atrás:
+`build/limpieza-v710-vuelta-atras.zip` (los mismos doce en la v7.9, `20332d4`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00. Quien tenga abierta una pieza a medio limpiar puede seguir: la
+pantalla vieja todavía muestra la cuenta regresiva, pero al recargar desaparece y el servidor ya no bloquea.
+
+**Smoke:** badge **v7.10** (incógnito), `/api/health` 200, y con la habitación PRUEBA: «Asignármela para probar»,
+empezar, marcar todo → «Habitación terminada» habilitado al tiro (sin «Puedes terminar en…»), terminar y que pase a
+inspección. Reportes sin «T. prom.» ni «Ritmo»; Inicio del Admin con dos indicadores; Áreas comunes sin «Mínimo».
+
+**Verificación al día siguiente** (opcional: cuántas limpiezas terminan muy rápido ahora que no hay mínimo):
+
+```sql
+-- Limpiezas terminadas por la persona desde el deploy, por día UTC: total y cuántas en menos de 3 min.
+SELECT LEFT(ec.timestamp_fin, 10) AS dia_utc, COUNT(*) AS terminadas,
+       SUM(TIMESTAMPDIFF(SECOND,
+             STR_TO_DATE(LEFT(ec.timestamp_inicio, 19), '%Y-%m-%dT%H:%i:%s'),
+             STR_TO_DATE(LEFT(ec.timestamp_fin, 19), '%Y-%m-%dT%H:%i:%s')) < 180) AS menos_de_3_min
+  FROM cat6852_australia.limpieza_ejecuciones_checklist ec
+ WHERE ec.timestamp_fin >= '2026-10-18T21:36'   -- desde que se armó el ZIP (deploy ~21:45 UTC)
+   AND ec.cerrada_por_sistema = 0
+ GROUP BY LEFT(ec.timestamp_fin, 10)
+ ORDER BY dia_utc;
+```
+
+**Desplegada el 18/10/2026 ~18:45** (ZIP desde `dd8fb6c`, sin SQL). Smoke OK (Nicolás). Lo único que pidió cambiar: la ventana «¿Habitación terminada?» que pide confirmar al terminar (sale en la v7.10.1, §11.39).
