@@ -130,7 +130,8 @@ final class ListasOpcionesServiceTest extends TestCase
         $this->svc->actualizar('rechazo', $id, ['activo' => false], $this->admin);
         $resumen = array_column($this->svc->resumen(), null, 'lista');
         $this->assertSame(['lista' => 'rechazo', 'activas' => 7, 'total' => 8], $resumen['rechazo']);
-        $this->assertSame(['rechazo', 'reasignar', 'saltar', 'no_recepcion', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'], array_keys($resumen));
+        $this->assertSame(['rechazo', 'sin_inspeccion', 'reasignar', 'saltar', 'no_recepcion', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'], array_keys($resumen));
+        $this->assertSame(['lista' => 'sin_inspeccion', 'activas' => 2, 'total' => 2], $resumen['sin_inspeccion'], 'v7.11');
     }
 
     /** v7.4: el mensaje a la mucama admite varias opciones; se devuelven en el orden de la lista y sin repetir. */

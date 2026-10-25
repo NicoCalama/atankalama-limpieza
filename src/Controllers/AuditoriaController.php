@@ -80,6 +80,7 @@ final class AuditoriaController
             Auditoria::VEREDICTO_APROBADO => 'auditoria.aprobar',
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION => 'auditoria.aprobar_con_observacion',
             Auditoria::VEREDICTO_RECHAZADO => 'auditoria.rechazar',
+            Auditoria::VEREDICTO_SIN_INSPECCION => 'auditoria.sin_inspeccion',
             default => null,
         };
         if ($permisoRequerido === null) {
@@ -100,6 +101,10 @@ final class AuditoriaController
         if ($veredicto === Auditoria::VEREDICTO_RECHAZADO && $motivoId === null) {
             return Response::error('OPCION_REQUERIDA', 'Elige el motivo del rechazo. Si no ves la lista, recarga la página.', 400);
         }
+        if ($veredicto === Auditoria::VEREDICTO_SIN_INSPECCION && $motivoId === null) {
+            return Response::error('OPCION_REQUERIDA', 'Elige por qué no se pudo inspeccionar. Si no ves la lista, recarga la página.', 400);
+        }
+        $conMotivo = in_array($veredicto, [Auditoria::VEREDICTO_RECHAZADO, Auditoria::VEREDICTO_SIN_INSPECCION], true);
 
         try {
             $auditoria = $this->servicio()->emitirVeredicto(
@@ -108,7 +113,7 @@ final class AuditoriaController
                 $veredicto,
                 null,
                 $itemsIds,
-                $veredicto === Auditoria::VEREDICTO_RECHAZADO ? $motivoId : null,
+                $conMotivo ? $motivoId : null,
             );
         } catch (AuditoriaException | ChecklistException $e) {
             // ChecklistException: ítems desmarcados que no son del checklist (400 ITEMS_DESMARCADOS_INVALIDO).

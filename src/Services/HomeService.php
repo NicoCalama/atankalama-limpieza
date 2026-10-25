@@ -278,7 +278,7 @@ final class HomeService
                JOIN #__habitaciones h ON h.id = au.habitacion_id
           LEFT JOIN #__ejecuciones_checklist ec ON ec.id = au.ejecucion_id
               WHERE h.hotel_id = ? AND h.es_prueba = 0 AND au.created_at >= ? AND au.created_at < ?
-                AND au.veredicto IN ('aprobado', 'aprobado_automatico', 'aprobado_con_observacion', 'rechazado')
+                AND au.veredicto IN ('aprobado', 'aprobado_automatico', 'sin_inspeccion', 'aprobado_con_observacion', 'rechazado')
                 AND {$sinApoyo}",
             $paramsKpi
         );
@@ -289,7 +289,8 @@ final class HomeService
         foreach ($auditoriasFila as $r) {
             $v = (string) $r['veredicto'];
             $c = (int) $r['c'];
-            if ($v === 'aprobado' || $v === 'aprobado_automatico') {
+            // «No se pudo inspeccionar» (v7.11, 'sin_inspeccion') cuenta como el cierre automático.
+            if ($v === 'aprobado' || $v === 'aprobado_automatico' || $v === 'sin_inspeccion') {
                 $audAprobadas += $c;
             } elseif ($v === 'aprobado_con_observacion') {
                 $audObs = $c;

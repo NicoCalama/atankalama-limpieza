@@ -294,9 +294,10 @@ final class EmailService
             $filasHtml = '';
             foreach ($pendientes as $i => $p) {
                 $hotelLabel   = $this->hotelLabel((string) $p['hotel_codigo']);
-                // 'sin_auditar' y 'aprobada_automatica' (la cerró el sistema, nadie la inspeccionó) van en rojo.
+                // 'sin_auditar', 'aprobada_automatica' (la cerró el sistema) y 'sin_inspeccion' («No se pudo
+                // inspeccionar», v7.11): nadie la inspeccionó, van en rojo.
                 $esSinAuditar = $p['estado_auditoria'] !== 'auditada_tarde';
-                $estado       = ReportesService::ESTADOS_PENDIENTE[$p['estado_auditoria']] ?? (string) $p['estado_auditoria'];
+                $estado       = ReportesService::textoEstadoPendiente($p);
                 $colorPill    = $esSinAuditar ? '#dc2626' : '#d97706';
                 $tintPill     = $esSinAuditar ? '#fee2e2' : '#fef3c7';
                 $esNochero    = (bool) ($p['es_nochero'] ?? false);

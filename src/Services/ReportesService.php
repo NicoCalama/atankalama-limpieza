@@ -17,12 +17,30 @@ final class ReportesService
     // mostraba cifras distintas para lo mismo (créditos sin la escalera 100/50/0, piezas distintas en
     // vez de limpiezas, rechazo con el cierre automático en el total). Ver docs/kpis-sueldos.md.
 
-    /** Texto de cada estado de «Inspecciones pendientes al corte» (pantalla, CSV y correo diario). */
+    /**
+     * Texto de cada estado de «Inspecciones pendientes al corte» (pantalla, CSV y correo diario).
+     * 'sin_inspeccion' = la supervisora marcó «No se pudo inspeccionar» (v7.11); en los reportes se llama
+     * «Sin inspección» y lleva el motivo entre paréntesis (textoEstadoPendiente()).
+     */
     public const ESTADOS_PENDIENTE = [
         'sin_auditar'         => 'Sin inspeccionar',
         'aprobada_automatica' => 'Sin inspeccionar (la aprobó el sistema)',
+        'sin_inspeccion'      => 'Sin inspección',
         'auditada_tarde'      => 'Inspeccionada fuera de plazo',
     ];
+
+    /**
+     * Texto de una fila de «Inspecciones pendientes al corte»: el de ESTADOS_PENDIENTE y, si trae motivo
+     * («Sin inspección», v7.11), el motivo entre paréntesis: «Sin inspección (Huésped en la pieza)».
+     *
+     * @param array{estado_auditoria: string, motivo?: ?string} $pendiente
+     */
+    public static function textoEstadoPendiente(array $pendiente): string
+    {
+        $texto = self::ESTADOS_PENDIENTE[$pendiente['estado_auditoria']] ?? $pendiente['estado_auditoria'];
+        $motivo = $pendiente['motivo'] ?? null;
+        return ($motivo !== null && $motivo !== '') ? "{$texto} ({$motivo})" : $texto;
+    }
 
     /** @return array<string, mixed> */
     public function kpis(string $desde, string $hasta, string $hotel, ?int $usuarioId = null): array
@@ -217,7 +235,10 @@ final class ReportesService
      * recepcion_calidad_pct su calidad (calidadRecepcionPct()). Las re-limpiezas de un NO no cuentan como
      * inspecciones (sinRelimpieza()).
      *
-     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, observaciones:int, recepcion_aprobadas:int, recepcion_rechazadas:int, recepcion_calidad_pct:?float}>
+     * sin_inspeccion = piezas que marcó «No se pudo inspeccionar» (v7.11; en los reportes, «Sin
+     * inspección»). No son inspecciones: no entran a total ni a aprobadas, van solo en su columna.
+     *
+     * @return list<array{usuario_id:int, nombre:string, total:int, aprobadas:int, aprobadas_observacion:int, rechazadas:int, sin_inspeccion:int, observaciones:int, recepcion_aprobadas:int, recepcion_rechazadas:int, recepcion_calidad_pct:?float}>
      */
     public function resumenMensualAuditores(int $anio, int $mes, string $hotel): array
     {
@@ -229,10 +250,11 @@ final class ReportesService
         $filas = Database::fetchAll(
             "SELECT u.id AS usuario_id,
                     u.nombre,
-                    COUNT(*) AS total,
+                    SUM(CASE WHEN a.veredicto <> 'sin_inspeccion' THEN 1 ELSE 0 END) AS total,
                     SUM(CASE WHEN a.veredicto IN ('aprobado', 'aprobado_automatico') THEN 1 ELSE 0 END) AS aprobadas,
                     SUM(CASE WHEN a.veredicto='aprobado_con_observacion' THEN 1 ELSE 0 END) AS aprobadas_observacion,
                     SUM(CASE WHEN a.veredicto='rechazado' THEN 1 ELSE 0 END) AS rechazadas,
+                    SUM(CASE WHEN a.veredicto='sin_inspeccion' THEN 1 ELSE 0 END) AS sin_inspeccion,
                     SUM(COALESCE(d.n, 0)) AS observaciones
                FROM #__auditorias a
                JOIN #__usuarios u ON u.id = a.auditor_id
@@ -257,13 +279,15 @@ final class ReportesService
             'aprobadas'             => (int) $f['aprobadas'],
             'aprobadas_observacion' => (int) $f['aprobadas_observacion'],
             'rechazadas'            => (int) $f['rechazadas'],
+            'sin_inspeccion'        => (int) $f['sin_inspeccion'],
             'observaciones'         => (int) $f['observaciones'],
         ], $filas);
 
         // Columna «Recepción» (inspección pre-entrega, v7): de las piezas que aprobó, cuántas aprobó y
         // cuántas rechazó Recepción en el mes. Quien solo tiene eso en el mes entra igual (ordenado por nombre).
         $filas = $this->conRecepcion($filas, $this->recepcionPorSupervisora($desde, $hasta, $hotel), [
-            'total' => 0, 'aprobadas' => 0, 'aprobadas_observacion' => 0, 'rechazadas' => 0, 'observaciones' => 0,
+            'total' => 0, 'aprobadas' => 0, 'aprobadas_observacion' => 0, 'rechazadas' => 0, 'sin_inspeccion' => 0,
+            'observaciones' => 0,
         ]);
         usort($filas, static fn (array $a, array $b): int => strcmp((string) $a['nombre'], (string) $b['nombre']));
         return $filas;
@@ -341,7 +365,9 @@ final class ReportesService
             $rows[] = [];
             $rows[] = [$titulo];
             $rows[] = [
-                'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas', 'Observaciones',
+                'Inspector', 'Total inspeccionadas', 'Aprobadas', 'Aprobadas con observación', 'Rechazadas',
+                // v7.11: «No se pudo inspeccionar» (no cuenta en el total, que son las inspeccionadas).
+                'Sin inspección', 'Observaciones',
                 // Inspección pre-entrega (v7): de las piezas que aprobó, lo que aprobó y rechazó Recepción, y su calidad.
                 'Recepción: aprobadas', 'Recepción: rechazadas', 'Recepción: calidad %',
             ];
@@ -351,11 +377,11 @@ final class ReportesService
                 $rows[] = ['Sin inspecciones en el mes'];
                 continue;
             }
-            $tot = [0, 0, 0, 0, 0, 0, 0];
+            $tot = [0, 0, 0, 0, 0, 0, 0, 0];
             foreach ($filas as $f) {
                 $valores = [
-                    $f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['observaciones'],
-                    $f['recepcion_aprobadas'], $f['recepcion_rechazadas'],
+                    $f['total'], $f['aprobadas'], $f['aprobadas_observacion'], $f['rechazadas'], $f['sin_inspeccion'],
+                    $f['observaciones'], $f['recepcion_aprobadas'], $f['recepcion_rechazadas'],
                 ];
                 $rows[] = [$f['nombre'], ...$valores, $f['recepcion_calidad_pct'] ?? ''];
                 foreach ($valores as $i => $v) {
@@ -363,7 +389,7 @@ final class ReportesService
                 }
             }
             // La calidad del total sale de los SÍ y NO sumados (no es el promedio de las calidades).
-            $rows[] = ['TOTAL', ...$tot, self::calidadRecepcionPct($tot[5], $tot[6]) ?? ''];
+            $rows[] = ['TOTAL', ...$tot, self::calidadRecepcionPct($tot[6], $tot[7]) ?? ''];
         }
 
         return $rows;
@@ -482,7 +508,8 @@ final class ReportesService
      *
      * El cierre automático (aprobado_automatico, cron de las 15:50 y de las 23:55) NO es una
      * inspección: esas piezas salen como 'aprobada_automatica' (nadie la inspeccionó), no como
-     * inspeccionadas a tiempo ni fuera de plazo (corregido el 30/09/2026, R5).
+     * inspeccionadas a tiempo ni fuera de plazo (corregido el 30/09/2026, R5). Lo mismo «No se pudo
+     * inspeccionar» (sin_inspeccion, v7.11): sale como 'sin_inspeccion', con su motivo en 'motivo'.
      *
      * @return array{fecha:string, hotel:string, corte:string, turnos:array<string, array{total:int, pendientes:list<array<string,mixed>>}>}
      */
@@ -498,7 +525,8 @@ final class ReportesService
             "SELECT ec.id AS ejecucion_id, ec.habitacion_id, ec.timestamp_fin,
                     h.numero, h.es_nochero, h.estado AS habitacion_estado_actual,
                     ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
-                    a.id AS auditoria_id, a.created_at AS auditoria_created_at, a.veredicto AS auditoria_veredicto
+                    a.id AS auditoria_id, a.created_at AS auditoria_created_at, a.veredicto AS auditoria_veredicto,
+                    a.comentario AS auditoria_comentario
                FROM #__ejecuciones_checklist ec
                JOIN #__habitaciones h ON h.id = ec.habitacion_id
                JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -524,9 +552,14 @@ final class ReportesService
             $turnos[$turno]['total']++;
 
             $estadoAuditoria = null;
+            $motivo = null;
             if ($f['auditoria_id'] !== null) {
                 if ($f['auditoria_veredicto'] === 'aprobado_automatico') {
                     $estadoAuditoria = 'aprobada_automatica';
+                } elseif ($f['auditoria_veredicto'] === 'sin_inspeccion') {
+                    // v7.11: la supervisora marcó «No se pudo inspeccionar»; nadie la inspeccionó, como la del sistema.
+                    $estadoAuditoria = 'sin_inspeccion';
+                    $motivo = $f['auditoria_comentario'] !== null ? (string) $f['auditoria_comentario'] : null;
                 } elseif ((string) $f['auditoria_created_at'] >= $corte) {
                     $estadoAuditoria = 'auditada_tarde';
                 }
@@ -549,6 +582,7 @@ final class ReportesService
                 'es_nochero'       => ((int) ($f['es_nochero'] ?? 0)) === 1,
                 'hora_termino'     => Fechas::horaMinutoLocalDeUtc($timestampFin),
                 'estado_auditoria' => $estadoAuditoria,
+                'motivo'           => $motivo,
             ];
         }
 
@@ -603,7 +637,7 @@ final class ReportesService
                         $p['numero'],
                         $p['es_nochero'] ? 'Sí' : 'No',
                         $p['hora_termino'],
-                        self::ESTADOS_PENDIENTE[$p['estado_auditoria']] ?? $p['estado_auditoria'],
+                        self::textoEstadoPendiente($p),
                     ];
                 }
             }

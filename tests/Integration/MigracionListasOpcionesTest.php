@@ -87,6 +87,14 @@ final class MigracionListasOpcionesTest extends TestCase
         $this->assertSame(36, (int) Database::fetchColumn('SELECT COUNT(*) FROM listas_opciones'), '8 rechazo + 4 saltar + 4 reasignar + 6 mensaje + 9 tipo + 5 respuesta');
         $this->assertContains('tipo_id', array_column(Database::fetchAll('PRAGMA table_info(tickets)'), 'name'));
 
+        // Lo que se sumó después (v7.11, «No se pudo inspeccionar») lo trae su propia migración.
+        ob_start();
+        try {
+            include dirname(__DIR__, 2) . '/scripts/migrate-add-sin-inspeccion.php';
+        } finally {
+            ob_end_clean();
+        }
+        EsquemaService::limpiarCache();
         $esquema = (new EsquemaService())->faltantes(true);
         $this->assertTrue($esquema['ok'], 'faltan: ' . json_encode($esquema));
     }

@@ -389,7 +389,7 @@ CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);
 CREATE TABLE listas_opciones (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     lista       TEXT NOT NULL CHECK (lista IN (
-        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion'
     )),
     nombre      TEXT NOT NULL,                                 -- 'Baño sucio' (2 a 60, lo valida el servicio)
     activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
@@ -411,11 +411,11 @@ CREATE TABLE auditorias (
     habitacion_id       INTEGER NOT NULL,
     auditor_id          INTEGER NOT NULL,
     veredicto           TEXT NOT NULL CHECK (veredicto IN (
-        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado'
-    )),
-    comentario          TEXT,                             -- desde v7.3 lo arma el sistema: nombre del motivo (rechazo) o «Observado: …» (observación)
+        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado', 'sin_inspeccion'
+    )),                                                   -- v7.11 'sin_inspeccion' = «No se pudo inspeccionar» (huésped en la pieza): la pieza queda como con 'aprobado_automatico'
+    comentario          TEXT,                             -- desde v7.3 lo arma el sistema: nombre del motivo (rechazo, sin inspección) o «Observado: …» (observación)
     items_desmarcados_json  TEXT,                         -- JSON array de item_ids (para observación)
-    motivo_id           INTEGER,                          -- v7.3: opción de la lista 'rechazo' (solo en rechazados)
+    motivo_id           INTEGER,                          -- v7.3: opción de la lista 'rechazo' (rechazados); v7.11: de 'sin_inspeccion'
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE RESTRICT,
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE RESTRICT,

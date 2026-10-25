@@ -175,8 +175,14 @@ foreach ($rolesAdmin as $rol) {
     }
 }
 
-// 5. Opciones iniciales de cada lista vacía (no re-crea las que alguien desactivó).
+// 5. Opciones iniciales de cada lista vacía (no re-crea las que alguien desactivó). Solo las listas que
+// acepta el CHECK de arriba: las que se sumaron después las siembra su propia migración (la v7.11,
+// «sin_inspeccion», scripts/migrate-add-sin-inspeccion.php).
+$listasV74 = ['rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'];
 foreach (require __DIR__ . '/../database/seeds/listas_opciones.php' as $lista => $opciones) {
+    if (!in_array($lista, $listasV74, true)) {
+        continue;
+    }
     if ((int) Database::fetchColumn('SELECT COUNT(*) FROM #__listas_opciones WHERE lista = ?', [$lista]) > 0) {
         echo "La lista {$lista} ya tenía opciones — no se siembra.\n";
         continue;

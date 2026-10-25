@@ -401,7 +401,7 @@ final class Tours
                 'capacidad' => 'auditoria.ver_bandeja',
                 'recorridos' => [
 
-                    // ── 1. El corazón de la pantalla: los 3 veredictos. ──
+                    // ── 1. El corazón de la pantalla: los 3 veredictos y, desde la v7.11, «No se pudo inspeccionar». ──
                     // v2 (v7.3): sin comentario escrito; observación = casillas, rechazo = motivo de la lista.
                     [
                         'id'       => 'veredicto',
@@ -412,13 +412,18 @@ final class Tours
                         'pasos' => [
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
-                                'titulo' => 'Tres caminos, no dos',
-                                'texto'  => 'Tres veredictos: «Aprobar» (todo bien), «Aprobar con observación» (algo menor, queda anotado) y «Rechazar» (a re-limpiar). El trabajador no ve la observación como un rechazo.',
+                                'titulo' => 'Cuatro caminos',
+                                'texto'  => '«Aprobar» (todo bien), «Aprobar con observación» (algo menor, queda anotado), «Rechazar» (a re-limpiar) y «No se pudo inspeccionar». El trabajador no ve la observación como un rechazo.',
                             ],
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',
                                 'titulo' => 'Con observación no es rechazar',
                                 'texto'  => '«Con observación» deja la pieza limpia igual: la observación son las casillas que desmarcas. «Rechazar» la manda de vuelta a sucia, con un motivo de la lista.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="aud2.acciones"]',
+                                'titulo' => 'Si no puedes entrar',
+                                'texto'  => '¿Ya hay un huésped? Toca «No se pudo inspeccionar» y elige el motivo: la pieza sale de la lista para que nadie más vaya y queda como las que aprueba el sistema.',
                             ],
                             [
                                 'sel'    => '[data-tour="aud2.acciones"]',

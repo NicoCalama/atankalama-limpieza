@@ -527,7 +527,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                     </div>
                                     <template x-if="h.veredicto && h.auditor_nombre">
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            Inspeccionada por <span x-text="h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
+                                            <span x-text="(h.veredicto === 'sin_inspeccion' ? 'Lo marcó ' : 'Inspeccionada por ') + h.auditor_nombre"></span><template x-if="h.auditoria_comentario"><span> — «<span x-text="h.auditoria_comentario"></span>»</span></template>
                                         </p>
                                     </template>
                                 </li>
@@ -1392,6 +1392,7 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
             if (h.veredicto === 'aprobado') return 'Aprobada';
             if (h.veredicto === 'aprobado_con_observacion') return 'Aprobada c/obs.';
             if (h.veredicto === 'aprobado_automatico') return 'Aprobada auto.';
+            if (h.veredicto === 'sin_inspeccion') return 'No se pudo inspeccionar';
             if (h.veredicto === 'rechazado') return 'Rechazada';
             if (h.estado === 'en_progreso') return 'En progreso';
             if (h.estado === 'completada') return 'Completada';
@@ -1400,7 +1401,8 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
 
         claseHistorial(h) {
             if (h.veredicto === 'rechazado') return 'chip-estado-rechazada';
-            if (h.veredicto === 'aprobado_automatico') return 'chip-estado-aprobada_automatica';
+            // «No se pudo inspeccionar» (v7.11) deja la pieza como el cierre automático: mismo color.
+            if (h.veredicto === 'aprobado_automatico' || h.veredicto === 'sin_inspeccion') return 'chip-estado-aprobada_automatica';
             if (h.veredicto) return 'chip-estado-aprobada';
             if (h.estado === 'en_progreso') return 'chip-estado-en_progreso';
             return 'chip-estado-completada_pendiente_auditoria';
