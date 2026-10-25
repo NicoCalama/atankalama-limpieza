@@ -85,6 +85,8 @@ La auditoría NO es binaria (aprobado/rechazado). Tiene **3 estados**:
 
 Ver `docs/auditoria.md` para el flujo completo.
 
+Además (v7.11): **«No se pudo inspeccionar»** (veredicto `sin_inspeccion`, con motivo de lista), para cuando no se puede entrar a la pieza (ya hay un huésped). No es una inspección: deja la pieza igual que el cierre de día automático (`aprobada_automatica`, Clean) y cuenta como él en los KPIs; en los reportes se llama «Sin inspección». Ver `docs/auditoria.md` §2.4.
+
 **Inmutabilidad post-auditoría (NO NEGOCIABLE):**
 
 Una vez una habitación recibe veredicto de auditoría (cualquiera de los 3 estados), **NO puede ser re-auditada**. En la UI:

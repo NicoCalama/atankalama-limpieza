@@ -352,7 +352,7 @@ CREATE INDEX idx_ejecuciones_items_ejecucion ON #__ejecuciones_items(ejecucion_i
 CREATE TABLE #__listas_opciones (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     lista       VARCHAR(30) NOT NULL CHECK (lista IN (
-        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion'
     )),
     nombre      VARCHAR(60) NOT NULL,
     activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
@@ -372,7 +372,7 @@ CREATE TABLE #__auditorias (
     habitacion_id       INT NOT NULL,
     auditor_id          INT NOT NULL,
     veredicto           VARCHAR(30) NOT NULL CHECK (veredicto IN (
-        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado'
+        'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado', 'sin_inspeccion'
     )),
     comentario          TEXT,
     items_desmarcados_json  TEXT,

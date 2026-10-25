@@ -185,6 +185,7 @@ Una vez que un trabajador marca una habitación como "Terminada", tú la ve en l
    - ✅ **Aprobada**: todo está bien, la habitación se marca como limpia en Cloudbeds
    - ✅ **Aprobada con observación**: todo está bien pero dejas una nota (ej. "cortinas ajustes menores"). La habitación se aprueba pero queda constancia de la observación.
    - ❌ **Rechazada**: hay que relimpiar. Aparecerá en tu lista de reasignaciones.
+   - 🚪 **No se pudo inspeccionar**: no puedes entrar (por ejemplo, ya hay un huésped). Eliges el motivo de la lista y la habitación **sale de la lista de Inspección**, para que nadie más vaya a tocar la puerta. Queda igual que las que aprueba el sistema al cierre del día (limpia en Cloudbeds). En Reportes aparece como **«Sin inspección»**.
 
 6. Opcionalmente agrega un comentario (ej. "Espejo con manchas")
 7. Haz clic en tu opción
@@ -205,7 +206,7 @@ En **"Reportes"**, pestaña **"Mensual"** (desde la v7.2 Reportes se ordena en c
 
 1. Elige el **mes** y el **hotel** arriba: valen para los dos resúmenes.
 2. **Resumen mensual por trabajador**: cuántas habitaciones limpió cada trabajador en el mes, sus días, el bono de aseo de RRHH y sus créditos.
-3. **Resumen mensual de inspecciones**: cuántas inspecciones hizo cada supervisora, desglosadas por veredicto (aprobadas, con observación, rechazadas), y su calidad según Recepción.
+3. **Resumen mensual de inspecciones**: cuántas inspecciones hizo cada supervisora, desglosadas por veredicto (aprobadas, con observación, rechazadas), y su calidad según Recepción. La columna **«Sin inspección»** muestra cuántas marcó como «No se pudo inspeccionar» (no suman en el total).
 4. **Inspección pre-entrega del mes**: el total de inspecciones que hizo Recepción en el mes y, debajo, cuántas hizo cada recepcionista.
 5. Para bajarlo, usa **"Exportar Excel"** arriba a la derecha → «Resumen mensual» (un Excel con las hojas Trabajadores, Supervisores y Recepción).
 

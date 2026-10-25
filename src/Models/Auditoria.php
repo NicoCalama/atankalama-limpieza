@@ -11,12 +11,16 @@ final class Auditoria
     // Cierre de día automático (cron 23:55) — ver Habitacion::ESTADO_APROBADA_AUTOMATICA.
     public const VEREDICTO_APROBADO_AUTOMATICO = 'aprobado_automatico';
     public const VEREDICTO_RECHAZADO = 'rechazado';
+    // v7.11 «No se pudo inspeccionar» (en reportes «Sin inspección»): la supervisora no pudo entrar (ya hay
+    // un huésped). La pieza queda como con el cierre automático (aprobada_automatica) y sale de la bandeja.
+    public const VEREDICTO_SIN_INSPECCION = 'sin_inspeccion';
 
     public const VEREDICTOS_VALIDOS = [
         self::VEREDICTO_APROBADO,
         self::VEREDICTO_APROBADO_CON_OBSERVACION,
         self::VEREDICTO_APROBADO_AUTOMATICO,
         self::VEREDICTO_RECHAZADO,
+        self::VEREDICTO_SIN_INSPECCION,
     ];
 
     public function __construct(

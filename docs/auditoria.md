@@ -2,7 +2,7 @@
 
 **Versión:** 1.0 — 2026-04-14
 
-Documenta el flujo de auditoría con 3 estados (`aprobado`, `aprobado_con_observacion`, `rechazado`), la regla no negociable de inmutabilidad post-auditoría, y los efectos de cada veredicto.
+Documenta el flujo de auditoría con 3 estados (`aprobado`, `aprobado_con_observacion`, `rechazado`), la regla no negociable de inmutabilidad post-auditoría, y los efectos de cada veredicto. Desde la v7.11 hay un 4.º camino, «No se pudo inspeccionar» (`sin_inspeccion`, §2.4), que deja la pieza como el cierre de día automático.
 
 ---
 
@@ -39,6 +39,17 @@ La auditoría **no es binaria**. Tiene 3 estados porque la realidad operativa lo
 - Supervisora decide a quién reasignar (mismo trabajador para corrección, o a otro).
 - KPIs: cuenta como rechazo para el trabajador original.
 - **Motivo obligatorio de la lista «rechazo»** (v7.3, gerencia 10/10/2026: sin cuadros de texto), editable en Ajustes → Checklists y listas, más al menos un ítem fallido (lo que se re-limpia). Se guarda `auditorias.motivo_id` y el nombre del motivo en `comentario` (foto del momento: renombrar la opción después no cambia el historial).
+
+### 2.4 «No se pudo inspeccionar» (`sin_inspeccion`, v7.11)
+
+Pedido de Nicolás del 25/10/2026: la supervisora llega a inspeccionar y ya hay un huésped en la pieza. Antes la pieza seguía en la bandeja y otra supervisora volvía a tocar la puerta.
+
+- **4.º botón** de la pantalla de inspección: «No se pudo inspeccionar». Lo ve quien tiene el permiso `auditoria.sin_inspeccion` (por defecto, quien aprueba: Supervisora, Recepción y Admin).
+- **Motivo obligatorio** de la lista «sin_inspeccion» («Huésped en la pieza», «Cartel No molestar»; editable en Ajustes → Checklists y listas). No se toca el checklist: no admite casillas desmarcadas (400 `ITEMS_DESMARCADOS_NO_APLICABLE`). Se guarda `auditorias.motivo_id` y el nombre del motivo en `comentario`, como el rechazo.
+- **La pieza queda igual que con el cierre de día automático** (§5 y `docs/checklist.md` §3.7): estado `aprobada_automatica`, `Clean` en Cloudbeds, sale de la bandeja y no se puede volver a inspeccionar (es un veredicto: mismo `UNIQUE` y mismo 409). Lo firma la supervisora que la marcó (origen `ui`), no el usuario Sistema.
+- **KPIs, igual que el aprobado automático** (decisión de Nicolás): a la trabajadora le cuenta como aprobada y sin inspeccionar (créditos «sin inspección»); a la sección le baja la cobertura; no suma en las inspecciones ni en las Aprobadas de la supervisora. Ver `docs/kpis-sueldos.md`.
+- **Nombres:** en las pantallas de uso (botón, detalle de la inspección, historial de la pieza, Ajustes) se llama «No se pudo inspeccionar». En los reportes se llama **«Sin inspección»**: en «Inspecciones pendientes al corte» (pantalla, CSV y correo de las 23:50) sale «Sin inspección (motivo)», en rojo como la del sistema, y el «Resumen mensual de inspecciones» (pantalla y Excel) la cuenta en su columna «Sin inspección», fuera del Total.
+- La tarjeta de la pieza sigue mostrando el chip del estado («Aprobada auto.»).
 
 ---
 

@@ -154,7 +154,7 @@ Ver [auditoria.md](auditoria.md).
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
 | GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes. Por pieza: `id`, `numero`, `estado`, `es_nochero`, `auditoria_orden`, `se_va_hoy`, `cb_frontdesk_status`, `cloudbeds_room_name`, `hotel_codigo`, `tipo_nombre`, `ejecucion_id`, `trabajador_id` |
-| POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` | Veredicto: `{ veredicto, motivo_id?, items_desmarcados? }`. Desde la v7.3 no hay comentario escrito: el rechazo exige `motivo_id` (lista «rechazo», §18b; 400 `OPCION_REQUERIDA`/`OPCION_INVALIDA`) y al menos un ítem; la observación exige al menos un ítem desmarcado (400 `OBSERVACION_SIN_ITEMS`) y su comentario lo arma el sistema («Observado: …»). Ver [auditoria.md](auditoria.md) |
+| POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` / `.sin_inspeccion` | Veredicto: `{ veredicto, motivo_id?, items_desmarcados? }`. Desde la v7.3 no hay comentario escrito: el rechazo exige `motivo_id` (lista «rechazo», §18b; 400 `OPCION_REQUERIDA`/`OPCION_INVALIDA`) y al menos un ítem; la observación exige al menos un ítem desmarcado (400 `OBSERVACION_SIN_ITEMS`) y su comentario lo arma el sistema («Observado: …»). v7.11: `veredicto: "sin_inspeccion"` («No se pudo inspeccionar») exige `motivo_id` de la lista «sin_inspeccion» y no admite ítems (400 `ITEMS_DESMARCADOS_NO_APLICABLE`); la pieza queda `aprobada_automatica` como con el cierre de día. Ver [auditoria.md](auditoria.md) §2.4 |
 | GET | `/api/auditoria/{id}/historial` | `habitaciones.ver_historial` | Detalle histórico |
 | POST | `/api/auditoria/{habitacion_id}/iniciar` | `auditoria.ver_bandeja` | Marca el inicio de la inspección (`ejecuciones_checklist.auditoria_iniciada_at`) de la última ejecución completada; lo dispara el detalle al abrirse. Alimentaba el KPI «tiempo por auditación» (v6.4), retirado en la v7.10; la marca se sigue grabando. Devuelve `{ registrado: bool }` |
 
@@ -306,7 +306,7 @@ Ver [kpis-sueldos.md](kpis-sueldos.md) (ficha viva de KPIs para el bono de Aseo)
 
 ## 18b. Listas de selección (v7.3)
 
-Gerencia (10/10/2026): las acciones no llevan cuadro de texto, se elige de una lista. Ver [ajustes.md](ajustes.md) §2.3. Listas: `rechazo`, `reasignar`, `saltar` y `no_recepcion` (motivos del NO de la inspección pre-entrega, tabla propia). Las opciones no se borran: se desactivan.
+Gerencia (10/10/2026): las acciones no llevan cuadro de texto, se elige de una lista. Ver [ajustes.md](ajustes.md) §2.3. Listas: `rechazo`, `sin_inspeccion` (v7.11, motivo de «No se pudo inspeccionar»), `reasignar`, `saltar`, `no_recepcion` (motivos del NO de la inspección pre-entrega, tabla propia), `nota_recepcion`, `ticket_tipo` y `ticket_respuesta`. Las opciones no se borran: se desactivan.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|

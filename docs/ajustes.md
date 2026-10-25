@@ -50,6 +50,7 @@ otro rol desde Roles y permisos).
 | Lista | Lo ve | Cuándo | Se guarda |
 |---|---|---|---|
 | `rechazo` | Supervisora | Al rechazar en la inspección, además de los ítems fallidos | `auditorias.motivo_id` + el nombre en `comentario` |
+| `sin_inspeccion` (v7.11) | Supervisora | «No se pudo inspeccionar» (ya hay un huésped…); la pieza sale de la bandeja ([auditoria.md](auditoria.md) §2.4) | `auditorias.motivo_id` + el nombre en `comentario` |
 | `reasignar` | Supervisora | Al reasignar una pieza (ventana o arrastre en el tablero) | `audit_log` (`asignacion.reasignar`: `motivo` + `opcion_id`) |
 | `saltar` | Trabajadora | «No puedo limpiarla / terminarla ahora» | `audit_log` y la alerta P2 (`motivo` + `opcion_id`) |
 | `no_recepcion` | Recepción | NO de la inspección pre-entrega | `revisiones_entrega.motivo_id` (tabla propia `motivos_revision_entrega`) |

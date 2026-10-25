@@ -20,7 +20,7 @@ return [
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
     ['checklists.crear_nuevos', 'Crear templates nuevos', 'Checklists', 'global'],
     // v7.3 (gerencia, 10/10/2026): las acciones se eligen de listas, sin cuadro de texto. Solo Admin por defecto.
-    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)', 'Checklists', 'global'],
+    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar», de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)', 'Checklists', 'global'],
 
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
@@ -37,6 +37,8 @@ return [
     ['auditoria.aprobar', 'Dar veredicto aprobada', 'Auditoría', 'global'],
     ['auditoria.aprobar_con_observacion', 'Dar veredicto aprobada con observación', 'Auditoría', 'global'],
     ['auditoria.rechazar', 'Dar veredicto rechazada', 'Auditoría', 'global'],
+    // v7.11: «No se pudo inspeccionar» (ya hay un huésped en la pieza). Lo tiene quien hoy aprueba.
+    ['auditoria.sin_inspeccion', 'Marcar «No se pudo inspeccionar» (por ejemplo, ya hay un huésped): la pieza sale de la bandeja y queda como las que aprueba el sistema', 'Auditoría', 'global'],
     ['auditoria.editar_checklist_durante_auditoria', 'Desmarcar items durante la auditoría', 'Auditoría', 'global'],
     ['auditoria.reordenar_bandeja', 'Reordenar manualmente la bandeja de auditoría', 'Auditoría', 'global'],
 

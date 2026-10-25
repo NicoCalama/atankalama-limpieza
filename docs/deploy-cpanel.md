@@ -420,6 +420,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-16 | **Comentario opcional al crear un ticket** → **v7.9** (feat `15e92d9`, CHANGELOG fechado `4a01c3c`; rama `v7.9-ticket-comentario`, desde `d62c23d`) | Pedido de gerencia del mismo día: desde la v7.4 (sin cuadros de texto) el ticket nuevo solo tenía el tipo de problema y fotos, y mantención llegaba sin saber el detalle ni qué llevar. «Reportar problema» suma «Comentario (opcional)», máx. 500, para cualquier tipo (decisiones de Nicolás: solo **al crear**, tope 500); se guarda en `tickets.descripcion` (sin comentario sigue siendo el nombre del tipo; más de 500 → 400 `COMENTARIO_MUY_LARGO`) y llega a Novedades con la descripción. En Tickets se ve bajo el título y como «Comentario» en el detalle; la descripción igual al título ya no se repite (el tipo salía dos veces desde la v7.4). Runbook §11.37. Suite 827 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev), PHPStan OK; verificado en un banco como trabajadora (375 px, desde la pieza) y supervisora (tabla en escritorio y modal en claro). **Sin SQL.** ZIP de 7 archivos a `app_core/` (`build/limpieza-v79-delta.zip`, idénticos a `4a01c3c`) y `build/limpieza-v79-vuelta-atras.zip` (los 7 en `d62c23d`). Subido el 16/10 ~19:00. Smoke OK (Nicolás). |
 | 2026-10-18 | **Sin tiempo mínimo para terminar ni KPIs de tiempo** → **v7.10** (feat `b7f3e53`, CHANGELOG fechado `dd8fb6c`; rama `v7.10-sin-tiempos`, desde `20332d4`) | Pedido de Nicolás del mismo día: empezó por sacar el bloqueo de tiempo a las piezas nochero y lo amplió a todas las limpiezas y a los KPIs de tiempo. Sin los 3 min para terminar (habitaciones y áreas comunes; sale el mínimo por área de la v7.6, cuya columna queda en la BD sin uso), y fuera tiempo promedio, ritmo y tiempo por auditación de Reportes y el tiempo promedio del Inicio del Admin. Decisiones de Nicolás: se mantienen las alertas predictivas, sale el tiempo por auditación. Runbook §11.38. Suite 823 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev). ZIP de 12 archivos, **sin SQL**; subido ~18:45 y smoke OK (Nicolás). |
 | 2026-10-18 | **Terminar la habitación sin ventana de confirmación** → **v7.10.1** (feat `468dcb1`, CHANGELOG fechado `fa5a7b6`; rama `v7.10.1-sin-confirmar`, desde `8e7c364`) | Pedido de Nicolás en el smoke de la v7.10: «Habitación terminada» ya no abre la ventana «¿Habitación terminada? … Pasará a inspección y no podrás editarla.»; termina al tiro (el botón sigue prendiéndose solo con todo lo obligatorio marcado). Runbook §11.39. ZIP de 2 archivos (`CHANGELOG.md`, `views/habitacion-detalle.php`), **sin SQL**; subido ~19:05 y smoke OK (Nicolás). |
+| 2026-10-25 | **«No se pudo inspeccionar» en la inspección, «Sin inspección» en reportes** → **v7.11** (feat `e2d6bac`, CHANGELOG fechado `e925a4f`; rama `v7.11-sin-inspeccion`, desde `bb56662`) | Pedido de Nicolás del mismo día: la supervisora llega y ya hay un huésped; la pieza seguía en la bandeja y otra volvía a tocar la puerta. 4.º botón con motivo de la lista nueva «sin_inspeccion»; veredicto `sin_inspeccion`, la pieza queda `aprobada_automatica` (Clean) y cuenta como el cierre automático en los KPIs; en reportes, «Sin inspección» (pendientes al corte y columna propia en el resumen mensual). Permiso nuevo `auditoria.sin_inspeccion` (quien aprueba). Runbook §11.40. Suite 832 (1 omitido; falla solo el health de entorno). **Con SQL** (2 `MODIFY COLUMN`, lista y permiso): precheck OK, SQL ~07:05 y comprobado (2 CHECK con el valor, 2 opciones, 3 roles); ZIP de 20 archivos después; smoke OK con la PRUEBA (Nicolás). |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -3029,3 +3030,140 @@ recargue.
 «Habitación terminada» → vuelve al Inicio sin preguntar, y la PRUEBA queda por inspeccionar.
 
 **Desplegada el 18/10/2026 ~19:05** (ZIP desde `fa5a7b6`, sin SQL). Smoke OK (Nicolás).
+
+### 11.40 Release "no se pudo inspeccionar" → v7.11
+
+Origen: Nicolás, 25/10/2026. A veces la supervisora va a inspeccionar una pieza y ya hay un huésped adentro: no la
+puede inspeccionar, la pieza sigue en la lista de Inspección y después otra supervisora vuelve a tocar la puerta.
+
+**Qué cambia** (plan aprobado por Nicolás el 25/10/2026). Detalle en [auditoria.md](auditoria.md) §2.4.
+
+- **4.º botón «No se pudo inspeccionar»** en la pantalla de inspección (`views/auditoria-detalle.php`). Pide un motivo
+  de la lista nueva «sin_inspeccion», que se edita en Ajustes → Checklists y listas: «Huésped en la pieza» y «Cartel
+  No molestar». No se toca el checklist.
+- **Veredicto nuevo `sin_inspeccion`** en `auditorias`, firmado por quien lo marcó. **La pieza queda igual que con el
+  cierre de día automático** (`aprobada_automatica`): `Clean` en Cloudbeds, sale de la bandeja y no se puede volver a
+  inspeccionar. Todo el ciclo posterior (sync, nocheros, alertas) la trata como a la del sistema.
+- **KPIs igual que `aprobado_automatico`.** A la trabajadora le cuenta como aprobada sin inspeccionar. A la sección le
+  baja la cobertura, y no suma en las inspecciones ni en las Aprobadas de la supervisora.
+- **En los reportes se llama «Sin inspección»** (en las pantallas de uso, «No se pudo inspeccionar»):
+  - «Inspecciones pendientes al corte» (pantalla, CSV y correo de las 23:50) la muestra como «Sin inspección (motivo)»,
+    en rojo como la del sistema.
+  - El «Resumen mensual de inspecciones» (pantalla y Excel, pestaña «Supervisores») le da una columna propia «Sin
+    inspección», fuera del Total. En el Excel, las columnas de Recepción corren un lugar.
+- **Permiso nuevo `auditoria.sin_inspeccion`**: lo recibe todo rol que hoy tiene `auditoria.aprobar` (Supervisora,
+  Recepción y Admin).
+
+**Lleva SQL** (dos CHECK, la lista y el permiso). Sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en
+los cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) CHECK vivos de las dos columnas. Esperado: UNA fila por tabla (el CHECK de la columna, llamado `veredicto` y
+--    `lista`), sin 'sin_inspeccion'. Si alguna tabla trae una SEGUNDA fila que también enumera esos valores, es un
+--    CHECK de tabla que el MODIFY no reemplaza: avisar antes de seguir (se borra ese por su nombre).
+SELECT TABLE_NAME, CONSTRAINT_NAME, CHECK_CLAUSE
+  FROM information_schema.CHECK_CONSTRAINTS
+ WHERE CONSTRAINT_SCHEMA = 'cat6852_australia'
+   AND TABLE_NAME IN ('limpieza_auditorias', 'limpieza_listas_opciones');
+
+-- 2) Las dos columnas son VARCHAR(30) NOT NULL (el MODIFY las deja igual). Esperado: 2 filas varchar(30) / NO.
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
+  FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia'
+   AND ((table_name = 'limpieza_auditorias' AND column_name = 'veredicto')
+     OR (table_name = 'limpieza_listas_opciones' AND column_name = 'lista'));
+
+-- 3) Ni la lista ni el permiso existen. Esperado: 0 y 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_listas_opciones WHERE lista = 'sin_inspeccion';
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos WHERE codigo = 'auditoria.sin_inspeccion';
+
+-- 4) Roles que hoy aprueban: son los que recibirán el permiso. Esperado: Admin, Recepción, Supervisora.
+SELECT r.nombre
+  FROM cat6852_australia.limpieza_rol_permisos rp
+  JOIN cat6852_australia.limpieza_roles r ON r.id = rp.rol_id
+ WHERE rp.permiso_codigo = 'auditoria.aprobar'
+ ORDER BY r.nombre;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_auditorias
+  MODIFY COLUMN veredicto VARCHAR(30) NOT NULL CHECK (veredicto IN (
+    'aprobado', 'aprobado_con_observacion', 'aprobado_automatico', 'rechazado', 'sin_inspeccion'));
+
+ALTER TABLE cat6852_australia.limpieza_listas_opciones
+  MODIFY COLUMN lista VARCHAR(30) NOT NULL CHECK (lista IN (
+    'rechazo', 'sin_inspeccion', 'reasignar', 'saltar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'));
+
+INSERT INTO cat6852_australia.limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('sin_inspeccion', 'Huésped en la pieza', 1), ('sin_inspeccion', 'Cartel No molestar', 2);
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('auditoria.sin_inspeccion', 'Marcar «No se pudo inspeccionar» (por ejemplo, ya hay un huésped): la pieza sale de la bandeja y queda como las que aprueba el sistema', 'Auditoría', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT rp.rol_id, 'auditoria.sin_inspeccion'
+  FROM cat6852_australia.limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'auditoria.aprobar';
+
+UPDATE cat6852_australia.limpieza_permisos
+   SET descripcion = 'Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar», de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)'
+ WHERE codigo = 'listas.editar';
+```
+
+La base va escrita en cada tabla (§11.34). El `MODIFY` reemplaza el CHECK de la columna con la lista completa: nada de
+`DROP CONSTRAINT` (ver incidente-2026-09-23.md §5). `scripts/migrate-add-sin-inspeccion.php` hace lo mismo. Se probó
+sobre la base SQLite del banco local, anterior a la v7.11: amplía, siembra y da el permiso, y la segunda corrida no hace
+nada.
+
+**Comprobación:** el precheck (1) muestra `'sin_inspeccion'` en las dos tablas y el (3) da 2 y 1. Después del ZIP,
+`/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL.** El verificador vería los dos CHECK atrasados (health 503) y el botón nuevo daría error
+al guardar.
+
+#### ZIP
+
+`build/limpieza-v711-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.11 del `CHANGELOG.md` se fecha antes de armarlo (§10 paso 0) y tiene que terminar en
+« |». Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`, `docs/database-schema{,.mariadb}.sql` (los lee el verificador).
+- `database/seeds/{listas_opciones,permisos,roles}.php`.
+- `scripts/{migrate-add-sin-inspeccion,migrate-add-listas-opciones}.php`.
+- `src/Controllers/AuditoriaController.php`, `src/Models/Auditoria.php`, `src/Support/Tours.php`.
+- `src/Services/{AuditoriaService,EmailService,HomeService,ListasOpcionesService,ReportesService}.php`.
+- `views/{auditoria-detalle,habitacion-detalle,reportes}.php`, `views/recursos/ajustes/listas-opciones.js`.
+
+Vuelta atrás: `build/limpieza-v711-vuelta-atras.zip`, con los mismos archivos en la v7.10.1 (`bb56662`); el script nuevo
+puede quedar. El SQL también puede quedar: la v7.10.1 no lee la lista ni el permiso, y los CHECK más anchos no le
+molestan. Si ya hay piezas marcadas «No se pudo inspeccionar», la v7.10.1 las muestra como «Aprobada auto.» y en sus
+reportes no aparecen como «Sin inspección».
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (cierre de día y correo de las 23:50).
+
+**Smoke:**
+1. Badge **v7.11** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. Ajustes → Checklists y listas → «Listas»: la tarjeta «No se pudo inspeccionar» con 2 opciones.
+3. Con la habitación PRUEBA: «Asignármela para probar», empezar, marcar todo, terminar. En Inspección, abrirla →
+   «No se pudo inspeccionar» → «Huésped en la pieza» → Confirmar. Tiene que volver a la lista sin la PRUEBA.
+4. Al abrirla de nuevo, se ve en solo lectura «No se pudo inspeccionar · Motivo: Huésped en la pieza».
+
+**Consulta de uso** (cuántas marcan y por qué):
+
+```sql
+SELECT LEFT(a.created_at, 10) AS dia_utc, u.nombre, a.comentario AS motivo, COUNT(*) AS piezas
+  FROM cat6852_australia.limpieza_auditorias a
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = a.auditor_id
+ WHERE a.veredicto = 'sin_inspeccion'
+ GROUP BY LEFT(a.created_at, 10), u.nombre, a.comentario
+ ORDER BY dia_utc, u.nombre;
+```
+
+**Desplegada el 25/10/2026 ~07:10** (SQL primero, ZIP desde `e925a4f`). Precheck como se esperaba: un solo CHECK por
+columna (más el de `activo`, que es de otra columna), `varchar(30)`/`NO`, 0 y 0, y aprueban Admin, Recepción y
+Supervisora. Después del SQL: `CHECK_CLAUSE LIKE '%sin_inspeccion%'` = 1 en las dos, 2 opciones y 3 roles con el
+permiso. Smoke OK con la PRUEBA del 1 Sur (Nicolás). Observación del smoke: la tarjeta de la PRUEBA queda «APROBADA
+AUTO.», tal como estaba previsto (es el estado de la pieza).

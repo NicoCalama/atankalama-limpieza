@@ -33,6 +33,8 @@ final class AuditoriaService
      *   - el rechazo trae $motivoId, una opción activa de la lista «rechazo»; el comentario guardado es
      *     su nombre, así lo siguen mostrando la re-limpieza, el aviso y el historial;
      *   - la observación son las casillas desmarcadas (al menos una) y el comentario se arma con ellas.
+     * «No se pudo inspeccionar» (v7.11, 'sin_inspeccion') trae su motivo como el rechazo (lista
+     * «sin_inspeccion»), no admite casillas y deja la pieza como el cierre automático (aprobada_automatica).
      * $comentario queda solo para llamadas internas (tests, scripts): si hay $motivoId, manda el motivo.
      *
      * @param list<int> $itemsDesmarcados
@@ -58,17 +60,29 @@ final class AuditoriaService
 
         $comentario = ($comentario !== null && trim($comentario) !== '') ? trim($comentario) : null;
         $motivoGuardado = null;
-        if ($veredicto === Auditoria::VEREDICTO_RECHAZADO) {
+        // Veredictos que llevan motivo de una lista: el rechazo y «No se pudo inspeccionar» (v7.11).
+        $listaMotivo = match ($veredicto) {
+            Auditoria::VEREDICTO_RECHAZADO => 'rechazo',
+            Auditoria::VEREDICTO_SIN_INSPECCION => ListasOpcionesService::SIN_INSPECCION,
+            default => null,
+        };
+        if ($listaMotivo !== null) {
             if ($motivoId !== null) {
                 try {
-                    $opcion = $this->listas->opcionActiva('rechazo', $motivoId);
+                    $opcion = $this->listas->opcionActiva($listaMotivo, $motivoId);
                 } catch (ListasOpcionesException $e) {
                     throw new AuditoriaException($e->codigo, $e->getMessage(), $e->httpStatus);
                 }
                 $motivoGuardado = $opcion['id'];
                 $comentario = $opcion['nombre'];
             } elseif ($comentario === null) {
-                throw new AuditoriaException('OPCION_REQUERIDA', 'Elige el motivo del rechazo.', 400);
+                throw new AuditoriaException(
+                    'OPCION_REQUERIDA',
+                    $veredicto === Auditoria::VEREDICTO_RECHAZADO
+                        ? 'Elige el motivo del rechazo.'
+                        : 'Elige por qué no se pudo inspeccionar.',
+                    400
+                );
             }
         }
         if ($veredicto === Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION && $itemsDesmarcados === []) {
@@ -111,6 +125,9 @@ final class AuditoriaService
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION => Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
             Auditoria::VEREDICTO_APROBADO_AUTOMATICO => Habitacion::ESTADO_APROBADA_AUTOMATICA,
             Auditoria::VEREDICTO_RECHAZADO => Habitacion::ESTADO_RECHAZADA,
+            // Igual que el cierre automático (decisión de Nicolás, 25/10/2026): Clean en Cloudbeds, sale de la
+            // bandeja y cuenta como aprobada para la trabajadora y como no inspeccionada para la sección.
+            Auditoria::VEREDICTO_SIN_INSPECCION => Habitacion::ESTADO_APROBADA_AUTOMATICA,
         };
         $origenCambio = $veredicto === Auditoria::VEREDICTO_APROBADO_AUTOMATICO ? 'cron' : 'ui';
 
@@ -162,6 +179,7 @@ final class AuditoriaService
             Auditoria::VEREDICTO_APROBADO,
             Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION,
             Auditoria::VEREDICTO_APROBADO_AUTOMATICO,
+            Auditoria::VEREDICTO_SIN_INSPECCION,
         ], true)) {
             if ($this->cloudbeds !== null) {
                 try {

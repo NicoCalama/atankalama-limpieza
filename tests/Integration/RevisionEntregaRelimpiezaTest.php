@@ -388,7 +388,8 @@ final class RevisionEntregaRelimpiezaTest extends TestCase
         $this->assertSame(33.3, $mes['recepcion_calidad_pct']);
 
         $sup = $rep->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Supervisores'];
-        $this->assertSame('Recepción: calidad %', $sup[array_search(['TOTAL AMBOS HOTELES'], $sup, true) + 1][8]);
-        $this->assertSame([2, 1, 33.3], array_slice($sup[count($sup) - 1], 6), 'TOTAL de ambos hoteles');
+        // v7.11: la columna «Sin inspección» va antes de «Observaciones», así que Recepción corre una columna.
+        $this->assertSame('Recepción: calidad %', $sup[array_search(['TOTAL AMBOS HOTELES'], $sup, true) + 1][9]);
+        $this->assertSame([2, 1, 33.3], array_slice($sup[count($sup) - 1], 7), 'TOTAL de ambos hoteles');
     }
 }

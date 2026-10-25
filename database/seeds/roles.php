@@ -46,6 +46,7 @@ return [
             'auditoria.aprobar',
             'auditoria.aprobar_con_observacion',
             'auditoria.rechazar',
+            'auditoria.sin_inspeccion',
             'auditoria.editar_checklist_durante_auditoria',
             'auditoria.reordenar_bandeja',
             'tickets.crear',
@@ -83,6 +84,7 @@ return [
             'auditoria.aprobar',
             'auditoria.aprobar_con_observacion',
             'auditoria.rechazar',
+            'auditoria.sin_inspeccion',
             'auditoria.editar_checklist_durante_auditoria',
             'auditoria.reordenar_bandeja',
             // Inspección pre-entrega (04/10/2026): revisa la pieza antes de entregarla al huésped, desde

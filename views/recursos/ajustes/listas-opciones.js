@@ -8,6 +8,8 @@ function listasOpcionesApp() {
     // las dos listas de tickets.
     var LISTAS = {
         rechazo:      { id: 'rechazo',      icono: 'x-circle',         titulo: 'Rechazar una habitación',         quien: 'la supervisora', quienCorto: 'la supervisora', cuando: 'al rechazar en la inspección, además de marcar los ítems fallidos', ejemplo: 'Baño sucio' },
+        // v7.11: la pieza sale de la bandeja y queda como las que aprueba el sistema.
+        sin_inspeccion: { id: 'sin_inspeccion', icono: 'door-closed',   titulo: 'No se pudo inspeccionar',         quien: 'la supervisora', quienCorto: 'la supervisora', cuando: 'cuando no puede inspeccionar una pieza, por ejemplo porque ya hay un huésped', ejemplo: 'Huésped en la pieza' },
         reasignar:    { id: 'reasignar',    icono: 'arrow-left-right', titulo: 'Cambiar de persona',              quien: 'la supervisora', quienCorto: 'la supervisora', cuando: 'al reasignar una habitación, también al arrastrarla en el tablero', ejemplo: 'Sobrecarga de trabajo' },
         saltar:       { id: 'saltar',       icono: 'skip-forward',     titulo: 'No puedo limpiarla ahora',        quien: 'la trabajadora', quienCorto: 'la trabajadora', cuando: 'cuando no puede entrar o terminar una habitación de su cola', ejemplo: 'Falta un insumo' },
         no_recepcion: { id: 'no_recepcion', icono: 'concierge-bell',   titulo: 'NO de la inspección pre-entrega', quien: 'Recepción',      quienCorto: 'Recepción',      cuando: 'al marcar NO antes de entregar la pieza', ejemplo: 'Mal olor' },
@@ -21,7 +23,7 @@ function listasOpcionesApp() {
         cargando: false,
         error: '',
         grupos: [
-            { titulo: 'Supervisora', listas: [LISTAS.rechazo, LISTAS.reasignar] },
+            { titulo: 'Supervisora', listas: [LISTAS.rechazo, LISTAS.sin_inspeccion, LISTAS.reasignar] },
             { titulo: 'Trabajadora', listas: [LISTAS.saltar] },
             { titulo: 'Recepción',   listas: [LISTAS.no_recepcion, LISTAS.nota_recepcion] },
             { titulo: 'Tickets',     listas: [LISTAS.ticket_tipo, LISTAS.ticket_respuesta] },

@@ -5,7 +5,7 @@
  *
  * Dos modos:
  *  - Pendiente: estado='completada_pendiente_auditoria', sin registro en auditorias.
- *    Muestra 3 botones (Aprobar / Aprobar c/obs. / Rechazar) filtrados por permisos.
+ *    Muestra 4 botones (Aprobar / Aprobar c/obs. / Rechazar / No se pudo inspeccionar) filtrados por permisos.
  *  - Histórica: habitación ya auditada (aprobada / aprobada_con_observacion / rechazada).
  *    Vista read-only con badge "Auditada", resumen, sin botones.
  *
@@ -15,6 +15,9 @@
  *    desmarcadas (>=1) SON la observación (v7.3, sin comentario escrito).
  *  - Rechazar: desmarca los ítems fallidos (>=1, se re-limpian) + elige el motivo de la
  *    lista «rechazo» (v7.3, Ajustes → Checklists y listas), botón "Confirmar rechazo".
+ *  - No se pudo inspeccionar (v7.11, veredicto 'sin_inspeccion'; en reportes «Sin inspección»): ya
+ *    hay un huésped, por ejemplo. Elige el motivo de la lista «sin_inspeccion», sin tocar el checklist;
+ *    la pieza sale de la bandeja y queda como las que aprueba el sistema (aprobada_automatica, Clean).
  *  Desde la v7.3 (gerencia, 10/10/2026) no hay cuadro de texto ni dictado por voz.
  *  - Inmutabilidad: backend rechaza con 409 si ya hay auditoría.
  *
@@ -108,7 +111,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                     <div class="flex flex-col items-end gap-2">
                         <span x-html="badgeEstado(habitacion.estado)"></span>
-                        <template x-if="esAuditada">
+                        <!-- «No se pudo inspeccionar» (v7.11) no lleva «Inspeccionada»: lo dice el resumen de abajo. -->
+                        <template x-if="esAuditada && !(auditoria && auditoria.veredicto === 'sin_inspeccion')">
                             <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full">
                                 <i data-lucide="lock" class="w-3 h-3"></i> Inspeccionada
                             </span>
@@ -126,6 +130,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                 'bg-green-100 dark:bg-green-900/30': auditoria.veredicto === 'aprobado',
                                 'bg-amber-100 dark:bg-amber-900/30': auditoria.veredicto === 'aprobado_con_observacion',
                                 'bg-cyan-100 dark:bg-cyan-900/30': auditoria.veredicto === 'aprobado_automatico',
+                                'bg-slate-200 dark:bg-slate-700/50': auditoria.veredicto === 'sin_inspeccion',
                                 'bg-red-100 dark:bg-red-900/30': auditoria.veredicto === 'rechazado'
                              }">
                             <i :data-lucide="iconoVeredicto(auditoria.veredicto)" class="w-5 h-5"
@@ -133,6 +138,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                     'text-green-600 dark:text-green-400': auditoria.veredicto === 'aprobado',
                                     'text-amber-600 dark:text-amber-400': auditoria.veredicto === 'aprobado_con_observacion',
                                     'text-cyan-600 dark:text-cyan-400': auditoria.veredicto === 'aprobado_automatico',
+                                    'text-slate-600 dark:text-slate-300': auditoria.veredicto === 'sin_inspeccion',
                                     'text-red-600 dark:text-red-400': auditoria.veredicto === 'rechazado'
                                }"></i>
                         </div>
@@ -143,7 +149,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                     <template x-if="auditoria.comentario">
                         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide" x-text="auditoria.veredicto === 'rechazado' ? 'Motivo' : 'Observación'"></p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide" x-text="(auditoria.veredicto === 'rechazado' || auditoria.veredicto === 'sin_inspeccion') ? 'Motivo' : 'Observación'"></p>
                             <p class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap" x-text="auditoria.comentario"></p>
                         </div>
                     </template>
@@ -187,9 +193,21 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                 </div>
             </template>
+            <template x-if="modo === 'sin_inspeccion'">
+                <div class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg p-3 flex items-start gap-3">
+                    <i data-lucide="door-closed" class="w-5 h-5 text-slate-600 dark:text-slate-300 flex-shrink-0 mt-0.5"></i>
+                    <div class="text-sm text-slate-900 dark:text-slate-100">
+                        <p class="font-semibold">No se pudo inspeccionar</p>
+                        <p>
+                            <span>Elige por qué. Sale de la lista de Inspección para que nadie más vaya y queda como las que aprueba el sistema</span><span x-show="!esEspacio"> (Clean en Cloudbeds)</span><span>. No se puede deshacer.</span>
+                        </p>
+                        <p class="mt-1 font-medium" x-show="motivoId === null">Elige el motivo.</p>
+                    </div>
+                </div>
+            </template>
 
-            <!-- Checklist -->
-            <template x-if="items.length > 0">
+            <!-- Checklist (en «No se pudo inspeccionar» no se muestra: no se revisó nada) -->
+            <template x-if="items.length > 0 && modo !== 'sin_inspeccion'">
                 <div data-tour="aud2.checklist" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Checklist ejecutado</p>
@@ -227,27 +245,30 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </div>
             </template>
 
-            <!-- Motivo del rechazo: se elige de la lista (v7.3, gerencia 10/10/2026: sin cuadros de texto). La
-                 observación no lleva motivo: son las casillas desmarcadas. Opciones en Ajustes → Checklists y listas. -->
-            <template x-if="modo === 'rechazo'">
+            <!-- Motivo del rechazo y de «No se pudo inspeccionar» (v7.11): se elige de la lista (v7.3, gerencia
+                 10/10/2026: sin cuadros de texto). La observación no lleva motivo: son las casillas desmarcadas.
+                 Opciones en Ajustes → Checklists y listas. -->
+            <template x-if="modo === 'rechazo' || modo === 'sin_inspeccion'">
                 <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4" data-tour="aud2.motivo">
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo del rechazo <span class="text-red-500">*</span></p>
-                    <template x-if="motivosCargando && motivosRechazo.length === 0">
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"><span x-text="modo === 'rechazo' ? 'Motivo del rechazo' : '¿Por qué no se pudo inspeccionar?'"></span> <span class="text-red-500">*</span></p>
+                    <template x-if="motivosCargando && motivosDelModo.length === 0">
                         <p class="text-sm text-gray-500 dark:text-gray-400">Cargando motivos...</p>
                     </template>
                     <template x-if="motivosError">
                         <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-sm text-red-700 dark:text-red-300">
                             <p x-text="motivosError"></p>
-                            <button type="button" @click="cargarMotivosRechazo()" class="mt-2 min-h-[40px] px-3 rounded-lg bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 font-medium">Reintentar</button>
+                            <button type="button" @click="cargarMotivos()" class="mt-2 min-h-[40px] px-3 rounded-lg bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 font-medium">Reintentar</button>
                         </div>
                     </template>
-                    <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Motivo del rechazo">
-                        <template x-for="m in motivosRechazo" :key="m.id">
+                    <div class="grid grid-cols-2 gap-2" role="radiogroup" :aria-label="modo === 'rechazo' ? 'Motivo del rechazo' : 'Motivo de no inspeccionar'">
+                        <template x-for="m in motivosDelModo" :key="m.id">
                             <button type="button" role="radio" :aria-checked="motivoId === m.id ? 'true' : 'false'"
                                     @click="motivoId = m.id" :disabled="enviando"
-                                    :class="motivoId === m.id
-                                        ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
-                                        : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                                    :class="motivoId !== m.id
+                                        ? 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        : (modo === 'rechazo'
+                                            ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                                            : 'border-slate-600 bg-slate-100 text-slate-900 dark:border-slate-300 dark:bg-slate-600 dark:text-white')"
                                     class="min-h-[56px] rounded-xl border-2 px-3 text-base font-medium text-left flex items-center justify-between gap-2">
                                 <span x-text="m.nombre"></span>
                                 <span x-show="motivoId === m.id" aria-hidden="true">✓</span>
@@ -282,7 +303,15 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                             <span><span :class="altActivo ? 'underline' : ''">R</span>echazar</span>
                         </button>
                     </template>
-                    <template x-if="!puedeAprobar && !puedeAprobarConObservacion && !puedeRechazar">
+                    <!-- v7.11: ya hay un huésped (u otro motivo de la lista): sale de la bandeja para que nadie más vaya. -->
+                    <template x-if="puedeSinInspeccion">
+                        <button @click="iniciarSinInspeccion()"
+                                class="w-full min-h-[56px] bg-slate-600 hover:bg-slate-700 active:bg-slate-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                            <i data-lucide="door-closed" class="w-5 h-5"></i>
+                            <span><span :class="altActivo ? 'underline' : ''">N</span>o se pudo inspeccionar</span>
+                        </button>
+                    </template>
+                    <template x-if="!puedeAprobar && !puedeAprobarConObservacion && !puedeRechazar && !puedeSinInspeccion">
                         <p class="text-center text-sm text-gray-500 dark:text-gray-400 py-4">
                             No tienes permisos para emitir veredicto en esta habitación.
                         </p>
@@ -290,8 +319,8 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                 </div>
             </template>
 
-            <!-- Botones en modo observación / rechazo -->
-            <template x-if="modo === 'observacion' || modo === 'rechazo'">
+            <!-- Botones en modo observación / rechazo / no se pudo inspeccionar -->
+            <template x-if="modo !== null">
                 <div class="flex gap-3">
                     <button @click="cancelarModo()"
                             :disabled="enviando"
@@ -301,9 +330,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     <button @click="enviarVeredictoModo()"
                             :disabled="!puedeConfirmarVeredicto || enviando"
                             class="flex-1 min-h-[56px] text-white font-semibold rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            :class="modo === 'observacion' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-red-600 hover:bg-red-700'">
+                            :class="modo === 'observacion' ? 'bg-amber-500 hover:bg-amber-600' : (modo === 'rechazo' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-600 hover:bg-slate-700')">
                         <template x-if="enviando"><span>Enviando...</span></template>
-                        <template x-if="!enviando"><span>C<span :class="altActivo ? 'underline' : ''">o</span>nfirmar <span x-text="modo === 'observacion' ? 'observación' : 'rechazo'"></span></span></template>
+                        <template x-if="!enviando"><span>C<span :class="altActivo ? 'underline' : ''">o</span>nfirmar<span x-show="modo !== 'sin_inspeccion'" x-text="modo === 'observacion' ? ' observación' : ' rechazo'"></span></span></template>
                     </button>
                 </div>
             </template>
@@ -370,16 +399,19 @@ function auditoriaDetalleApp(habitacionId) {
         puedeAprobarConObservacion: false,
         puedeRechazar: false,
         puedeEditarChecklist: false,
+        puedeSinInspeccion: false, // v7.11 «No se pudo inspeccionar»
 
         // Estado de interacción
-        modo: null, // null | 'observacion' | 'rechazo'
+        modo: null, // null | 'observacion' | 'rechazo' | 'sin_inspeccion'
         itemsDesmarcadosNuevos: [],
         mostrarConfirmarAprobar: false,
         altActivo: false, // Alt (Windows) / Option (Mac) presionado: subraya las teclas de acceso
 
-        // Motivo del rechazo (v7.3): opción de la lista «rechazo», se pide al entrar en modo rechazo.
+        // Motivo del rechazo (v7.3): opción de la lista «rechazo», se pide al entrar en modo rechazo. El de
+        // «No se pudo inspeccionar» (v7.11) sale de la lista «sin_inspeccion». Una sola a la vez (un modo).
         motivoId: null,
         motivosRechazo: [],
+        motivosSinInspeccion: [],
         motivosCargando: false,
         motivosError: '',
 
@@ -408,9 +440,16 @@ function auditoriaDetalleApp(habitacionId) {
             return false;
         },
 
+        // Opciones de la lista del modo en curso (rechazo o «No se pudo inspeccionar»).
+        get motivosDelModo() {
+            return this.modo === 'sin_inspeccion' ? this.motivosSinInspeccion : this.motivosRechazo;
+        },
+
         get puedeConfirmarVeredicto() {
-            // Ambos exigen al menos una casilla: en el rechazo es lo que hay que rehacer y en la observación
-            // es la observación misma. El rechazo además lleva su motivo de la lista.
+            // «No se pudo inspeccionar» solo lleva su motivo: no se revisó nada, no hay casillas.
+            if (this.modo === 'sin_inspeccion') return this.motivoId !== null;
+            // Los otros dos exigen al menos una casilla: en el rechazo es lo que hay que rehacer y en la
+            // observación es la observación misma. El rechazo además lleva su motivo de la lista.
             if (this.itemsDesmarcadosNuevos.length === 0) return false;
             if (this.modo === 'rechazo') return this.motivoId !== null;
             return true;
@@ -456,6 +495,7 @@ function auditoriaDetalleApp(habitacionId) {
             if (v === 'aprobado') return 'check-circle';
             if (v === 'aprobado_con_observacion') return 'alert-triangle';
             if (v === 'aprobado_automatico') return 'clock';
+            if (v === 'sin_inspeccion') return 'door-closed';
             if (v === 'rechazado') return 'x-circle';
             return 'circle';
         },
@@ -464,6 +504,7 @@ function auditoriaDetalleApp(habitacionId) {
             if (v === 'aprobado') return 'Aprobado';
             if (v === 'aprobado_con_observacion') return 'Aprobado con observación';
             if (v === 'aprobado_automatico') return 'Aprobado automático (sin auditoría real)';
+            if (v === 'sin_inspeccion') return 'No se pudo inspeccionar';
             if (v === 'rechazado') return 'Rechazado';
             return v;
         },
@@ -497,6 +538,7 @@ function auditoriaDetalleApp(habitacionId) {
                 this.puedeAprobarConObservacion = auth.tienePermiso('auditoria.aprobar_con_observacion');
                 this.puedeRechazar = auth.tienePermiso('auditoria.rechazar');
                 this.puedeEditarChecklist = auth.tienePermiso('auditoria.editar_checklist_durante_auditoria');
+                this.puedeSinInspeccion = auth.tienePermiso('auditoria.sin_inspeccion');
             }
 
             try {
@@ -512,7 +554,7 @@ function auditoriaDetalleApp(habitacionId) {
 
                 // Avisar la apertura (KPI "tiempo por auditación") solo si la pieza está pendiente
                 // y quien entra puede emitir veredicto. Fire-and-forget: nunca bloquea la pantalla.
-                if (!this.esAuditada && (this.puedeAprobar || this.puedeAprobarConObservacion || this.puedeRechazar)) {
+                if (!this.esAuditada && (this.puedeAprobar || this.puedeAprobarConObservacion || this.puedeRechazar || this.puedeSinInspeccion)) {
                     apiPost('/api/auditoria/' + this.habitacionId + '/iniciar', {}).catch(function () {});
                 }
             } catch (e) {
@@ -547,18 +589,34 @@ function auditoriaDetalleApp(habitacionId) {
             this.modo = 'rechazo';
             this.motivoId = null;
             this.itemsDesmarcadosNuevos = [];
-            if (this.motivosRechazo.length === 0) this.cargarMotivosRechazo();
+            this.motivosError = '';
+            if (this.motivosRechazo.length === 0) this.cargarMotivos();
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
-        async cargarMotivosRechazo() {
+        // v7.11: «No se pudo inspeccionar» (ya hay un huésped…). Solo se elige el motivo, el checklist no se toca.
+        iniciarSinInspeccion() {
+            if (!this.puedeSinInspeccion || this.esAuditada) return;
+            this.modo = 'sin_inspeccion';
+            this.motivoId = null;
+            this.itemsDesmarcadosNuevos = [];
+            this.motivosError = '';
+            if (this.motivosSinInspeccion.length === 0) this.cargarMotivos();
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // Carga la lista del modo en curso: «rechazo» o «sin_inspeccion».
+        async cargarMotivos() {
+            var modo = this.modo;
+            var lista = modo === 'sin_inspeccion' ? 'sin_inspeccion' : 'rechazo';
             this.motivosCargando = true;
             this.motivosError = '';
             try {
-                var json = await apiFetch('/api/listas/rechazo');
+                var json = await apiFetch('/api/listas/' + lista);
                 if (json && json.ok) {
-                    this.motivosRechazo = json.data.opciones || [];
-                    if (this.motivosRechazo.length === 0) {
+                    var opciones = json.data.opciones || [];
+                    if (lista === 'sin_inspeccion') { this.motivosSinInspeccion = opciones; } else { this.motivosRechazo = opciones; }
+                    if (opciones.length === 0 && this.modo === modo) {
                         this.motivosError = 'No hay motivos cargados. Pídele a administración que los agregue en Ajustes → Checklists y listas.';
                     }
                 } else {
@@ -598,9 +656,10 @@ function auditoriaDetalleApp(habitacionId) {
             if (e.code === 'KeyA' && this.puedeAprobar) { e.preventDefault(); this.pedirConfirmacionAprobar(); }
             else if (e.code === 'KeyO' && this.puedeAprobarConObservacion && this.puedeEditarChecklist) { e.preventDefault(); this.iniciarObservacion(); }
             else if (e.code === 'KeyR' && this.puedeRechazar) { e.preventDefault(); this.iniciarRechazo(); }
+            else if (e.code === 'KeyN' && this.puedeSinInspeccion) { e.preventDefault(); this.iniciarSinInspeccion(); }
         },
 
-        // Escape: cierra el modal, o sale del modo observación/rechazo (equivalente a Cancelar).
+        // Escape: cierra el modal, o sale del modo observación/rechazo/sin inspección (equivalente a Cancelar).
         manejarEscape() {
             if (this.mostrarConfirmarAprobar) {
                 if (!this.enviando) this.mostrarConfirmarAprobar = false;
@@ -623,10 +682,12 @@ function auditoriaDetalleApp(habitacionId) {
 
         async enviarVeredictoModo() {
             if (!this.puedeConfirmarVeredicto || this.enviando) return;
-            var veredicto = this.modo === 'observacion' ? 'aprobado_con_observacion' : 'rechazado';
+            var veredicto = { observacion: 'aprobado_con_observacion', rechazo: 'rechazado', sin_inspeccion: 'sin_inspeccion' }[this.modo];
             // Observación y rechazo mandan los ítems desmarcados por el auditor; el rechazo, además, su motivo.
-            var items = this.itemsDesmarcadosNuevos.slice();
-            await this.enviarVeredicto(veredicto, this.modo === 'rechazo' ? this.motivoId : null, items);
+            // «No se pudo inspeccionar» manda solo su motivo.
+            var items = this.modo === 'sin_inspeccion' ? [] : this.itemsDesmarcadosNuevos.slice();
+            var conMotivo = this.modo === 'rechazo' || this.modo === 'sin_inspeccion';
+            await this.enviarVeredicto(veredicto, conMotivo ? this.motivoId : null, items);
         },
 
         async enviarVeredicto(veredicto, motivoId, items) {
@@ -656,6 +717,7 @@ function auditoriaDetalleApp(habitacionId) {
             if (veredicto === 'aprobado') return 'Habitación aprobada.';
             if (veredicto === 'aprobado_con_observacion') return 'Aprobada con observación.';
             if (veredicto === 'rechazado') return 'Habitación rechazada. Volverá a estar sucia.';
+            if (veredicto === 'sin_inspeccion') return 'Listo, salió de la lista de Inspección.';
             return 'Veredicto guardado.';
         },
 

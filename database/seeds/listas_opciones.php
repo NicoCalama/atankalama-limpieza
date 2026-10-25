@@ -66,4 +66,9 @@ return [
         'Necesito acceso a la habitación',
         'Listo, revisar',
     ],
+    // v7.11: «No se pudo inspeccionar» (pedido de Nicolás, 25/10/2026).
+    'sin_inspeccion' => [
+        'Huésped en la pieza',
+        'Cartel No molestar',
+    ],
 ];

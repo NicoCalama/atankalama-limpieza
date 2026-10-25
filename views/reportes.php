@@ -688,7 +688,7 @@
                                                     <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300" x-text="p.hora_termino"></td>
                                                     <td class="px-3 py-2">
                                                         <span :class="p.estado_auditoria === 'auditada_tarde' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
-                                                              x-text="estadoPendiente(p.estado_auditoria)"></span>
+                                                              x-text="estadoPendiente(p)"></span>
                                                     </td>
                                                 </tr>
                                             </template>
@@ -855,6 +855,7 @@
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Aprobadas</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Con observación</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wider">Rechazadas</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Piezas que marcó como «No se pudo inspeccionar» (por ejemplo, ya había un huésped). No son inspecciones: no suman en el Total ni en Aprobadas y quedan como las que aprueba el sistema.">Sin inspección</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider" title="Casillas del checklist que desmarcó al inspeccionar (en aprobadas con observación y en rechazadas). Es lo mismo que «Observ.» de los trabajadores, contado desde quien inspecciona.">Observaciones</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="De las piezas que aprobó, las que Recepción aprobó (verde) y no aprobó (rojo) para entregar en la inspección pre-entrega, revisadas mientras seguían aprobadas y según la fecha de la revisión de Recepción. Una pieza cuenta una vez: si recibió algún NO, cuenta como no aprobada.">Recepción</th>
                                 <th class="px-4 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Calidad según Recepción: (aprobadas − no aprobadas) ÷ las que Recepción revisó × 100, con las mismas piezas de la columna «Recepción». Cada NO pesa el doble (18 SÍ y 2 NO = 80 %). Nunca baja de 0 %. Sin revisiones de Recepción en el período: —.">Calidad</th>
@@ -868,6 +869,7 @@
                                     <td class="px-4 py-3 text-right text-emerald-700 dark:text-emerald-400 font-semibold" x-text="a.aprobadas"></td>
                                     <td class="px-4 py-3 text-right text-amber-700 dark:text-amber-400 font-semibold" x-text="a.aprobadas_observacion"></td>
                                     <td class="px-4 py-3 text-right text-red-700 dark:text-red-400 font-semibold" x-text="a.rechazadas"></td>
+                                    <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-semibold" x-text="a.sin_inspeccion ?? 0"></td>
                                     <td class="px-4 py-3 text-right text-gray-700 dark:text-gray-300 font-semibold" x-text="a.observaciones"></td>
                                     <td class="px-4 py-3 text-right whitespace-nowrap tabular-nums">
                                         <span class="font-semibold text-emerald-700 dark:text-emerald-400" x-text="a.recepcion_aprobadas"></span><span class="text-gray-400 dark:text-gray-500"> / </span><span class="font-semibold text-red-700 dark:text-red-400" x-text="a.recepcion_rechazadas"></span>
@@ -1491,8 +1493,10 @@ function reportes() {
                 : 'Turno tarde (18:00 en adelante)';
         },
 
-        estadoPendiente(estado) {
-            return this.estadosPendiente[estado] || estado;
+        // Igual que ReportesService::textoEstadoPendiente(): «Sin inspección» (v7.11) lleva su motivo.
+        estadoPendiente(p) {
+            var texto = this.estadosPendiente[p.estado_auditoria] || p.estado_auditoria;
+            return p.motivo ? texto + ' (' + p.motivo + ')' : texto;
         },
 
         // Descarga un archivo (CSV o Excel); si el servidor no lo entrega, lo avisa en vez de no hacer nada.
