@@ -421,6 +421,7 @@ FTP** (§10); el ZIP completo queda para cambios grandes o de `vendor/`.
 | 2026-10-18 | **Sin tiempo mínimo para terminar ni KPIs de tiempo** → **v7.10** (feat `b7f3e53`, CHANGELOG fechado `dd8fb6c`; rama `v7.10-sin-tiempos`, desde `20332d4`) | Pedido de Nicolás del mismo día: empezó por sacar el bloqueo de tiempo a las piezas nochero y lo amplió a todas las limpiezas y a los KPIs de tiempo. Sin los 3 min para terminar (habitaciones y áreas comunes; sale el mínimo por área de la v7.6, cuya columna queda en la BD sin uso), y fuera tiempo promedio, ritmo y tiempo por auditación de Reportes y el tiempo promedio del Inicio del Admin. Decisiones de Nicolás: se mantienen las alertas predictivas, sale el tiempo por auditación. Runbook §11.38. Suite 823 (1 omitido; falla solo el health de entorno porque no hay `.env` de dev). ZIP de 12 archivos, **sin SQL**; subido ~18:45 y smoke OK (Nicolás). |
 | 2026-10-18 | **Terminar la habitación sin ventana de confirmación** → **v7.10.1** (feat `468dcb1`, CHANGELOG fechado `fa5a7b6`; rama `v7.10.1-sin-confirmar`, desde `8e7c364`) | Pedido de Nicolás en el smoke de la v7.10: «Habitación terminada» ya no abre la ventana «¿Habitación terminada? … Pasará a inspección y no podrás editarla.»; termina al tiro (el botón sigue prendiéndose solo con todo lo obligatorio marcado). Runbook §11.39. ZIP de 2 archivos (`CHANGELOG.md`, `views/habitacion-detalle.php`), **sin SQL**; subido ~19:05 y smoke OK (Nicolás). |
 | 2026-10-25 | **«No se pudo inspeccionar» en la inspección, «Sin inspección» en reportes** → **v7.11** (feat `e2d6bac`, CHANGELOG fechado `e925a4f`; rama `v7.11-sin-inspeccion`, desde `bb56662`) | Pedido de Nicolás del mismo día: la supervisora llega y ya hay un huésped; la pieza seguía en la bandeja y otra volvía a tocar la puerta. 4.º botón con motivo de la lista nueva «sin_inspeccion»; veredicto `sin_inspeccion`, la pieza queda `aprobada_automatica` (Clean) y cuenta como el cierre automático en los KPIs; en reportes, «Sin inspección» (pendientes al corte y columna propia en el resumen mensual). Permiso nuevo `auditoria.sin_inspeccion` (quien aprueba). Runbook §11.40. Suite 832 (1 omitido; falla solo el health de entorno). **Con SQL** (2 `MODIFY COLUMN`, lista y permiso): precheck OK, SQL ~07:05 y comprobado (2 CHECK con el valor, 2 opciones, 3 roles); ZIP de 20 archivos después; smoke OK con la PRUEBA (Nicolás). |
+| 2026-10-27 | **Código listo para PHP 8.5 sin dejar de correr en 8.4** → **v7.12** (chore `dbf4c74`, revisión de seguridad `1a7f1e1`, CHANGELOG fechado `3ade90f`; directo en `main`, desde `bc7131d`) | PHP2Shell (CVE-2026-109618 / CVE-2026-109619): prod en `PHP/8.4.26`, vulnerable, y el hosting pasa a 8.5 antes del 30/10. Se sacan `curl_close()`, `imagedestroy()` y `setAccessible()` (obsoletas en 8.5, sin efecto desde 8.0); wrappers de cron con la 8.5 si existe y, si no, la 8.4 (**no subidos todavía**). Runbook §11.41; revisión de seguridad en `docs/seguridad-php2shell-2026-10.md`. Suite 832 y PHPStan iguales en 8.5.12 y 8.4 (falla solo el health de entorno). ZIP de 5 archivos, **sin SQL**; subido el 27/10 ~02:00: badge v7.12 y health 200 (Nicolás), confirmado 01:59 con `checks.esquema.ok: true` y todavía `X-Powered-By: PHP/8.4.26`. Ticket con foto en la PRUEBA OK (#287, 02:08); sync de Cloudbeds OK (`auto_cron` 18131, 02:00:02, `exito`, 0 errores). Copia a Novedades: pendiente del primer ticket real (los de la PRUEBA no van). |
 
 > **⚠️ Gotcha crítico de la extracción (lección real 18/07/2026):** el **Extract del
 > File Manager de cPanel MEZCLA carpetas: crea los archivos nuevos pero NO pisa los
@@ -3204,10 +3205,27 @@ el hosting cambie.
 **Smoke (con PHP 8.4, al subir):**
 1. Badge **v7.12** (incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
 2. Con la habitación PRUEBA: crear un ticket con foto → la foto se ve en el detalle (pasa por `ImagenAdjuntoService`).
-3. La siguiente sincronización con Cloudbeds sale `exito` (Ajustes → Cloudbeds o `$HOME/logs/limpieza-sync.log`;
-   pasa por `CurlTransport`).
+3. La siguiente sincronización con Cloudbeds sale `exito` (pasa por `CurlTransport`). La tarjeta «Salud del
+   sistema» del Inicio del Admin solo muestra la última y dice «OK» también con `parcial`; para verlas todas desde
+   el deploy (las horas de la BD van en UTC, Chile = UTC−3):
+   ```sql
+   SELECT id, tipo, iniciada_at, resultado, habitaciones_sincronizadas, errores_count, error_mensaje
+     FROM cat6852_australia.limpieza_cloudbeds_sync_historial
+    WHERE iniciada_at >= '2026-10-27T05:00'
+    ORDER BY id;
+   ```
 
 **Después del cambio del hosting a 8.5:** la cabecera `X-Powered-By` dice `PHP/8.5.12` o más; repetir el smoke; en
 `$HOME/logs/limpieza-sync.log` y en el `error_log` no aparecen `Deprecated` ni errores nuevos; y pasar a la 8.5
 los cron de jefatura. Si algo falla con 8.5, la vuelta atrás es pedir al hosting la 8.4 **parchada** (8.4.27 o
 más), no subir el ZIP viejo: el código de la v7.12 corre igual en 8.4.
+
+**Deploy (27/10/2026 ~02:00, con PHP 8.4.26):** ZIP desde `3ade90f`. Smoke OK (Nicolás):
+1. Badge v7.12 y `/api/health` 200 con `checks.esquema.ok: true`.
+2. Ticket #287 con foto en la PRUEBA (02:08): la foto se ve en el detalle y sale bien orientada. Lo marcó resuelto.
+3. Sync `auto_cron` 18131 (02:00:02, ya con la v7.12): `exito`, 0 errores, 0 piezas cambiadas (de madrugada es lo
+   normal). El sync se regula solo a 30 min, así que una fila cada media hora es lo esperado.
+
+Falta: la copia a Novedades (`NovedadesSyncService`) no se probó, porque los tickets de la PRUEBA no van a Novedades
+(v7.5). Con el primer ticket real (id 288 o más), `novedad_id` tiene que traer un número, como los tickets 280 a
+286 (2140 a 2146). También quedan los wrappers de cron y todo lo de «después del cambio del hosting a 8.5».
