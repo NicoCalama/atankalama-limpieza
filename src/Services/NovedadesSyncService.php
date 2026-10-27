@@ -264,7 +264,6 @@ final class NovedadesSyncService
         $errno = curl_errno($ch);
         $errMsg = curl_error($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($errno !== 0 || $cuerpo === false) {
             return ['ok' => false, 'motivo' => $errMsg !== '' ? $errMsg : "curl errno {$errno}"];

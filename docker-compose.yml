@@ -2,7 +2,7 @@
 #
 # NO es un artefacto de producción: en cPanel el PHP y MariaDB los provee el
 # host (ver docs/migracion-mariadb-cpanel.md). Esto solo levanta, en local, un
-# PHP 8.4 + MariaDB 10.11 equivalentes para validar el dialecto y el esquema
+# PHP 8.5 + MariaDB 10.11 equivalentes para validar el dialecto y el esquema
 # `limpieza_*` antes del deploy.
 #
 # Uso:

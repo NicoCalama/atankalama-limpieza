@@ -74,7 +74,6 @@ final class SistemaControllerTest extends TestCase
     {
         $refl = new \ReflectionClass(\Atankalama\Limpieza\Core\Config::class);
         $prop = $refl->getProperty('values');
-        $prop->setAccessible(true);
         $original = $prop->getValue();
         $modificado = $original;
         $modificado['SESSION_SECRET'] = '';

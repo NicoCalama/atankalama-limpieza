@@ -7,7 +7,9 @@
 #
 # PHP_BIN: descubrir con el probe whichphp (ver runbook §crons).
 
-PHP_BIN="/opt/alt/php84/usr/bin/php"
+# El hosting pasa de PHP 8.4 a 8.5 (oct 2026): la 8.5 si está instalada, si no la 8.4.
+PHP_BIN="/opt/alt/php85/usr/bin/php"
+[ -x "$PHP_BIN" ] || PHP_BIN="/opt/alt/php84/usr/bin/php"
 APP="$HOME/public_html/limpieza/app_core"
 # Log fuera del webroot (ver limpieza-sync-cloudbeds.sh).
 LOGDIR="$HOME/logs"

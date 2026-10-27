@@ -96,14 +96,12 @@ final class ImagenAdjuntoService
             imagealphablending($redimensionada, false);
             imagesavealpha($redimensionada, true);
             imagecopyresampled($redimensionada, $imagen, 0, 0, 0, 0, $anchoFinal, $altoFinal, $anchoOriginal, $altoOriginal);
-            imagedestroy($imagen);
             $imagen = $redimensionada;
         }
 
         $destino = $this->rutaDestino($subcarpeta);
         $dir = dirname($destino['absoluta']);
         if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
-            imagedestroy($imagen);
             throw new ImagenException('ERROR_GUARDADO', 'No se pudo preparar la carpeta de destino.', 500);
         }
 
@@ -114,8 +112,6 @@ final class ImagenAdjuntoService
             $peso = filesize($destino['absoluta']) ?: 0;
             $calidad -= self::CALIDAD_PASO;
         } while ($peso > self::MAX_BYTES_SALIDA && $calidad >= self::CALIDAD_MINIMA);
-
-        imagedestroy($imagen);
 
         if ($peso === 0 || !is_file($destino['absoluta'])) {
             throw new ImagenException('ERROR_GUARDADO', 'No se pudo guardar la imagen procesada.', 500);
@@ -139,7 +135,6 @@ final class ImagenAdjuntoService
             default => $imagen,
         };
         if ($rotada instanceof GdImage && $rotada !== $imagen) {
-            imagedestroy($imagen);
             return $rotada;
         }
         return $imagen;

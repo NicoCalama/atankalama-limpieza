@@ -23,7 +23,7 @@
 | `.env` real | `app_core/.env` (chmod 600) — plantilla en `app_core/.env.production.example` |
 | BD | `cat6852_australia` (COMPARTIDA con Maisterchef), tablas con prefijo `limpieza_` |
 | Usuario MySQL | el de Maisterchef (ALL PRIVILEGES sobre la BD) |
-| PHP | 8.4 (`ea-php84` vía MultiPHP; el server corre 8.4.21) |
+| PHP | 8.4 → **8.5** (el hosting cambia antes del 30/10/2026; desde la v7.12 el código corre en las dos) |
 | Subpath en el código | `BASE_PATH=/limpieza` en `.env` — router, links, API, PWA y cookie lo respetan |
 | Crons | wrappers `.sh` en `/home/cat6852/cron/` (fuera del webroot) |
 | Backups | `mysqldump` acotado a `limpieza_*` → `/home/cat6852/backups/limpieza/` |
@@ -3167,3 +3167,47 @@ columna (más el de `activo`, que es de otra columna), `varchar(30)`/`NO`, 0 y 0
 Supervisora. Después del SQL: `CHECK_CLAUSE LIKE '%sin_inspeccion%'` = 1 en las dos, 2 opciones y 3 roles con el
 permiso. Smoke OK con la PRUEBA del 1 Sur (Nicolás). Observación del smoke: la tarjeta de la PRUEBA queda «APROBADA
 AUTO.», tal como estaba previsto (es el estado de la pieza).
+
+### 11.41 Release "lista para PHP 8.5" → v7.12
+
+Origen: Nicolás, 27/10/2026. PHP2Shell (CVE-2026-109618 / CVE-2026-109619, corregidas el 21/10 en 8.4.27 y 8.5.12):
+producción responde `PHP/8.4.26` y el hosting avisó que pasa a **PHP 8.5 antes del viernes 30/10**. La falla está en
+el PHP del servidor, no en el código; esta versión solo deja la app lista para 8.5 **sin dejar de correr en 8.4**, así
+que se puede subir antes del cambio del hosting. Revisión de seguridad aparte: `docs/seguridad-php2shell-2026-10.md`.
+
+**Qué cambia:** se sacan las llamadas que PHP 8.5 marca como obsoletas y que desde PHP 8.0 no hacen nada:
+`curl_close()` (`src/Services/Http/CurlTransport.php`, `src/Services/NovedadesSyncService.php`), `imagedestroy()`
+(`src/Services/ImagenAdjuntoService.php`, `scripts/generate-icons.php`) y `setAccessible()` (un test). Fuera de eso,
+la revisión contra la lista oficial de 8.5 (obsoletos y cambios incompatibles) no encontró nada en el código; las
+dependencias ya vienen preparadas (Guzzle solo llama a `curl_close()` en PHP 7). `composer.json` sigue pidiendo `^8.4`.
+Suite y PHPStan corridos con PHP 8.5.12 y con 8.4.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`.
+
+**ZIP** `build/limpieza-v712-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.12 del `CHANGELOG.md` fechada antes de armarlo. 5 archivos:
+`CHANGELOG.md`, `scripts/generate-icons.php`, `src/Services/{Http/CurlTransport,ImagenAdjuntoService,NovedadesSyncService}.php`.
+Vuelta atrás: `build/limpieza-v712-vuelta-atras.zip` (los mismos en la v7.11, `bc7131d`).
+
+**Cron:** los 3 wrappers de `deployment/cron/` que llaman a PHP (`limpieza-sync-cloudbeds.sh`,
+`limpieza-recalcular-alertas.sh`, `limpieza-cleanup-retention.sh`) ahora usan `/opt/alt/php85/usr/bin/php` si
+existe y, si no, `/opt/alt/php84/usr/bin/php`. Así no se cortan si el hosting saca la 8.4. Antes de subirlos a
+`$HOME/cron/` (FileZilla en **binario**, LF, `chmod 755`), confirmar que la 8.5 del servidor tiene las extensiones
+(`/opt/alt/php85/usr/bin/php -m`: curl, exif, gd, json, mbstring, openssl, PDO, pdo_mysql; las secciones 1 y 2 de
+`deployment/cpanel/revisar-php2shell.sh` lo muestran). Si está instalada pero le falta alguna, **no** subir los
+wrappers nuevos hasta que el hosting la habilite. Los cron que agregó jefatura por fuera (cierre de día, correo de
+las 23:50) no pasan por estos wrappers: mirar en cPanel → Cron Jobs qué PHP llaman y pasarlos a la 8.5 cuando
+el hosting cambie.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke (con PHP 8.4, al subir):**
+1. Badge **v7.12** (incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. Con la habitación PRUEBA: crear un ticket con foto → la foto se ve en el detalle (pasa por `ImagenAdjuntoService`).
+3. La siguiente sincronización con Cloudbeds sale `exito` (Ajustes → Cloudbeds o `$HOME/logs/limpieza-sync.log`;
+   pasa por `CurlTransport`).
+
+**Después del cambio del hosting a 8.5:** la cabecera `X-Powered-By` dice `PHP/8.5.12` o más; repetir el smoke; en
+`$HOME/logs/limpieza-sync.log` y en el `error_log` no aparecen `Deprecated` ni errores nuevos; y pasar a la 8.5
+los cron de jefatura. Si algo falla con 8.5, la vuelta atrás es pedir al hosting la 8.4 **parchada** (8.4.27 o
+más), no subir el ZIP viejo: el código de la v7.12 corre igual en 8.4.

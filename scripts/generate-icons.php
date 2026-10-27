@@ -59,7 +59,6 @@ foreach ($sizes as $size) {
 
     $path = "{$outDir}/icon-{$size}.png";
     imagepng($img, $path);
-    imagedestroy($img);
     echo "  [OK] {$path}\n";
 }
 

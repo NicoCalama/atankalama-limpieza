@@ -46,7 +46,6 @@ final class CurlTransport implements HttpTransport
         $errno = curl_errno($ch);
         $errMsg = curl_error($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         if ($errno !== 0 || $cuerpo === false) {
             return new HttpResponse(status: 0, cuerpo: '', errorRed: $errMsg !== '' ? $errMsg : "curl errno {$errno}");

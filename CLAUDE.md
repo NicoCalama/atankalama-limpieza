@@ -4,7 +4,7 @@ Este documento contiene las reglas y convenciones para trabajar en el proyecto *
 
 ## Sobre el proyecto
 
-Aplicación web mobile-first en PHP 8.4 + SQLite para gestionar limpieza hotelera en las dos propiedades de Atankalama Corp (Calama, Chile). Reemplaza Flexkeeping. Integra con Cloudbeds API y con Claude API (copilot conversacional). Ver `plan.md` para el contexto completo.
+Aplicación web mobile-first en PHP 8.5 + SQLite para gestionar limpieza hotelera en las dos propiedades de Atankalama Corp (Calama, Chile). Reemplaza Flexkeeping. Integra con Cloudbeds API y con Claude API (copilot conversacional). Ver `plan.md` para el contexto completo.
 
 ## Documentación obligatoria a consultar
 
@@ -30,7 +30,7 @@ Cuando debas tomar una decisión que no esté especificada en `docs/`, **no la a
 
 ## Stack obligatorio
 
-- **PHP 8.4** — usa features modernos: typed properties, readonly, enums, match expressions, named arguments
+- **PHP 8.5** — usa features modernos: typed properties, readonly, enums, match expressions, named arguments. El código tiene que seguir corriendo en **8.4** (`composer.json` pide `^8.4`): nada exclusivo de 8.5 (operador pipe `|>`, `array_first()`/`array_last()`, `clone with`, `#[\NoDiscard]`, extensión `Uri`) hasta que producción esté en 8.5 y se suba ese mínimo
 - **SQLite** vía PDO — nada de ORMs externos en el MVP
 - **Tailwind CSS via CDN** — sin build step, sin npm para el frontend
 - **Alpine.js via CDN** — para interactividad puntual (checkboxes, modales, FAB, modo día/noche)

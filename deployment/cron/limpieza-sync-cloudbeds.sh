@@ -10,7 +10,9 @@
 # PHP_BIN: descubrir la ruta CLI real con el probe whichphp (ver runbook §crons)
 # — el "php" que resuelve el cron de cPanel es CGI y NO sirve.
 
-PHP_BIN="/opt/alt/php84/usr/bin/php"
+# El hosting pasa de PHP 8.4 a 8.5 (oct 2026): la 8.5 si está instalada, si no la 8.4.
+PHP_BIN="/opt/alt/php85/usr/bin/php"
+[ -x "$PHP_BIN" ] || PHP_BIN="/opt/alt/php84/usr/bin/php"
 APP="$HOME/public_html/limpieza/app_core"
 # Log FUERA del webroot: si el hosting dejara de aplicar .htaccess, que el
 # output del sync (estados de piezas) no quede descargable.
