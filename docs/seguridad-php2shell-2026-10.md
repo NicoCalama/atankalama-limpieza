@@ -1,8 +1,9 @@
 # PHP2Shell (octubre 2026): exposición y revisión
 
 **Estado al 27/10/2026:** producción **vulnerable** (responde `X-Powered-By: PHP/8.4.26`). El hosting avisó que
-pasa a PHP 8.5 antes del viernes 30/10. El código queda listo para 8.5 en la **v7.12** (runbook §11.41 de
-`docs/deploy-cpanel.md`).
+pasa a PHP 8.5 antes del viernes 30/10. El código quedó listo para 8.5 en la **v7.12**, desplegada el 27/10
+~02:00 y probada con 8.4.26 (runbook §11.41 de `docs/deploy-cpanel.md`). Al desplegarla, el servidor seguía en
+`PHP/8.4.26`. Al cierre del 27/10 ~02:20 todavía falta mandar el ticket al hosting (§1) y correr la revisión (§2).
 
 ## Qué pasó
 
