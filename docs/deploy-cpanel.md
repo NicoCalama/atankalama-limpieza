@@ -3341,3 +3341,9 @@ UPDATE cat6852_australia.limpieza_roles SET nombre = 'Trabajador', descripcion =
 5. Áreas comunes en el celular: tarjetas (aunque antes se haya elegido tabla), botones a lo ancho, «Guardar» visible
    con varios ítems, pestaña «Áreas».
 6. Tickets: «Asignar responsable» muestra el atajo «+ Todo Aseo».
+
+**Desplegada el 06/11/2026 por la mañana** (ZIP `build/limpieza-v714-delta.zip` desde `31ffcaa`, que incluye la v7.13,
+más `build/limpieza-v714.sql` para el rol). Nicolás informó el smoke completo OK a las 07:52: badge v7.14, filtro
+«Aseo», preasignación de mañana de una pieza ya limpia movida por la Supervisora, pestañas «Aseo / Otros» en
+Asignaciones y en «Pedir limpieza», Áreas comunes en el celular, atajo «+ Todo Aseo» y el campo RUT de la v7.13. A
+las 07:52 `/api/health` respondía 200 con `checks.esquema.ok: true`.
