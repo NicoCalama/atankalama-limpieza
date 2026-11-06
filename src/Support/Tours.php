@@ -1174,22 +1174,22 @@ final class Tours
             'reportes' => [
                 'nombre' => 'Reportes y KPIs',
                 'capacidad' => 'reportes.ver',
-                // v7.2: la pantalla se ordena en 4 pestañas (Trabajadores, Supervisoras, Recepción, Mensual), un
+                // v7.2: la pantalla se ordena en 4 pestañas (Aseo —«Trabajadores» hasta la v7.14—, Supervisoras, Recepción, Mensual), un
                 // recorrido por pestaña. El contenido de cada pestaña existe solo con ella abierta (x-if): sus pasos
                 // van en modo 'dialogo' — la ayuda mira, no toca — y esperan a que la persona toque la pestaña.
                 'recorridos' => [
                     [
-                        'id' => 'trabajadores', 'v' => 3,
+                        'id' => 'trabajadores', 'v' => 4,
                         'titulo' => 'Indicadores de trabajadores',
                         'pregunta' => '¿Cómo veo los KPIs y la ficha de cada trabajadora?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.pestanas"]', 'titulo' => 'Cuatro pestañas',
-                             'texto' => 'Reportes se ordena en Trabajadores, Supervisoras, Recepción y Mensual. Cada pestaña carga solo lo suyo y la elegida se mantiene aunque recargues la página.'],
+                             'texto' => 'Reportes se ordena en Aseo, Supervisoras, Recepción y Mensual. Cada pestaña carga solo lo suyo y la elegida se mantiene aunque recargues la página.'],
                             ['sel' => '[data-tour="rep.filtros"]', 'titulo' => 'Elige período y hotel',
                              'texto' => 'Con «Hoy», «Últimos 7 días» o «Últimos 30 días» eliges cuánto mirar; «Personalizado» abre un rango. El hotel vale para todas las pestañas y la trabajadora afina solo esta.'],
                             ['sel' => '[data-tour="rep.kpis"]', 'titulo' => 'Los KPIs del equipo',
-                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Trabajadores» y la ayuda sigue sola.',
+                             'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Aseo» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta resume un indicador del período: tasa de rechazo, eficiencia, créditos y más. El puntito de color avisa si va bien (verde), en alerta (amarillo) o crítico (rojo).'],
                             ['sel' => '[data-tour="rep.tabla"]', 'titulo' => 'Detalle por trabajadora',
                              'texto' => 'La tabla desglosa a cada persona: rechazo, eficiencia, créditos, aprobación a la 1ª y productividad. Al tocar una fila, los indicadores de arriba se filtran solo a esa trabajadora.'],

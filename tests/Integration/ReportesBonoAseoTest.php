@@ -110,7 +110,7 @@ final class ReportesBonoAseoTest extends TestCase
         $this->assertSame(100.0, $ana['bono']['eficacia_pct']);
         $this->assertSame(1.0, $ana['bono']['extras'], '3 − 2 × 1');
 
-        $filas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Trabajadores'];
+        $filas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Aseo'];
         $this->assertEquals(['Corte hab./día', 4, 'Jornada parcial', 2], $filas[2]);
         $this->assertSame(
             ['RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas', 'Act. por día', 'Observaciones'],

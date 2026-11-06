@@ -22,7 +22,7 @@ use PHPUnit\Framework\TestCase;
  *   101 (1 Sur)  Ana limpia, Sofía aprueba CON OBSERVACIÓN (1 casilla)
  *   201 (INN)    Ana limpia, Sofía RECHAZA (2 casillas)
  *
- * «Trabajadores» respeta el hotel elegido; «Supervisores» trae SIEMPRE un bloque por hotel y uno con
+ * «Aseo» (antes «Trabajadores») respeta el hotel elegido; «Supervisores» trae SIEMPRE un bloque por hotel y uno con
  * el total, aunque arriba se haya elegido un solo hotel.
  */
 final class ReportesExportarMensualTest extends TestCase
@@ -67,11 +67,11 @@ final class ReportesExportarMensualTest extends TestCase
     public function testTrabajadoresRespetaElHotelYSupervisoresTraeLosDosYElTotal(): void
     {
         $hojas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), '1_sur');
-        $this->assertSame(['Trabajadores', 'Supervisores', 'Recepción'], array_keys($hojas));
+        $this->assertSame(['Aseo', 'Supervisores', 'Recepción'], array_keys($hojas));
         $this->assertContains(['Sin inspecciones pre-entrega en el mes'], $hojas['Recepción'], 'sin inspecciones de Recepción en este escenario');
 
         // Trabajadores, solo 1 Sur: la 101 (hecha); la rechazada de INN no entra.
-        $ana = $this->filaQueEmpiezaCon($hojas['Trabajadores'], '11111111-1');
+        $ana = $this->filaQueEmpiezaCon($hojas['Aseo'], '11111111-1');
         $this->assertSame([1, 1], [$ana[4], $ana[5]], 'hab. limpiadas y hab. hechas del 1 Sur');
 
         // Supervisores: tres bloques aunque el filtro sea 1 Sur.

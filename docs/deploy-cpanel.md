@@ -3347,3 +3347,31 @@ más `build/limpieza-v714.sql` para el rol). Nicolás informó el smoke completo
 «Aseo», preasignación de mañana de una pieza ya limpia movida por la Supervisora, pestañas «Aseo / Otros» en
 Asignaciones y en «Pedir limpieza», Áreas comunes en el celular, atajo «+ Todo Aseo» y el campo RUT de la v7.13. A
 las 07:52 `/api/health` respondía 200 con `checks.esquema.ok: true`.
+
+### 11.44 Release "pestaña Aseo en Reportes" → v7.14.1
+
+Origen: Nicolás, 06/11/2026, después del deploy de la v7.14: la pestaña «Trabajadores» de Reportes también pasa a
+llamarse «Aseo», como el rol.
+
+**Qué cambia:**
+- `views/reportes.php`: etiqueta de la pestaña. El `id` sigue siendo `trabajadores`, porque va en la URL (`#…`) y en
+  la pestaña recordada.
+- `ReportesService::hojasMensual`: la hoja del Excel mensual pasa de «Trabajadores» a «Aseo».
+- Ayuda «?» de Reportes (recorrido `trabajadores` v4).
+- **No cambian:** las columnas «Trabajadora/Trabajador» (nombran a la persona), el título «Ficha de KPIs ·
+  Trabajador» ni los números.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v7141-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.14.1 del `CHANGELOG.md` fechada antes de armarlo. 5 archivos:
+`CHANGELOG.md`, `src/Controllers/ReportesController.php` (solo un comentario), `src/Services/ReportesService.php`,
+`src/Support/Tours.php` y `views/reportes.php`. Vuelta atrás: `build/limpieza-v7141-vuelta-atras.zip` (los mismos
+cinco en la v7.14, `31ffcaa`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.14.1** (incógnito) y `/api/health` 200.
+2. Reportes: la primera pestaña dice «Aseo» y muestra lo mismo que antes.
+3. «Exportar Excel» → resumen mensual: la primera hoja se llama «Aseo».

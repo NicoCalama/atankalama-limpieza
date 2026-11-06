@@ -295,7 +295,8 @@ final class ReportesService
 
     /**
      * Excel del resumen mensual (un solo archivo — pedido de Nicolás, 04/10/2026):
-     *   «Trabajadores» = el resumen por trabajador con el hotel elegido (mismos números que la pantalla);
+     *   «Aseo»         = el resumen por trabajador con el hotel elegido (mismos números que la pantalla;
+     *                    se llamaba «Trabajadores» hasta la v7.14);
      *   «Supervisores» = las inspecciones del mes SIEMPRE con los dos hoteles: un bloque por hotel y
      *                    uno con el total, sin importar el filtro de hotel;
      *   «Recepción»    = la producción de la inspección pre-entrega por recepcionista (v7.1), igual que
@@ -306,7 +307,7 @@ final class ReportesService
     public function hojasMensual(int $anio, int $mes, string $hotel): array
     {
         return [
-            'Trabajadores' => $this->filasMensualTrabajadores($anio, $mes, $hotel),
+            'Aseo'         => $this->filasMensualTrabajadores($anio, $mes, $hotel),
             'Supervisores' => $this->filasMensualSupervisores($anio, $mes),
             'Recepción'    => $this->filasMensualRecepcion($anio, $mes),
         ];
@@ -396,7 +397,7 @@ final class ReportesService
     }
 
     /**
-     * Pestaña «Trabajadores» del resumen mensual (mismos números que la pantalla y que la ficha del mes).
+     * Pestaña «Aseo» del resumen mensual (mismos números que la pantalla y que la ficha del mes).
      *
      * @return list<list<string|int|float|null>>
      */
