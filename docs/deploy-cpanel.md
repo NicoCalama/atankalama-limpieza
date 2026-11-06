@@ -3465,3 +3465,6 @@ extrae en `public_html/`) y la fila de la v7.15.1 del `CHANGELOG.md` fechada ant
 4. Áreas comunes → «Pedir limpieza»: la misma persona en «Otros».
 5. Opcional: asignarle una pieza, y con su usuario abrirla desde Habitaciones y ver «Comenzar limpieza»;
    después quitarle la asignación.
+
+**Desplegada el 06/11/2026 ~18:00** (ZIP `build/limpieza-v7151-delta.zip` desde `9f17a19`, sin SQL). Smoke OK
+(Nicolás).
