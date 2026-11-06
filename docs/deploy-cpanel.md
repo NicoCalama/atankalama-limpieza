@@ -3404,11 +3404,12 @@ inventario sin preasignar (un domingo sin planificar: 148 piezas), también las 
 
 **Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
 
-**ZIP:** se arma al desplegar, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
-`public_html/`) y la fila de la v7.15 del `CHANGELOG.md` fechada antes. Archivos: `CHANGELOG.md`,
+**ZIP** `build/limpieza-v715-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.15 del `CHANGELOG.md` fechada antes (`ef0af8e`). Archivos: `CHANGELOG.md`,
 `src/Services/AsignacionService.php`, `src/Services/CloudbedsClient.php`, `src/Services/OcupacionFuturaService.php`
 (nuevo), `views/asignaciones.php` y `views/componentes/filtro-dia-pool.php` (nuevo). Vuelta atrás: los cuatro que
-existían, en la v7.14.1 (`c1cc4f8`), y borrar los dos nuevos (sin ellos la v7.14.1 no los usa).
+existían, en la v7.14.1 (`c1cc4f8`): `build/limpieza-v715-vuelta-atras.zip`; los dos nuevos pueden quedar (la v7.14.1 no
+los usa).
 
 **Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
 
@@ -3424,3 +3425,10 @@ existían, en la v7.14.1 (`c1cc4f8`), y borrar los dos nuevos (sin ellos la v7.1
 5. Hoy, sin cambios (pool de sucias con sus colores y puntos).
 6. Si sale el aviso ámbar: buscar `getReservations de un día futuro` / `no se pudieron leer las reservas de un día
    futuro` en `storage/logs/` (canal `cloudbeds`).
+
+**Desplegada el 06/11/2026 ~17:20** (ZIP `build/limpieza-v715-delta.zip` desde `ef0af8e`, sin SQL). Smoke OK
+(Nicolás): el pool de un día futuro trae los filtros con su conteo (Todas 116 · Se va 1 · Cambio 3 · Sábanas 5 · Sigue
+105) y las etiquetas en las tarjetas, y las piezas revisadas coinciden con el calendario de Cloudbeds. A las 17:25
+`/api/health` respondía 200 con `checks.esquema.ok: true`. Las 2 piezas de «Todas» que no caen en ningún tipo son las
+que no están enlazadas a Cloudbeds (salen sin etiqueta, como estaba previsto; se ven con el SELECT de
+`cloudbeds_room_id` vacío).
