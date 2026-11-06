@@ -3432,3 +3432,36 @@ los usa).
 `/api/health` respondía 200 con `checks.esquema.ok: true`. Las 2 piezas de «Todas» que no caen en ningún tipo son las
 que no están enlazadas a Cloudbeds (salen sin etiqueta, como estaba previsto; se ven con el SELECT de
 `cloudbeds_room_id` vacío).
+
+### 11.46 Release "supervisora con Apoyo en «Otros»" → v7.15.1
+
+Origen: Nicolás, 06/11/2026. Desde la v7.14 (pestañas «Aseo / Otros») una Supervisora no aparecía para asignarle
+piezas, ni siquiera con el rol Apoyo. «Otros» dejaba fuera a quien reparte (`asignaciones.asignar_manual`) y los
+permisos se suman entre roles: con Supervisora + Apoyo seguía teniendo `asignar_manual`. Hasta la v7.13 sí salía,
+porque la lista era «todos los que tienen turno ese día». Detalle en `docs/asignacion.md` §3.1.
+
+**Qué cambia:**
+- `src/Services/PersonalAsignableService.php`: «Otros» deja fuera solo al Admin (permiso llave
+  `permisos.asignar_a_rol`) y ya no a quien tiene `asignaciones.asignar_manual`. Supervisora con Apoyo → «Otros»,
+  con o sin turno. Supervisora sola → sigue sin salir (no tiene `habitaciones.ver_asignadas_propias`), igual que
+  Recepción y Mantención sin Apoyo (decisión de Nicolás).
+- Vale para Asignaciones (tablero y clásico) y para «Pedir limpieza» de Áreas comunes, que usan la misma lista.
+- **No cambian:** la pestaña «Aseo», el auto-asignar (solo aseo con turno) ni lo que ve la supervisora en su Inicio.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v7151-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.15.1 del `CHANGELOG.md` fechada antes. Archivos: `CHANGELOG.md` y
+`src/Services/PersonalAsignableService.php`. Vuelta atrás: los dos en la v7.15 (`a72a179`):
+`build/limpieza-v7151-vuelta-atras.zip`.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.15.1** (incógnito) y `/api/health` 200.
+2. Usuarios: confirmar que la supervisora de la prueba tiene los roles Supervisora **y** Apoyo.
+3. Asignaciones → hoy: la supervisora aparece en la pestaña «Otros» (con o sin turno cargado). Una supervisora
+   sin Apoyo y el Admin (sin piezas ese día) **no** aparecen.
+4. Áreas comunes → «Pedir limpieza»: la misma persona en «Otros».
+5. Opcional: asignarle una pieza, y con su usuario abrirla desde Habitaciones y ver «Comenzar limpieza»;
+   después quitarle la asignación.

@@ -292,7 +292,7 @@ Permisos por defecto: **todos los del catálogo**, incluidos los permisos de mar
 
 ### 3.5 Apoyo
 
-**Propósito:** personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de Nicolás, 01/10/2026). Trabaja igual que alguien de Aseo —ve sus piezas, marca el checklist, se inspecciona igual y una pieza rechazada vuelve a sucia—, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del reparto automático: la supervisora le asigna a mano (desde la v7.14 aparece en la pestaña «Otros» de Asignaciones y de «Pedir limpieza», tenga o no turno: ver [asignacion.md](asignacion.md)). **No es de sistema** (`es_sistema = 0`): Admin lo puede editar o borrar desde Ajustes.
+**Propósito:** personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de Nicolás, 01/10/2026). Trabaja igual que alguien de Aseo —ve sus piezas, marca el checklist, se inspecciona igual y una pieza rechazada vuelve a sucia—, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del reparto automático: la supervisora le asigna a mano (desde la v7.14 aparece en la pestaña «Otros» de Asignaciones y de «Pedir limpieza», tenga o no turno: ver [asignacion.md](asignacion.md)). Se puede sumar a otro rol: Recepción, Mantención o Supervisora con Apoyo también salen en «Otros» (la Supervisora, desde la v7.15.1); el Admin no. **No es de sistema** (`es_sistema = 0`): Admin lo puede editar o borrar desde Ajustes.
 
 Permisos por defecto: los de Aseo (entonces «Trabajador») **menos** `kpis.ver_propios`, **más** `kpis.excluido` y `asignaciones.excluir_auto`. La migración copia los permisos que Trabajador tiene HOY en la base (pueden haberse editado desde Ajustes).
 

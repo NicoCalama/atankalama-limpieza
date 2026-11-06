@@ -13,10 +13,13 @@ use Atankalama\Limpieza\Core\Database;
  *
  *  - «aseo»: sin la marca asignaciones.excluir_auto (personal de aseo) y CON turno ese día, como
  *    siempre. Sin turno no sale: el turno es lo que dice que trabaja ese día.
- *  - «otros»: con la marca asignaciones.excluir_auto (no es de aseo: Apoyo, y Recepción o Mantención
- *    si limpian) que además puede limpiar (habitaciones.ver_asignadas_propias: ve su cola), TENGA O
- *    NO turno, porque a esta gente no se le carga turno. No sale quien reparte
- *    (asignaciones.asignar_manual: Supervisora, Admin): no limpia.
+ *  - «otros»: con la marca asignaciones.excluir_auto (no es de aseo: Apoyo, y Recepción, Mantención o
+ *    Supervisora si limpian) que además puede limpiar (habitaciones.ver_asignadas_propias: ve su cola),
+ *    TENGA O NO turno, porque a esta gente no se le carga turno. No sale el Admin (permiso llave
+ *    RbacService::PERMISO_ADMIN): tiene todos los permisos, también ver_asignadas_propias, y no limpia.
+ *    v7.15.1 (pedido de Nicolás, 06/11/2026): antes se excluía a quien tiene asignaciones.asignar_manual,
+ *    y eso dejaba fuera a la Supervisora aunque el Admin le diera el rol Apoyo (los permisos se suman
+ *    entre roles). La Supervisora sin Apoyo sigue sin salir: no tiene ver_asignadas_propias.
  *  - Además, quien YA tiene piezas asignadas ese día sale siempre, en su grupo, aunque no calce
  *    arriba (p. ej. el Admin con la habitación PRUEBA, v7.5): ninguna asignación queda escondida
  *    del tablero.
@@ -43,7 +46,7 @@ final class PersonalAsignableService
         $params[] = $fecha;
         $otros = RbacService::sqlConPermiso('u.id', RbacService::PERMISO_EXCLUIDO_AUTO_ASIGNAR, $params)
             . ' AND ' . RbacService::sqlConPermiso('u.id', 'habitaciones.ver_asignadas_propias', $params)
-            . ' AND ' . RbacService::sqlSinPermiso('u.id', 'asignaciones.asignar_manual', $params);
+            . ' AND ' . RbacService::sqlSinPermiso('u.id', RbacService::PERMISO_ADMIN, $params);
         $conPiezas = 'EXISTS (SELECT 1 FROM #__asignaciones a WHERE a.usuario_id = u.id AND a.fecha = ? AND a.activa = 1)';
         $params[] = $fecha;
 

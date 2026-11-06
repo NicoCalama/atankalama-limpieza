@@ -109,14 +109,18 @@ Pedido de Nicolás: la supervisora solo veía al personal de aseo, porque la lis
   ese día. Sin turno no sale: el turno es lo que dice que trabaja ese día.
 - **Otros** (`grupo: "otros"`): con la marca `asignaciones.excluir_auto` (no es de aseo) que además
   **puede limpiar** (`habitaciones.ver_asignadas_propias`, o sea ve su cola en el celular), **tenga o no
-  turno**. No sale quien reparte (`asignaciones.asignar_manual`: Supervisora, Admin). En la práctica es el
-  rol Apoyo; si alguien de Recepción o Mantención tiene que aparecer, el Admin le agrega el rol Apoyo en
-  Usuarios (sin código).
+  turno**. No sale el Admin (permiso llave `permisos.asignar_a_rol`): tiene todos los permisos y no limpia.
+  En la práctica es el rol Apoyo; si alguien de Recepción, Mantención o una Supervisora tiene que aparecer,
+  el Admin le agrega el rol Apoyo en Usuarios (sin código).
+  - **v7.15.1 (06/11/2026):** hasta la v7.15 se excluía a quien reparte (`asignaciones.asignar_manual`),
+    y eso dejaba fuera a la Supervisora aunque tuviera el rol Apoyo: los permisos se suman entre roles,
+    así que seguía teniendo `asignar_manual`. Ahora solo se excluye al Admin. La Supervisora sin Apoyo
+    sigue sin salir, porque no tiene `habitaciones.ver_asignadas_propias` (decisión de Nicolás).
 - **Quien ya tiene piezas asignadas ese día sale siempre**, en su grupo, aunque no calce arriba (por
   ejemplo, el Admin con la habitación PRUEBA): ninguna asignación queda escondida del tablero.
 - Mismo filtro de hotel de siempre (`hotel_default` igual al elegido o `ambos`).
-- Cambio respecto de antes: una Supervisora o un Admin con turno cargado y sin piezas ya no aparecen
-  como destino.
+- Cambio respecto de antes: una Supervisora (sin el rol Apoyo) o un Admin con turno cargado y sin piezas
+  ya no aparecen como destino.
 - El **auto-asignar no cambia**: solo aseo con turno (§6).
 - Las alertas predictivas no corren para alguien sin turno (no tiene hora de fin).
 

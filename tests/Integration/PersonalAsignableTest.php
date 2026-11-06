@@ -95,6 +95,28 @@ final class PersonalAsignableTest extends TestCase
         $this->assertSame([['Rita', 'otros']], array_map(fn(array $p): array => [$p['nombre'], $p['grupo']], $lista));
     }
 
+    /**
+     * v7.15.1 (Nicolás, 06/11/2026): la Supervisora con el rol Apoyo no salía en ninguna pestaña, porque
+     * «Otros» dejaba fuera a quien reparte (asignaciones.asignar_manual) y los permisos se suman entre
+     * roles. Ahora sale en «Otros», con o sin turno, igual que Recepción con Apoyo.
+     */
+    public function testSupervisoraConElRolApoyoSaleEnOtrosConOSinTurno(): void
+    {
+        [$sofia] = TestDatabase::crearUsuario('11111111-1', 'Sofía', 'Supervisora');
+        [$tere] = TestDatabase::crearUsuario('22222222-2', 'Tere', 'Supervisora');
+        TestDatabase::crearUsuario('33333333-3', 'Vale', 'Supervisora'); // sin Apoyo: no sale
+        foreach ([$sofia, $tere] as $id) {
+            $this->darRol($id, 'Apoyo');
+        }
+        $this->darTurno($sofia);
+
+        $lista = $this->porNombre((new PersonalAsignableService())->listar($this->hoy));
+
+        $this->assertSame(['Sofía', 'Tere'], array_keys($lista));
+        $this->assertSame(['grupo' => 'otros', 'con_turno' => true], $this->grupoYTurno($lista['Sofía']));
+        $this->assertSame(['grupo' => 'otros', 'con_turno' => false], $this->grupoYTurno($lista['Tere']));
+    }
+
     public function testInactivosYOtroHotelNoSalen(): void
     {
         TestDatabase::crearUsuario('11111111-1', 'Pía', 'Apoyo', activo: false);
@@ -158,6 +180,14 @@ final class PersonalAsignableTest extends TestCase
         Database::execute(
             'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
             [$usuarioId, $this->turnoId, $this->hoy]
+        );
+    }
+
+    private function darRol(int $usuarioId, string $rol): void
+    {
+        Database::execute(
+            'INSERT INTO usuarios_roles (usuario_id, rol_id) SELECT ?, id FROM roles WHERE nombre = ?',
+            [$usuarioId, $rol]
         );
     }
 
