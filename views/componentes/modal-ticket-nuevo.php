@@ -187,9 +187,9 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                                     :class="estaGrupoSeleccionado('Supervisora') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
                                 <span>+ Todas las Supervisoras</span>
                             </button>
-                            <button type="button" @click="asignarGrupo('Trabajador')"
-                                    :class="estaGrupoSeleccionado('Trabajador') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
-                                <span>+ Todos los Trabajadores</span>
+                            <button type="button" @click="asignarGrupo('Aseo')"
+                                    :class="estaGrupoSeleccionado('Aseo') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">
+                                <span>+ Todo Aseo</span>
                             </button>
                             <button type="button" @click="asignarGrupo('Mantenimiento')"
                                     :class="estaGrupoSeleccionado('Mantenimiento') ? 'btn-grupo-pill btn-grupo-pill-activo' : 'btn-grupo-pill btn-grupo-pill-inactivo'">

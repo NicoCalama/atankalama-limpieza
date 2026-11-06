@@ -199,7 +199,7 @@ async function comprimirFotoParaSubir(file, maxLado, calidad) {
 // Compartidos entre tickets.js (asignar a un ticket existente) y modal-ticket-nuevo.js
 // (asignar al crear) para no duplicar el criterio de orden/agrupación en dos archivos.
 function agruparUsuariosPorPerfil(usuarios) {
-    var orden = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
+    var orden = ['Admin', 'Supervisora', 'Recepción', 'Aseo'];
     var mapa = {};
     usuarios.forEach(function (u) {
         var p = u.perfil || 'Sin perfil';

@@ -34,8 +34,9 @@
                 <div class="min-w-0">
                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">Áreas comunes</p>
                     <div class="relative" data-tour="esp.hotel" x-data="{ abierto: false }" @click.outside="abierto = false">
+                        <!-- min-h 44 px: es el único lugar para cambiar de hotel y se toca con el dedo. -->
                         <button @click="abierto = !abierto"
-                                class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
+                                class="min-h-[44px] pr-2 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1">
                             <span x-text="etiquetaHotel()"></span>
                             <i data-lucide="chevron-down" class="w-3 h-3"></i>
                         </button>
@@ -104,7 +105,8 @@
     <template x-if="data">
         <main class="pb-32 md:pb-8 px-4 py-4 max-w-5xl mx-auto space-y-4">
 
-            <!-- Barra de acción -->
+            <!-- Barra de acción. En el celular los botones van en su propia fila, a lo ancho
+                 (patrón de usuarios.php); desde sm vuelven junto al título. -->
             <div class="flex items-center justify-between gap-3 flex-wrap">
                 <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2">
                     <i data-lucide="building-2" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
@@ -112,9 +114,9 @@
                     <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
                           x-text="espaciosFiltrados.length"></span>
                 </h2>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <!-- Toggle Tarjetas/Tabla -->
-                    <div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5">
+                <div class="w-full sm:w-auto flex items-center gap-2">
+                    <!-- Toggle Tarjetas/Tabla: solo en pantallas grandes (la tabla no cabe en un celular). -->
+                    <div class="hidden md:inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5">
                         <button @click="setVista('tarjetas')"
                                 :class="vista === 'tarjetas' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
                                 class="min-h-[36px] px-3 text-sm font-medium rounded-md inline-flex items-center gap-1.5 transition"
@@ -128,14 +130,17 @@
                             <i data-lucide="table" class="w-4 h-4"></i>
                         </button>
                     </div>
+                    <!-- El texto no cambia al exportar (antes «Exportando...» ensanchaba el botón y
+                         empujaba «Nueva área» a otra fila): el botón deshabilitado y pulsando lo dice. -->
                     <button @click="exportar()" :disabled="exportando" data-tour="esp.exportar"
-                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center gap-1.5 disabled:opacity-50">
+                            :class="exportando ? 'animate-pulse' : ''"
+                            class="flex-1 sm:flex-none min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center justify-center gap-1.5 disabled:opacity-50">
                         <i data-lucide="download" class="w-4 h-4"></i>
-                        <span x-text="exportando ? 'Exportando...' : 'Exportar'"></span>
+                        <span>Exportar</span>
                     </button>
                     <template x-if="puedeEditar">
                         <button @click="abrirCrear()" data-tour="esp.nueva"
-                                class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition inline-flex items-center gap-1.5">
+                                class="flex-1 sm:flex-none min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition inline-flex items-center justify-center gap-1.5">
                             <i data-lucide="plus" class="w-4 h-4"></i> Nueva área
                         </button>
                     </template>
@@ -160,7 +165,7 @@
                                         :class="filtroEstado === op.valor
                                             ? 'text-teal-600 dark:text-teal-400 font-semibold'
                                             : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-medium'"
-                                        class="py-1 text-xs sm:text-sm transition"
+                                        class="min-h-[32px] text-xs sm:text-sm transition"
                                         x-text="op.etiqueta"></button>
                             </span>
                         </template>
@@ -195,8 +200,11 @@
             <!-- Lista (tarjetas): misma ficha que Habitaciones — borde del color del hotel y franja
                  de estado al pie con el color de Ajustes → Colores. Sin nadie asignado hoy no hay
                  franja (salvo en progreso, por inspeccionar o rechazada): ver EspacioService::franjaVisible. -->
-            <template x-if="vista === 'tarjetas' && espaciosFiltrados.length > 0">
-                <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- En el celular siempre tarjetas, aunque el equipo recuerde «tabla» (localStorage): la tabla
+                 solo se muestra desde md (patrón de tickets.php). -->
+            <template x-if="espaciosFiltrados.length > 0">
+                <div data-tour="esp.lista" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                     :class="vista === 'tabla' ? 'md:hidden' : ''">
                     <template x-for="esp in espaciosFiltrados" :key="esp.id">
                         <div class="rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden shadow-sm flex flex-col bg-white dark:bg-gray-800"
                              :class="colorHotelBorde(esp.hotel_codigo)">
@@ -210,7 +218,7 @@
                                         <!-- ⋮ en la esquina, como en Habitaciones (v6.19) -->
                                         <template x-if="tieneMenuEstado(esp)">
                                             <button @click="abrirMenuEstado(esp)" aria-label="Más opciones" title="Más opciones"
-                                                    class="-mt-2 -mr-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-blue-600 transition">
+                                                    class="-mt-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-blue-600 transition">
                                                 <i data-lucide="more-vertical" class="w-4 h-4"></i>
                                             </button>
                                         </template>
@@ -218,9 +226,9 @@
                                 </div>
                                 <p class="text-sm text-gray-600 dark:text-gray-400" x-text="esp.items_count + ' ítem' + (esp.items_count == 1 ? '' : 's') + ' · ' + (esp.creditos_total || 0) + ' crédito' + (esp.creditos_total == 1 ? '' : 's')"></p>
                                 <template x-if="esp.asignado_a_nombre">
-                                    <p class="text-xs text-gray-500 dark:text-gray-500 inline-flex items-center gap-1">
+                                    <p class="text-xs text-gray-500 dark:text-gray-500 inline-flex items-center gap-1 max-w-full min-w-0">
                                         <span class="inline-flex shrink-0"><i data-lucide="user" class="w-3 h-3"></i></span>
-                                        <span x-text="esp.asignado_a_nombre"></span>
+                                        <span class="truncate" x-text="esp.asignado_a_nombre"></span>
                                     </p>
                                 </template>
                             </div>
@@ -235,19 +243,20 @@
                                  :class="esp.franja ? '' : 'mt-auto border-t border-gray-100 dark:border-gray-700'">
                                 <template x-if="puedePedir">
                                     <button @click="abrirPedir(esp)"
-                                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center gap-1.5">
+                                            class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition inline-flex items-center gap-1.5">
                                         <i data-lucide="brush" class="w-4 h-4"></i> Pedir limpieza
                                     </button>
                                 </template>
                                 <template x-if="puedeEditar">
                                     <button @click="abrirEditar(esp)"
-                                            class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center gap-1.5">
+                                            class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition inline-flex items-center gap-1.5">
                                         <i data-lucide="pencil" class="w-4 h-4"></i> Editar
                                     </button>
                                 </template>
+                                <!-- ml-auto: archivar queda lejos de «Editar», para no tocarlo por error. -->
                                 <template x-if="puedeEditar">
                                     <button @click="archivar(esp)" aria-label="Archivar"
-                                            class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400 transition">
+                                            class="ml-auto min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400 transition">
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                                     </button>
                                 </template>
@@ -259,7 +268,7 @@
 
             <!-- Lista (tabla) -->
             <template x-if="vista === 'tabla' && espaciosFiltrados.length > 0">
-                <div data-tour="esp.tabla" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                <div data-tour="esp.tabla" class="hidden md:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-gray-50 dark:bg-gray-900">
@@ -335,8 +344,10 @@
     <div x-show="modalForm.abierto" x-cloak
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarForm()">
-        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
-            <div class="flex items-start justify-between mb-4">
+        <!-- Encabezado y pie fijos, cuerpo con scroll: con muchos ítems, «Guardar» sigue a la vista
+             (patrón de ajustes-checklists.php). -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full shadow-xl max-h-[85vh] flex flex-col">
+            <div class="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100"
                     x-text="form.id ? 'Editar área común' : 'Nueva área común'"></h3>
                 <button @click="cerrarForm()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
@@ -344,6 +355,7 @@
                 </button>
             </div>
 
+            <div class="flex-1 overflow-y-auto px-5 pb-3">
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Nombre</label>
@@ -367,24 +379,27 @@
                         <span class="text-[11px] text-gray-400">Qué debe hacer quien limpia</span>
                     </div>
                     <div class="space-y-2">
+                        <!-- En el celular la descripción va a lo ancho y créditos + quitar abajo; desde
+                             sm, todo en una fila. -->
                         <template x-for="(item, idx) in form.items" :key="idx">
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-900/40 p-2 sm:p-0 sm:bg-transparent sm:dark:bg-transparent">
                                 <input x-model="item.descripcion" type="text" maxlength="200"
                                        :placeholder="'Ítem ' + (idx + 1) + ' — ej: limpiar vidrios'"
-                                       class="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
-                                <input x-model.number="item.creditos" type="number" min="0" max="100"
+                                       class="w-full sm:w-auto sm:flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                <span class="sm:hidden text-xs text-gray-500 dark:text-gray-400">Créditos</span>
+                                <input x-model.number="item.creditos" type="number" inputmode="numeric" min="0" max="100"
                                        title="Créditos (peso en KPI)" aria-label="Créditos del ítem"
                                        class="w-16 px-2 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px] text-center">
                                 <button @click="quitarItem(idx)" aria-label="Quitar ítem"
-                                        class="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
+                                        class="ml-auto sm:ml-0 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
                                     <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
                             </div>
                         </template>
                     </div>
-                    <div class="flex items-center justify-between mt-2">
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 mt-2">
                         <button @click="agregarItem()"
-                                class="text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
+                                class="min-h-[44px] text-sm text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-1">
                             <i data-lucide="plus" class="w-4 h-4"></i> Agregar ítem
                         </button>
                         <span class="text-[11px] text-gray-400">
@@ -393,8 +408,9 @@
                     </div>
                 </div>
             </div>
+            </div>
 
-            <div class="flex gap-2 mt-5">
+            <div class="flex gap-2 px-5 py-4 border-t border-gray-100 dark:border-gray-700">
                 <button @click="cerrarForm()"
                         class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
                     Cancelar
@@ -412,12 +428,12 @@
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
          @click.self="cerrarPedir()">
         <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-5 shadow-xl max-h-[85vh] overflow-y-auto">
-            <div class="flex items-start justify-between mb-3">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="min-w-0">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 break-words">
                         Pedir limpieza: <span x-text="modalPedir.espacio?.numero"></span>
                     </h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Se asignará al trabajador que elijas para la fecha indicada.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Se asignará a la persona que elijas para la fecha indicada.</p>
                 </div>
                 <button @click="cerrarPedir()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
@@ -459,12 +475,28 @@
                     <p x-show="modalPedir.opcionId === null" class="text-xs text-gray-500 dark:text-gray-400 mt-2">Primero elige el motivo.</p>
                 </div>
             </template>
-            <template x-if="data && data.trabajadores.length === 0">
-                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno ese día en este hotel.</p>
+            <!-- Pestañas «Aseo / Otros» (v7.14), las mismas de Asignaciones: misma lista
+                 (PersonalAsignableService) y misma pestaña recordada. -->
+            <div class="mb-3 inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5"
+                 role="tablist" aria-label="Equipo">
+                <template x-for="g in gruposEquipo" :key="g.valor">
+                    <button type="button" role="tab" @click="setGrupoEquipo(g.valor)"
+                            :aria-selected="grupoEquipo === g.valor ? 'true' : 'false'"
+                            :class="grupoEquipo === g.valor ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                            class="min-h-[44px] px-4 text-sm font-medium rounded-md inline-flex items-center gap-2 transition">
+                        <span x-text="g.label"></span>
+                        <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full"
+                              x-text="contarGrupo(g.valor)"></span>
+                    </button>
+                </template>
+            </div>
+            <template x-if="data && equipoPedir().length === 0">
+                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4" x-text="textoEquipoVacio()"></p>
             </template>
-            <template x-if="data && data.trabajadores.length > 0">
-                <ul class="space-y-1.5 max-h-[55vh] overflow-y-auto">
-                    <template x-for="tr in data.trabajadores" :key="tr.id">
+            <!-- En celular, un solo scroll (el del modal); la lista con scroll propio solo desde md. -->
+            <template x-if="data && equipoPedir().length > 0">
+                <ul class="space-y-1.5 md:max-h-[55vh] md:overflow-y-auto">
+                    <template x-for="tr in equipoPedir()" :key="tr.id">
                         <li>
                             <button @click="confirmarPedir(tr)" :disabled="modalPedir.enviando || faltaMotivoPara(tr)"
                                     class="w-full min-h-[44px] flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-left">
@@ -483,7 +515,7 @@
          endpoints y permiso (habitaciones.marcar_limpia_manual). Modal y no dropdown: la tarjeta
          tiene overflow-hidden y recortaría un menú que se salga de sus bordes. -->
     <template x-if="modalEstado.abierto">
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cerrarMenuEstado()">
+        <div class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50" @click.self="cerrarMenuEstado()">
             <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl relative">
                 <button @click="cerrarMenuEstado()" aria-label="Cerrar"
                         class="absolute top-3 right-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
@@ -537,6 +569,12 @@ function espaciosApp() {
         motivosReasignar: [],
         motivosCargando: false,
         motivosError: '',
+        // Pestaña de «Pedir limpieza» (v7.14): 'aseo' u 'otros', la misma que recuerda Asignaciones.
+        grupoEquipo: localStorage.getItem('asignaciones_grupo') === 'otros' ? 'otros' : 'aseo',
+        gruposEquipo: [
+            { valor: 'aseo', label: 'Aseo' },
+            { valor: 'otros', label: 'Otros' }
+        ],
         modalEstado: { abierto: false, espacio: null },
         accionEstadoEnCurso: false,
 
@@ -862,6 +900,25 @@ function espaciosApp() {
         faltaMotivoPara(tr) {
             return this.pidiendoMotivo() && this.modalPedir.opcionId === null && !this.esQuienLaTiene(tr);
         },
+        setGrupoEquipo(g) {
+            this.grupoEquipo = g;
+            localStorage.setItem('asignaciones_grupo', g);
+        },
+        contarGrupo(g) {
+            if (!this.data) return 0;
+            return this.data.trabajadores.filter(function (tr) { return tr.grupo === g; }).length;
+        },
+        // Las personas de la pestaña elegida («Aseo» u «Otros»), candidatas para pedir la limpieza.
+        equipoPedir() {
+            if (!this.data) return [];
+            var g = this.grupoEquipo;
+            return this.data.trabajadores.filter(function (tr) { return tr.grupo === g; });
+        },
+        textoEquipoVacio() {
+            return this.grupoEquipo === 'otros'
+                ? 'No hay personas de otras áreas que puedan limpiar en este hotel. Para que alguien aparezca acá, el Admin le da el rol Apoyo en Usuarios.'
+                : 'No hay personal de aseo con turno ese día en este hotel.';
+        },
         async asegurarMotivos() {
             if (this.motivosReasignar.length > 0 || this.motivosCargando) return;
             this.motivosCargando = true;
@@ -879,8 +936,8 @@ function espaciosApp() {
                 this.motivosCargando = false;
             }
         },
-        // Al cambiar la fecha del modal, recarga solo los trabajadores con turno esa fecha
-        // (candidatos), sin recargar la lista de espacios ni perder su estado en pantalla.
+        // Al cambiar la fecha del modal, recarga solo las personas asignables esa fecha (el turno
+        // de «Aseo» cambia por día), sin recargar la lista de espacios ni perder su estado en pantalla.
         async cambiarFechaPedir() {
             this.modalPedir.forzarMotivo = false;
             if (this.pidiendoMotivo()) this.asegurarMotivos();

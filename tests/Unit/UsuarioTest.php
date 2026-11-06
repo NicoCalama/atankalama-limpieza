@@ -48,7 +48,7 @@ final class UsuarioTest extends TestCase
     {
         $u = $this->crear([], ['Supervisora', 'Admin']);
         $this->assertTrue($u->tieneRol('Admin'));
-        $this->assertFalse($u->tieneRol('Trabajador'));
+        $this->assertFalse($u->tieneRol('Aseo'));
     }
 
     public function testToArrayPublicoNoIncluyePasswordHash(): void

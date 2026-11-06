@@ -175,14 +175,16 @@ function usuariosApp() {
         cargando: false,
         sinConexion: !navigator.onLine,
         busqueda: localStorage.getItem('usuarios_busqueda') || '',
-        rol: localStorage.getItem('usuarios_rol') || '',
+        // v7.14: el rol «Trabajador» pasó a llamarse «Aseo»; un filtro guardado con el nombre viejo
+        // vuelve a «Todos» en vez de dejar la lista vacía.
+        rol: localStorage.getItem('usuarios_rol') === 'Trabajador' ? '' : (localStorage.getItem('usuarios_rol') || ''),
         activo: localStorage.getItem('usuarios_activo') || '',
         toast: '',
         _toastTimer: null,
 
         filtrosRol: [
             { valor: '', label: 'Todos' },
-            { valor: 'Trabajador', label: 'Trabajadores' },
+            { valor: 'Aseo', label: 'Aseo' },
             { valor: 'Apoyo', label: 'Apoyo' },
             { valor: 'Supervisora', label: 'Supervisoras' },
             { valor: 'Recepción', label: 'Recepción' },

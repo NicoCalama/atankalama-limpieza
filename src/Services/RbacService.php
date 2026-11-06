@@ -45,13 +45,24 @@ final class RbacService
      */
     public static function sqlSinPermiso(string $columna, string $permiso, array &$params): string
     {
+        return 'NOT ' . self::sqlConPermiso($columna, $permiso, $params);
+    }
+
+    /**
+     * Gemela de sqlSinPermiso(): «el usuario de $columna SÍ tiene el permiso $permiso por alguno de
+     * sus roles». Mismas reglas para $columna y $params.
+     *
+     * @param list<mixed> $params se le agrega el código del permiso, en el orden en que aparece el «?»
+     */
+    public static function sqlConPermiso(string $columna, string $permiso, array &$params): string
+    {
         if (preg_match('/^[a-z_]+\.[a-z_]+$/', $columna) !== 1) {
             throw new \InvalidArgumentException("Columna no válida: {$columna}");
         }
         $params[] = $permiso;
-        return "NOT EXISTS (SELECT 1 FROM #__usuarios_roles urx
-                              JOIN #__rol_permisos rpx ON rpx.rol_id = urx.rol_id
-                             WHERE urx.usuario_id = {$columna} AND rpx.permiso_codigo = ?)";
+        return "EXISTS (SELECT 1 FROM #__usuarios_roles urx
+                          JOIN #__rol_permisos rpx ON rpx.rol_id = urx.rol_id
+                         WHERE urx.usuario_id = {$columna} AND rpx.permiso_codigo = ?)";
     }
 
     /**

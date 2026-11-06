@@ -10,6 +10,7 @@ use Atankalama\Limpieza\Services\AsignacionException;
 use Atankalama\Limpieza\Services\EspacioException;
 use Atankalama\Limpieza\Services\EspacioService;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
+use Atankalama\Limpieza\Services\PersonalAsignableService;
 
 /**
  * Áreas comunes (espacios): piscina, pasillos, patio, bodega, etc. Ver docs/areas-comunes.md
@@ -22,8 +23,9 @@ final class EspaciosController
     }
 
     /**
-     * GET /api/espacios?hotel=&fecha= — lista de espacios + trabajadores con turno en $fecha
-     * (candidatos para pedir limpieza). fecha es opcional, default hoy.
+     * GET /api/espacios?hotel=&fecha= — lista de espacios + a quién se le puede pedir la limpieza en
+     * $fecha (la misma lista de Asignaciones, con su grupo «aseo»/«otros»: PersonalAsignableService).
+     * fecha es opcional, default hoy.
      */
     public function listar(Request $request): Response
     {
@@ -34,7 +36,7 @@ final class EspaciosController
 
         return Response::ok([
             'espacios' => $this->espacios->listar($hotel),
-            'trabajadores' => $this->espacios->trabajadoresConTurno($fecha, $hotel),
+            'trabajadores' => (new PersonalAsignableService())->listar($fecha, $hotel),
             'fecha' => $fecha,
         ]);
     }

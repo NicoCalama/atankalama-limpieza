@@ -277,7 +277,7 @@ final class ToursAnchorTest extends TestCase
                 'tickets.ver_propios',
                 'tickets.crear',
             ],
-            roles: ['Trabajador'],
+            roles: ['Aseo'],
         );
     }
 
@@ -298,7 +298,7 @@ final class ToursAnchorTest extends TestCase
                 'habitaciones.marcar_completada',
                 'tickets.crear',
             ],
-            roles: ['Trabajador'],
+            roles: ['Aseo'],
         );
     }
 }

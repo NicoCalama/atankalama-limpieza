@@ -43,7 +43,7 @@ final class RevisionEntregaControllerTest extends TestCase
         );
         $this->hab101 = Database::lastInsertId();
         [$this->carla] = TestDatabase::crearUsuario('33333333-3', 'Carla', 'Recepción');
-        [$this->ana] = TestDatabase::crearUsuario('22222222-2', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('22222222-2', 'Ana', 'Aseo');
         Database::execute("INSERT INTO motivos_revision_entrega (nombre, activo) VALUES ('Baño sucio', 1), ('Viejo', 0)");
         $this->motivo = (int) Database::fetchColumn("SELECT id FROM motivos_revision_entrega WHERE nombre = 'Baño sucio'");
 

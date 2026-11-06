@@ -393,26 +393,6 @@ final class EspacioService
         return $output;
     }
 
-    /**
-     * Trabajadores con turno para una fecha (candidatos para pedir la limpieza de un espacio).
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function trabajadoresConTurno(string $fecha, ?string $hotelCodigo = null): array
-    {
-        $sql = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
-                  FROM #__usuarios u
-                  JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
-                 WHERE ut.fecha = ? AND u.activo = 1';
-        $params = [$fecha];
-        if ($hotelCodigo !== null && $hotelCodigo !== 'ambos') {
-            $sql .= " AND (u.hotel_default = ? OR u.hotel_default = 'ambos')";
-            $params[] = $hotelCodigo;
-        }
-        $sql .= ' ORDER BY u.nombre';
-        return Database::fetchAll($sql, $params);
-    }
-
     // ----- Helpers -----
 
     private function validarNombre(string $nombre): string

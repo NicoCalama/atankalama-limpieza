@@ -81,7 +81,9 @@ if ($usuario->tienePermiso('espacios.ver')) {
     $items[] = [
         'ruta' => '/espacios',
         'icono' => 'building-2',
-        'label' => 'Áreas comunes',
+        // Corto: con 7 pestañas cada una mide ~47 px y «Áreas comunes» salía cortado (v7.14).
+        // El menú lateral de escritorio y el título de la pantalla siguen diciendo «Áreas comunes».
+        'label' => 'Áreas',
         'activo' => str_starts_with($rutaActual, '/espacios'),
     ];
 }

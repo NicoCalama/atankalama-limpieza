@@ -41,8 +41,8 @@ final class CierreSinTerminarTest extends TestCase
         Database::execute("INSERT INTO hoteles (codigo, nombre) VALUES ('1_sur', '1 Sur')");
         Database::execute("INSERT INTO tipos_habitacion (nombre) VALUES ('Doble')");
         TestDatabase::sembrarChecklistTemplates();
-        [$this->ana]     = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$this->beto]    = TestDatabase::crearUsuario('33333333-3', 'Beto', 'Trabajador');
+        [$this->ana]     = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$this->beto]    = TestDatabase::crearUsuario('33333333-3', 'Beto', 'Aseo');
         [$this->sofia]   = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
         [$this->sistema] = TestDatabase::crearUsuario('SISTEMA-CRON', 'Sistema', 'Admin');
         $this->hoy       = date('Y-m-d');

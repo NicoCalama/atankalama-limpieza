@@ -46,7 +46,7 @@ final class AtomicidadChecklistAuditoriaTest extends TestCase
         $this->hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
         $this->tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
 
-        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->evaId] = TestDatabase::crearUsuario('22222222-2', 'Eva', 'Supervisora');
 
         $this->checklist = new ChecklistService();

@@ -39,7 +39,7 @@ final class CierreAreasComunesTest extends TestCase
         Database::execute("INSERT INTO hoteles (codigo, nombre) VALUES ('1_sur', '1 Sur')");
         Database::execute("INSERT INTO tipos_habitacion (nombre) VALUES ('Doble')");
         TestDatabase::sembrarChecklistTemplates();
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
         $this->hoy       = date('Y-m-d');
         $this->manana    = date('Y-m-d', strtotime('+1 day'));

@@ -79,7 +79,7 @@ final class ChecklistPorHotelTest extends TestCase
         $tipoId = Database::lastInsertId();
         $habId = $this->habitacion($this->hotel1SurId, '101', $tipoId);
 
-        [$usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         (new AsignacionService())->asignarManual($habId, $usuarioId, '2026-07-22');
 
         $this->assertNull($this->svc->templateParaTipo($tipoId), 'el tipo no debería tener checklist todavía');

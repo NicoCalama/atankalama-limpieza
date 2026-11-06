@@ -32,7 +32,7 @@ final class ReportesAprobacionPrimeraTest extends TestCase
         $hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
         $tipoId  = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
 
-        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$sofia]     = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
         [$sistema]   = TestDatabase::crearUsuario('44444444-4', 'Sistema', 'Admin');
         $this->hoy   = date('Y-m-d');

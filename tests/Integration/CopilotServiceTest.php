@@ -25,7 +25,7 @@ final class CopilotServiceTest extends TestCase
     {
         TestDatabase::recrear();
         [$this->adminId] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
-        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
 
         $svcUsuario = new \Atankalama\Limpieza\Services\UsuarioService();
         $this->admin = $svcUsuario->buscarPorId($this->adminId);

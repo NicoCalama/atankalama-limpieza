@@ -27,7 +27,7 @@ final class RbacServiceTest extends TestCase
     {
         $roles = $this->rbac->listarRoles();
         $nombres = array_column($roles, 'nombre');
-        $this->assertContains('Trabajador', $nombres);
+        $this->assertContains('Aseo', $nombres);
         $this->assertContains('Supervisora', $nombres);
         $this->assertContains('Recepción', $nombres);
         $this->assertContains('Admin', $nombres);
@@ -89,13 +89,13 @@ final class RbacServiceTest extends TestCase
 
     public function testAsignarYQuitarRolAUsuario(): void
     {
-        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Test', 'Trabajador');
+        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Test', 'Aseo');
         $recepcion = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Recepción']);
 
         $this->rbac->asignarRolAUsuario($usuarioId, (int) $recepcion['id'], $this->adminId);
         $usuario = (new UsuarioService())->buscarPorId($usuarioId);
         $this->assertContains('Recepción', $usuario->roles);
-        $this->assertContains('Trabajador', $usuario->roles);
+        $this->assertContains('Aseo', $usuario->roles);
 
         $this->rbac->quitarRolAUsuario($usuarioId, (int) $recepcion['id'], $this->adminId);
         $usuario = (new UsuarioService())->buscarPorId($usuarioId);
@@ -104,7 +104,7 @@ final class RbacServiceTest extends TestCase
 
     public function testPermisosEfectivosSonUnionDeRoles(): void
     {
-        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Test', 'Trabajador');
+        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Test', 'Aseo');
         $supervisora = Database::fetchOne('SELECT id FROM roles WHERE nombre = ?', ['Supervisora']);
         $this->rbac->asignarRolAUsuario($usuarioId, (int) $supervisora['id'], $this->adminId);
 

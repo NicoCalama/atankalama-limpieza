@@ -31,7 +31,7 @@ final class TicketServiceTest extends TestCase
             [$this->hotelId, $this->tipoId]
         );
         $this->habitacionId = Database::lastInsertId();
-        [$this->usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc = new TicketService();
     }
 
@@ -99,7 +99,7 @@ final class TicketServiceTest extends TestCase
 
     public function testAsignarTicket(): void
     {
-        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
         $t = $this->svc->crear($this->hotelId, 't', 'd', Ticket::PRIORIDAD_NORMAL, $this->usuarioId);
         $r = $this->svc->asignar($t->id, $otro, $this->usuarioId);
         $this->assertSame($otro, $r->asignadoA);

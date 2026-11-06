@@ -41,7 +41,7 @@ final class EjecucionHuerfanaTest extends TestCase
         );
         $this->habitacionId = Database::lastInsertId();
 
-        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         $this->checklist = new ChecklistService();
         $this->asig = new AsignacionService();
@@ -94,7 +94,7 @@ final class EjecucionHuerfanaTest extends TestCase
 
     public function testTrasReasignarElTrabajadorViejoNoPuedeCompletar(): void
     {
-        [$bertaId] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
+        [$bertaId] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
         // Reasignar desactiva la asignación de Ana → su ejecución queda huérfana.
         $this->asig->reasignar($this->habitacionId, $bertaId, $this->fecha, 're-limpieza');
 

@@ -51,7 +51,7 @@ final class RolApoyoTest extends TestCase
             );
             $this->hab[$numero] = Database::lastInsertId();
         }
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->pedro] = TestDatabase::crearUsuario('22222222-2', 'Pedro', 'Apoyo');
         [$this->sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
 
@@ -72,7 +72,7 @@ final class RolApoyoTest extends TestCase
         $this->assertFalse($pedro->tienePermiso('kpis.ver_propios'));
 
         // Los permisos de marca los lleva todo rol que no es de aseo (04/10/2026); Trabajador no.
-        foreach (['Admin' => true, 'Supervisora' => true, 'Recepción' => true, 'Trabajador' => false] as $rol => $marcado) {
+        foreach (['Admin' => true, 'Supervisora' => true, 'Recepción' => true, 'Aseo' => false] as $rol => $marcado) {
             $codigos = array_column(Database::fetchAll(
                 'SELECT rp.permiso_codigo FROM rol_permisos rp JOIN roles r ON r.id = rp.rol_id WHERE r.nombre = ?',
                 [$rol]

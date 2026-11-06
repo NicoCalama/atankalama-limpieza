@@ -50,8 +50,8 @@ final class HabitacionEnProgresoTest extends TestCase
         $this->hotelId = (int) Database::fetchOne("SELECT id FROM hoteles WHERE codigo='1_sur'")['id'];
         $this->tipoId = (int) Database::fetchOne('SELECT id FROM tipos_habitacion LIMIT 1')['id'];
 
-        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$this->bea] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$this->bea] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofía', 'Supervisora');
         [$this->admin] = TestDatabase::crearUsuario('44444444-4', 'Admin', 'Admin');
 
@@ -227,6 +227,81 @@ final class HabitacionEnProgresoTest extends TestCase
 
         $this->assertSame(201, $resp->status);
         $this->assertSame($this->ana, $this->asignaciones->obtenerActivaDeHabitacion($h101, $this->hoy)?->usuarioId);
+    }
+
+    // --- Preasignaciones de un día futuro (v7.14) ---------------------------------------
+    // El estado de la pieza es el de HOY: no bloquea mover ni quitar la de mañana.
+
+    public function testLaPreasignacionDeMananaDeUnaPiezaYaLimpiaSeMueveYSeQuita(): void
+    {
+        [$h101, $h102] = $this->asignarA($this->ana, '101', '102');
+        $this->terminar($h101, $this->ana);
+        (new AuditoriaService())->emitirVeredicto($h101, $this->sofia, 'aprobado');
+        $this->terminar($h102, $this->ana);
+        $manana = date('Y-m-d', strtotime('+1 day'));
+        $this->asignaciones->asignarManual($h101, $this->ana, $manana);
+        $this->asignaciones->asignarManual($h102, $this->ana, $manana);
+        $ctrl = new AsignacionesController();
+
+        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->bea, 'fecha' => $manana, 'opcion_id' => TestDatabase::opcionId('reasignar', 'Cambio de prioridad')]));
+        $quitar = $ctrl->desasignar($this->req($this->sofia, ['habitacion_id' => $h102, 'fecha' => $manana]));
+
+        $this->assertSame(201, $reasignar->status);
+        $this->assertSame(200, $quitar->status);
+        $this->assertSame($this->bea, $this->asignaciones->obtenerActivaDeHabitacion($h101, $manana)?->usuarioId);
+        $this->assertNull($this->asignaciones->obtenerActivaDeHabitacion($h102, $manana));
+        // Hoy no se tocó nada.
+        $this->assertSame('aprobada', $this->estadoDe($h101));
+        $this->assertSame('completada_pendiente_auditoria', $this->estadoDe($h102));
+        $this->assertSame($this->ana, $this->asignaciones->obtenerActivaDeHabitacion($h102, $this->hoy)?->usuarioId);
+    }
+
+    public function testQuitarLaPreasignacionDeMananaNoReiniciaLaLimpiezaDeHoy(): void
+    {
+        [$h101] = $this->asignarA($this->ana, '101');
+        $ejec = $this->checklist->iniciarEjecucion($h101, $this->ana, $this->hoy, true);
+        $manana = date('Y-m-d', strtotime('+1 day'));
+        $this->asignaciones->asignarManual($h101, $this->bea, $manana);
+        $ctrl = new AsignacionesController();
+
+        $reasignar = $ctrl->reasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'usuario_id' => $this->ana, 'fecha' => $manana, 'opcion_id' => TestDatabase::opcionId('reasignar', 'Cambio de prioridad')]));
+        $quitar = $ctrl->desasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'fecha' => $manana]));
+
+        $this->assertSame(201, $reasignar->status);
+        $this->assertSame(200, $quitar->status);
+        $this->assertNull($this->asignaciones->obtenerActivaDeHabitacion($h101, $manana));
+        // Ana la sigue limpiando hoy, con su misma ejecución.
+        $this->assertSame('en_progreso', $this->estadoDe($h101));
+        $this->assertSame($this->ana, $this->asignaciones->obtenerActivaDeHabitacion($h101, $this->hoy)?->usuarioId);
+        $this->assertSame($ejec->id, $this->checklist->iniciarEjecucion($h101, $this->ana, $this->hoy, true)->id);
+    }
+
+    public function testElTableroDeMananaNoCuentaComoHechoLoDeHoy(): void
+    {
+        [$h101] = $this->asignarA($this->ana, '101');
+        $this->terminar($h101, $this->ana);
+        $manana = date('Y-m-d', strtotime('+1 day'));
+        Database::execute("INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES ('mañana', '08:00', '16:00')");
+        Database::execute('INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)', [$this->ana, Database::lastInsertId(), $manana]);
+        $this->asignaciones->asignarManual($h101, $this->ana, $manana);
+
+        $vista = $this->asignaciones->vistaConsolidada('ambos', $manana);
+
+        $ana = $vista['trabajadores'][0];
+        $this->assertSame(['pendientes' => 1, 'en_progreso' => 0, 'completadas' => 0, 'rechazadas' => 0, 'total' => 1], $ana['progreso']);
+        // El estado de hoy viaja igual, como referencia.
+        $this->assertSame('completada_pendiente_auditoria', $ana['cola'][0]['estado']);
+    }
+
+    public function testQuitarUnaYaTerminadaHoySigueBloqueado(): void
+    {
+        [$h101] = $this->asignarA($this->ana, '101');
+        $this->terminar($h101, $this->ana);
+
+        $quitar = (new AsignacionesController())->desasignar($this->req($this->sofia, ['habitacion_id' => $h101, 'fecha' => $this->hoy]));
+
+        $this->assertSame(409, $quitar->status);
+        $this->assertSame('ESTADO_NO_DESASIGNABLE', $this->json($quitar)['error']['codigo']);
     }
 
     public function testPorDefectoElServicioNoMueveUnaEnProgreso(): void

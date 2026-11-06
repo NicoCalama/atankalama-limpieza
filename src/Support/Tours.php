@@ -69,7 +69,7 @@ final class Tours
                     // ── 1. El trabajo diario. Va primero SIEMPRE. ──
                     [
                         'id'       => 'repartir',
-                        'v'        => 2,
+                        'v'        => 3,
                         'titulo'   => 'Repartir las piezas',
                         'pregunta' => '¿Cómo asigno las habitaciones de hoy?',
                         'requiere' => [],
@@ -82,7 +82,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.equipo"]',
                                 'titulo' => 'Suéltala sobre la persona',
-                                'texto'  => 'Al soltarla sobre un trabajador, la pieza entra en su cola y la verá en su teléfono. En cada tarjeta ves su avance y su carga del día.',
+                                'texto'  => 'Al soltarla sobre una persona, la pieza entra en su cola y la verá en su teléfono. Arriba eliges «Aseo» (con turno) u «Otros» (gente de otras áreas que limpia).',
                             ],
                             [
                                 'sel'    => '[data-tour="asig.fecha"]',
@@ -472,7 +472,7 @@ final class Tours
                     // ── 1. El trabajo diario: pedir una limpieza. ──
                     [
                         'id'       => 'pedir',
-                        'v'        => 2,
+                        'v'        => 3,
                         'titulo'   => 'Pedir una limpieza',
                         'pregunta' => '¿Cómo mando a limpiar un área?',
                         'requiere' => [],
@@ -480,7 +480,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
                                 'titulo' => 'Cada tarjeta es un área',
-                                'texto'  => 'Cada tarjeta es un área común (piscina, pasillos…). Con «Pedir limpieza» eliges a un trabajador y se la asignas para hoy. Si ya la tiene otra persona y no la ha terminado, primero eliges por qué la cambias.',
+                                'texto'  => 'Cada tarjeta es un área común (piscina, pasillos…). Con «Pedir limpieza» eliges a la persona, de «Aseo» u «Otros», y se la asignas. Si ya la tiene otra y no la ha terminado, primero eliges por qué la cambias.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.lista"]',
@@ -493,7 +493,7 @@ final class Tours
                     // ── 1b. Explorar la lista: buscar, ver como tabla y exportar. ──
                     [
                         'id'       => 'explorar',
-                        'v'        => 1,
+                        'v'        => 2,
                         'titulo'   => 'Buscar y exportar',
                         'pregunta' => '¿Cómo busco o bajo la lista?',
                         'requiere' => [],
@@ -506,7 +506,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="esp.tabla"]',
                                 'titulo' => 'Vista de tabla',
-                                'texto'  => 'Cambia entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos). En el teléfono quedan mejor las tarjetas.',
+                                'texto'  => 'En pantallas grandes cambias entre tarjetas y una tabla con columnas que puedes ordenar (nombre, estado, asignada hoy, ítems, créditos). En el teléfono se ven siempre las tarjetas.',
                             ],
                             [
                                 'sel'    => '[data-tour="esp.exportar"]',
@@ -1132,7 +1132,7 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'buscar-usuario', 'v' => 1,
+                        'id' => 'buscar-usuario', 'v' => 2,
                         'titulo' => 'Buscar a una persona',
                         'pregunta' => '¿Cómo encuentro a una persona en la lista?',
                         'requiere' => [],
@@ -1140,7 +1140,7 @@ final class Tours
                             ['sel' => '[data-tour="usr.buscar"]', 'titulo' => 'Buscar por nombre o RUT',
                              'texto' => 'Escribe un nombre o un RUT y la lista se va filtrando sola mientras escribes. Quedan solo las personas que coinciden.'],
                             ['sel' => '[data-tour="usr.filtro-rol"]', 'titulo' => 'Acotar por rol',
-                             'texto' => 'Estos botones acotan por rol: «Trabajadores», «Supervisoras», «Recepción» o «Admins». Toca uno y la lista muestra solo ese grupo.'],
+                             'texto' => 'Estos botones acotan por rol: «Aseo», «Apoyo», «Supervisoras», «Recepción» o «Admins». Toca uno y la lista muestra solo ese grupo.'],
                             ['sel' => '[data-tour="usr.filtro-estado"]', 'titulo' => 'Activos o inactivos',
                              'texto' => 'Con «Activos» ves a quién puede entrar a la app y con «Inactivos» a quién está deshabilitado. «Todos» los muestra juntos.'],
                         ],

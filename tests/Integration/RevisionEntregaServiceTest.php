@@ -49,7 +49,7 @@ final class RevisionEntregaServiceTest extends TestCase
             $this->hab[$num] = Database::lastInsertId();
         }
         [$this->sofia] = TestDatabase::crearUsuario('11111111-1', 'Sofía Pérez', 'Supervisora');
-        [$this->ana]   = TestDatabase::crearUsuario('22222222-2', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('22222222-2', 'Ana', 'Aseo');
         [$this->carla] = TestDatabase::crearUsuario('33333333-3', 'Carla Rojas', 'Recepción');
         [$this->cron]  = TestDatabase::crearUsuario('SISTEMA-CRON', 'Sistema', 'Admin');
 

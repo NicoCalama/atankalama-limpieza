@@ -64,8 +64,8 @@ final class ChecklistSabanasAdaptativoTest extends TestCase
             $this->hab[(string) $numero] = Database::lastInsertId();
         }
 
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
 
         $this->asig = new AsignacionService();

@@ -59,8 +59,8 @@ trait EscenarioCicloLimpieza
             $this->cb->pieza("CB_{$numero}", 'dirty', 'check-out', false);
         }
 
-        [$this->ana]     = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$this->berta]   = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
+        [$this->ana]     = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$this->berta]   = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
         [$this->sofia]   = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
         [$this->sistema] = TestDatabase::crearUsuario('SISTEMA-CRON', 'Sistema', 'Admin');
 

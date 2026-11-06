@@ -241,6 +241,12 @@ que reasignarla (el trabajador pierde lo avanzado), así que además exige
 403 `HABITACION_EN_PROGRESO` («El área X está en progreso: solo un administrador puede reasignarla
 o quitarla»), que la pantalla de Espacios muestra como aviso. Ver `docs/asignacion.md` §4.4.
 
+**A quién se le puede pedir (v7.14, 06/11/2026):** la ventana «Pedir limpieza» lista a las mismas
+personas que Asignaciones, con las mismas pestañas «Aseo» (personal de aseo con turno ese día) y «Otros»
+(gente de otras áreas que puede limpiar, tenga o no turno). `GET /api/espacios` las trae de
+`PersonalAsignableService`, cada una con su `grupo`. Antes salían solo quienes tenían turno. Ver
+`docs/asignacion.md` §3.1.
+
 **Cambiar de persona (v7.4.1, pedido de gerencia: motivo obligatorio y sin texto):** si ese día el área
 ya la tiene otra persona y esa limpieza no está hecha (pendiente, en progreso o rechazada; en otra fecha,
 cualquier preasignación), pedírsela a otra es cambiarla de persona. La ventana «Pedir limpieza» muestra

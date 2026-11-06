@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 return [
     [
-        'nombre' => 'Trabajador',
-        'descripcion' => 'Personal de limpieza en terreno',
+        // Se llamaba «Trabajador» hasta la v7.14 (pedido de Nicolás, 06/11/2026).
+        'nombre' => 'Aseo',
+        'descripcion' => 'Personal de aseo en terreno',
         'es_sistema' => 1,
         'permisos' => [
             'habitaciones.ver_asignadas_propias',

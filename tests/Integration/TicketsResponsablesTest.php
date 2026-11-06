@@ -32,8 +32,8 @@ final class TicketsResponsablesTest extends TestCase
         Database::execute("INSERT INTO hoteles (codigo, nombre) VALUES ('1_sur', '1 Sur')");
         $this->hotelId = (int) Database::fetchOne('SELECT id FROM hoteles')['id'];
         [$this->supervisoraId] = TestDatabase::crearUsuario('15000001-7', 'Sofía', 'Supervisora');
-        [$this->anaId] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Trabajador');
-        [$this->betoId] = TestDatabase::crearUsuario('17000001-3', 'Beto', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Aseo');
+        [$this->betoId] = TestDatabase::crearUsuario('17000001-3', 'Beto', 'Aseo');
         $this->svc = new TicketService();
     }
 
@@ -117,7 +117,7 @@ final class TicketsResponsablesTest extends TestCase
 
     public function testCrearConResponsableInactivoNoDejaTicketCreado(): void
     {
-        [$inactivoId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Trabajador', activo: false);
+        [$inactivoId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Aseo', activo: false);
 
         try {
             $this->svc->crear(
@@ -161,7 +161,7 @@ final class TicketsResponsablesTest extends TestCase
         $t = $this->crearTicket();
         $this->svc->asignar($t->id, [$this->anaId, $this->betoId], $this->supervisoraId);
         Database::execute('UPDATE usuarios SET activo = 0 WHERE id = ?', [$this->betoId]);
-        [$carlaId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Trabajador');
+        [$carlaId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Aseo');
 
         // Antes: 404 «usuarios no encontrados o inactivos» por Beto, que ya no se ve en la lista.
         $this->assertSame(200, $this->pedirAsignacion($t->id, $this->supervisoraId, [$this->anaId, $this->betoId, $carlaId]));
@@ -172,7 +172,7 @@ final class TicketsResponsablesTest extends TestCase
 
     public function testAgregarUnUsuarioInactivoSigueFallando(): void
     {
-        [$inactivoId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Trabajador', activo: false);
+        [$inactivoId] = TestDatabase::crearUsuario('18000001-1', 'Carla', 'Aseo', activo: false);
         $t = $this->crearTicket();
         $this->assertSame(404, $this->pedirAsignacion($t->id, $this->supervisoraId, [$this->anaId, $inactivoId]));
     }

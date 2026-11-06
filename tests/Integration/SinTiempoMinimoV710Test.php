@@ -33,7 +33,7 @@ final class SinTiempoMinimoV710Test extends TestCase
         Database::execute("INSERT INTO hoteles (codigo, nombre) VALUES ('1_sur', '1 Sur')");
         Database::execute("INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES ('mañana', '08:00', '16:00')");
         $this->hoy = date('Y-m-d');
-        [$this->ana] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Aseo');
         $turnoId = (int) Database::fetchOne('SELECT id FROM turnos LIMIT 1')['id'];
         Database::execute(
             'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',

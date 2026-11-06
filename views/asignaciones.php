@@ -155,17 +155,34 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
 
             <!-- Buscador de "Equipo del día" (compartido por Tablero y Clásico) -->
             <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto">
-                <label class="sr-only" for="asig-buscar-trabajador">Buscar trabajador</label>
+                <label class="sr-only" for="asig-buscar-trabajador">Buscar persona</label>
                 <div class="relative max-w-sm">
                     <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                     <input id="asig-buscar-trabajador" x-model="busquedaEquipo" type="text"
-                           placeholder="Buscar trabajador por nombre..."
+                           placeholder="Buscar persona por nombre..."
                            class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
                 </div>
                 <button x-show="busquedaEquipo" x-cloak @click="busquedaEquipo = ''"
                         class="text-xs text-gray-500 dark:text-gray-400 hover:underline mt-1">
                     Limpiar búsqueda
                 </button>
+
+                <!-- Pestañas del equipo (v7.14), compartidas por Tablero y Clásico: «Aseo» es el
+                     personal de aseo con turno; «Otros», la gente de otras áreas que limpia (Apoyo,
+                     Recepción, Mantención), tenga o no turno. Ver PersonalAsignableService. -->
+                <div class="mt-3 inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5"
+                     role="tablist" aria-label="Equipo">
+                    <template x-for="g in gruposEquipo" :key="g.valor">
+                        <button type="button" role="tab" @click="setGrupoEquipo(g.valor)"
+                                :aria-selected="grupoEquipo === g.valor ? 'true' : 'false'"
+                                :class="grupoEquipo === g.valor ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                                class="min-h-[44px] px-4 text-sm font-medium rounded-md inline-flex items-center gap-2 transition">
+                            <span x-text="g.label"></span>
+                            <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full"
+                                  x-text="contarGrupo(g.valor)"></span>
+                        </button>
+                    </template>
+                </div>
             </div>
 
             <!-- Barra de modo (compartida por ambos modos) -->
@@ -201,18 +218,18 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                     <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                                     Equipo del día
                                     <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full"
-                                          x-text="data.trabajadores.length"></span>
+                                          x-text="equipoDelGrupo().length"></span>
                                 </h2>
                             </div>
 
-                            <template x-if="data.trabajadores.length === 0">
+                            <template x-if="equipoDelGrupo().length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="user-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400">No hay trabajadores con turno hoy en este hotel.</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400" x-text="textoEquipoVacio()"></p>
                                 </div>
                             </template>
 
-                            <template x-if="data.trabajadores.length > 0 && trabajadoresEquipoFiltrados().length === 0">
+                            <template x-if="equipoDelGrupo().length > 0 && trabajadoresEquipoFiltrados().length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="search-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
                                     <p class="text-sm text-gray-600 dark:text-gray-400">Sin coincidencias para "<span x-text="busquedaEquipo"></span>".</p>
@@ -497,18 +514,18 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                     <i data-lucide="users" class="w-4 h-4 text-blue-600 dark:text-blue-400"></i>
                                     Equipo del día
                                     <span class="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full"
-                                          x-text="data.trabajadores.length"></span>
+                                          x-text="equipoDelGrupo().length"></span>
                                 </h2>
                             </div>
 
-                            <template x-if="data.trabajadores.length === 0">
+                            <template x-if="equipoDelGrupo().length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="user-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400">No hay trabajadores con turno hoy en este hotel.</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400" x-text="textoEquipoVacio()"></p>
                                 </div>
                             </template>
 
-                            <template x-if="data.trabajadores.length > 0 && trabajadoresEquipoFiltrados().length === 0">
+                            <template x-if="equipoDelGrupo().length > 0 && trabajadoresEquipoFiltrados().length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="search-x" class="w-8 h-8 text-gray-400 mx-auto mb-2"></i>
                                     <p class="text-sm text-gray-600 dark:text-gray-400">Sin coincidencias para "<span x-text="busquedaEquipo"></span>".</p>
@@ -674,7 +691,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                 </button>
                             </div>
                             <template x-if="data && data.trabajadores.length === 0">
-                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay trabajadores con turno hoy.</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay a quién asignarle ese día en este hotel.</p>
                             </template>
                             <template x-if="data && data.trabajadores.length > 0">
                                 <div>
@@ -704,6 +721,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                     <span class="flex items-center gap-2 min-w-0">
                                                         <span x-html="avatarUsuario(tr.usuario)"></span>
                                                         <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></span>
+                                                        <template x-if="tr.usuario.grupo === 'otros'">
+                                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 flex-shrink-0">Otros</span>
+                                                        </template>
                                                     </span>
                                                     <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                                         <span x-text="tr.progreso.pendientes + tr.progreso.en_progreso"></span> pendientes
@@ -772,6 +792,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                     <span class="flex items-center gap-2 min-w-0">
                                                         <span x-html="avatarUsuario(dest.usuario)"></span>
                                                         <span class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" x-text="dest.usuario.nombre"></span>
+                                                        <template x-if="dest.usuario.grupo === 'otros'">
+                                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 flex-shrink-0">Otros</span>
+                                                        </template>
                                                     </span>
                                                     <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                                                         <span x-text="dest.progreso.pendientes + dest.progreso.en_progreso"></span> pendientes
@@ -799,7 +822,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                     <h3 id="arrastre-titulo" class="text-lg font-semibold text-gray-900 dark:text-gray-100">¿Por qué la cambias?</h3>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3"
                        x-text="modalArrastre.hab ? ('Hab. ' + modalArrastre.hab.numero + ': de ' + (modalArrastre.origenTr ? modalArrastre.origenTr.usuario.nombre : '') + ' a ' + (modalArrastre.destino ? modalArrastre.destino.usuario.nombre : '')) : ''"></p>
-                    <p x-show="modalArrastre.hab && modalArrastre.hab.estado === 'en_progreso'"
+                    <p x-show="!esFuturo && modalArrastre.hab && modalArrastre.hab.estado === 'en_progreso'"
                        class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-3">
                         Está en progreso: si la mueves, se reinicia y la persona pierde lo avanzado.
                     </p>
@@ -858,6 +881,12 @@ function asignacionesApp() {
         // Buscador de "Equipo del día" — un solo campo, compartido por Tablero y
         // Clásico (misma instancia de componente). No filtra "Sin asignar".
         busquedaEquipo: '',
+        // Pestaña del equipo (v7.14): 'aseo' u 'otros' (grupo que manda el backend en cada persona).
+        grupoEquipo: localStorage.getItem('asignaciones_grupo') === 'otros' ? 'otros' : 'aseo',
+        gruposEquipo: [
+            { valor: 'aseo', label: 'Aseo' },
+            { valor: 'otros', label: 'Otros' },
+        ],
         seleccionadas: [],
         autoEjecutando: false,
         _intervalId: null,
@@ -896,6 +925,13 @@ function asignacionesApp() {
 
         get esHoy() {
             return this.fecha === window.hoyServidor();
+        },
+
+        // Planificando un día que todavía no llega: lo que la pieza tenga HOY (aprobada, por
+        // inspeccionar, en progreso) no bloquea su preasignación (v7.14). No es «!esHoy»: los
+        // días pasados siguen cerrados.
+        get esFuturo() {
+            return this.fecha > window.hoyServidor();
         },
 
         // Etiqueta legible del día que se está viendo, para el navegador de fecha del header.
@@ -998,13 +1034,37 @@ function asignacionesApp() {
             return op ? op.etiqueta : 'Ambos hoteles';
         },
 
-        // Filtra data.trabajadores por nombre (busquedaEquipo). Usado por el Tablero
+        setGrupoEquipo(g) {
+            this.grupoEquipo = g;
+            localStorage.setItem('asignaciones_grupo', g);
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        contarGrupo(g) {
+            if (!this.data) return 0;
+            return this.data.trabajadores.filter(function (tr) { return tr.usuario.grupo === g; }).length;
+        },
+
+        // Las personas de la pestaña elegida («Aseo» u «Otros»).
+        equipoDelGrupo() {
+            if (!this.data) return [];
+            var g = this.grupoEquipo;
+            return this.data.trabajadores.filter(function (tr) { return tr.usuario.grupo === g; });
+        },
+
+        textoEquipoVacio() {
+            return this.grupoEquipo === 'otros'
+                ? 'No hay personas de otras áreas que puedan limpiar en este hotel. Para que alguien aparezca acá, el Admin le da el rol Apoyo en Usuarios.'
+                : 'No hay personal de aseo con turno ese día en este hotel.';
+        },
+
+        // Filtra la pestaña elegida por nombre (busquedaEquipo). Usado por el Tablero
         // ("Equipo del día") y el Clásico ("Equipo") — misma lista, mismo orden.
         trabajadoresEquipoFiltrados() {
-            if (!this.data) return [];
+            var equipo = this.equipoDelGrupo();
             var q = (this.busquedaEquipo || '').trim().toLowerCase();
-            if (!q) return this.data.trabajadores;
-            return this.data.trabajadores.filter(function (tr) {
+            if (!q) return equipo;
+            return equipo.filter(function (tr) {
                 return (tr.usuario.nombre || '').toLowerCase().includes(q);
             });
         },
@@ -1112,7 +1172,7 @@ function asignacionesApp() {
             });
             if (!origenTr) return;
             var hab = origenTr.cola.find(function (h) { return h.habitacion_id === rid; });
-            if (hab && hab.estado === 'en_progreso') {
+            if (!this.esFuturo && hab && hab.estado === 'en_progreso') {
                 if (!confirm('La habitación ' + hab.numero + ' está en progreso. Si la quitas, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
             }
             // Optimista: sacar de la cola del trabajador (cargar() la re-ubica en el pool).
@@ -1258,14 +1318,17 @@ function asignacionesApp() {
 
         // --- Reasignar (modal clásico) ---
 
+        // El estado es el de HOY: en un día futuro solo es referencia, la preasignación se mueve
+        // igual (el backend tampoco la bloquea).
         esReasignable(estado) {
+            if (this.esFuturo) return true;
             if (estado === 'en_progreso') return this.puedeMoverEnProgreso;
             return estado === 'sucia' || estado === 'rechazada';
         },
 
         // En progreso y sin permiso para moverla: candado, sin arrastre ni botones.
         esBloqueadaEnProgreso(estado) {
-            return estado === 'en_progreso' && !this.puedeMoverEnProgreso;
+            return !this.esFuturo && estado === 'en_progreso' && !this.puedeMoverEnProgreso;
         },
 
         tieneBloqueadaEnProgreso(tr) {
@@ -1351,7 +1414,7 @@ function asignacionesApp() {
             var hab = this.modalReasignar.habitacion;
             if (!hab) return;
             // Mismo aviso que al arrastrarla en el Tablero (solo llega acá quien puede moverla).
-            if (hab.estado === 'en_progreso' &&
+            if (!this.esFuturo && hab.estado === 'en_progreso' &&
                 !confirm('La habitación ' + hab.numero + ' está en progreso. Si la mueves, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
             this.modalReasignar.enviando = true;
             try {
@@ -1380,8 +1443,8 @@ function asignacionesApp() {
         async desasignar(tr, hab) {
             // DEFAULT APLICADO (aprobado por el usuario): confirm() nativo, mismo
             // patrón que autoAsignar() en esta misma página.
-            var pregunta = hab.estado === 'en_progreso'
-                ? 'La habitación ' + hab.numero + ' está en progreso. Si la quitas, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?'
+            var pregunta = !this.esFuturo && hab.estado === 'en_progreso'
+                ?'La habitación ' + hab.numero + ' está en progreso. Si la quitas, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?'
                 : '¿Quitar la habitación ' + hab.numero + ' de la cola de ' + tr.usuario.nombre + '? Quedará sin asignar.';
             if (!confirm(pregunta)) return;
             try {

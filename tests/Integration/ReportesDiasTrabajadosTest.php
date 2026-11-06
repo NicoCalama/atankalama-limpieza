@@ -50,10 +50,10 @@ final class ReportesDiasTrabajadosTest extends TestCase
         }
         $this->crearPieza('301', $inn);
 
-        [$ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
-        [$carla] = TestDatabase::crearUsuario('44444444-4', 'Carla', 'Trabajador');
-        [$dora]  = TestDatabase::crearUsuario('55555555-5', 'Dora', 'Trabajador');
+        [$ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
+        [$carla] = TestDatabase::crearUsuario('44444444-4', 'Carla', 'Aseo');
+        [$dora]  = TestDatabase::crearUsuario('55555555-5', 'Dora', 'Aseo');
         [$sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
         Database::execute("UPDATE usuarios SET jornada = 'parcial' WHERE id = ?", [$ana]);
         Database::execute("UPDATE usuarios SET jornada = 'completa' WHERE id = ?", [$dora]);

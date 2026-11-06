@@ -43,7 +43,7 @@ final class PreasignacionesTest extends TestCase
         TestDatabase::sembrarChecklistTemplates();
         $this->hotelId = (int) Database::fetchColumn("SELECT id FROM hoteles WHERE codigo = '1_sur'");
         $this->tipoId  = (int) Database::fetchColumn("SELECT id FROM tipos_habitacion WHERE nombre = 'Doble'");
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->hoy     = date('Y-m-d');
         // A media mañana: la suite no depende de la hora a la que corre (ver los tests de madrugada).
         $this->asig    = new AsignacionService(horaActual: 9);

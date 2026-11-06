@@ -39,7 +39,7 @@ final class EspacioServiceTest extends TestCase
 
     private function crearTrabajadorConTurno(string $rut, string $nombre): int
     {
-        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Trabajador');
+        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Aseo');
         $turnoId = (int) Database::fetchOne('SELECT id FROM turnos LIMIT 1')['id'];
         Database::execute(
             'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',

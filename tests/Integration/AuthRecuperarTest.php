@@ -42,7 +42,7 @@ final class AuthRecuperarTest extends TestCase
 
     private function crearUsuarioConEmail(string $rut = '11111111-1'): array
     {
-        [$id, $pwd] = TestDatabase::crearUsuario($rut, 'Recuperable', 'Trabajador');
+        [$id, $pwd] = TestDatabase::crearUsuario($rut, 'Recuperable', 'Aseo');
         Database::execute('UPDATE usuarios SET email = ? WHERE id = ?', ['recuperable@test.cl', $id]);
         return [$id, $pwd];
     }
@@ -91,7 +91,7 @@ final class AuthRecuperarTest extends TestCase
 
     public function testRecuperarSinEmailNoCambiaPassword(): void
     {
-        [$id, $pwd] = TestDatabase::crearUsuario('22222222-2', 'Sin Email', 'Trabajador');
+        [$id, $pwd] = TestDatabase::crearUsuario('22222222-2', 'Sin Email', 'Aseo');
 
         $this->auth->recuperarContrasena('22222222-2', $this->ip);
 
@@ -103,7 +103,7 @@ final class AuthRecuperarTest extends TestCase
 
     public function testRecuperarUsuarioInactivoNoCambiaPassword(): void
     {
-        [$id] = TestDatabase::crearUsuario('33333333-3', 'Inactivo', 'Trabajador', activo: false);
+        [$id] = TestDatabase::crearUsuario('33333333-3', 'Inactivo', 'Aseo', activo: false);
         Database::execute('UPDATE usuarios SET email = ? WHERE id = ?', ['inactivo@test.cl', $id]);
 
         $this->auth->recuperarContrasena('33333333-3', $this->ip);

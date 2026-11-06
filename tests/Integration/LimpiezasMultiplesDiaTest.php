@@ -44,8 +44,8 @@ final class LimpiezasMultiplesDiaTest extends TestCase
         );
         $this->roomId = Database::lastInsertId();
 
-        [$this->anaId] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Trabajador');
-        [$this->bertaId] = TestDatabase::crearUsuario('17000001-3', 'Berta', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Aseo');
+        [$this->bertaId] = TestDatabase::crearUsuario('17000001-3', 'Berta', 'Aseo');
         [$this->auditorId] = TestDatabase::crearUsuario('15000001-7', 'Sofía', 'Supervisora');
 
         $this->hoy = date('Y-m-d');

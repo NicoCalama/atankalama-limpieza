@@ -37,7 +37,7 @@ final class AlertasPredictivasServiceTest extends TestCase
 
     private function crearTrabajadorEnTurno(string $rut, string $nombre): int
     {
-        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Trabajador');
+        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Aseo');
         Database::execute(
             'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
             [$id, $this->turnoId, $this->fecha]

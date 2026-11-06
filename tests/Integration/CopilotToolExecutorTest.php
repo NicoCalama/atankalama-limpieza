@@ -43,7 +43,7 @@ final class CopilotToolExecutorTest extends TestCase
         $this->tipoId = (int) Database::fetchOne("SELECT id FROM #__tipos_habitacion LIMIT 1")['id'];
 
         [$this->adminId] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
-        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
 
         $svcUsuario = new UsuarioService();
         $this->admin = $svcUsuario->buscarPorId($this->adminId);

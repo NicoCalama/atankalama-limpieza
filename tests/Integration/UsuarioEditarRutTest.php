@@ -33,7 +33,7 @@ final class UsuarioEditarRutTest extends TestCase
         TestDatabase::recrear();
         [$this->adminId, $this->adminPwd] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
         [$this->supId] = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
-        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Aseo');
     }
 
     public function testConElRutNuevoEntraYConElViejoYaNo(): void

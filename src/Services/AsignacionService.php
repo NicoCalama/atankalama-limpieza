@@ -283,6 +283,9 @@ final class AsignacionService
      * en ChecklistService::iniciarEjecucion), y la próxima asignación arranca
      * una ejecución nueva desde cero. Por eso quitar una en_progreso exige el
      * permiso asignaciones.mover_en_progreso (ver exigirPuedeMoverEnProgreso).
+     *
+     * Nada de lo anterior aplica a un día futuro (preasignación): se quita siempre y no se
+     * reinicia nada, porque el estado de la pieza es el de hoy (v7.14).
      */
     public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false): void
     {
@@ -304,8 +307,12 @@ final class AsignacionService
         if ($hab === null) {
             throw new AsignacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
         }
+        // El estado de la pieza es el de HOY. Una preasignación de un día que todavía no llega no se
+        // ejecutó: se quita sin mirarlo y sin tocar la limpieza de hoy (v7.14; antes, quitar la de
+        // mañana de una pieza en progreso hoy le reiniciaba la limpieza y avisaba «sucia» a Cloudbeds).
+        $esFutura = $fecha > date('Y-m-d');
         $desasignables = [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_RECHAZADA];
-        if (!in_array($hab['estado'], $desasignables, true)) {
+        if (!$esFutura && !in_array($hab['estado'], $desasignables, true)) {
             throw new AsignacionException(
                 'ESTADO_NO_DESASIGNABLE',
                 'La habitación ya fue completada: no se puede desasignar.',
@@ -313,20 +320,21 @@ final class AsignacionService
             );
         }
         $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
+        $reiniciar = !$esFutura && $hab['estado'] === Habitacion::ESTADO_EN_PROGRESO;
 
-        Database::transaction(function () use ($habitacionId, $fecha, $hab, $actorId): void {
+        Database::transaction(function () use ($habitacionId, $fecha, $reiniciar, $actorId): void {
             Database::execute(
                 'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
                 [$habitacionId, $fecha]
             );
-            if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
+            if ($reiniciar) {
                 $this->resetearASucia($habitacionId, $actorId); // R6: con historial, ver asignarManual()
             }
         });
 
         // Fuera de la transacción: es una llamada de red (Cloudbeds), no debe tener el lock de BD
         // abierto mientras espera. Mismo motivo que en asignarManual().
-        if ($hab['estado'] === Habitacion::ESTADO_EN_PROGRESO) {
+        if ($reiniciar) {
             $this->avisarCloudbedsSucia($habitacionId);
         }
 
@@ -509,6 +517,7 @@ final class AsignacionService
         $sinPrueba = $incluirPrueba ? '' : ' AND ' . HabitacionesPrueba::sqlSinPrueba();
         $filtroHotel = ($hotel === 'ambos') ? null : $hotel;
         $esHoy = $fecha === date('Y-m-d');
+        $esFutura = $fecha > date('Y-m-d');
 
         if ($esHoy) {
             $this->reconciliarPreasignaciones($fecha);
@@ -595,23 +604,13 @@ final class AsignacionService
             $reLimpiar = [];
         }
 
-        // Trabajadores con turno hoy (filtrados por hotel si aplica)
-        $sqlTr = 'SELECT u.id, u.nombre, u.rut, u.hotel_default
-                    FROM #__usuarios u
-                    JOIN #__usuarios_turnos ut ON ut.usuario_id = u.id
-                   WHERE ut.fecha = ?
-                     AND u.activo = 1';
-        $paramsTr = [$fecha];
-        if ($filtroHotel !== null) {
-            $sqlTr .= " AND (u.hotel_default = ? OR u.hotel_default = 'ambos')";
-            $paramsTr[] = $filtroHotel;
-        }
-        $sqlTr .= ' ORDER BY u.nombre';
-        $trabajadores = Database::fetchAll($sqlTr, $paramsTr);
+        // A quién se le puede asignar ese día (v7.14): aseo con turno + «otros» que limpian, con o sin
+        // turno. Cada uno trae su grupo para las pestañas «Aseo / Otros». Ver PersonalAsignableService.
+        $trabajadores = (new PersonalAsignableService())->listar($fecha, $filtroHotel);
 
         $trabajadoresVista = [];
         foreach ($trabajadores as $tr) {
-            $cola = HabitacionesPrueba::filtrar($this->colaDelTrabajador((int) $tr['id'], $fecha), $incluirPrueba);
+            $cola = HabitacionesPrueba::filtrar($this->colaDelTrabajador($tr['id'], $fecha), $incluirPrueba);
             if ($filtroHotel !== null) {
                 $cola = array_values(array_filter(
                     $cola,
@@ -624,7 +623,8 @@ final class AsignacionService
             $rechazadas = 0;
             foreach ($cola as $h) {
                 $estado = $h['estado'] ?? '';
-                if ($estado === 'sucia') {
+                // Un día futuro todavía no se limpió nada: el estado de hoy es solo referencia (v7.14).
+                if ($esFutura || $estado === 'sucia') {
                     $pendientes++;
                 } elseif ($estado === 'en_progreso') {
                     $enProgreso++;
@@ -636,10 +636,12 @@ final class AsignacionService
             }
             $trabajadoresVista[] = [
                 'usuario' => [
-                    'id' => (int) $tr['id'],
+                    'id' => $tr['id'],
                     'nombre' => $tr['nombre'],
                     'rut' => $tr['rut'],
                     'hotel_default' => $tr['hotel_default'],
+                    'grupo' => $tr['grupo'],
+                    'con_turno' => $tr['con_turno'],
                 ],
                 'cola' => $cola,
                 'progreso' => [

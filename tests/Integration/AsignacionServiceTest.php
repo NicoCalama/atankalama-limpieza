@@ -43,7 +43,7 @@ final class AsignacionServiceTest extends TestCase
 
     private function crearTrabajador(string $rut, string $nombre, string $fechaTurno): int
     {
-        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Trabajador');
+        [$id] = TestDatabase::crearUsuario($rut, $nombre, 'Aseo');
         Database::execute(
             'INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)',
             [$id, $this->turnoId, $fechaTurno]
@@ -54,7 +54,7 @@ final class AsignacionServiceTest extends TestCase
     public function testAsignarManualCreaFila(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         $a = $this->svc->asignarManual($hab, $uid, '2026-04-14');
 
@@ -67,8 +67,8 @@ final class AsignacionServiceTest extends TestCase
     public function testReasignarDesactivaAnterior(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$u1] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$u2] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$u1] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$u2] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
 
         $this->svc->asignarManual($hab, $u1, '2026-04-14');
         $this->svc->reasignar($hab, $u2, '2026-04-14', 'rechazada');
@@ -82,7 +82,7 @@ final class AsignacionServiceTest extends TestCase
     {
         $h1 = $this->crearHabitacion('101');
         $h2 = $this->crearHabitacion('102');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         $a1 = $this->svc->asignarManual($h1, $uid, '2026-04-14');
         $a2 = $this->svc->asignarManual($h2, $uid, '2026-04-14');
@@ -125,7 +125,7 @@ final class AsignacionServiceTest extends TestCase
     public function testFechaInvalidaLanza(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         try {
             $this->svc->asignarManual($hab, $uid, '14-04-2026');
             $this->fail('Debía lanzar');
@@ -139,7 +139,7 @@ final class AsignacionServiceTest extends TestCase
         $h1 = $this->crearHabitacion('101');
         $h2 = $this->crearHabitacion('102');
         $h3 = $this->crearHabitacion('103');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         $this->svc->asignarManual($h1, $uid, '2026-04-14');
         $this->svc->asignarManual($h2, $uid, '2026-04-14');
@@ -156,8 +156,8 @@ final class AsignacionServiceTest extends TestCase
     public function testEsHabitacionAsignadaA(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$otra] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$otra] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
 
         $this->assertTrue($this->svc->esHabitacionAsignadaA($hab, $uid, '2026-04-14'));
@@ -169,7 +169,7 @@ final class AsignacionServiceTest extends TestCase
     public function testDesasignarDejaLaHabitacionSinAsignacionActiva(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
 
         $this->svc->desasignar($hab, '2026-04-14');
@@ -184,7 +184,7 @@ final class AsignacionServiceTest extends TestCase
     public function testDesasignarEnProgresoRevierteASucia(): void
     {
         $hab = $this->crearHabitacion('101', 'en_progreso');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
 
         $this->svc->desasignar($hab, '2026-04-14');
@@ -197,7 +197,7 @@ final class AsignacionServiceTest extends TestCase
     public function testDesasignarNotificaAlTrabajador(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
 
         $this->svc->desasignar($hab, '2026-04-14');
@@ -225,7 +225,7 @@ final class AsignacionServiceTest extends TestCase
     public function testDesasignarCompletadaLanza409(): void
     {
         $hab = $this->crearHabitacion('101');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
         Database::execute("UPDATE habitaciones SET estado = 'completada_pendiente_auditoria' WHERE id = ?", [$hab]);
 
@@ -245,7 +245,7 @@ final class AsignacionServiceTest extends TestCase
     public function testDesasignarRechazadaMantieneEstadoRechazada(): void
     {
         $hab = $this->crearHabitacion('101', 'rechazada');
-        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$uid] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc->asignarManual($hab, $uid, '2026-04-14');
         // asignarManual resetea terminal→sucia; forzamos rechazada de nuevo para
         // simular un rechazo posterior a la asignación

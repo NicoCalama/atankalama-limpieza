@@ -40,7 +40,7 @@ final class AuditoriaServiceTest extends TestCase
         );
         $this->habitacionId = Database::lastInsertId();
 
-        [$this->trabajadorId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->trabajadorId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->auditorId] = TestDatabase::crearUsuario('22222222-2', 'Eva', 'Supervisora');
 
         $asig = new AsignacionService();
@@ -76,7 +76,7 @@ final class AuditoriaServiceTest extends TestCase
             [$this->itemFallidoId]
         );
 
-        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Aseo');
         (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, $this->fecha, 're-limpieza');
 
         $checklist = new ChecklistService();
@@ -109,7 +109,7 @@ final class AuditoriaServiceTest extends TestCase
             Database::fetchOne("SELECT id FROM alertas_activas WHERE tipo = 'habitacion_rechazada'")
         );
 
-        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        [$trabajador2] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Aseo');
         // El reabrir on-demand (rechazada→sucia) que resuelve la alerta solo aplica a la fecha
         // actual: una preasignación a futuro no ensucia la pieza hoy. Por eso reasignamos "hoy".
         (new AsignacionService())->reasignar($this->habitacionId, $trabajador2, date('Y-m-d'), 're-limpieza');
@@ -287,7 +287,7 @@ final class AuditoriaServiceTest extends TestCase
         );
 
         // Reasignar a Berta e iniciar la re-limpieza.
-        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Aseo');
         (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
         $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
 
@@ -354,7 +354,7 @@ final class AuditoriaServiceTest extends TestCase
         $creada = $checklist->editarTemplate($ejec1->templateId, null, $payload, $this->auditorId);
         $idsV1 = array_map(static fn(array $i) => (int) $i['id'], $itemsV1);
 
-        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Aseo');
         (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
         $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
         $this->assertSame($creada['template_id'], $ejec2->templateId);
@@ -412,7 +412,7 @@ final class AuditoriaServiceTest extends TestCase
         }
         Database::execute('UPDATE habitaciones SET tipo_habitacion_id = ? WHERE id = ?', [$otroTipoId, $this->habitacionId]);
 
-        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        [$berta] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Aseo');
         (new AsignacionService())->reasignar($this->habitacionId, $berta, $this->fecha, 're-limpieza');
         $ejec2 = $checklist->iniciarEjecucion($this->habitacionId, $berta, $this->fecha);
 

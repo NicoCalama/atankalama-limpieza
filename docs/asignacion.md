@@ -1,7 +1,8 @@
 # Asignación de habitaciones — Especificación del módulo
 
 Pantalla `/asignaciones` (vista `views/asignaciones.php`). Es donde la supervisora
-reparte las habitaciones del día entre los trabajadores con turno. Complementa los
+reparte las habitaciones del día entre el personal de aseo con turno y la gente de
+otras áreas que limpia (pestañas «Aseo» y «Otros», §3.1). Complementa los
 paneles "Ver carga / Reasignar" del home (ver `docs/home-supervisora.md`), pero es
 una pantalla propia y más completa.
 
@@ -44,10 +45,36 @@ GET /api/asignaciones/vista?fecha=<hoy>&hotel=<1_sur|inn>   (hotel se omite si e
 Respuesta (`data`):
 - `sin_asignar[]` — piezas sucias sin asignar: `{ id, numero, tipo_nombre, hotel_codigo, hotel_nombre }`.
 - `re_limpiar[]` — piezas ya limpias hoy que necesitan otra pasada (ocupación día/noche); misma forma. **Al asignarlas se re-abren y la limpieza arranca de cero** (el backend resetea el estado terminal a `sucia`).
-- `trabajadores[]` — equipo con turno hoy: `{ usuario:{id,nombre,rut}, progreso:{completadas,total,en_progreso,pendientes,rechazadas}, cola:[{habitacion_id,numero,tipo_nombre,estado,franja}] }`.
+- `trabajadores[]` — a quién se le puede asignar ese día: `{ usuario:{id,nombre,rut,hotel_default,grupo,con_turno}, progreso:{completadas,total,en_progreso,pendientes,rechazadas}, cola:[{habitacion_id,numero,tipo_nombre,estado,franja}] }`.
 
 Refresco: re-fetch tras cada acción + polling cada 60 s + al volver a la pestaña +
 al reconectar. El filtro de hotel se persiste en `localStorage['asignaciones_hotel']`.
+
+### 3.1 Pestañas «Aseo» y «Otros» (v7.14, 06/11/2026)
+
+Pedido de Nicolás: la supervisora solo veía al personal de aseo, porque la lista salía de quienes tienen
+**turno cargado** ese día y solo el aseo tiene turno (Excel de Breik). Ahora la lista la arma
+`PersonalAsignableService::listar($fecha, $hotel)`, la misma que usa «Pedir limpieza» de Áreas comunes
+(`GET /api/espacios`), y cada persona trae su `grupo`. La regla va por permiso, nunca por nombre de rol:
+
+- **Aseo** (`grupo: "aseo"`): sin la marca `asignaciones.excluir_auto` (personal de aseo) y **con turno**
+  ese día. Sin turno no sale: el turno es lo que dice que trabaja ese día.
+- **Otros** (`grupo: "otros"`): con la marca `asignaciones.excluir_auto` (no es de aseo) que además
+  **puede limpiar** (`habitaciones.ver_asignadas_propias`, o sea ve su cola en el celular), **tenga o no
+  turno**. No sale quien reparte (`asignaciones.asignar_manual`: Supervisora, Admin). En la práctica es el
+  rol Apoyo; si alguien de Recepción o Mantención tiene que aparecer, el Admin le agrega el rol Apoyo en
+  Usuarios (sin código).
+- **Quien ya tiene piezas asignadas ese día sale siempre**, en su grupo, aunque no calce arriba (por
+  ejemplo, el Admin con la habitación PRUEBA): ninguna asignación queda escondida del tablero.
+- Mismo filtro de hotel de siempre (`hotel_default` igual al elegido o `ambos`).
+- Cambio respecto de antes: una Supervisora o un Admin con turno cargado y sin piezas ya no aparecen
+  como destino.
+- El **auto-asignar no cambia**: solo aseo con turno (§6).
+- Las alertas predictivas no corren para alguien sin turno (no tiene hora de fin).
+
+En pantalla: pestañas «Aseo (n) · Otros (n)» bajo el buscador, compartidas por Tablero y Clásico (se
+recuerda en `localStorage["asignaciones_grupo"]`, también la usa «Pedir limpieza»). Los modales de asignar
+y reasignar listan a todos, con una etiqueta «Otros» en los que no son de aseo.
 
 ## 4. Modo Tablero (arrastrar-y-soltar)
 
@@ -119,6 +146,16 @@ unificados (mouse + dedo)**. Se carga solo en esta pantalla (`<script src>?v=fil
     se asigna ninguna.
 - Si el backend responde **409 `ESTADO_NO_DESASIGNABLE`** (carrera: alguien la
   auditó entremedio), se muestra un mensaje amable y se re-sincroniza.
+- **Estas reglas valen para HOY, no para la planificación (v7.14, 06/11/2026).** El estado que
+  muestra cada pieza es el de hoy. Antes, una pieza limpiada o en progreso hoy dejaba trabada su
+  preasignación de un día futuro: no se podía arrastrar, quitar ni reasignar, ni siquiera el
+  Admin. Ahora:
+  - En un **día futuro** toda preasignación se mueve y se quita, con el estado de hoy solo como
+    referencia en el badge (igual que en el pool de ese día). No hay candado ni aviso de
+    «se reinicia». Los contadores de ese día cuentan todo como pendiente.
+  - `AsignacionService::desasignar` con una fecha futura no exige estado y no reinicia nada: la
+    limpieza en curso de hoy y Cloudbeds quedan como estaban. `reasignar` ya lo permitía.
+  - Hoy y los días pasados siguen igual.
 
 ## 5. Modo Clásico (respaldo)
 

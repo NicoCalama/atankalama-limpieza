@@ -27,7 +27,7 @@ final class PushEnvioTest extends TestCase
 
     public function testUnFalloAlCifrarOEnviarNoTumbaLaAccionNiBorraLaSuscripcion(): void
     {
-        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         Database::execute(
             'INSERT INTO push_subscriptions (usuario_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)',
             [$ana, 'https://updates.push.services.mozilla.com/wpush/v2/abc', self::b64url("\x04" . str_repeat("\x01", 64)), self::b64url(str_repeat("\x02", 16))]

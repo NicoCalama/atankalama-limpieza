@@ -303,11 +303,13 @@ function turnosApp() {
         catalogo: [],
         cargandoAsignacion: false,
         usuariosAsignacion: [],
-        rolFiltro: localStorage.getItem('ajustes_turnos_rol') || '',
+        // v7.14: el rol «Trabajador» pasó a llamarse «Aseo»; un filtro guardado con el nombre viejo
+        // vuelve a «Todos» en vez de dejar la lista vacía.
+        rolFiltro: localStorage.getItem('ajustes_turnos_rol') === 'Trabajador' ? '' : (localStorage.getItem('ajustes_turnos_rol') || ''),
         busquedaNombre: '',
         filtrosRol: [
             { valor: '', label: 'Todos' },
-            { valor: 'Trabajador', label: 'Trabajadores' },
+            { valor: 'Aseo', label: 'Aseo' },
             { valor: 'Apoyo', label: 'Apoyo' },
             { valor: 'Supervisora', label: 'Supervisoras' },
             { valor: 'Recepción', label: 'Recepción' },

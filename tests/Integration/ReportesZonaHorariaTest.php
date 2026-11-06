@@ -45,7 +45,7 @@ final class ReportesZonaHorariaTest extends TestCase
             [$hotelId, $tipoId]
         );
         $this->habId = Database::lastInsertId();
-        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->rep = new ReportesService();
     }
 

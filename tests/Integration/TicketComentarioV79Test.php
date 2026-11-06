@@ -28,7 +28,7 @@ final class TicketComentarioV79Test extends TestCase
         TestDatabase::recrear();
         Database::execute("INSERT INTO hoteles (codigo, nombre) VALUES ('1_sur', '1 Sur')");
         $this->hotel = (int) Database::fetchColumn("SELECT id FROM hoteles WHERE codigo = '1_sur'");
-        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
+        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
         $this->tipo = TestDatabase::opcionId('ticket_tipo', 'Fuga o problema de agua');
     }
 
@@ -49,7 +49,7 @@ final class TicketComentarioV79Test extends TestCase
             hotelDefault: null,
             temaPreferido: 'claro',
             permisos: ['tickets.crear', 'tickets.ver_propios'],
-            roles: ['Trabajador'],
+            roles: ['Aseo'],
         );
         return (new TicketsController())->crear($r);
     }

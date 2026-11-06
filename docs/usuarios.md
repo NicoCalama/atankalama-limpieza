@@ -19,7 +19,7 @@ Un usuario puede tener **múltiples roles** (tabla `usuarios_roles`). Permisos e
 
 ## 2. Trabajadores (no es entidad separada)
 
-"Trabajador" es simplemente un usuario que tiene asignado el rol **Trabajador**. Toda la gestión usa los mismos endpoints de `/api/usuarios` con filtro `?rol=trabajador`.
+"Trabajador" es simplemente un usuario que tiene asignado el rol **Aseo** (se llamaba «Trabajador» hasta la v7.14). Toda la gestión usa los mismos endpoints de `/api/usuarios` con filtro `?rol=Aseo`.
 
 ---
 
@@ -64,7 +64,7 @@ Request:
   "rut": "12345678-9",
   "nombre": "Carmen Silva",
   "email": "carmen@ejemplo.cl",
-  "roles": ["Trabajador"],
+  "roles": ["Aseo"],
   "hotel_default": "1_sur",
   "jornada": "completa"
 }

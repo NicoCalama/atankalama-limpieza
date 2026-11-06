@@ -774,7 +774,7 @@ final class CloudbedsSyncServiceTest extends TestCase
     private function ultimaLimpiezaCerradaPorElSistema(string $numero): void
     {
         TestDatabase::sembrarChecklistTemplates();
-        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $hab = (int) Database::fetchColumn('SELECT id FROM habitaciones WHERE numero = ?', [$numero]);
         Database::execute('INSERT INTO asignaciones (habitacion_id, usuario_id, fecha, activa) VALUES (?, ?, ?, 1)', [$hab, $ana, date('Y-m-d', strtotime('-1 day'))]);
         $asignacion = Database::lastInsertId();

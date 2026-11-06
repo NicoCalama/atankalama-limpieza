@@ -56,7 +56,7 @@ final class AuthServiceTest extends TestCase
 
     public function testLoginRechazaUsuarioInactivo(): void
     {
-        TestDatabase::crearUsuario('11111111-1', 'Inactivo', 'Trabajador', activo: false);
+        TestDatabase::crearUsuario('11111111-1', 'Inactivo', 'Aseo', activo: false);
 
         try {
             $this->auth->login('11111111-1', 'Abc12345');
@@ -69,7 +69,7 @@ final class AuthServiceTest extends TestCase
 
     public function testHomeTargetTrabajador(): void
     {
-        [, $pwd] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [, $pwd] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         $r = $this->auth->login('22222222-2', $pwd);
         // El home_target es siempre '/home' (ruta única); la vista interna se resuelve por rol en views/home.php.
         $this->assertSame('/home', $r['home_target']);
@@ -175,7 +175,7 @@ final class AuthServiceTest extends TestCase
     public function testResetearTemporalGeneraPasswordYRequiereCambio(): void
     {
         [$adminId] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
-        [$targetId] = TestDatabase::crearUsuario('22222222-2', 'Target', 'Trabajador');
+        [$targetId] = TestDatabase::crearUsuario('22222222-2', 'Target', 'Aseo');
 
         $temporal = $this->auth->resetearContrasenaTemporal($targetId, $adminId);
         $this->assertSame(8, strlen($temporal));

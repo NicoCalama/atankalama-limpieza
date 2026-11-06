@@ -50,8 +50,8 @@ final class ReportesFichaTest extends TestCase
             $this->crearPieza($numero);
         }
 
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
-        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
+        [$this->berta] = TestDatabase::crearUsuario('22222222-2', 'Berta', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
         // Usuario técnico que firma el cierre automático (mismo RUT que crea la migración).
         [$sistema]     = TestDatabase::crearUsuario('SISTEMA-CRON', 'Sistema', 'Admin');

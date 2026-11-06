@@ -28,7 +28,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testCrearUsuarioGeneraPasswordTemporal(): void
     {
-        $rolId = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Trabajador'")['id'];
+        $rolId = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Aseo'")['id'];
         $r = $this->svc->crear(
             ['rut' => '22222222-2', 'nombre' => 'Juan', 'email' => 'juan@ex.com', 'hotel_default' => '1_sur', 'roles' => [$rolId]],
             $this->adminId,
@@ -36,7 +36,7 @@ final class UsuarioServiceTest extends TestCase
         );
         $this->assertSame('Juan', $r['usuario']->nombre);
         $this->assertNotSame('', $r['password_temporal']);
-        $this->assertContains('Trabajador', $r['usuario']->roles);
+        $this->assertContains('Aseo', $r['usuario']->roles);
     }
 
     public function testCrearConRolInexistenteLanzaYNoCreaUsuario(): void
@@ -350,7 +350,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testListarFiltraPorBusquedaYRol(): void
     {
-        $rolTrab = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Trabajador'")['id'];
+        $rolTrab = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Aseo'")['id'];
         $this->svc->crear(['rut' => '22222222-2', 'nombre' => 'Juan', 'roles' => [$rolTrab]], $this->adminId, $this->pwd);
         $this->svc->crear(['rut' => '33333333-3', 'nombre' => 'Maria', 'roles' => [$rolTrab]], $this->adminId, $this->pwd);
 
@@ -358,7 +358,7 @@ final class UsuarioServiceTest extends TestCase
         $this->assertCount(1, $busqueda);
         $this->assertSame('Juan', $busqueda[0]['nombre']);
 
-        $trabajadores = $this->svc->listar(['rol' => 'Trabajador']);
+        $trabajadores = $this->svc->listar(['rol' => 'Aseo']);
         $nombres = array_column($trabajadores, 'nombre');
         $this->assertContains('Juan', $nombres);
         $this->assertContains('Maria', $nombres);
@@ -380,7 +380,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testNoSePuedeDesactivarAlUltimoAdmin(): void
     {
-        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         try {
             $this->svc->activar($this->adminId, false, $trabajadorId);
             $this->fail('Debía lanzar');
@@ -404,7 +404,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testNoSePuedeEliminarAlUltimoAdmin(): void
     {
-        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         try {
             $this->svc->eliminar($this->adminId, $trabajadorId);
             $this->fail('Debía lanzar');
@@ -428,7 +428,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testListarMarcaAlUltimoAdmin(): void
     {
-        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         $porId = [];
         foreach ($this->svc->listar() as $u) {
             $porId[$u['id']] = $u;
@@ -447,7 +447,7 @@ final class UsuarioServiceTest extends TestCase
 
     public function testJornadaSeGuardaAlCrearYSinElegirQuedaSinDefinir(): void
     {
-        $rolId = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Trabajador'")['id'];
+        $rolId = (int) Database::fetchOne("SELECT id FROM roles WHERE nombre='Aseo'")['id'];
         $parcial = $this->svc->crear(
             ['rut' => '22222222-2', 'nombre' => 'Juan', 'jornada' => 'parcial', 'roles' => [$rolId]],
             $this->adminId,
@@ -474,14 +474,14 @@ final class UsuarioServiceTest extends TestCase
         }
         $this->assertNull(Database::fetchOne('SELECT id FROM usuarios WHERE rut = ?', ['22222222-2']));
 
-        [$id] = TestDatabase::crearUsuario('33333333-3', 'Pedro', 'Trabajador');
+        [$id] = TestDatabase::crearUsuario('33333333-3', 'Pedro', 'Aseo');
         $this->expectException(UsuarioException::class);
         $this->svc->actualizar($id, ['jornada' => 'media'], $this->adminId);
     }
 
     public function testActualizarJornadaYListarla(): void
     {
-        [$id] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$id] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         $this->assertSame('completa', $this->svc->actualizar($id, ['jornada' => 'completa'], $this->adminId)->jornada);
         $this->assertSame('parcial', $this->svc->actualizar($id, ['jornada' => 'parcial'], $this->adminId)->jornada);
 

@@ -565,10 +565,13 @@ final class TicketService
         return TicketAdjunto::desdeFila($fila);
     }
 
+    /** Rol de sistema del personal de aseo (se llamaba «Trabajador» hasta la v7.14). */
+    private const ROL_ASEO = 'Aseo';
+
     /**
-     * ¿El usuario destino tiene perfil Trabajador? Se compara por NOMBRE de rol y no por
+     * ¿El usuario destino tiene perfil Aseo? Se compara por NOMBRE de rol y no por
      * permiso porque "perfil" acá es literalmente el rol del catálogo (roles.es_sistema = 1).
-     * Un usuario con varios roles pasa si uno de ellos es Trabajador.
+     * Un usuario con varios roles pasa si uno de ellos es Aseo.
      */
     public function esTrabajador(int $usuarioId): bool
     {
@@ -578,13 +581,13 @@ final class TicketService
                JOIN #__roles r ON r.id = ur.rol_id
               WHERE ur.usuario_id = ? AND r.nombre = ?
               LIMIT 1',
-            [$usuarioId, 'Trabajador']
+            [$usuarioId, self::ROL_ASEO]
         );
         return $fila !== null;
     }
 
     /** Orden de precedencia cuando un usuario tiene más de un rol: el primero que calce manda. */
-    private const JERARQUIA_PERFILES = ['Admin', 'Supervisora', 'Recepción', 'Trabajador'];
+    private const JERARQUIA_PERFILES = ['Admin', 'Supervisora', 'Recepción', self::ROL_ASEO];
 
     /**
      * Usuarios activos disponibles para "Asignar responsable" — endpoint acotado a
@@ -621,7 +624,7 @@ final class TicketService
 
         $resultado = [];
         foreach ($porUsuario as $u) {
-            if ($soloTrabajadores && !in_array('Trabajador', $u['roles'], true)) {
+            if ($soloTrabajadores && !in_array(self::ROL_ASEO, $u['roles'], true)) {
                 continue;
             }
             $perfil = 'Sin perfil';

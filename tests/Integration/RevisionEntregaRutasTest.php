@@ -55,7 +55,7 @@ final class RevisionEntregaRutasTest extends TestCase
         );
         Database::execute("INSERT INTO motivos_revision_entrega (nombre) VALUES ('Baño sucio')");
         foreach ([
-            'trabajador' => ['11111111-1', 'Ana', 'Trabajador'],
+            'trabajador' => ['11111111-1', 'Ana', 'Aseo'],
             'recepcion' => ['22222222-2', 'Carla', 'Recepción'],
             'supervisora' => ['33333333-3', 'Sofía', 'Supervisora'],
             'admin' => ['44444444-4', 'Admin', 'Admin'],

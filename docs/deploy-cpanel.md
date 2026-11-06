@@ -3266,3 +3266,78 @@ cinco en la v7.12, `aeb7848`).
 El primer cambio real se revisa así: la persona entra con el RUT nuevo, y en phpMyAdmin
 `SELECT created_at, detalles_json FROM cat6852_australia.limpieza_audit_log WHERE accion = 'usuario.actualizar' AND detalles_json LIKE '%rut_anterior%';`
 muestra el RUT anterior y el nuevo.
+
+### 11.43 Release "preasignaciones a futuro, pestañas Aseo/Otros, rol Aseo y Áreas comunes en el celular" → v7.14 (sale junto con la v7.13)
+
+Origen: Nicolás, 06/11/2026, con tres detalles y un cambio de nombre:
+1. La supervisora no podía mover ni quitar una preasignación de un día futuro si la pieza ya se había limpiado o
+   se estaba limpiando hoy (el bloqueo operativo de «ya limpia / en progreso» miraba el estado de hoy).
+2. Al asignar solo veía al personal de aseo: la lista salía de quienes tienen turno cargado, y Mantención,
+   Recepción y Apoyo no tienen turno.
+3. Áreas comunes no servía en el celular.
+4. El rol «Trabajador» pasa a llamarse «Aseo».
+
+**Qué cambia:**
+- **Preasignaciones a futuro.**
+  - En un día futuro, el tablero deja mover y quitar cualquier preasignación (`esFuturo` en `views/asignaciones.php`).
+  - `AsignacionService::desasignar` con fecha futura no exige estado y no reinicia la limpieza de hoy. Antes, quitar
+    la de mañana de una pieza en progreso hoy la reiniciaba y avisaba «sucia» a Cloudbeds.
+  - Los contadores de un día futuro cuentan todo como pendiente.
+  - Hoy y los días pasados quedan igual (`docs/asignacion.md` §4.4).
+- **Pestañas «Aseo» y «Otros»**, en Asignaciones y en «Pedir limpieza» de Áreas comunes. La lista sale de
+  `PersonalAsignableService`, la misma para las dos pantallas (`docs/asignacion.md` §3.1):
+  - «Aseo»: personal de aseo con turno.
+  - «Otros»: quien no es de aseo y puede limpiar (`habitaciones.ver_asignadas_propias`), tenga o no turno. No sale
+    quien reparte.
+  - Si alguien de Recepción o Mantención tiene que aparecer, el Admin le agrega el rol Apoyo en Usuarios.
+- **Rol «Aseo».** Seed, filtros de Usuarios y Turnos, atajo «+ Todo Aseo» de tickets, `TicketService` y orden de
+  perfiles en `app.js`. Un filtro guardado con el nombre viejo vuelve a «Todos».
+- **Áreas comunes en el celular:**
+  - Tarjetas siempre; la tabla solo desde md.
+  - Botones de 44 px y barra de acciones a lo ancho.
+  - Modal de crear/editar con «Guardar» fijo.
+  - Pestaña de abajo «Áreas».
+
+**SQL (una línea, justo DESPUÉS de extraer el ZIP).** Antes, comprobar que existe «Trabajador» y que no hay otro rol
+«Aseo» (el nombre es único):
+```sql
+SELECT id, nombre FROM cat6852_australia.limpieza_roles WHERE nombre IN ('Trabajador', 'Aseo');
+UPDATE cat6852_australia.limpieza_roles SET nombre = 'Aseo', descripcion = 'Personal de aseo en terreno' WHERE nombre = 'Trabajador';
+```
+Entre el ZIP y el UPDATE (segundos) solo fallan los filtros de rol y el atajo de tickets. La app no se cae y el
+health no cambia (es un dato, no el esquema).
+
+**Sin** `.env`, sin `vendor/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v714-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y las filas de la v7.13 y la v7.14 del `CHANGELOG.md` fechadas antes de armarlo.
+21 archivos, los de la v7.13 (§11.42) y los de la v7.14:
+- `CHANGELOG.md`
+- `database/seeds/roles.php`
+- `public/assets/js/app.js`: va a **las dos copias**, `limpieza/assets/js/app.js` (docroot) y
+  `limpieza/app_core/public/assets/js/app.js` (de donde sale el `?v=`).
+- `src/Controllers/{Espacios,Tickets,Usuarios}Controller.php`
+- `src/Services/{Asignacion,Espacio,PersonalAsignable,Rbac,Ticket,Usuario}Service.php`
+- `src/Support/Tours.php`
+- `views/{ajustes-turnos,asignaciones,espacios,tickets,usuarios}.php`
+- `views/componentes/{bottom-nav,modal-ticket-nuevo,modal-usuario-detalle}.php`
+
+**Vuelta atrás:** `build/limpieza-v714-vuelta-atras.zip` (los mismos archivos en `aeb7848`; `PersonalAsignableService.php`
+puede quedar, nadie lo usa) y el UPDATE inverso:
+```sql
+UPDATE cat6852_australia.limpieza_roles SET nombre = 'Trabajador', descripcion = 'Personal de limpieza en terreno' WHERE nombre = 'Aseo';
+```
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.14** (incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. Usuarios: el filtro «Aseo» lista al personal de aseo; la ficha de cualquiera muestra el campo RUT (v7.13, sin
+   cambiar el RUT de nadie: §11.42).
+3. Asignaciones, como Supervisora, en mañana: una pieza que hoy está aprobada o en progreso se arrastra y tiene X,
+   sin candado. Moverla y devolverla. En hoy, las reglas de siempre (la en progreso con candado).
+4. Pestañas «Aseo / Otros» en Asignaciones y en «Pedir limpieza». Si «Otros» está vacía, es porque nadie de otras
+   áreas tiene el rol Apoyo o el permiso de ver sus piezas.
+5. Áreas comunes en el celular: tarjetas (aunque antes se haya elegido tabla), botones a lo ancho, «Guardar» visible
+   con varios ítems, pestaña «Áreas».
+6. Tickets: «Asignar responsable» muestra el atajo «+ Todo Aseo».

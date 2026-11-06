@@ -54,7 +54,7 @@ final class HabitacionPruebaTest extends TestCase
         $this->prueba = Database::lastInsertId();
 
         [$this->admin] = TestDatabase::crearUsuario('11111111-1', 'Admin Prueba', 'Admin');
-        [$this->ana] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('16000001-5', 'Ana', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('15000001-7', 'Sofía', 'Supervisora');
         Database::execute('INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES (?, ?, ?)', ['mañana', '08:00', '16:00']);
         $turno = (int) Database::fetchColumn('SELECT id FROM turnos LIMIT 1');
@@ -66,7 +66,7 @@ final class HabitacionPruebaTest extends TestCase
     /** Para probar con una trabajadora sin kpis.excluido: su rol también recibe el permiso. */
     private function darPermisoATrabajador(): void
     {
-        $rol = (int) Database::fetchColumn("SELECT id FROM roles WHERE nombre = 'Trabajador'");
+        $rol = (int) Database::fetchColumn("SELECT id FROM roles WHERE nombre = 'Aseo'");
         Database::execute('INSERT INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)', [$rol, 'habitaciones.ver_prueba']);
     }
 

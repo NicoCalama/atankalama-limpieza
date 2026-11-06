@@ -49,7 +49,7 @@ final class ReportesBonoAseoTest extends TestCase
             Database::execute("INSERT INTO habitaciones (hotel_id, numero, tipo_habitacion_id, estado) VALUES (?, ?, ?, 'sucia')", [$hotel, $n, $tipo]);
             $this->hab[$n] = Database::lastInsertId();
         }
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('33333333-3', 'Sofia', 'Supervisora');
         [$this->admin] = TestDatabase::crearUsuario('44444444-4', 'Admin', 'Admin');
         [$sistema]     = TestDatabase::crearUsuario('SISTEMA-CRON', 'Sistema', 'Admin');

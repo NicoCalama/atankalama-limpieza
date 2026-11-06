@@ -45,7 +45,7 @@ final class SeguridadRbacSesionTest extends TestCase
         TestDatabase::recrear();
         [$this->adminId, $this->adminPwd] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
         [$this->supId] = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
-        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Aseo');
 
         // Escenario del hallazgo: el Admin le delega a la supervisora la gestión de usuarios.
         $rolSup = $this->rolId('Supervisora');
@@ -82,14 +82,14 @@ final class SeguridadRbacSesionTest extends TestCase
     public function testSiPuedeAsignarYCrearTrabajadoras(): void
     {
         // El rol Trabajador trae permisos de terreno que la supervisora no tiene: eso no es escalar.
-        (new RbacService())->asignarRolAUsuario($this->anaId, $this->rolId('Trabajador'), $this->supId);
+        (new RbacService())->asignarRolAUsuario($this->anaId, $this->rolId('Aseo'), $this->supId);
 
         $creado = (new UsuarioService())->crear(
-            ['rut' => '44444444-4', 'nombre' => 'Berta', 'roles' => [$this->rolId('Trabajador')]],
+            ['rut' => '44444444-4', 'nombre' => 'Berta', 'roles' => [$this->rolId('Aseo')]],
             $this->supId,
             new PasswordService()
         );
-        $this->assertSame(['Trabajador'], $creado['usuario']->roles);
+        $this->assertSame(['Aseo'], $creado['usuario']->roles);
     }
 
     public function testNoSePuedeCrearUnaCuentaAdmin(): void
@@ -162,12 +162,12 @@ final class SeguridadRbacSesionTest extends TestCase
         $marcas = implode(',', array_fill(0, count($propios), '?'));
         Database::execute("DELETE FROM rol_permisos WHERE rol_id = ? AND permiso_codigo IN ({$marcas})", [$this->rolId('Supervisora'), ...$propios]);
         foreach ($propios as $permiso) {
-            Database::execute('INSERT OR IGNORE INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)', [$this->rolId('Trabajador'), $permiso]);
+            Database::execute('INSERT OR IGNORE INTO rol_permisos (rol_id, permiso_codigo) VALUES (?, ?)', [$this->rolId('Aseo'), $permiso]);
         }
 
         $this->assertTrue((new RbacService())->puedeGestionarUsuario($this->supId, $this->anaId));
         $this->assertSame('ana@ejemplo.cl', (new UsuarioService())->actualizar($this->anaId, ['email' => 'ana@ejemplo.cl'], $this->supId)->email);
-        $this->assertTrue((new RbacService())->puedeOtorgarRol($this->supId, $this->rolId('Trabajador')));
+        $this->assertTrue((new RbacService())->puedeOtorgarRol($this->supId, $this->rolId('Aseo')));
     }
 
     public function testElAdminSigueGestionandoATodos(): void
@@ -184,7 +184,7 @@ final class SeguridadRbacSesionTest extends TestCase
             [$this->rolId('Supervisora')]
         );
         $resp = $this->pedir(Kernel::construirRouter(), 'POST', "/api/usuarios/{$this->anaId}/roles", $this->login('22222222-2'), [
-            'rol_id' => $this->rolId('Trabajador'),
+            'rol_id' => $this->rolId('Aseo'),
         ]);
         $this->assertSame(403, $resp->status);
         $this->assertSame('PERMISO_INSUFICIENTE', json_decode($resp->cuerpo, true)['error']['codigo']);

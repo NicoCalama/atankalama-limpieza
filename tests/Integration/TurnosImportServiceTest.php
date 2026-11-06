@@ -21,7 +21,7 @@ final class TurnosImportServiceTest extends TestCase
     protected function setUp(): void
     {
         TestDatabase::recrear();
-        TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         $this->svc = new TurnosImportService();
     }
 

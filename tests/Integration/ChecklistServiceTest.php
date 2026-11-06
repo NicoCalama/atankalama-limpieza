@@ -39,7 +39,7 @@ final class ChecklistServiceTest extends TestCase
         );
         $this->habitacionId = Database::lastInsertId();
 
-        [$this->usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->usuarioId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         $this->asignaciones = new AsignacionService();
         $this->asignaciones->asignarManual($this->habitacionId, $this->usuarioId, $this->fecha);
@@ -65,7 +65,7 @@ final class ChecklistServiceTest extends TestCase
 
     public function testIniciarSinAsignacionLanza(): void
     {
-        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
         try {
             $this->svc->iniciarEjecucion($this->habitacionId, $otro, $this->fecha);
             $this->fail('Debía lanzar');
@@ -115,7 +115,7 @@ final class ChecklistServiceTest extends TestCase
     public function testMarcarItemDeOtroUsuarioLanza(): void
     {
         $ejec = $this->svc->iniciarEjecucion($this->habitacionId, $this->usuarioId, $this->fecha);
-        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Trabajador');
+        [$otro] = TestDatabase::crearUsuario('22222222-2', 'Bea', 'Aseo');
         $items = $this->svc->itemsDelTemplate($ejec->templateId);
 
         try {

@@ -256,7 +256,7 @@ final class TicketsController
                     if ($aid !== $request->usuario->id && !$this->svc->esTrabajador($aid)) {
                         return Response::error(
                             'PERFIL_NO_ASIGNABLE',
-                            'Solo puedes asignar tickets a usuarios con perfil Trabajador.',
+                            'Solo puedes asignar tickets a usuarios con perfil Aseo.',
                             403
                         );
                     }
@@ -442,7 +442,7 @@ final class TicketsController
             }
         }
 
-        // Designar a un tercero que NO es Trabajador exige tickets.asignar_a_cualquier_perfil
+        // Designar a un tercero que NO es de Aseo exige tickets.asignar_a_cualquier_perfil
         // (solo Admin). Supervisora y Recepción asignan únicamente a personal de terreno.
         // Autoasignarse ("Tomar") queda exento: no es designar a otro. Solo se controla a los
         // que se AGREGAN: la lista llega completa, y los que ya eran responsables los designó
@@ -456,7 +456,7 @@ final class TicketsController
                 if ($uid !== $request->usuario->id && !$this->svc->esTrabajador($uid)) {
                     return Response::error(
                         'PERFIL_NO_ASIGNABLE',
-                        'Solo puedes asignar tickets a usuarios con perfil Trabajador.',
+                        'Solo puedes asignar tickets a usuarios con perfil Aseo.',
                         403
                     );
                 }

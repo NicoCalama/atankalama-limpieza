@@ -54,7 +54,7 @@ final class SeguridadMenoresTest extends TestCase
         $this->tipoId = (int) Database::fetchColumn('SELECT id FROM tipos_habitacion LIMIT 1');
         [$this->adminId, $this->adminPwd] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
         [$this->supId] = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
-        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('33333333-3', 'Ana', 'Aseo');
     }
 
     protected function tearDown(): void
@@ -90,14 +90,14 @@ final class SeguridadMenoresTest extends TestCase
 
     public function testLasNotificacionesExigenNotificacionesVer(): void
     {
-        $this->quitarPermiso('Trabajador', 'notificaciones.ver');
+        $this->quitarPermiso('Aseo', 'notificaciones.ver');
         $resp = $this->pedir('GET', '/api/notificaciones/sin-leer', $this->login('33333333-3'));
         $this->assertSame(403, $resp->status);
     }
 
     public function testExportarMisDatosExigeSuPermiso(): void
     {
-        $this->quitarPermiso('Trabajador', 'usuarios.exportar_datos_propios');
+        $this->quitarPermiso('Aseo', 'usuarios.exportar_datos_propios');
         $resp = $this->pedir('GET', "/api/usuarios/{$this->anaId}/datos-personales", $this->login('33333333-3'));
         $this->assertSame(403, $resp->status);
     }
@@ -173,7 +173,7 @@ final class SeguridadMenoresTest extends TestCase
 
     public function testUnItemHeredadoNoSeReescribeNiPorLaApi(): void
     {
-        [$bertaId] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Trabajador');
+        [$bertaId] = TestDatabase::crearUsuario('44444444-4', 'Berta', 'Aseo');
         $hoy = date('Y-m-d');
         $h = $this->crearPieza('101');
         $asig = new AsignacionService();

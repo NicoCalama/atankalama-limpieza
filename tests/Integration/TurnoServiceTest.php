@@ -20,7 +20,7 @@ final class TurnoServiceTest extends TestCase
     {
         TestDatabase::recrear();
         [$this->adminId] = TestDatabase::crearUsuario('11111111-1', 'Admin', 'Admin');
-        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Trabajador');
+        [$this->trabajadorId] = TestDatabase::crearUsuario('22222222-2', 'Juan', 'Aseo');
         $this->svc = new TurnoService();
     }
 

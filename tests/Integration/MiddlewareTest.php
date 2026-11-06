@@ -63,7 +63,7 @@ final class MiddlewareTest extends TestCase
 
     public function testPermissionCheckBloqueaSinPermiso(): void
     {
-        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Trabajador', 'Trabajador');
+        [$usuarioId] = TestDatabase::crearUsuario('22222222-2', 'Trabajador', 'Aseo');
         $usuario = (new UsuarioService())->buscarPorId($usuarioId);
 
         $req = $this->request();

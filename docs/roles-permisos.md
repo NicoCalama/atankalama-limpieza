@@ -161,7 +161,7 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 | `kpis.ver_propios` | Ver KPIs personales (habitaciones hoy, tiempo promedio personal) | KPIs | propio |
 | `kpis.ver_operativas` | Ver KPIs operativos del equipo (activos, disponibles, auditadas, etc.) | KPIs | global |
 | `kpis.ver_globales` | Ver KPIs agregados de alto nivel (ocupación, tendencias, eficiencia general) | KPIs | global |
-| `kpis.excluido` | **Permiso de marca** (ver §5.2): quien lo tiene no suma créditos ni aparece en Reportes, la ficha, el resumen mensual ni el bono de RRHH, y sus limpiezas no mueven los KPIs del equipo (rechazo, aprobación a la 1ª, productividad, ítems desmarcados, cobertura de inspección, tiempo promedio y tasa de rechazo del Inicio del Admin). Lo operativo no cambia: estados, bandeja de inspección, pendientes y alertas. Rol Apoyo (01/10/2026). Se decide con el rol que la persona tiene HOY (no hay historial de roles): si pasa de Apoyo a Trabajador, su trabajo anterior aparece en los reportes de meses pasados. Desde el 04/10/2026 lo lleva también todo rol que no es de aseo (Admin, Supervisora, Recepción): solo saca lo que la persona **limpió**; sus inspecciones siguen contando igual. Migración `scripts/migrate-add-rol-apoyo.php` | KPIs | propio |
+| `kpis.excluido` | **Permiso de marca** (ver §5.2): quien lo tiene no suma créditos ni aparece en Reportes, la ficha, el resumen mensual ni el bono de RRHH, y sus limpiezas no mueven los KPIs del equipo (rechazo, aprobación a la 1ª, productividad, ítems desmarcados, cobertura de inspección, tiempo promedio y tasa de rechazo del Inicio del Admin). Lo operativo no cambia: estados, bandeja de inspección, pendientes y alertas. Rol Apoyo (01/10/2026). Se decide con el rol que la persona tiene HOY (no hay historial de roles): si pasa de Apoyo a Aseo, su trabajo anterior aparece en los reportes de meses pasados. Desde el 04/10/2026 lo lleva también todo rol que no es de aseo (Admin, Supervisora, Recepción): solo saca lo que la persona **limpió**; sus inspecciones siguen contando igual. Migración `scripts/migrate-add-rol-apoyo.php` | KPIs | propio |
 | `reportes.ver` | Ver el módulo de reportes y KPIs exportables (página Reportes, ficha de KPIs del trabajador) | Reportes | global |
 | `reportes.ver_supervisoras` | Ver los KPIs y tiempos de las supervisoras en Reportes (sección «Supervisora · Inspección»). **Privacidad jerárquica de tiempos** (jefatura, 16/09/2026): nadie ve sus propios tiempos, solo el nivel de arriba → solo roles administradores; una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. Migración `scripts/migrate-add-permiso-reportes-supervisoras.php` | Reportes | global |
 | `reportes.editar_corte` | Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual por trabajador). Es el único dato manual del bono de RRHH; depende de la ocupación y se guarda por mes. Solo administración (decisión de Nicolás, 01/10/2026). Migración `scripts/migrate-add-permiso-reportes-editar-corte.php` | Reportes | global |
@@ -215,7 +215,9 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 
 Los 5 roles vienen precargados por seeder. Son **editables** desde Ajustes — solo son defaults razonables.
 
-### 3.1 Trabajador
+### 3.1 Aseo (antes «Trabajador»)
+
+**Nombre (v7.14, 06/11/2026):** el rol se llamaba **«Trabajador»** y pasó a llamarse **«Aseo»**, pedido de Nicolás. Es de sistema, así que no se renombra desde Ajustes: el cambio fue un `UPDATE` en producción (runbook §11.43). La palabra «trabajador/a» se sigue usando en los textos como concepto (la persona que limpia).
 
 **Propósito:** personal de limpieza en terreno. Solo ve sus habitaciones asignadas y las marca como terminadas.
 
@@ -236,7 +238,7 @@ Permisos por defecto:
 
 **Propósito:** monitorea equipo, asigna/reasigna habitaciones, audita, gestiona tickets.
 
-Permisos por defecto (incluye todo lo del Trabajador excepto los `_propios` reemplazados por globales):
+Permisos por defecto (incluye todo lo de Aseo excepto los `_propios` reemplazados por globales):
 - `habitaciones.ver_todas`
 - `habitaciones.ver_historial`
 - `asignaciones.asignar_manual`
@@ -290,9 +292,9 @@ Permisos por defecto: **todos los del catálogo**, incluidos los permisos de mar
 
 ### 3.5 Apoyo
 
-**Propósito:** personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de Nicolás, 01/10/2026). Trabaja igual que un Trabajador —ve sus piezas, marca el checklist, se inspecciona igual y una pieza rechazada vuelve a sucia—, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del reparto automático: la supervisora le asigna a mano (necesita turno para aparecer en el tablero). **No es de sistema** (`es_sistema = 0`): Admin lo puede editar o borrar desde Ajustes.
+**Propósito:** personal de otras áreas que limpia de vez en cuando y cuyo sueldo no depende del aseo (pedido de Nicolás, 01/10/2026). Trabaja igual que alguien de Aseo —ve sus piezas, marca el checklist, se inspecciona igual y una pieza rechazada vuelve a sucia—, pero no suma créditos, no entra en KPIs ni en el bono, y no recibe piezas del reparto automático: la supervisora le asigna a mano (desde la v7.14 aparece en la pestaña «Otros» de Asignaciones y de «Pedir limpieza», tenga o no turno: ver [asignacion.md](asignacion.md)). **No es de sistema** (`es_sistema = 0`): Admin lo puede editar o borrar desde Ajustes.
 
-Permisos por defecto: los de Trabajador **menos** `kpis.ver_propios`, **más** `kpis.excluido` y `asignaciones.excluir_auto`. La migración copia los permisos que Trabajador tiene HOY en la base (pueden haberse editado desde Ajustes).
+Permisos por defecto: los de Aseo (entonces «Trabajador») **menos** `kpis.ver_propios`, **más** `kpis.excluido` y `asignaciones.excluir_auto`. La migración copia los permisos que Trabajador tiene HOY en la base (pueden haberse editado desde Ajustes).
 
 Rework cruzado: si una trabajadora rehace una pieza que le rechazaron a Apoyo, la pieza y lo que ella marcó le cuentan a ella; lo heredado (a nombre de Apoyo) no le cuenta a nadie. Si Apoyo rehace una rechazada de una trabajadora, el rechazo le sigue contando a ella.
 
@@ -302,7 +304,7 @@ Rework cruzado: si una trabajadora rehace una pieza que le rechazaron a Apoyo, l
 
 Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no aplica
 
-| Permiso | Trabajador | Supervisora | Recepción | Admin |
+| Permiso | Aseo | Supervisora | Recepción | Admin |
 |---|:-:|:-:|:-:|:-:|
 | `habitaciones.ver_todas` | ⚪ | ✅ | ✅ | ✅ |
 | `habitaciones.ver_asignadas_propias` | ✅ | ⚪ | ⚪ | ✅ |
@@ -383,7 +385,7 @@ Ejemplo: una persona con roles `Supervisora` + `Recepción` acumula los permisos
 
 El sistema no soporta "denegar explícitamente". Si un rol no tiene un permiso, el usuario no lo tiene (salvo que otro rol suyo lo provea).
 
-**Excepción documentada (01/10/2026, rol Apoyo): permisos de marca.** `kpis.excluido` y `asignaciones.excluir_auto` no habilitan ni quitan ninguna capacidad: marcan **cómo se cuenta** a la persona (fuera de KPIs, fuera del reparto automático). Se rigen por la misma unión del §5.1: si cualquiera de sus roles los tiene, la persona queda marcada (alguien con Trabajador + Apoyo queda fuera de los KPIs). **Desde el 04/10/2026 los lleva todo rol que no es de aseo** (Admin, Supervisora, Recepción, además de Apoyo); solo Trabajador queda sin ellos. Ojo con quien tenga **Trabajador + otro rol**: queda fuera de los KPIs y del bono de aseo. Se chequean con `RbacService::sqlSinPermiso()` / `usuariosConPermiso()`, nunca por nombre de rol.
+**Excepción documentada (01/10/2026, rol Apoyo): permisos de marca.** `kpis.excluido` y `asignaciones.excluir_auto` no habilitan ni quitan ninguna capacidad: marcan **cómo se cuenta** a la persona (fuera de KPIs, fuera del reparto automático). Se rigen por la misma unión del §5.1: si cualquiera de sus roles los tiene, la persona queda marcada (alguien con Aseo + Apoyo queda fuera de los KPIs). **Desde el 04/10/2026 los lleva todo rol que no es de aseo** (Admin, Supervisora, Recepción, además de Apoyo); solo Aseo queda sin ellos. Ojo con quien tenga **Aseo + otro rol**: queda fuera de los KPIs y del bono de aseo. Se chequean con `RbacService::sqlSinPermiso()` / `usuariosConPermiso()`, nunca por nombre de rol.
 
 ### 5.3 Admin puede editarse a sí mismo
 
@@ -399,7 +401,7 @@ Un Admin puede quitarle permisos a su propio rol desde la matriz. La UI debe mos
 
 **Estado: IMPLEMENTADO (07/10/2026).** Quien gestiona usuarios solo puede dar un rol, o tocar a un usuario, si ya tiene todos los permisos de **gestión de cuentas** que ese rol o ese usuario traen. Lo aplican `RbacService::puedeOtorgarRol()` y `RbacService::puedeGestionarUsuario()` en: asignar rol, crear usuario con roles (y la carga masiva), quitar rol, editar datos o email, resetear contraseña, activar/desactivar y eliminar. Error: **403 `PRIVILEGIOS_INSUFICIENTES`**. Sobre uno mismo siempre se puede.
 
-Los permisos de gestión de cuentas son una **lista explícita** (`RbacService::PERMISOS_GESTION`): `usuarios.crear`, `usuarios.editar`, `usuarios.resetear_password`, `usuarios.activar_desactivar`, `usuarios.eliminar`, `usuarios.asignar_rol`, `usuarios.modo_espia`, `roles.crear`, `roles.editar`, `roles.eliminar` y `permisos.asignar_a_rol`. No se compara todo el catálogo: así una supervisora con `usuarios.crear` puede crear trabajadoras (el rol Trabajador trae permisos de terreno que ella no tiene), pero nadie sin `permisos.asignar_a_rol` puede dar el rol Admin, crear una cuenta Admin, ni cambiarle el email o la clave a un Admin. Tampoco entran los permisos sobre la propia cuenta o de solo lectura (`usuarios.cambiar_propia_contrasena`, `usuarios.exportar_datos_propios`, `usuarios.ver`, `roles.ver`): no dan poder sobre nadie, y como en producción los permisos se ajustan a mano, compararlos podía bloquear a una supervisora frente a una trabajadora que los tuviera y ella no. Asignar y quitar roles exige `usuarios.asignar_rol` (antes bastaba `usuarios.editar`).
+Los permisos de gestión de cuentas son una **lista explícita** (`RbacService::PERMISOS_GESTION`): `usuarios.crear`, `usuarios.editar`, `usuarios.resetear_password`, `usuarios.activar_desactivar`, `usuarios.eliminar`, `usuarios.asignar_rol`, `usuarios.modo_espia`, `roles.crear`, `roles.editar`, `roles.eliminar` y `permisos.asignar_a_rol`. No se compara todo el catálogo: así una supervisora con `usuarios.crear` puede crear trabajadoras (el rol Aseo trae permisos de terreno que ella no tiene), pero nadie sin `permisos.asignar_a_rol` puede dar el rol Admin, crear una cuenta Admin, ni cambiarle el email o la clave a un Admin. Tampoco entran los permisos sobre la propia cuenta o de solo lectura (`usuarios.cambiar_propia_contrasena`, `usuarios.exportar_datos_propios`, `usuarios.ver`, `roles.ver`): no dan poder sobre nadie, y como en producción los permisos se ajustan a mano, compararlos podía bloquear a una supervisora frente a una trabajadora que los tuviera y ella no. Asignar y quitar roles exige `usuarios.asignar_rol` (antes bastaba `usuarios.editar`).
 
 **Recuperación de emergencia.** Si aun así el sistema quedara sin ningún admin activo (un bug, una migración o edición directa de la BD), correr en el servidor:
 

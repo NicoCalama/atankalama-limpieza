@@ -52,7 +52,7 @@ final class RevisionEntregaCicloTest extends TestCase
             );
             $this->hab[$numero] = Database::lastInsertId();
         }
-        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana]   = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->sofia] = TestDatabase::crearUsuario('22222222-2', 'Sofía', 'Supervisora');
         [$this->carla] = TestDatabase::crearUsuario('33333333-3', 'Carla', 'Recepción');
         Database::execute("INSERT INTO motivos_revision_entrega (nombre) VALUES ('Baño sucio')");

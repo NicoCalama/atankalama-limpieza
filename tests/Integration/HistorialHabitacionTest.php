@@ -39,7 +39,7 @@ final class HistorialHabitacionTest extends TestCase
         );
         $this->habitacionId = Database::lastInsertId();
 
-        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->anaId] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
         [$this->auditorId] = TestDatabase::crearUsuario('22222222-2', 'Eva', 'Supervisora');
 
         $this->checklist = new ChecklistService();
@@ -83,7 +83,7 @@ final class HistorialHabitacionTest extends TestCase
         );
 
         // Re-limpieza de Berta, completada y aún sin auditar
-        [$bertaId] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Trabajador');
+        [$bertaId] = TestDatabase::crearUsuario('33333333-3', 'Berta', 'Aseo');
         $asig->reasignar($this->habitacionId, $bertaId, $this->fecha, 're-limpieza');
         $ejec2 = $this->limpiarCompleto($bertaId);
 

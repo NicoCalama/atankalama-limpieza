@@ -39,7 +39,7 @@ final class ReportesControllerTest extends TestCase
             [$hotelId, $tipoId]
         );
         $habId = Database::lastInsertId();
-        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Trabajador');
+        [$this->ana] = TestDatabase::crearUsuario('11111111-1', 'Ana', 'Aseo');
 
         // Una limpieza completa el 10/09 (fuera de "hoy"): solo aparece si el filtro llega.
         $asig = new AsignacionService();
