@@ -3229,3 +3229,40 @@ más), no subir el ZIP viejo: el código de la v7.12 corre igual en 8.4.
 Falta: la copia a Novedades (`NovedadesSyncService`) no se probó, porque los tickets de la PRUEBA no van a Novedades
 (v7.5). Con el primer ticket real (id 288 o más), `novedad_id` tiene que traer un número, como los tickets 280 a
 286 (2140 a 2146). También quedan los wrappers de cron y todo lo de «después del cambio del hosting a 8.5».
+
+### 11.42 Release "editar el RUT de un usuario" → v7.13
+
+Origen: Nicolás, 30/10/2026: las trabajadoras cambian de RUT (por ejemplo, de uno provisorio al definitivo) y la app
+no dejaba corregirlo (el RUT era inmutable, `docs/usuarios.md` §3.4). Decisiones de Nicolás: solo el RUT (ningún dato
+que la app no use, como dirección o teléfono) y con el permiso que ya existe, `usuarios.editar` (hoy solo Admin).
+
+**Qué cambia:**
+- `PUT /api/usuarios/{id}` acepta `rut`: se normaliza y valida (400 `RUT_INVALIDO`), no puede ser el de otra persona
+  (409 `RUT_DUPLICADO`) ni tocar a un usuario eliminado (409 `USUARIO_ELIMINADO`), y respeta la regla de no gestionar
+  a alguien con más permisos (403).
+- `audit_log` guarda `rut` y `rut_anterior`.
+- La ficha de Usuarios tiene el campo RUT con el formato y la validación de «Nuevo usuario», y al guardar un RUT
+  distinto pide confirmación.
+- Todo el historial va por `usuario_id`, así que no se pierde nada. La persona entra desde ese momento con el RUT
+  nuevo, la clave no cambia y su sesión abierta sigue.
+- La ayuda «?» de Usuarios lo menciona (recorrido `editar-usuario` v2).
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v713-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.13 del `CHANGELOG.md` fechada antes de armarlo. 5 archivos:
+`CHANGELOG.md`, `src/Controllers/UsuariosController.php`, `src/Services/UsuarioService.php`, `src/Support/Tours.php`
+y `views/componentes/modal-usuario-detalle.php`. Vuelta atrás: `build/limpieza-v713-vuelta-atras.zip` (los mismos
+cinco en la v7.12, `aeb7848`).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke (sin cambiar el RUT de nadie):**
+1. Badge **v7.13** (incógnito) y `/api/health` 200.
+2. Usuarios → tocar a cualquier persona → el campo RUT aparece arriba con puntos (12.345.678-9).
+3. Cambiar el último dígito por uno incorrecto y apretar «Guardar cambios» → sale «Dígito verificador inválido.» bajo
+   el campo, sin preguntar ni guardar. Cerrar la ficha sin guardar.
+
+El primer cambio real se revisa así: la persona entra con el RUT nuevo, y en phpMyAdmin
+`SELECT created_at, detalles_json FROM cat6852_australia.limpieza_audit_log WHERE accion = 'usuario.actualizar' AND detalles_json LIKE '%rut_anterior%';`
+muestra el RUT anterior y el nuevo.

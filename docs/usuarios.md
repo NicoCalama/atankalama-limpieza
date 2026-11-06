@@ -99,7 +99,20 @@ Respuesta (201):
 
 `PUT /api/usuarios/{id}` — permiso `usuarios.editar`.
 
-Permite editar: nombre, email, hotel_default, jornada (`completa` | `parcial` | `null` = sin definir). **No** permite editar: rut (inmutable), password (usar endpoint específico), activo (usar endpoint específico), roles (usar endpoint específico).
+Permite editar: rut, nombre, email, hotel_default, jornada (`completa` | `parcial` | `null` = sin definir). **No** permite editar: password (usar endpoint específico), activo (usar endpoint específico), roles (usar endpoint específico).
+
+**RUT (editable desde la v7.13, 30/10/2026).** Antes era inmutable; se abrió porque las personas cambian de RUT
+(por ejemplo, de uno provisorio al definitivo) y todo el historial (limpiezas, inspecciones, turnos, KPIs, bono,
+tickets) va por `usuario_id`, no por RUT, así que no se pierde nada y los reportes muestran el RUT nuevo.
+- Mismo permiso `usuarios.editar` y misma regla de no gestionar a alguien con más permisos (403 `PRIVILEGIOS_INSUFICIENTES`).
+- Se normaliza y se valida el dígito verificador → 400 `RUT_INVALIDO`. Si otra persona ya lo tiene → 409 `RUT_DUPLICADO`.
+- Un usuario eliminado (RUT anonimizado `eliminado-…`, ver `UsuarioService::eliminar()`) no se puede cambiar → 409 `USUARIO_ELIMINADO`.
+- La persona entra desde ese momento con el RUT nuevo; la contraseña no cambia y su sesión abierta sigue.
+- `audit_log` (`usuario.actualizar`) guarda `rut` y `rut_anterior`.
+- En la ficha (Usuarios → tocar a la persona) el campo se formatea y valida igual que en «Nuevo usuario», y al
+  guardar un RUT distinto se pide confirmación. Guardar otros datos no envía el RUT.
+- Ojo jefatura: el Excel de importación de turnos busca a cada persona por RUT; después de un cambio tiene que
+  traer el RUT nuevo (con el viejo la importación la informa como «RUT no encontrado»).
 
 ### 3.5 Reset password
 
@@ -159,7 +172,7 @@ UI en Ajustes → Mi cuenta. Ver [ajustes.md](ajustes.md) §6.
 | GET | `/api/usuarios` | `usuarios.ver` | Lista paginada con filtros |
 | GET | `/api/usuarios/{id}` | `usuarios.ver` o propio | Detalle |
 | POST | `/api/usuarios` | `usuarios.crear` | Crear + pwd temporal |
-| PUT | `/api/usuarios/{id}` | `usuarios.editar` | Editar datos base |
+| PUT | `/api/usuarios/{id}` | `usuarios.editar` | Editar datos base (incluido el RUT, §3.4) |
 | PUT | `/api/usuarios/{id}/activo` | `usuarios.activar_desactivar` | Activar/desactivar |
 | PUT | `/api/usuarios/{id}/roles` | `usuarios.asignar_rol` | Asignar roles |
 | PUT | `/api/usuarios/me` | propio | Editar propios datos (nombre, email, hotel_default, tema) |

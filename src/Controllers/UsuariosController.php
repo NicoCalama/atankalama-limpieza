@@ -92,7 +92,7 @@ final class UsuariosController
             return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
         }
         $datos = [];
-        foreach (['nombre', 'email', 'hotel_default', 'jornada', 'tema_preferido'] as $k) {
+        foreach (['rut', 'nombre', 'email', 'hotel_default', 'jornada', 'tema_preferido'] as $k) {
             if (array_key_exists($k, $request->cuerpo)) {
                 $datos[$k] = $request->cuerpo[$k];
             }

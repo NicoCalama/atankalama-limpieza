@@ -171,7 +171,7 @@ final class UsuarioService
     }
 
     /**
-     * @param array{nombre?:string,email?:?string,hotel_default?:?string,jornada?:?string,tema_preferido?:string} $datos
+     * @param array{rut?:mixed,nombre?:string,email?:?string,hotel_default?:?string,jornada?:?string,tema_preferido?:string} $datos  rut llega crudo del JSON del cliente, se valida abajo
      */
     public function actualizar(int $usuarioId, array $datos, int $editadoPor): Usuario
     {
@@ -182,6 +182,32 @@ final class UsuarioService
         $this->exigirPuedeGestionar($editadoPor, $usuarioId);
         $sets = [];
         $params = [];
+        $detalleAudit = $datos;
+        // El RUT se puede corregir (v7.13): las personas cambian de RUT y todo el historial va por
+        // usuario_id, no por RUT. Desde el cambio la persona entra con el nuevo; su sesión abierta sigue.
+        if (array_key_exists('rut', $datos)) {
+            $rutAnterior = (string) $existente['rut'];
+            // Un usuario eliminado tiene el RUT anonimizado (ver eliminar()): ponerle uno real lo des-anonimiza.
+            if (str_starts_with($rutAnterior, 'eliminado-')) {
+                throw new UsuarioException('USUARIO_ELIMINADO', 'No se puede cambiar el RUT de un usuario eliminado.', 409);
+            }
+            $rutNuevo = Rut::normalizar(is_string($datos['rut']) ? $datos['rut'] : '');
+            if (!Rut::validar($rutNuevo)) {
+                throw new UsuarioException('RUT_INVALIDO', 'RUT inválido.', 400);
+            }
+            if ($rutNuevo !== $rutAnterior) {
+                $otro = Database::fetchOne('SELECT id FROM #__usuarios WHERE rut = ? AND id <> ?', [$rutNuevo, $usuarioId]);
+                if ($otro !== null) {
+                    throw new UsuarioException('RUT_DUPLICADO', 'Ya existe un usuario con ese RUT.', 409);
+                }
+                $sets[] = 'rut = ?';
+                $params[] = $rutNuevo;
+                $detalleAudit['rut'] = $rutNuevo;
+                $detalleAudit['rut_anterior'] = $rutAnterior;
+            } else {
+                unset($detalleAudit['rut']);
+            }
+        }
         if (isset($datos['nombre'])) {
             $nombre = trim((string) $datos['nombre']);
             if ($nombre === '') {
@@ -228,7 +254,7 @@ final class UsuarioService
         $params[] = $usuarioId;
         Database::execute('UPDATE #__usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
 
-        Logger::audit($editadoPor, 'usuario.actualizar', 'usuario', $usuarioId, $datos);
+        Logger::audit($editadoPor, 'usuario.actualizar', 'usuario', $usuarioId, $detalleAudit);
         return $this->buscarPorId($usuarioId);
     }
 

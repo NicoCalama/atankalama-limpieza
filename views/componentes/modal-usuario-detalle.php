@@ -87,6 +87,17 @@ $usuarioActualId = $usuario->id;
                     <!-- Datos editables -->
                     <div class="space-y-3 mb-4">
                         <div>
+                            <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">RUT</label>
+                            <input type="text" x-model="form.rut" @input="formatearRut()"
+                                   placeholder="12.345.678-9" maxlength="12"
+                                   :disabled="!rutEditable()"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed">
+                            <template x-if="errorRut">
+                                <p class="text-xs text-red-600 dark:text-red-400 mt-1" x-text="errorRut"></p>
+                            </template>
+                        </div>
+
+                        <div>
                             <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Nombre</label>
                             <input type="text" x-model="form.nombre" maxlength="80"
                                    :disabled="!puedeEditar"
@@ -239,7 +250,8 @@ function modalUsuarioDetalle() {
         rolesDisponibles: [],
         _rolesCargados: false,
         rolAAgregar: '',
-        form: { nombre: '', email: '', hotel_default: '', jornada: null },
+        form: { rut: '', nombre: '', email: '', hotel_default: '', jornada: null },
+        errorRut: '',
         mensaje: '',
         mensajeTipo: 'exito',
         _mensajeTimer: null,
@@ -264,6 +276,7 @@ function modalUsuarioDetalle() {
             this.usuario = JSON.parse(JSON.stringify(detail.usuario));
             this.usuarioOriginal = JSON.parse(JSON.stringify(detail.usuario));
             this.form = {
+                rut: this.rutParaMostrar(this.usuario.rut),
                 nombre: this.usuario.nombre || '',
                 email: this.usuario.email || '',
                 // Los usuarios viejos con hotel sin definir (null/'') se muestran
@@ -273,6 +286,7 @@ function modalUsuarioDetalle() {
                 // null = sin definir (usuarios anteriores a la jornada): no se inventa un valor.
                 jornada: this.usuario.jornada || null,
             };
+            this.errorRut = '';
             this.mensaje = '';
             this.passwordReseteada = null;
             this.copiado = false;
@@ -304,9 +318,65 @@ function modalUsuarioDetalle() {
             });
         },
 
+        // Un usuario eliminado tiene el RUT anonimizado («eliminado-…»): no se toca ni se formatea.
+        esEliminado() {
+            return ((this.usuarioOriginal && this.usuarioOriginal.rut) || '').indexOf('eliminado-') === 0;
+        },
+
+        rutEditable() {
+            return this.puedeEditar && !this.esEliminado();
+        },
+
+        // Mismo formato y validación que el modal «Nuevo usuario»: en pantalla con puntos, al
+        // backend sin puntos (el backend normaliza y valida de nuevo).
+        rutParaMostrar(rut) {
+            var s = (rut || '').toString();
+            if (s.indexOf('eliminado-') === 0) return s;
+            var limpio = s.replace(/[^0-9kK]/g, '').toUpperCase();
+            if (limpio.length <= 1) return limpio;
+            var cuerpo = limpio.slice(0, -1);
+            var dv = limpio.slice(-1);
+            var formateado = '';
+            for (var i = cuerpo.length - 1, c = 0; i >= 0; i--, c++) {
+                if (c > 0 && c % 3 === 0) formateado = '.' + formateado;
+                formateado = cuerpo[i] + formateado;
+            }
+            return formateado + '-' + dv;
+        },
+
+        formatearRut() {
+            this.errorRut = '';
+            this.form.rut = this.rutParaMostrar(this.form.rut);
+        },
+
+        rutNormalizado() {
+            return (this.form.rut || '').replace(/\./g, '').trim();
+        },
+
+        rutCambio() {
+            return this.rutEditable() && this.rutNormalizado() !== ((this.usuarioOriginal && this.usuarioOriginal.rut) || '');
+        },
+
+        validarRut() {
+            var m = this.rutNormalizado().match(/^(\d{7,8})-([0-9K])$/);
+            if (!m) return 'Formato de RUT inválido.';
+            var cuerpo = m[1];
+            var dv = m[2];
+            var suma = 0, mul = 2;
+            for (var i = cuerpo.length - 1; i >= 0; i--) {
+                suma += parseInt(cuerpo.charAt(i), 10) * mul;
+                mul = mul === 7 ? 2 : mul + 1;
+            }
+            var resto = 11 - (suma % 11);
+            var dvEsperado = resto === 11 ? '0' : (resto === 10 ? 'K' : String(resto));
+            if (dvEsperado !== dv) return 'Dígito verificador inválido.';
+            return null;
+        },
+
         datosCambiaron() {
             if (!this.usuarioOriginal) return false;
-            return (this.form.nombre || '') !== (this.usuarioOriginal.nombre || '')
+            return this.rutCambio()
+                || (this.form.nombre || '') !== (this.usuarioOriginal.nombre || '')
                 || (this.form.email || '') !== (this.usuarioOriginal.email || '')
                 || (this.form.hotel_default || '') !== (this.usuarioOriginal.hotel_default || '')
                 || (this.form.jornada || '') !== (this.usuarioOriginal.jornada || '');
@@ -314,6 +384,15 @@ function modalUsuarioDetalle() {
 
         async guardarDatos() {
             if (this.guardandoDatos) return;
+            var cambiaRut = this.rutCambio();
+            if (cambiaRut) {
+                var errRut = this.validarRut();
+                if (errRut) { this.errorRut = errRut; return; }
+                // El RUT es con lo que la persona entra a la app: se confirma aparte.
+                if (!confirm('¿Cambiar el RUT de ' + this.usuario.nombre + '?\n\n'
+                    + this.rutParaMostrar(this.usuarioOriginal.rut) + '  →  ' + this.form.rut + '\n\n'
+                    + 'Desde ahora entra a la app con el RUT nuevo. Su contraseña no cambia.')) return;
+            }
             this.guardandoDatos = true;
             this.mensaje = '';
             try {
@@ -323,12 +402,17 @@ function modalUsuarioDetalle() {
                     hotel_default: this.form.hotel_default || null,
                     jornada: this.form.jornada || null,
                 };
+                // Solo si cambió: así guardar otros datos nunca toca el RUT.
+                if (cambiaRut) payload.rut = this.rutNormalizado();
                 var r = await apiPut('/api/usuarios/' + this.usuario.id, payload);
                 if (r && r.ok) {
                     this.usuario = r.data.usuario;
                     this.usuarioOriginal = JSON.parse(JSON.stringify(r.data.usuario));
-                    this.mostrarMensaje('Datos actualizados.', 'exito');
+                    this.form.rut = this.rutParaMostrar(r.data.usuario.rut);
+                    this.mostrarMensaje(cambiaRut ? 'Datos actualizados. Desde ahora entra con el RUT nuevo.' : 'Datos actualizados.', 'exito');
                     window.dispatchEvent(new CustomEvent('usuario-actualizado', { detail: r.data }));
+                } else if (r && r.error && (r.error.codigo === 'RUT_INVALIDO' || r.error.codigo === 'RUT_DUPLICADO')) {
+                    this.errorRut = r.error.mensaje;
                 } else {
                     this.mostrarMensaje((r && r.error && r.error.mensaje) || 'No pudimos guardar.', 'error');
                 }

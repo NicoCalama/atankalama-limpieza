@@ -73,7 +73,7 @@ Ver [usuarios.md](usuarios.md).
 | GET | `/api/usuarios` | `usuarios.ver` | Lista paginada |
 | GET | `/api/usuarios/{id}` | `usuarios.ver` o propio | Detalle |
 | POST | `/api/usuarios` | `usuarios.crear` | Crear |
-| PUT | `/api/usuarios/{id}` | `usuarios.editar` | Editar datos base |
+| PUT | `/api/usuarios/{id}` | `usuarios.editar` | Editar datos base (RUT, nombre, email, hotel, jornada; ver [usuarios.md](usuarios.md) §3.4) |
 | PUT | `/api/usuarios/{id}/activo` | `usuarios.activar_desactivar` | Toggle activo |
 | PUT | `/api/usuarios/{id}/roles` | `usuarios.asignar_rol` | Asignar roles |
 | PUT | `/api/usuarios/me` | sesión | Editar mis datos |

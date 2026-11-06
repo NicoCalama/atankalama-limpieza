@@ -1146,13 +1146,13 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'editar-usuario', 'v' => 1,
+                        'id' => 'editar-usuario', 'v' => 2,
                         'titulo' => 'Editar datos y roles',
                         'pregunta' => '¿Cómo cambio los datos o el rol de alguien?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="usr.lista"]', 'titulo' => 'Abrir la ficha de una persona',
-                             'texto' => 'Cada tarjeta es una persona con su nombre, RUT y roles. Al tocarla se abre su ficha, donde puedes cambiar nombre, email y hotel, y agregar o quitar roles según tus permisos.'],
+                             'texto' => 'Cada tarjeta es una persona con su nombre, RUT y roles. Al tocarla se abre su ficha, donde cambias RUT, nombre, email, hotel, jornada y roles según tus permisos. Con un RUT nuevo entra con ese; su clave no cambia.'],
                         ],
                     ],
                     [
