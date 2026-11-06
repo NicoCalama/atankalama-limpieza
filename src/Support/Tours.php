@@ -69,7 +69,7 @@ final class Tours
                     // ── 1. El trabajo diario. Va primero SIEMPRE. ──
                     [
                         'id'       => 'repartir',
-                        'v'        => 3,
+                        'v'        => 4,
                         'titulo'   => 'Repartir las piezas',
                         'pregunta' => '¿Cómo asigno las habitaciones de hoy?',
                         'requiere' => [],
@@ -87,7 +87,18 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.fecha"]',
                                 'titulo' => 'Planificar otro día',
-                                'texto'  => 'Con la fecha de aquí arriba puedes adelantar el trabajo de otro día: eliges la fecha y asignas igual. Lo de hoy no se toca.',
+                                'texto'  => 'Con la fecha de aquí arriba adelantas el trabajo de otro día y asignas igual. Ese día solo salen las piezas que necesitan limpieza según las reservas de Cloudbeds; lo de hoy no se toca.',
+                            ],
+                            // v7.15: etiquetas y filtros del pool de un día futuro (views/componentes/filtro-dia-pool.php).
+                            [
+                                'sel'    => '[data-tour="asig.sin-asignar"]',
+                                'titulo' => 'Qué toca en cada pieza',
+                                'texto'  => 'En otro día, cada tarjeta dice «Se va», «Cambio» o «Sábanas» (sigue y le toca cambio); sin etiqueta, solo sigue. Los botones con su número filtran la lista por tipo.',
+                            ],
+                            [
+                                'sel'    => '[data-tour="asig.equipo"]',
+                                'titulo' => 'La cola de ese día',
+                                'texto'  => 'La cola de cada persona muestra la misma etiqueta. Si una pieza preasignada dice «Sin limpieza», ese día no necesita aseo y puedes quitarla.',
                             ],
                         ],
                     ],
@@ -121,7 +132,7 @@ final class Tours
                     // ── 3. El atajo para repartir todo. Solo con permiso. ──
                     [
                         'id'        => 'auto',
-                        'v'         => 2,
+                        'v'         => 3,
                         'titulo'    => 'Auto-asignar todo',
                         'pregunta'  => '¿Puedo repartir todo de una vez?',
                         'capacidad' => 'asignaciones.auto_asignar',
@@ -130,7 +141,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.auto"]',
                                 'titulo' => 'Reparte parejo, tú ajustas',
-                                'texto'  => 'El botón de auto-asignar reparte todas las piezas sucias entre el equipo con turno, en partes parejas. Después arrastra a mano lo que quieras ajustar.',
+                                'texto'  => 'El botón de auto-asignar reparte las piezas sucias en partes parejas entre el personal de Aseo con turno; la pestaña «Otros» no recibe. Después arrastra a mano lo que quieras ajustar.',
                             ],
                         ],
                     ],

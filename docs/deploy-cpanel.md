@@ -3468,3 +3468,31 @@ extrae en `public_html/`) y la fila de la v7.15.1 del `CHANGELOG.md` fechada ant
 
 **Desplegada el 06/11/2026 ~18:00** (ZIP `build/limpieza-v7151-delta.zip` desde `9f17a19`, sin SQL). Smoke OK
 (Nicolás).
+
+### 11.47 Release "ayuda «?» de Asignaciones al día" → v7.15.2
+
+Origen: Nicolás, 06/11/2026 («actualizar el tour guiado con los últimos cambios»). Se revisó la Vista Guiada
+contra la v7.13–v7.15.1: la v7.13 (RUT), la v7.14 (pestañas Aseo/Otros, Áreas en el celular) y la v7.14.1
+(pestaña Aseo de Reportes) ya estaban; faltaba la v7.15.
+
+**Qué cambia (solo `src/Support/Tours.php`):**
+- Asignaciones → «Repartir las piezas» (v3 → **v4**): el paso «Planificar otro día» dice que ese día solo salen
+  las piezas que necesitan limpieza según Cloudbeds; dos pasos nuevos: «Qué toca en cada pieza» (etiquetas «Se va»,
+  «Cambio», «Sábanas», sin etiqueta = sigue, y los botones con conteo que filtran) y «La cola de ese día» (la
+  misma etiqueta en la cola; «Sin limpieza» = ese día no necesita aseo, se puede quitar).
+- Asignaciones → «Auto-asignar todo» (v2 → **v3**): reparte solo entre el personal de Aseo con turno (la pestaña
+  «Otros» no recibe; ya era así desde que existe `asignaciones.excluir_auto`).
+- Al subir la versión del recorrido, quien ya lo vio lo ve marcado como nuevo.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP** `build/limpieza-v7152-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se
+extrae en `public_html/`) y la fila de la v7.15.2 del `CHANGELOG.md` fechada antes. Archivos: `CHANGELOG.md` y
+`src/Support/Tours.php`. Vuelta atrás: los dos en la v7.15.1 (`5d3da93`): `build/limpieza-v7152-vuelta-atras.zip`.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.15.2** (incógnito) y `/api/health` 200.
+2. Asignaciones (Tablero) → «?»: «Repartir las piezas» y «Auto-asignar todo» salen como nuevos; «Repartir» tiene
+   5 pasos y el 4º y 5º apuntan a «Sin asignar» y al equipo.
