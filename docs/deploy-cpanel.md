@@ -3375,3 +3375,7 @@ cinco en la v7.14, `31ffcaa`).
 1. Badge **v7.14.1** (incógnito) y `/api/health` 200.
 2. Reportes: la primera pestaña dice «Aseo» y muestra lo mismo que antes.
 3. «Exportar Excel» → resumen mensual: la primera hoja se llama «Aseo».
+
+**Desplegada el 06/11/2026 ~08:00** (ZIP `build/limpieza-v7141-delta.zip` desde `11a023a`, sin SQL). Smoke OK
+(Nicolás): badge v7.14.1, la primera pestaña de Reportes dice «Aseo» con los mismos datos, y la primera hoja del
+Excel del resumen mensual se llama «Aseo». A las 08:01 `/api/health` respondía 200 con `checks.esquema.ok: true`.
