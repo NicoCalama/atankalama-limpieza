@@ -24,6 +24,9 @@ final class AsignacionService
         // Hora local (0–23) con que reconciliarPreasignaciones decide si ya puede retirar
         // habitaciones; null = la del reloj. Los tests la fijan para no depender de cuándo corren.
         private readonly ?int $horaActual = null,
+        // Reservas de un día futuro (v7.15), para el pool de la planificación. null = el de siempre,
+        // que lee el .env; los tests le pasan un Cloudbeds simulado.
+        private readonly ?OcupacionFuturaService $ocupacionFutura = null,
     ) {
     }
 
@@ -33,6 +36,15 @@ final class AsignacionService
      * sincronización las pasa entre las 00:30 y la 01:30): ver reconciliarPreasignaciones().
      */
     public const HORA_RETIRO_PREASIGNACIONES = 6;
+
+    /** `tipo_dia` de una pieza que ese día no necesita limpieza: sin reserva, o solo llega (v7.15). */
+    public const TIPO_DIA_SIN_LIMPIEZA = 'sin_limpieza';
+
+    /** `tipo_dia` de una pieza que sigue y ese día le toca cambio de sábanas (v7.15). */
+    public const TIPO_DIA_SABANAS = 'sabanas';
+
+    /** El de siempre (lee el .env), creado la primera vez que hace falta si no se inyectó uno. */
+    private ?OcupacionFuturaService $ocupacionFuturaCreada = null;
 
     /**
      * @param bool $puedeMoverEnProgreso Si quien actúa tiene asignaciones.mover_en_progreso (ver
@@ -495,9 +507,10 @@ final class AsignacionService
      * Vista consolidada para la página de Asignaciones:
      *   - si $fecha es HOY: habitaciones "sucia"/"rechazada" sin asignar (agrupadas por hotel)
      *     + candidatas a 2ª limpieza ("re_limpiar")
-     *   - si $fecha es FUTURA (planificación semanal): todo el inventario activo del hotel sin
-     *     asignación activa esa fecha, sin filtrar por estado (no se conoce el estado real de
-     *     un día que no ha llegado); "re_limpiar" queda vacío
+     *   - si $fecha es FUTURA (planificación semanal): las piezas sin asignación activa esa fecha
+     *     que ese día necesitan limpieza según las reservas de Cloudbeds, cada una con su
+     *     `tipo_dia` (v7.15, ver filtrarPorReservas); "re_limpiar" queda vacío
+     *   - si $fecha ya pasó: todo el inventario activo sin asignación activa esa fecha
      *   - trabajadores con turno esa fecha, con su cola (habitaciones + estados)
      *
      * @param string $hotel código del hotel ('ambos', '1_sur', 'inn', etc.)
@@ -507,7 +520,8 @@ final class AsignacionService
      *     hotel: string,
      *     sin_asignar: array<int, array<string, mixed>>,
      *     re_limpiar: array<int, array<string, mixed>>,
-     *     trabajadores: list<array<string, mixed>>
+     *     trabajadores: list<array<string, mixed>>,
+     *     reservas: array{hoteles_sin_dato: list<string>}|null
      * }
      */
     public function vistaConsolidada(string $hotel, string $fecha, bool $incluirPrueba = false): array
@@ -542,12 +556,13 @@ final class AsignacionService
                           AND ' . BloqueosService::sqlSinBloqueo() . '
                           AND a.id IS NULL';
         } else {
-            // Planificación a futuro: no hay "estado real" que consultar (nadie sabe si la pieza
-            // estará sucia ese día), así que el pool ofrece TODO el inventario activo del hotel —
-            // la supervisora elige a mano qué preasignar, viendo el estado actual como referencia
-            // (se pinta con color en el frontend, sin usarlo para filtrar). Ver plan "asignaciones
-            // a días futuros".
-            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+            // Otro día: no hay "estado real" que consultar (nadie sabe si la pieza estará sucia ese
+            // día), así que se trae todo el inventario activo sin asignación esa fecha. Para un día
+            // futuro, después filtrarPorReservas() deja solo lo que ese día necesita limpieza según
+            // Cloudbeds (v7.15). Ver plan "asignaciones a días futuros".
+            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cloudbeds_room_id,
+                              ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, ho.cloudbeds_property_id,
+                              ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
@@ -571,6 +586,19 @@ final class AsignacionService
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
         }
         unset($fila);
+
+        // Reservas de Cloudbeds de un día futuro, una consulta por hotel para toda la vista (pool y
+        // colas). Ver tipoDelDia().
+        $reservasPorHotel = [];
+        if ($esFutura) {
+            $sinAsignar = $this->filtrarPorReservas($sinAsignar, $fecha, $reservasPorHotel);
+        } elseif (!$esHoy) {
+            // Un día pasado no se filtra: esas columnas solo las usa filtrarPorReservas().
+            foreach ($sinAsignar as &$fila) {
+                unset($fila['cloudbeds_room_id'], $fila['cloudbeds_property_id'], $fila['sabanas_cada_n_dias']);
+            }
+            unset($fila);
+        }
 
         // "Volver a limpiar" solo tiene sentido con estado real (hoy): para fechas futuras no hay
         // forma de saber si la pieza quedará limpia antes de que llegue el día.
@@ -617,6 +645,9 @@ final class AsignacionService
                     static fn(array $h) => ($h['hotel_codigo'] ?? null) === $filtroHotel
                 ));
             }
+            if ($esFutura) {
+                $cola = $this->anotarColaFutura($cola, $fecha, $reservasPorHotel);
+            }
             $pendientes = 0;
             $enProgreso = 0;
             $completadas = 0;
@@ -660,7 +691,120 @@ final class AsignacionService
             'sin_asignar' => $sinAsignar,
             're_limpiar' => $reLimpiar,
             'trabajadores' => $trabajadoresVista,
+            'reservas' => $esFutura ? ['hoteles_sin_dato' => array_values(array_map(
+                static fn(array $h): string => $h['nombre'],
+                array_filter($reservasPorHotel, static fn(array $h): bool => $h['piezas'] === null)
+            ))] : null,
         ];
+    }
+
+    /**
+     * Lo que pasa en una pieza un día futuro, según las reservas de Cloudbeds (v7.15). Una sola
+     * etiqueta por pieza (decisiones de Nicolás del 06/11/2026):
+     *  - `se_va` / `cambio`: salida, o salida y llegada el mismo día (siempre llevan sábanas)
+     *  - `sabanas`: sigue, y ese día le toca cambio de sábanas (misma regla que «Sábanas hoy»)
+     *  - `sigue`: sigue, sin sábanas (aseo liviano, sin etiqueta)
+     *  - `sin_limpieza`: sin reserva, o solo llega (ya se limpió cuando salió el anterior)
+     *  - null: no se sabe (Cloudbeds no contestó para ese hotel, o la pieza no está enlazada, como
+     *    la PRUEBA)
+     *
+     * @param array<string, mixed> $fila hotel_codigo, hotel_nombre, cloudbeds_property_id,
+     *                                   cloudbeds_room_id y sabanas_cada_n_dias de la pieza
+     * @param array<string, array{nombre: string, piezas: array<string, array{tipo: string, llegada: ?string}>|null}> $porHotel
+     *        lo ya consultado en esta vista, por código de hotel (se completa acá)
+     */
+    private function tipoDelDia(array $fila, string $fecha, array &$porHotel): ?string
+    {
+        $hotel = (string) $fila['hotel_codigo'];
+        if (!array_key_exists($hotel, $porHotel)) {
+            $porHotel[$hotel] = [
+                'nombre' => (string) $fila['hotel_nombre'],
+                'piezas' => $this->ocupacionFutura()->piezasDelDia((string) ($fila['cloudbeds_property_id'] ?? ''), $fecha),
+            ];
+        }
+        $piezas = $porHotel[$hotel]['piezas'];
+        $roomId = (string) ($fila['cloudbeds_room_id'] ?? '');
+        if ($piezas === null || $roomId === '') {
+            return null;
+        }
+        $pieza = $piezas[$roomId] ?? null;
+        if ($pieza === null || $pieza['tipo'] === OcupacionFuturaService::TIPO_LLEGA) {
+            return self::TIPO_DIA_SIN_LIMPIEZA;
+        }
+        if ($pieza['tipo'] === OcupacionFuturaService::TIPO_SIGUE && $this->sabanas->tocaCambioSabanas(
+            'stayover',
+            $pieza['llegada'],
+            (int) ($fila['sabanas_cada_n_dias'] ?? 4),
+            $fecha
+        )) {
+            return self::TIPO_DIA_SABANAS;
+        }
+        return $pieza['tipo'];
+    }
+
+    private function ocupacionFutura(): OcupacionFuturaService
+    {
+        return $this->ocupacionFutura ?? ($this->ocupacionFuturaCreada ??= new OcupacionFuturaService());
+    }
+
+    /**
+     * Pool de un día futuro (v7.15): deja solo las piezas que ese día necesitan limpieza según las
+     * reservas de Cloudbeds, cada una con su `tipo_dia` (ver tipoDelDia). Fuera las `sin_limpieza`.
+     * Si no se pudo consultar un hotel, ese hotel muestra todo, como antes de la v7.15, sin etiqueta;
+     * la vista lo avisa con `reservas.hoteles_sin_dato`.
+     *
+     * @param list<array<string, mixed>> $filas
+     * @param array<string, array{nombre: string, piezas: array<string, array{tipo: string, llegada: ?string}>|null}> $porHotel
+     * @return list<array<string, mixed>>
+     */
+    private function filtrarPorReservas(array $filas, string $fecha, array &$porHotel): array
+    {
+        $resultado = [];
+        foreach ($filas as $fila) {
+            $tipoDia = $this->tipoDelDia($fila, $fecha, $porHotel);
+            if ($tipoDia === self::TIPO_DIA_SIN_LIMPIEZA) {
+                continue;
+            }
+            unset($fila['cloudbeds_room_id'], $fila['cloudbeds_property_id'], $fila['sabanas_cada_n_dias']);
+            $fila['tipo_dia'] = $tipoDia;
+            $resultado[] = $fila;
+        }
+        return $resultado;
+    }
+
+    /**
+     * Cola de una persona un día futuro (v7.15, pedido de Nicolás del 06/11/2026): cada pieza lleva su
+     * `tipo_dia`, para ver qué le tocó a cada una y repartir parejo. Las preasignadas que ese día no
+     * necesitan limpieza quedan como `sin_limpieza` (si no, se confundirían con «sigue»).
+     *
+     * @param list<array<string, mixed>> $cola filas de colaDelTrabajador()
+     * @param array<string, array{nombre: string, piezas: array<string, array{tipo: string, llegada: ?string}>|null}> $porHotel
+     * @return list<array<string, mixed>>
+     */
+    private function anotarColaFutura(array $cola, string $fecha, array &$porHotel): array
+    {
+        if ($cola === []) {
+            return $cola;
+        }
+        $ids = array_map(static fn(array $h): int => (int) $h['habitacion_id'], $cola);
+        $marcas = implode(', ', array_fill(0, count($ids), '?'));
+        $datos = [];
+        foreach (Database::fetchAll(
+            "SELECT h.id, h.cloudbeds_room_id, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+                    ho.cloudbeds_property_id, ho.sabanas_cada_n_dias
+               FROM #__habitaciones h
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE h.id IN ({$marcas})",
+            $ids
+        ) as $fila) {
+            $datos[(int) $fila['id']] = $fila;
+        }
+        foreach ($cola as &$h) {
+            $fila = $datos[(int) $h['habitacion_id']] ?? null;
+            $h['tipo_dia'] = $fila === null ? null : $this->tipoDelDia($fila, $fecha, $porHotel);
+        }
+        unset($h);
+        return $cola;
     }
 
     /**

@@ -46,9 +46,57 @@ Respuesta (`data`):
 - `sin_asignar[]` — piezas sucias sin asignar: `{ id, numero, tipo_nombre, hotel_codigo, hotel_nombre }`.
 - `re_limpiar[]` — piezas ya limpias hoy que necesitan otra pasada (ocupación día/noche); misma forma. **Al asignarlas se re-abren y la limpieza arranca de cero** (el backend resetea el estado terminal a `sucia`).
 - `trabajadores[]` — a quién se le puede asignar ese día: `{ usuario:{id,nombre,rut,hotel_default,grupo,con_turno}, progreso:{completadas,total,en_progreso,pendientes,rechazadas}, cola:[{habitacion_id,numero,tipo_nombre,estado,franja}] }`.
+- `reservas` — solo en un día futuro (v7.15, §3.2): `{ hoteles_sin_dato: [nombres] }`; `null` hoy y en días pasados. Cada pieza de `sin_asignar` y de las colas trae además `tipo_dia`.
 
 Refresco: re-fetch tras cada acción + polling cada 60 s + al volver a la pestaña +
 al reconectar. El filtro de hotel se persiste en `localStorage['asignaciones_hotel']`.
+
+### 3.2 Planificar un día futuro: el pool según las reservas (v7.15, 06/11/2026)
+
+Pedido de Nicolás: al planificar otro día, el pool ofrecía **todo el inventario** sin preasignar (un
+domingo sin planificar mostraba las 148 piezas), también las que ese día no iban a tener a nadie.
+Ahora `AsignacionService::vistaConsolidada` le pregunta a Cloudbeds las reservas de ese día
+(`OcupacionFuturaService`, misma consulta `getReservations` que usa el sync para contar huéspedes) y
+deja solo lo que ese día necesita limpieza. Cada pieza lleva **una sola** etiqueta (`tipo_dia`):
+
+| `tipo_dia` | Tarjeta | Qué pasa ese día | ¿Sale en el pool? |
+|---|---|---|---|
+| `se_va` | «Se va» (naranjo) | el huésped se va | sí |
+| `cambio` | «Cambio» (morado) | se va uno y llega otro | sí |
+| `sabanas` | «Sábanas» (ámbar) | sigue, y le toca cambio de sábanas (días N, 2N… desde su llegada, N del hotel) | sí |
+| `sigue` | *(sin etiqueta)* | sigue, sin sábanas: aseo liviano | sí |
+| — | — | solo llega (la pieza ya se limpió cuando salió el anterior) | **no** |
+| — | — | sin reserva | **no** |
+
+Decisiones de Nicolás (06/11/2026):
+- **Una sola etiqueta por tarjeta.** «Se va» y «Cambio» siempre llevan sábanas, así que no se repite
+  «Sábanas»: con etiqueta = lleva sábanas, sin etiqueta = aseo liviano.
+- **Pensado para el celular:** la etiqueta es texto (no un punto con `title`, que sin mouse no se lee),
+  y arriba del pool hay una fila de botones de 44 px con el conteo que también filtra: «Todas · Se va ·
+  Cambio · Sábanas · Sigue» (`views/componentes/filtro-dia-pool.php`). El filtro no se recuerda: vuelve a
+  «Todas» al cambiar de día o de hotel, y suelta las piezas elegidas que quedan ocultas.
+- **Las tarjetas del día futuro van en blanco:** el color era el estado de hoy, que no dice nada de ese día.
+- **Las que solo reciben huésped no salen.**
+- **La cola de cada persona ese día lleva la misma etiqueta** en vez del estado de hoy (una sola burbuja;
+  «Sigue» sin nada), para ver qué le tocó a cada una y repartir parejo. Una pieza preasignada que ese día
+  no necesita aseo (sin reserva o solo llega) dice **«Sin limpieza»** (gris): sin etiqueta se
+  confundiría con «Sigue». Sin dato de Cloudbeds queda el estado de hoy, como antes.
+  (`AsignacionService::anotarColaFutura`; pool y colas comparten la consulta de cada hotel.)
+
+Detalles:
+- Se ignoran lo cancelado, los no-show, lo que ya hizo check-out y las reservas que todavía no tienen
+  pieza en Cloudbeds (no se sabe cuál les va a tocar: la pieza aparece cuando recepción la asigna).
+- **Cache de 10 minutos** por hotel y fecha en `storage/cache/ocupacion/` (se crea sola, fuera de git;
+  los archivos de más de un día se borran solos): el tablero se recarga después de cada arrastre. Una
+  reserva nueva en Cloudbeds aparece en el pool a lo más 10 minutos después.
+- **Si Cloudbeds no contesta** (o el hotel no tiene `cloudbeds_property_id`), ese hotel muestra todo,
+  como antes, sin etiquetas, y la pantalla avisa «No pudimos consultar las reservas de Cloudbeds de …».
+  La consulta va **sin reintentos** (la pantalla espera; 10 s de timeout) y el fallo no se guarda: el
+  botón de refrescar vuelve a preguntar.
+- Las piezas que no están enlazadas a Cloudbeds (la PRUEBA) salen siempre, sin etiqueta.
+- **No cambian:** el día de hoy (pool por estado sucia/rechazada, puntos de ocupación), los días
+  pasados (todo el inventario) ni las preasignaciones ya hechas (si ese día la pieza no necesitó
+  limpieza, la reconciliación de las 06:00 la retira, v7.5.1; mientras, sale como «Sin limpieza»).
 
 ### 3.1 Pestañas «Aseo» y «Otros» (v7.14, 06/11/2026)
 
@@ -150,9 +198,10 @@ unificados (mouse + dedo)**. Se carga solo en esta pantalla (`<script src>?v=fil
   muestra cada pieza es el de hoy. Antes, una pieza limpiada o en progreso hoy dejaba trabada su
   preasignación de un día futuro: no se podía arrastrar, quitar ni reasignar, ni siquiera el
   Admin. Ahora:
-  - En un **día futuro** toda preasignación se mueve y se quita, con el estado de hoy solo como
-    referencia en el badge (igual que en el pool de ese día). No hay candado ni aviso de
-    «se reinicia». Los contadores de ese día cuentan todo como pendiente.
+  - En un **día futuro** toda preasignación se mueve y se quita. No hay candado ni aviso de
+    «se reinicia». Los contadores de ese día cuentan todo como pendiente. Desde la v7.15 el badge
+    de la cola es la etiqueta de ese día (§3.2); el estado de hoy queda solo si no hay dato de
+    Cloudbeds.
   - `AsignacionService::desasignar` con una fecha futura no exige estado y no reinicia nada: la
     limpieza en curso de hoy y Cloudbeds quedan como estaban. `reasignar` ya lo permitía.
   - Hoy y los días pasados siguen igual.
@@ -189,6 +238,8 @@ quitar / reordenar), **Auto-asignar** y **Cambiar de hotel**. Las 4 anclas
 ## 8. Archivos
 
 - `views/asignaciones.php` — la vista (ambos modos) + el componente Alpine `asignacionesApp()`.
+- `views/componentes/filtro-dia-pool.php` — filtro del pool de un día futuro (v7.15), en los dos modos.
+- `src/Services/OcupacionFuturaService.php` — reservas de Cloudbeds de un día futuro, con su cache (v7.15).
 - `public/assets/js/drag-asignaciones.js` — motor de arrastre (pointer events).
 - `public/assets/css/custom.css` — estilos del arrastre (`.arrastrando`, fantasma, `.drop-activa`, línea de inserción).
 - `src/Services/AsignacionService.php` + `src/Controllers/AsignacionesController.php` — backend (sin cambios en v4; se reutilizó).

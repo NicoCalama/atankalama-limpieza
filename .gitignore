@@ -28,6 +28,8 @@ storage/logs/*
 !storage/logs/.gitkeep
 storage/sessions/*
 !storage/sessions/.gitkeep
+# Reservas de Cloudbeds de días futuros (v7.15, OcupacionFuturaService): se crea sola.
+storage/cache/
 
 # === Uploads de usuarios ===
 public/uploads/*

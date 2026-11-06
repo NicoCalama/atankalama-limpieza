@@ -3379,3 +3379,48 @@ cinco en la v7.14, `31ffcaa`).
 **Desplegada el 06/11/2026 ~08:00** (ZIP `build/limpieza-v7141-delta.zip` desde `11a023a`, sin SQL). Smoke OK
 (Nicolás): badge v7.14.1, la primera pestaña de Reportes dice «Aseo» con los mismos datos, y la primera hoja del
 Excel del resumen mensual se llama «Aseo». A las 08:01 `/api/health` respondía 200 con `checks.esquema.ok: true`.
+
+### 11.45 Release "pool del día futuro según las reservas de Cloudbeds" → v7.15
+
+Origen: Nicolás, 06/11/2026. Al planificar otro día en Asignaciones, el pool «Sin asignar» ofrecía todo el
+inventario sin preasignar (un domingo sin planificar: 148 piezas), también las que ese día no iban a tener a nadie
+(p. ej. la 600, cuyo huésped se iba el viernes, salía el sábado). Detalle y decisiones en `docs/asignacion.md` §3.2.
+
+**Qué cambia:**
+- `src/Services/OcupacionFuturaService.php` (nuevo): pide a Cloudbeds las reservas de ese día
+  (`getReservations`, la misma consulta que usa el sync para contar huéspedes; la API key ya tiene el permiso) y
+  clasifica cada pieza en se va / cambio / sigue / llega. Cache de 10 min por hotel y fecha en
+  `storage/cache/ocupacion/` (se crea sola). Sin reintentos y 10 s de timeout: la pantalla está esperando.
+- `AsignacionService::vistaConsolidada`: en un día **futuro** el pool deja solo se va, cambio y sigue, cada pieza
+  con una etiqueta (`tipo_dia`: «Se va», «Cambio», «Sábanas» si sigue y le toca, o nada); fuera las que solo
+  reciben huésped y las sin reserva. Si Cloudbeds no contesta, ese hotel muestra todo con un aviso ámbar.
+- `views/asignaciones.php` + `views/componentes/filtro-dia-pool.php` (nuevo): etiqueta en cada tarjeta, fila de
+  filtros con conteo (Todas · Se va · Cambio · Sábanas · Sigue, botones de 44 px), tarjetas del día futuro en
+  blanco (sin el color del estado de hoy) y una línea en el aviso azul.
+- Colas de cada persona ese día: la misma etiqueta en vez del estado de hoy; una preasignada que ese día no
+  necesita aseo dice «Sin limpieza» (`AsignacionService::anotarColaFutura`).
+- `CloudbedsClient::desdeConfig()` acepta los reintentos (el sync sigue con los de siempre).
+- **No cambian:** hoy, los días pasados ni las preasignaciones ya hechas.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/`, sin cambios en los cron.
+
+**ZIP:** se arma al desplegar, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`) y la fila de la v7.15 del `CHANGELOG.md` fechada antes. Archivos: `CHANGELOG.md`,
+`src/Services/AsignacionService.php`, `src/Services/CloudbedsClient.php`, `src/Services/OcupacionFuturaService.php`
+(nuevo), `views/asignaciones.php` y `views/componentes/filtro-dia-pool.php` (nuevo). Vuelta atrás: los cuatro que
+existían, en la v7.14.1 (`c1cc4f8`), y borrar los dos nuevos (sin ellos la v7.14.1 no los usa).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.15** (incógnito) y `/api/health` 200.
+2. Asignaciones → **mañana**: el aviso azul suma «Se muestran las piezas que ese día necesitan limpieza, según las
+   reservas de Cloudbeds», **sin** aviso ámbar; «Sin asignar» trae bastante menos que el inventario completo, y
+   arriba están los botones con su conteo.
+3. Comparar con el calendario de Cloudbeds de ese día: una que se va → «Se va»; una que sale y entra →
+   «Cambio»; una pieza libre o que solo recibe huésped → **no** aparece.
+4. En el celular: tocar «Se va» deja solo esas; «Todas» vuelve a la lista completa. En la cola de quien ya
+   tenga piezas preasignadas ese día, cada una con su etiqueta (o «Sin limpieza»).
+5. Hoy, sin cambios (pool de sucias con sus colores y puntos).
+6. Si sale el aviso ámbar: buscar `getReservations de un día futuro` / `no se pudieron leer las reservas de un día
+   futuro` en `storage/logs/` (canal `cloudbeds`).

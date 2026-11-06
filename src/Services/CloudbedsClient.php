@@ -98,8 +98,11 @@ final class CloudbedsClient
      * Construye el cliente leyendo las credenciales por propiedad del .env.
      * Arma el mapa propertyID => apiKey con una entrada por cada propiedad
      * que tenga propertyID y key configurados.
+     *
+     * @param int[]|null $backoffs Reintentos (null = los de siempre). Una pantalla que espera la
+     *                             respuesta pasa [] para no quedar colgada si Cloudbeds no contesta.
      */
-    public static function desdeConfig(): self
+    public static function desdeConfig(?array $backoffs = null): self
     {
         $mapa = [];
         foreach (self::SUFIJOS_PROPIEDAD as $sufijo) {
@@ -109,7 +112,7 @@ final class CloudbedsClient
                 $mapa[$propertyId] = $apiKey;
             }
         }
-        return new self(apiKeysPorPropiedad: $mapa);
+        return new self(backoffs: $backoffs, apiKeysPorPropiedad: $mapa);
     }
 
     /**

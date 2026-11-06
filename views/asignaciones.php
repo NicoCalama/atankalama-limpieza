@@ -100,11 +100,20 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
         </div>
     </header>
 
-    <!-- Aviso: viendo un día futuro (planificación). El pool trae todo el inventario del hotel
-         (no solo lo sucio) porque no se conoce el estado real de un día que no ha llegado. -->
+    <!-- Aviso: viendo otro día (planificación). Un día futuro trae solo lo que ese día necesita
+         limpieza según las reservas de Cloudbeds (v7.15); un día pasado, todo el inventario. -->
     <div x-show="!esHoy" x-cloak
          class="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-4 py-2 text-sm text-center">
         Planificando <span x-text="etiquetaFecha.toLowerCase()"></span> — el refresco automático está pausado.
+        <span x-show="esFuturo && reservasOk()" class="block text-xs mt-0.5">
+            Se muestran las piezas que ese día necesitan limpieza, según las reservas de Cloudbeds.
+        </span>
+    </div>
+    <!-- v7.15: si Cloudbeds no contestó para un hotel, ese hotel muestra todo, sin etiquetas. -->
+    <div x-show="esFuturo && hotelesSinReservas().length > 0" x-cloak
+         class="bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 px-4 py-2 text-sm text-center">
+        No pudimos consultar las reservas de Cloudbeds de <span x-text="hotelesSinReservas().join(' y ')"></span>:
+        ahí se muestran todas las habitaciones. Prueba de nuevo con el botón de refrescar.
     </div>
 
     <!-- Banner sin conexión -->
@@ -274,11 +283,17 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                              @pointerdown="iniciarDrag($event)">
                                                             <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
                                                             <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
-                                                            <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
-                                                                  :class="claseBadgeHab(hab.estado)">
-                                                                <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
-                                                                <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
-                                                            </span>
+                                                            <template x-if="!colaConTipoDia(hab)">
+                                                                <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                      :class="claseBadgeHab(hab.estado)">
+                                                                    <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
+                                                                    <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                                </span>
+                                                            </template>
+                                                            <template x-if="colaConTipoDia(hab) && etiquetaDia(hab.tipo_dia)">
+                                                                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                      :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
+                                                            </template>
                                                             <template x-if="hab.franja">
                                                                 <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize flex-shrink-0"
                                                                       x-text="hab.franja"></span>
@@ -335,11 +350,16 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             <div data-drop="pool"
                                  class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3 min-h-[80px] md:max-h-[calc(100vh-8rem)] md:overflow-y-auto scrollbar-thin">
 
+                                <?php include __DIR__ . '/componentes/filtro-dia-pool.php'; ?>
+
                                 <template x-if="data.sin_asignar.length === 0 && (!data.re_limpiar || data.re_limpiar.length === 0)">
                                     <div class="text-center py-4">
                                         <i data-lucide="check-circle-2" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
                                         <p class="text-sm text-gray-600 dark:text-gray-400">Todo asignado. Arrastra acá para quitar.</p>
                                     </div>
+                                </template>
+                                <template x-if="filtroDiaSinPiezas()">
+                                    <p class="text-center py-4 text-sm text-gray-600 dark:text-gray-400" x-text="textoFiltroDiaVacio()"></p>
                                 </template>
 
                                 <!-- Sin asignar, agrupadas por hotel -> edificio -> piso -->
@@ -358,6 +378,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                         <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
                                                     </template>
                                                     <span x-text="hab.numero"></span>
+                                                    <template x-if="esFuturo && etiquetaDia(hab.tipo_dia)">
+                                                        <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none" :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
+                                                    </template>
                                                     <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                 </div>
                                             </template>
@@ -436,12 +459,17 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             <template x-if="data.sin_asignar.length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="check-circle-2" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400">Todas las habitaciones sucias están asignadas.</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400"
+                                       x-text="esFuturo ? 'Todo lo que necesita limpieza ese día ya está asignado.' : 'Todas las habitaciones sucias están asignadas.'"></p>
                                 </div>
                             </template>
 
                             <template x-if="data.sin_asignar.length > 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                                    <?php include __DIR__ . '/componentes/filtro-dia-pool.php'; ?>
+                                    <template x-if="filtroDiaSinPiezas()">
+                                        <p class="text-center py-2 text-sm text-gray-600 dark:text-gray-400" x-text="textoFiltroDiaVacio()"></p>
+                                    </template>
                                     <template x-for="grupo in sinAsignarAgrupado()" :key="grupo.key">
                                         <div>
                                             <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
@@ -456,6 +484,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                             <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
                                                         </template>
                                                         <span x-text="hab.numero"></span>
+                                                        <template x-if="esFuturo && etiquetaDia(hab.tipo_dia)">
+                                                            <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none" :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
+                                                        </template>
                                                         <span class="text-[10px] font-normal opacity-75" x-text="hab.tipo_nombre"></span>
                                                     </button>
                                                 </template>
@@ -567,11 +598,17 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                             <div class="flex items-center gap-2 min-w-0 flex-1">
                                                                 <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
                                                                 <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
-                                                                <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
-                                                                      :class="claseBadgeHab(hab.estado)">
-                                                                    <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
-                                                                    <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
-                                                                </span>
+                                                                <template x-if="!colaConTipoDia(hab)">
+                                                                    <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                          :class="claseBadgeHab(hab.estado)">
+                                                                        <span class="sm:hidden" x-text="etiquetaEstadoHabCorta(hab.estado)"></span>
+                                                                        <span class="hidden sm:inline" x-text="etiquetaEstadoHab(hab.estado)"></span>
+                                                                    </span>
+                                                                </template>
+                                                                <template x-if="colaConTipoDia(hab) && etiquetaDia(hab.tipo_dia)">
+                                                                    <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0"
+                                                                          :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
+                                                                </template>
                                                                 <template x-if="hab.franja">
                                                                     <span class="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 capitalize flex-shrink-0"
                                                                           x-text="hab.franja"></span>
@@ -888,6 +925,19 @@ function asignacionesApp() {
             { valor: 'otros', label: 'Otros' },
         ],
         seleccionadas: [],
+        // v7.15: filtro del pool de un día futuro ('todas' o un valor de tiposDia). No se recuerda:
+        // vuelve a «Todas» al cambiar de día o de hotel.
+        filtroDia: 'todas',
+        // Lo que pasa ese día en cada pieza (tipo_dia del backend, según las reservas de Cloudbeds).
+        // Una sola etiqueta por tarjeta: «Se va» y «Cambio» siempre llevan sábanas y no se repite
+        // (decisión de Nicolás, 06/11/2026). «Sigue» (aseo liviano) no lleva etiqueta, pero sí filtro.
+        // Mismos colores que los badges de ocupación y «Sábanas hoy» de Habitaciones.
+        tiposDia: [
+            { valor: 'se_va', label: 'Se va', etiqueta: true, c: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200', borde: 'border-orange-200 dark:border-orange-800' },
+            { valor: 'cambio', label: 'Cambio', etiqueta: true, c: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200', borde: 'border-purple-200 dark:border-purple-800' },
+            { valor: 'sabanas', label: 'Sábanas', etiqueta: true, c: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200', borde: 'border-amber-200 dark:border-amber-800' },
+            { valor: 'sigue', label: 'Sigue', etiqueta: false, c: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200', borde: 'border-gray-200 dark:border-gray-600' },
+        ],
         autoEjecutando: false,
         _intervalId: null,
 
@@ -948,12 +998,14 @@ function asignacionesApp() {
             d.setDate(d.getDate() + delta);
             this.fecha = d.toISOString().slice(0, 10);
             this.seleccionadas = [];
+            this.filtroDia = 'todas';
             this.cargar();
         },
 
         irAHoy() {
             this.fecha = window.hoyServidor();
             this.seleccionadas = [];
+            this.filtroDia = 'todas';
             this.cargar();
         },
 
@@ -969,8 +1021,9 @@ function asignacionesApp() {
                     return;
                 }
                 this.data = r.data;
-                // Limpiar seleccionadas que ya no existan en sin_asignar o volver-a-limpiar
-                var idsDisponibles = this.data.sin_asignar.map(function (h) { return h.id; })
+                // Limpiar seleccionadas que ya no existan en sin_asignar (o que el filtro del día
+                // futuro oculta, v7.15) o en volver-a-limpiar
+                var idsDisponibles = this.sinAsignarVisibles().map(function (h) { return h.id; })
                     .concat((this.data.re_limpiar || []).map(function (h) { return h.id; }));
                 this.seleccionadas = this.seleccionadas.filter(function (id) { return idsDisponibles.includes(id); });
             } catch (e) {
@@ -1026,6 +1079,7 @@ function asignacionesApp() {
             this.hotel = valor;
             localStorage.setItem('asignaciones_hotel', valor);
             this.seleccionadas = [];
+            this.filtroDia = 'todas';
             this.cargar();
         },
 
@@ -1069,10 +1123,91 @@ function asignacionesApp() {
             });
         },
 
+        // --- Pool de un día futuro (v7.15): etiquetas y filtro por lo que pasa ese día ---
+
+        // ¿Llegaron las reservas de Cloudbeds de todos los hoteles? (null en hoy y días pasados)
+        reservasOk() {
+            return !!(this.data && this.data.reservas && this.data.reservas.hoteles_sin_dato.length === 0);
+        },
+
+        hotelesSinReservas() {
+            return (this.data && this.data.reservas) ? this.data.reservas.hoteles_sin_dato : [];
+        },
+
+        // Hay algo que filtrar solo si alguna pieza trae su etiqueta del día.
+        hayTiposDia() {
+            return !!(this.data && this.data.sin_asignar.some(function (h) { return !!h.tipo_dia; }));
+        },
+
+        contarTipoDia(valor) {
+            if (!this.data) return 0;
+            return this.data.sin_asignar.filter(function (h) { return h.tipo_dia === valor; }).length;
+        },
+
+        opcionesFiltroDia() {
+            var self = this;
+            var lista = [{
+                valor: 'todas', label: 'Todas', n: this.data ? this.data.sin_asignar.length : 0,
+                c: 'bg-white text-gray-800 border-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600'
+            }];
+            this.tiposDia.forEach(function (t) {
+                lista.push({ valor: t.valor, label: t.label, n: self.contarTipoDia(t.valor), c: t.c + ' ' + t.borde });
+            });
+            return lista;
+        },
+
+        // Etiqueta de la tarjeta ({t, c}) o null («Sigue» y las piezas sin dato no llevan).
+        // «Sin limpieza» solo aparece en las colas: una preasignada que ese día no necesita aseo (sin
+        // reserva o solo llega). En el pool esas no salen, por eso no tiene filtro.
+        etiquetaDia(tipo) {
+            if (tipo === 'sin_limpieza') {
+                return { t: 'Sin limpieza', c: 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-100' };
+            }
+            var t = this.tiposDia.find(function (x) { return x.valor === tipo; });
+            return (t && t.etiqueta) ? { t: t.label, c: t.c } : null;
+        },
+
+        // Cola de un día futuro (v7.15): si se sabe qué pasa ese día en la pieza, va su etiqueta (o nada,
+        // si sigue) en vez del estado de hoy, que no dice nada de ese día. Una sola burbuja por pieza.
+        // Sin dato de Cloudbeds queda el estado de hoy, como antes.
+        colaConTipoDia(hab) {
+            return this.esFuturo && !!hab.tipo_dia;
+        },
+
+        // Al filtrar se sueltan las elegidas que quedan ocultas: no se asigna nada que no se ve.
+        setFiltroDia(valor) {
+            this.filtroDia = valor;
+            var visibles = this.sinAsignarVisibles().map(function (h) { return h.id; });
+            var reLimpiar = ((this.data && this.data.re_limpiar) || []).map(function (h) { return h.id; });
+            this.seleccionadas = this.seleccionadas.filter(function (id) {
+                return visibles.includes(id) || reLimpiar.includes(id);
+            });
+        },
+
+        // Sin etiquetas no hay fila de filtros (hayTiposDia): un filtro que quedó puesto no puede
+        // esconder lo que queda sin ofrecer cómo volver a «Todas».
+        sinAsignarVisibles() {
+            if (!this.data) return [];
+            if (!this.esFuturo || this.filtroDia === 'todas' || !this.hayTiposDia()) return this.data.sin_asignar;
+            var f = this.filtroDia;
+            return this.data.sin_asignar.filter(function (h) { return h.tipo_dia === f; });
+        },
+
+        filtroDiaSinPiezas() {
+            return !!(this.data && this.esFuturo && this.filtroDia !== 'todas'
+                && this.data.sin_asignar.length > 0 && this.sinAsignarVisibles().length === 0);
+        },
+
+        textoFiltroDiaVacio() {
+            var f = this.filtroDia;
+            var t = this.tiposDia.find(function (x) { return x.valor === f; });
+            return 'No quedan piezas «' + (t ? t.label : f) + '» sin asignar ese día.';
+        },
+
         sinAsignarAgrupado() {
             if (!this.data) return [];
             var grupos = {};
-            this.data.sin_asignar.forEach(function (h) {
+            this.sinAsignarVisibles().forEach(function (h) {
                 var edificioStr = h.edificio ? h.edificio.toUpperCase() : 'SIN EDIFICIO';
                 var pisoStr = h.piso ? ('PISO ' + h.piso) : '';
                 var key = h.hotel_codigo + '_' + (h.edificio || '') + '_' + (h.piso || '');
@@ -1499,9 +1634,14 @@ function asignacionesApp() {
         // necesita qué, según el estado real (sincronizado desde Cloudbeds). Reusa las
         // clases .chip-estado-*-activo (editables en Ajustes → Colores), no inventa color.
         colorEstadoPool(estado) {
-            // Hoy el pool solo trae 'sucia'/'rechazada' (las demás no aparecen ahí). En un día
-            // futuro trae TODO el inventario sin filtrar por estado, así que hace falta pintar
-            // los seis para que la supervisora vea de un vistazo qué necesita qué.
+            // v7.15: en un día futuro la tarjeta va en blanco. El color sería el estado de HOY, que no
+            // dice nada de ese día (todo lo que sale ahí necesita limpieza según las reservas); lo de
+            // ese día va en la etiqueta «Se va / Cambio / Sábanas». Decisión de Nicolás, 06/11/2026.
+            if (this.esFuturo) {
+                return 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600';
+            }
+            // Hoy el pool solo trae 'sucia'/'rechazada' (las demás no aparecen ahí). Un día pasado
+            // trae TODO el inventario sin filtrar por estado, así que hace falta pintar los seis.
             var validos = ['sucia', 'rechazada', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'];
             return validos.indexOf(estado) !== -1
                 ? 'chip-estado-' + estado + '-activo border-transparent hover:opacity-85'
