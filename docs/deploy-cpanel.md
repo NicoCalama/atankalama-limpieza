@@ -3496,3 +3496,6 @@ extrae en `public_html/`) y la fila de la v7.15.2 del `CHANGELOG.md` fechada ant
 1. Badge **v7.15.2** (incógnito) y `/api/health` 200.
 2. Asignaciones (Tablero) → «?»: «Repartir las piezas» y «Auto-asignar todo» salen como nuevos; «Repartir» tiene
    5 pasos y el 4º y 5º apuntan a «Sin asignar» y al equipo.
+
+**Desplegada el 07/11/2026 ~18:10** (ZIP `build/limpieza-v7152-delta.zip` desde `da79f6e`, sin SQL; la fila del
+CHANGELOG se re-fechó al 07/11 porque el deploy pasó del 06/11). Smoke OK (Nicolás).
