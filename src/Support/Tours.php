@@ -1292,14 +1292,14 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'mensuales', 'v' => 4,
+                        'id' => 'mensuales', 'v' => 5,
                         'titulo' => 'Consultar los resúmenes',
                         'pregunta' => '¿Cómo veo los totales de cada mes?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Mensual» y la ayuda sigue sola.',
-                             'texto' => 'Elige el mes arriba y verás por trabajador lo limpiado y lo que quedó bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
+                             'texto' => 'Elige el mes y verás por trabajador lo limpiado, sus días y horas, el bono de RRHH y sus créditos. «Corte hab./hora» es la base del mes, igual para jornada completa y parcial (por día hasta octubre de 2026).'],
                             // v7.17: el botón sale solo con horas_extras.registrar (bandera carga_extras).
                             ['sel' => '[data-tour="rep.horas_extras"]', 'titulo' => 'Horas extras del mes',
                              'requiere' => ['carga_extras'],

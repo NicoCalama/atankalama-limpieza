@@ -4,10 +4,10 @@
 Admin como total del mes) y del 08/11/2026 (cuadrícula del año y plazo hasta el 6 del mes siguiente).
 
 Una persona con muchas horas extras tenía las piezas por día «al cielo», porque el corte del bono está pensado para un
-día de 7,5 h. En la v7.18 «KPIs por hora» las extras se suman a sus horas en Aseo y el bono pasa a medirse por hora.
-Esta ventana es donde el Admin las carga.
+día de 7,5 h. Desde la v7.18 «KPIs por hora» las extras se suman a sus horas en Aseo y el bono se mide por hora. Esta
+ventana es donde el Admin las carga.
 
-La v7.17 **solo guarda el dato**: el bono todavía no cambia.
+La v7.17 solo guardaba el dato; el bono las usa desde la v7.18 (§5).
 
 ---
 
@@ -71,13 +71,15 @@ Decisión de Nicolás del 08/11/2026: «se tiene hasta el 6 de cada mes para rel
 - **Registro de auditoría:** cada cambio queda en `audit_log` (`horas_extras.guardar`) con el mes y los minutos de
   antes y de después.
 
-## 5. Lo que viene en la v7.18 «KPIs por hora» (aprobado, sin construir)
+## 5. Cómo se usan desde la v7.18 «KPIs por hora»
 
 - **Horas en Aseo del mes** = horas de turno de los días trabajados + **extras del mes** − horas en otras áreas
-  ([cambio-tarea.md](cambio-tarea.md) §6).
-- **Bono y Productividad pasan de hab./día a hab./hora**, con el corte escrito directo por hora.
-- **Por decidir al diseñarla:** cómo cuentan las extras en un período que no es el mes completo (por ejemplo, los KPIs
-  del 1 al 15), ya que se cargan como total del mes y no por día.
+  ([cambio-tarea.md](cambio-tarea.md) §6). Detalle en [kpis-sueldos.md](kpis-sueldos.md), «KPIs por hora».
+- **Bono y Productividad se miden por hora**, con el corte escrito directo por hora.
+- **Período que no es el mes completo** (decisión de Nicolás, 08/11/2026): las extras se cargan como total del mes,
+  así que **solo suman si el período cubre el mes entero**. En los KPIs del 1 al 15 no suman y el indicador dice «sin
+  extras del mes». El resumen mensual y el Excel siempre son del mes completo.
+- **Con un hotel filtrado** van enteras a la fila de la persona: son suyas y no de un hotel.
 
 ## 6. API
 

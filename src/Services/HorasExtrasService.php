@@ -12,8 +12,8 @@ use Atankalama\Limpieza\Core\Logger;
  *
  * El TOTAL de horas extras del mes de cada persona de Aseo. Lo carga administración (permiso
  * horas_extras.registrar) en Reportes → Mensual, en una cuadrícula del año: filas = personas, columnas =
- * meses. Por ahora solo se guarda; en la v7.18 «KPIs por hora» esas horas se suman a sus horas en Aseo
- * (una persona con muchas extras tenía las piezas por día «al cielo»). Ver docs/horas-extras.md.
+ * meses. Desde la v7.18 «KPIs por hora» esas horas se suman a sus horas en Aseo (HorasAseoService): una
+ * persona con muchas extras tenía las piezas por día «al cielo». Ver docs/horas-extras.md.
  *
  * Reglas:
  *  - Un número por persona y mes, en horas de media en media hora, hasta 100 h. Vacío o 0 = sin extras.

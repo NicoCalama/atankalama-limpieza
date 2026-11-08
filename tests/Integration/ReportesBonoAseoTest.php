@@ -67,7 +67,8 @@ final class ReportesBonoAseoTest extends TestCase
 
     public function testResumenMensualTraeHabHechasObservacionesYBono(): void
     {
-        $ana = $this->filaAna();
+        $this->moverAOctubre();
+        $ana = $this->filaAna(2026, 10);
         $this->assertSame('11111111-1', $ana['rut']);
         $this->assertSame(3, $ana['habitaciones'], '101, 102 y 104 quedaron bien; la 103 fue rechazada');
         $this->assertSame(1, $ana['rechazadas']);
@@ -104,13 +105,14 @@ final class ReportesBonoAseoTest extends TestCase
 
     public function testElCorteDelMesCambiaElCalculo(): void
     {
-        (new BonoAseoService())->guardarCorte((int) date('Y'), (int) date('n'), 4, $this->admin);
-        $ana = $this->filaAna();
+        $this->moverAOctubre();
+        (new BonoAseoService())->guardarCorte(2026, 10, 4, $this->admin);
+        $ana = $this->filaAna(2026, 10);
         $this->assertSame(2.0, $ana['bono']['base'], 'parcial = la mitad de 4');
         $this->assertSame(100.0, $ana['bono']['eficacia_pct']);
         $this->assertSame(1.0, $ana['bono']['extras'], '3 − 2 × 1');
 
-        $filas = (new ReportesService())->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Aseo'];
+        $filas = (new ReportesService())->hojasMensual(2026, 10, 'ambos')['Aseo'];
         $this->assertEquals(['Corte hab./día', 4, 'Jornada parcial', 2], $filas[2]);
         $this->assertSame(
             ['RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas', 'Act. por día', 'Observaciones'],
@@ -187,10 +189,21 @@ final class ReportesBonoAseoTest extends TestCase
 
     // ─── Helpers ───────────────────────────────────────────────────────────
 
-    /** @return array<string, mixed> */
-    private function filaAna(): array
+    /**
+     * Lleva las limpiezas de hoy a octubre de 2026, el último mes que se calcula por día: el bono pasó a
+     * medirse por hora en noviembre (v7.18) y estos tests protegen el cálculo de los meses anteriores.
+     */
+    private function moverAOctubre(): void
     {
-        foreach ((new ReportesService())->resumenMensual((int) date('Y'), (int) date('n'), 'ambos') as $f) {
+        Database::execute("UPDATE asignaciones SET fecha = '2026-10-15'");
+        Database::execute("UPDATE ejecuciones_checklist SET timestamp_inicio = '2026-10-15T15:00:00.000Z', timestamp_fin = '2026-10-15T15:30:00.000Z'");
+        Database::execute("UPDATE auditorias SET created_at = '2026-10-15T16:00:00.000Z'");
+    }
+
+    /** @return array<string, mixed> */
+    private function filaAna(int $anio, int $mes): array
+    {
+        foreach ((new ReportesService())->resumenMensual($anio, $mes, 'ambos') as $f) {
             if ($f['usuario_id'] === $this->ana) {
                 return $f;
             }

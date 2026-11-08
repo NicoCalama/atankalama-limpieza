@@ -103,6 +103,9 @@ final class ReportesCoherenciaTest extends TestCase
     public function testMarcarLimpiaAManoNoEsTrabajoDeNadie(): void
     {
         // Ana limpia la 101 (30 min). La 103 era de Berta, pero Sofía la da por limpia con el atajo.
+        Database::execute("UPDATE usuarios SET jornada = 'completa' WHERE id = ?", [$this->ana]);
+        Database::execute("INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES ('mañana', '08:00', '16:00')");
+        Database::execute('INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)', [$this->ana, Database::lastInsertId(), $this->hoy]);
         $this->asig->asignarManual($this->hab['101'], $this->ana, $this->hoy);
         $e = $this->limpiar('101', $this->ana);
         Database::execute(

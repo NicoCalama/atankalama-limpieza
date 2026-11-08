@@ -98,4 +98,70 @@ final class BonoAseoServiceTest extends TestCase
         $this->assertSame(0.0, $b['logro_pct']);
         $this->assertSame(0.0, $b['resultado_pct']);
     }
+
+    // ── Por hora, desde noviembre de 2026 (v7.18) ──────────────────────────
+
+    public function testPorHoraUsaLasMismasFormulasQueLaPlanilla(): void
+    {
+        // 90 hab. en 75 h con corte 2,4 equivale a 90 hab. en 10 días con corte 18: eficacia 50 %.
+        $b = BonoAseoService::calcularPorHora(90, 4500, 0, 2.4);
+        $this->assertSame(2.4, $b['base']);
+        $this->assertSame(1.2, $b['act_hora']);
+        $this->assertSame(50.0, $b['eficacia_pct']);
+        $this->assertSame(50.0, $b['logro_pct']);
+        $this->assertSame(0.214, $b['factor_peso']);
+        $this->assertSame(10.7, $b['resultado_pct']);
+        $this->assertSame(0.0, $b['extras']);
+
+        $porDia = BonoAseoService::calcular(90, 10, 'completa', 0, 18.0);
+        foreach (['eficacia_pct', 'logro_pct', 'factor_peso', 'resultado_pct'] as $campo) {
+            $this->assertSame($porDia[$campo], $b[$campo], $campo);
+        }
+    }
+
+    public function testPorHoraLaActividadVaConDosDecimales(): void
+    {
+        // 37 hab. en 15,6 h = 2,371…: con un decimal se vería como 2,4, que es justo un corte típico.
+        $this->assertSame(2.37, BonoAseoService::calcularPorHora(37, 936, 0, 2.4)['act_hora']);
+    }
+
+    public function testPorHoraLasExtrasSonLoQuePasaDelCortePorLasHoras(): void
+    {
+        $b = BonoAseoService::calcularPorHora(100, 2400, 0, 2.0);
+        $this->assertSame(100.0, $b['eficacia_pct'], 'tope 100 %');
+        $this->assertSame(20.0, $b['extras'], '100 − 2 × 40 h');
+    }
+
+    public function testPorHoraSinHorasNoInventaNada(): void
+    {
+        foreach ([null, 0, -30] as $minutos) {
+            $b = BonoAseoService::calcularPorHora(10, $minutos, 2, 2.4);
+            $this->assertNull($b['act_hora'], var_export($minutos, true));
+            $this->assertNull($b['eficacia_pct']);
+            $this->assertNull($b['logro_pct']);
+            $this->assertNull($b['factor_peso']);
+            $this->assertNull($b['resultado_pct']);
+            $this->assertNull($b['extras']);
+            $this->assertSame(20.0, $b['observadas_pct'], 'las observaciones no dependen de las horas');
+        }
+    }
+
+    public function testPorHoraSinHabitacionesDejaElBonoVacioComoElCalculoPorDia(): void
+    {
+        $b = BonoAseoService::calcularPorHora(0, 450, 0, 2.4);
+        $this->assertSame(0.0, $b['act_hora']);
+        $this->assertNull($b['observadas_pct']);
+        $this->assertNull($b['logro_pct']);
+        $this->assertNull($b['resultado_pct']);
+    }
+
+    public function testQueMesesYPeriodosSeMidenPorHora(): void
+    {
+        $this->assertFalse(BonoAseoService::esPorHora(2026, 10));
+        $this->assertTrue(BonoAseoService::esPorHora(2026, 11));
+        $this->assertTrue(BonoAseoService::esPorHora(2027, 1));
+
+        $this->assertFalse(BonoAseoService::periodoPorHora('2026-10-31'), 'si empieza antes de noviembre sigue por día');
+        $this->assertTrue(BonoAseoService::periodoPorHora('2026-11-01'));
+    }
 }

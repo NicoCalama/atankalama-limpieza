@@ -61,6 +61,7 @@ final class ReportesController
             'kpis'           => $reporte['kpis'],
             'por_trabajadora' => $reporte['por_trabajadora'],
             'trabajadoras'   => $reporte['trabajadoras'],
+            'por_hora'       => $reporte['por_hora'],
             'filtros'        => [
                 'desde'      => $desde,
                 'hasta'      => $hasta,
@@ -110,7 +111,7 @@ final class ReportesController
             return Response::error('PARAMETROS_INVALIDOS', 'anio o mes fuera de rango.', 400);
         }
 
-        $corte = $this->bono->corte($anio, $mes);
+        $corte = $this->bono->corteDelMes($anio, $mes);
         $filas = $this->service->resumenMensual($anio, $mes, $hotel, $corte['valor']);
 
         return Response::ok([
@@ -118,13 +119,15 @@ final class ReportesController
             'mes'   => $mes,
             'hotel' => $hotel,
             'corte' => $corte,
+            'por_hora' => BonoAseoService::esPorHora($anio, $mes),
             'trabajadores' => $filas,
         ]);
     }
 
     /**
      * PUT /api/reportes/corte-hab-dia  { anio, mes, valor }
-     * Fija el corte de habitaciones diarias (jornada completa) del bono de aseo para ese mes.
+     * Fija el corte del bono de aseo para ese mes, en la unidad del mes: por día hasta octubre de 2026 y
+     * por hora desde noviembre (BonoAseoService). El nombre de la ruta quedó del cálculo por día.
      * Permiso reportes.editar_corte (lo exige también la ruta).
      */
     public function guardarCorte(Request $request): Response
@@ -140,7 +143,7 @@ final class ReportesController
         $mes   = $request->input('mes');
         $valor = $request->input('valor');
         if (!is_numeric($anio) || !is_numeric($mes) || !is_numeric($valor)) {
-            return Response::error('PARAMETROS_INVALIDOS', 'Indica el mes y un número de habitaciones por día.', 400);
+            return Response::error('PARAMETROS_INVALIDOS', 'Indica el mes y escribe el corte como número.', 400);
         }
         try {
             $corte = $this->bono->guardarCorte((int) $anio, (int) $mes, (float) $valor, $usuario->id);

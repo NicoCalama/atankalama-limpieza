@@ -85,6 +85,14 @@ final class RolApoyoTest extends TestCase
 
     public function testApoyoNoApareceEnReportesNiEnElResumenMensualYNoMueveLasTarjetasDelEquipo(): void
     {
+        // Las dos con jornada y turno: las horas que cuentan en la Productividad son solo las de Ana.
+        Database::execute("UPDATE usuarios SET jornada = 'completa' WHERE id IN (?, ?)", [$this->ana, $this->pedro]);
+        Database::execute("INSERT INTO turnos (nombre, hora_inicio, hora_fin) VALUES ('mañana', '08:00', '16:00')");
+        $turno = Database::lastInsertId();
+        foreach ([$this->ana, $this->pedro] as $persona) {
+            Database::execute('INSERT INTO usuarios_turnos (usuario_id, turno_id, fecha) VALUES (?, ?, ?)', [$persona, $turno, $this->hoy]);
+        }
+
         $this->asig->asignarManual($this->hab['101'], $this->ana, $this->hoy);
         $this->limpiar('101', $this->ana);
         $this->aud->emitirVeredicto($this->hab['101'], $this->sofia, Auditoria::VEREDICTO_APROBADO);
@@ -111,7 +119,7 @@ final class RolApoyoTest extends TestCase
         $this->assertSame($creditosAna, $equipo['creditos']['valor'], 'los créditos del equipo son solo los de Ana');
         $this->assertSame(0.0, $equipo['tasa_rechazo']['valor'], 'el rechazo de Pedro no ensucia el del equipo');
         $this->assertSame('0 de 1 inspeccionadas', $equipo['tasa_rechazo']['contexto']);
-        $this->assertSame('1 hab · 1 trabaj. · 1 día(s)', $equipo['productividad']['contexto']);
+        $this->assertSame('1 hab · 7,5 h · 1 trabaj. · sin extras del mes', $equipo['productividad']['contexto']);
 
         // Pedirle a Reportes los KPIs de Pedro no inventa números.
         $suyos = $this->rep->kpis($this->hoy, $this->hoy, 'ambos', $this->pedro);

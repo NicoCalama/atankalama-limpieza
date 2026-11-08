@@ -327,7 +327,7 @@
                 <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
                     <p class="flex-1 min-w-[12rem] text-xs"
                        :class="extrasAviso ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'"
-                       x-text="extrasAviso || 'Por ahora solo se guardan: todavía no cambian el bono.'"></p>
+                       x-text="extrasAviso || 'Se suman a las horas en Aseo del mes, con las que se calcula el bono.'"></p>
                     <button type="button" @click="cerrarExtras()"
                             class="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
                         Cerrar
@@ -477,7 +477,8 @@
                                             <td class="px-4 py-3 text-right font-medium"
                                                 :class="claseKpi(t.kpis.aprobacion_primera)"
                                                 x-text="fmtKpi(t.kpis.aprobacion_primera)"></td>
-                                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400"
+                                            <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                                                :title="t.kpis.productividad ? t.kpis.productividad.contexto : ''"
                                                 x-text="fmtKpi(t.kpis.productividad)"></td>
                                         </tr>
                                     </template>
@@ -858,10 +859,11 @@
                         <i data-lucide="calendar" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
                         <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Resumen mensual por trabajador</h2>
                     </div>
-                    <!-- Corte de habitaciones diarias del bono de aseo (único dato manual; se guarda por mes) -->
-                    <div class="flex items-center gap-2" title="Corte de habitaciones por día con jornada completa para el bono de aseo de RRHH. Jornada parcial = la mitad. Depende de la ocupación: se guarda para el mes elegido.">
-                        <label for="corte-hab-dia" class="text-xs font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap">Corte hab./día</label>
-                        <input id="corte-hab-dia" type="number" inputmode="decimal" step="0.5" min="1" max="100"
+                    <!-- Corte del bono de aseo (único dato manual; se guarda por mes). Por hora desde noviembre de 2026 (v7.18). -->
+                    <div class="flex items-center gap-2" :title="mensualPorHora ? 'Corte de habitaciones por hora para el bono de aseo de RRHH, el mismo para jornada completa y parcial. Depende de la ocupación: se guarda para el mes elegido.' : 'Corte de habitaciones por día con jornada completa para el bono de aseo de RRHH. Jornada parcial = la mitad. Depende de la ocupación: se guarda para el mes elegido.'">
+                        <label for="corte-hab-dia" class="text-xs font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap" x-text="mensualPorHora ? 'Corte hab./hora' : 'Corte hab./día'"></label>
+                        <input id="corte-hab-dia" type="number" inputmode="decimal"
+                               :step="mensualPorHora ? '0.01' : '0.5'" :min="mensualPorHora ? '0.5' : '1'" :max="mensualPorHora ? '6' : '100'"
                                x-model="corteInput" @change="guardarCorte()"
                                :disabled="!puedeEditarCorte || guardandoCorte || mensualCargando"
                                class="w-20 min-h-[40px] px-2 py-1 text-sm text-right bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">
@@ -910,14 +912,15 @@
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="AYUDA_DIAS">Días trab.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Todas las habitaciones que limpió, hayan quedado bien o no: las que quedaron bien + las rechazadas. Informativo: el bono se calcula solo con las que quedaron bien.">Hab. limpiadas</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones que quedaron bien (aprobadas o sin inspeccionar), una por limpieza, y en rojo las rechazadas. Las que quedaron bien son las «hab. hechas» del bono de aseo.">Desglose hab.</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hab. hechas ÷ días trabajados.">Act./día</th>
+                                    <th x-show="mensualPorHora" class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Horas en Aseo del mes: turnos de los días trabajados + horas extras − horas en otras áreas. Pasa el mouse por el número de cada persona para ver el detalle.">Horas</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="mensualPorHora ? 'Hab. hechas ÷ horas en Aseo.' : 'Hab. hechas ÷ días trabajados.'" x-text="mensualPorHora ? 'Act./hora' : 'Act./día'"></th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Casillas del checklist que la supervisora le desmarcó al inspeccionar (en aprobadas con observación y en rechazadas).">Observ.</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Observaciones ÷ hab. hechas (tope 100 %).">% observ.</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Act./día ÷ base de su jornada (corte; parcial = la mitad), con tope 100 %.">Eficacia</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="mensualPorHora ? 'Act./hora ÷ corte del mes, con tope 100 %.' : 'Act./día ÷ base de su jornada (corte; parcial = la mitad), con tope 100 %.'">Eficacia</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="(1 − % observadas) × eficacia.">% logro</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Hasta 70 % de logro: 0,427 × logro. Sobre 70 %: 2,333 × logro − 1,333.">Factor</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="% logro × factor de peso (el «% calidad» de la planilla de RRHH).">KPIs Calidad</th>
-                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Habitaciones sobre la base de su jornada en el mes: (act./día − base) × días trabajados.">Extras</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" :title="mensualPorHora ? 'Habitaciones sobre el corte en el mes: hab. hechas − corte × horas en Aseo.' : 'Habitaciones sobre la base de su jornada en el mes: (act./día − base) × días trabajados.'">Extras</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Créditos</th>
                                     <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap" title="Créditos de piezas ÷ créditos asignados.">Eficiencia</th>
                                 </tr>
@@ -933,6 +936,9 @@
                                             <template x-if="!t.jornada">
                                                 <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" title="Sin jornada definida: asígnala en Usuarios para calcular eficacia, logro, KPIs calidad y extras.">Sin jornada</span>
                                             </template>
+                                            <template x-if="mensualPorHora && avisoHoras(t.horas_aseo)">
+                                                <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300" :title="avisoHoras(t.horas_aseo).titulo" x-text="avisoHoras(t.horas_aseo).texto"></span>
+                                            </template>
                                         </td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.dias_trabajados"></td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.limpiadas"></td>
@@ -942,7 +948,8 @@
                                                 <span class="text-xs text-red-600 dark:text-red-400" x-text="' + ' + t.rechazadas + ' rech.'"></span>
                                             </template>
                                         </td>
-                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtNull(t.bono.act_dia)"></td>
+                                        <td x-show="mensualPorHora" class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" :title="detalleHoras(t.horas_aseo)" x-text="fmtNull(t.horas_aseo ? t.horas_aseo.aseo : null)"></td>
+                                        <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtNull(mensualPorHora ? t.bono.act_hora : t.bono.act_dia)"></td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="t.observaciones"></td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.bono.observadas_pct)"></td>
                                         <td class="px-3 py-3 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap tabular-nums" x-text="fmtPct(t.bono.eficacia_pct)"></td>
@@ -957,9 +964,14 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
+                    <p x-show="!mensualPorHora" class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
                         Mismos números que la ficha del mes: días trabajados (días con al menos una pieza asignada), habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
                         De «Act./día» a «Extras», las fórmulas de la planilla de bonos de aseo de RRHH con el corte del mes (jornada parcial = la mitad). Pasa el mouse por cada título para ver su fórmula.
+                    </p>
+                    <p x-show="mensualPorHora" class="px-4 py-2 text-xs text-gray-400 dark:text-gray-500">
+                        Mismos números que la ficha del mes: días trabajados (con alguna limpieza empezada, de pieza o área común, u horas anotadas en Cambio Tarea), habitaciones que quedaron bien (una por limpieza), créditos con la regla de re-limpieza (100 % · 50 % · 0 %) y eficiencia = créditos de piezas ÷ créditos asignados.
+                        Horas = turnos de los días trabajados + horas extras del mes − horas en otras áreas; las extras se pueden cargar hasta el día 6 del mes siguiente.
+                        De «Act./hora» a «Extras», las fórmulas de la planilla de bonos de aseo de RRHH con el corte del mes, el mismo para jornada completa y parcial. Pasa el mouse por cada título para ver su fórmula.
                     </p>
                 </div>
             </template>
@@ -1271,8 +1283,8 @@
 <script>
 function reportes() {
     var hoy = window.hoyServidor();
-    var AYUDA_DIAS_TRABAJADOS = 'Días del período en que tuvo al menos una pieza o área común asignada, aunque sea una sola. '
-        + 'No cuenta el día si todo lo asignado se retiró sin que lo trabajara (se autocanceló, se sacó del plan o se pasó a otra persona).';
+    var AYUDA_DIAS_TRABAJADOS = 'Desde noviembre de 2026: días en que empezó al menos una limpieza, de una pieza o de un área común, o tuvo horas anotadas en Cambio Tarea. Si tenía piezas asignadas y no empezó ninguna, ese día no cuenta. '
+        + 'Hasta octubre: días en que tuvo al menos una pieza asignada, aunque no la empezara, salvo que todo lo asignado se retirara sin que lo trabajara.';
 
     // v7.2 — qué carga necesita cada pestaña. Las cargas son perezosas: se piden al abrir la pestaña y,
     // si cambia un filtro, solo se recarga la abierta (las otras quedan «vencidas» hasta que se abran).
@@ -1354,6 +1366,7 @@ function reportes() {
         // Corte de habitaciones diarias del bono de aseo (RRHH): único dato manual, guardado por mes.
         corte:             null,   // { valor, mes_origen, propio } del mes mostrado
         corteInput:        '',
+        mensualPorHora:    false, // lo decide la API según el mes (v7.18), no el mes elegido en pantalla
         guardandoCorte:    false,
         corteError:        '',
         puedeEditarCorte:  <?= $usuario->tienePermiso('reportes.editar_corte') ? 'true' : 'false' ?>,
@@ -1589,6 +1602,7 @@ function reportes() {
                 if (json.ok) {
                     this.mensualData = json.data.trabajadores || [];
                     this.corte = json.data.corte || null;
+                    this.mensualPorHora = json.data.por_hora === true;
                     this.corteInput = this.corte ? String(this.corte.valor) : '';
                     this.corteError = '';
                 } else {
@@ -1609,7 +1623,7 @@ function reportes() {
             var partes = (this.mes || '').split('-');
             var valor = parseFloat(String(this.corteInput).replace(',', '.'));
             if (partes.length !== 2 || isNaN(valor)) {
-                this.corteError = 'Escribe un número de habitaciones por día.';
+                this.corteError = this.mensualPorHora ? 'Escribe un número de habitaciones por hora, por ejemplo 2,4.' : 'Escribe un número de habitaciones por día.';
                 return;
             }
             this.guardandoCorte = true;
@@ -1634,6 +1648,14 @@ function reportes() {
 
         corteNota() {
             if (!this.corte) return '';
+            if (this.mensualPorHora) {
+                if (this.corte.propio) return '';
+                if (this.corte.mes_origen) {
+                    var m = this.corte.mes_origen.split('-');
+                    return 'igual que ' + m[1] + '/' + m[0];
+                }
+                return 'calculado del corte por día';
+            }
             var parcial = 'parcial ' + (this.corte.valor / 2);
             if (this.corte.propio) return parcial;
             if (this.corte.mes_origen) {
@@ -1641,6 +1663,28 @@ function reportes() {
                 return parcial + ' · igual que ' + p[1] + '/' + p[0];
             }
             return parcial + ' · valor por defecto';
+        },
+
+        // v7.18 — aviso sobre las horas en Aseo (la falta de jornada ya tiene su propia etiqueta).
+        avisoHoras(h) {
+            if (!h || h.estado === 'sin_jornada') return null;
+            if (h.estado === 'sin_horas') return { texto: 'Sin horas', titulo: 'Sus horas en otras áreas igualan o superan sus turnos más sus extras: no le quedan horas en Aseo.' };
+            if (h.dias_estimados > 0) {
+                return {
+                    texto: h.dias_estimados + (h.dias_estimados === 1 ? ' día sin turno' : ' días sin turno'),
+                    titulo: 'Trabajó sin turno cargado: cada uno de esos días vale la jornada estándar (7,5 h completa, 3,75 h parcial). Si le cargas el turno en Turnos, el número se corrige solo.',
+                };
+            }
+            return null;
+        },
+
+        detalleHoras(h) {
+            if (!h) return '';
+            var texto = 'Turnos ' + h.turno + ' h + extras ' + h.extras + ' h − otras áreas ' + h.otras_areas + ' h.';
+            if (h.dias_estimados > 0) {
+                texto += ' ' + h.dias_estimados + (h.dias_estimados === 1 ? ' día sin turno cargado, con' : ' días sin turno cargado, con') + ' la jornada estándar.';
+            }
+            return texto;
         },
 
         // ── Horas extras (v7.17) ──

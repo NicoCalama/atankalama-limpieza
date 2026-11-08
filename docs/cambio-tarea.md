@@ -7,8 +7,8 @@ Esos días hizo menos piezas, le bajaron las piezas por día y con eso el bono, 
 «Cambio Tarea» es la pantalla donde la supervisora anota, **el mismo día**, cuántas horas estuvo cada persona de Aseo en
 otra área.
 
-La v7.16 **solo guarda el dato**: el bono todavía no cambia. El cálculo nuevo llega en la v7.18 «KPIs por hora» (§6).
-Las horas extras del mes las carga el Admin aparte, desde la v7.17 ([horas-extras.md](horas-extras.md)).
+La v7.16 solo guardaba el dato; el bono las descuenta desde la v7.18 «KPIs por hora» (§6). Las horas extras del mes las
+carga el Admin aparte, desde la v7.17 ([horas-extras.md](horas-extras.md)).
 
 ---
 
@@ -55,7 +55,7 @@ Ana Rojas y «munoz» a Muñoz. Si nadie coincide, lo dice. Funciona solo en el 
   que no viene se borra. La ficha muestra «Guardando...», «✓ Guardado» o «No se guardó».
 - **Sin cuentas de horas en Aseo:** la ficha no muestra cuántas horas le quedan en Aseo (decisión de Nicolás,
   08/11/2026). La supervisora solo anota las horas en otras áreas; las extras las carga el Admin en Reportes → Mensual → «Horas extras» (v7.17, [horas-extras.md](horas-extras.md)).
-  - La cuenta la hace la v7.18: el turno de jornada completa descuenta 30 min de colación no pagada, así que 08–16
+  - La cuenta la hace Reportes (§6): el turno de jornada completa descuenta 30 min de colación no pagada, así que 08–16
     son 7,5 h (`HorasTurno`); la jornada parcial cuenta el turno entero.
 - **Sin turno:** quien trabajó sin turno cargado sale con la etiqueta «Sin turno».
   - Si quien mira tiene `turnos.asignar_a_usuario`, en la ficha elige qué turno hizo y toca «Cargar turno». Usa el
@@ -89,18 +89,22 @@ Decisión de Nicolás del 07/11/2026: «que las personas se vuelvan menos procra
 - **Las horas extras no se anotan aquí.** Las carga el Admin como total del mes desde la v7.17, en una cuadrícula del
   año ([horas-extras.md](horas-extras.md)).
 
-## 6. Lo que viene en la v7.18 «KPIs por hora» (aprobado, sin construir)
+## 6. Cómo se usan desde la v7.18 «KPIs por hora»
 
 - **Horas en Aseo del mes** = horas de turno de los días trabajados + extras del Admin − horas en otras áreas.
-  - Cuentan los días con piezas, con áreas comunes o con horas anotadas.
+  - Cuentan los días con alguna limpieza empezada (pieza o área común) o con horas anotadas. Tener piezas a su nombre
+    sin empezar no hace día trabajado.
   - En jornada completa, el turno descuenta la colación.
-  - Si alguien trabajó sin turno, se usa el promedio de sus turnos del mes.
-- **Bono y Productividad pasan de hab./día a hab./hora.** El corte se escribe directo por hora y la base es la misma
-  para jornada completa y parcial.
-- **Las extras valen como horas normales.** Se cargan como total del mes (v7.17, [horas-extras.md](horas-extras.md));
-  cómo cuentan en un período que no es el mes completo se decide al diseñar la v7.18.
+  - Si alguien trabajó sin turno, ese día vale la jornada estándar: 7,5 h en completa y 3,75 h en parcial.
+- **Bono y Productividad se miden en hab./hora.** El corte se escribe directo por hora y la base es la misma para
+  jornada completa y parcial.
+- **Las extras valen como horas normales.** Se cargan como total del mes (v7.17, [horas-extras.md](horas-extras.md)) y
+  solo suman si el período cubre el mes completo.
+- **Las horas en otras áreas se descuentan sobre el total del mes**, no día por día: las que pasan del turno de ese día
+  se compensan con las extras. Anotar exactamente el largo del turno (8 h en un 08–16) significa «todo el día» y
+  descuenta sus horas de trabajo (7,5 h).
 
-Detalle en la memoria del proyecto y en [kpis-sueldos.md](kpis-sueldos.md).
+Detalle en [kpis-sueldos.md](kpis-sueldos.md), «KPIs por hora».
 
 ## 7. API
 

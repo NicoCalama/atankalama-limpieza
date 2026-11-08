@@ -76,6 +76,14 @@ final class ReportesDiasTrabajadosTest extends TestCase
         $asig->reasignar($this->hab['105'], $dora, $this->hoy, 'Carla no vino');
         $chk->marcarLimpiaManual($this->hab['106'], $sofia);
 
+        // Estos tests protegen la regla hasta octubre de 2026, donde una pieza sin empezar que sigue siendo
+        // suya hace día trabajado. La de noviembre en adelante está en ReportesKpisPorHoraTest.
+        Database::execute("UPDATE asignaciones SET fecha = '2026-10-15' WHERE fecha = ?", [$this->hoy]);
+        Database::execute("UPDATE asignaciones SET fecha = '2026-10-14' WHERE fecha = ?", [$this->ayer]);
+        Database::execute("UPDATE ejecuciones_checklist SET timestamp_inicio = '2026-10-15T15:00:00.000Z', timestamp_fin = '2026-10-15T15:30:00.000Z'");
+        $this->hoy  = '2026-10-15';
+        $this->ayer = '2026-10-14';
+
         $this->rep = new ReportesService();
     }
 
@@ -134,17 +142,17 @@ final class ReportesDiasTrabajadosTest extends TestCase
 
         // El resumen mensual es la ficha del mes: mismos días.
         $mensual = [];
-        foreach ($this->rep->resumenMensual((int) date('Y'), (int) date('n'), 'ambos') as $t) {
+        foreach ($this->rep->resumenMensual(2026, 10, 'ambos') as $t) {
             $mensual[$t['nombre']] = $t;
         }
-        $ficha = $this->filaDe('Ana', date('Y-m-01'), date('Y-m-t'));
+        $ficha = $this->filaDe('Ana', '2026-10-01', '2026-10-31');
         $this->assertSame($ficha['dias_trabajados'], $mensual['Ana']['dias_trabajados']);
         $this->assertSame('parcial', $mensual['Ana']['jornada']);
     }
 
     public function testCsvLlevanLasColumnasNuevas(): void
     {
-        $mensual = $this->rep->hojasMensual((int) date('Y'), (int) date('n'), 'ambos')['Aseo'];
+        $mensual = $this->rep->hojasMensual(2026, 10, 'ambos')['Aseo'];
         $this->assertSame(['RUT', 'Trabajador', 'Jornada', 'Días trabajados', 'Hab. limpiadas', 'Hab. hechas'], array_slice($mensual[5], 0, 6));
         $this->assertSame(['11111111-1', 'Ana', 'Tiempo parcial'], array_slice($mensual[6], 0, 3));
 

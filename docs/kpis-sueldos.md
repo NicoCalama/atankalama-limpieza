@@ -158,6 +158,11 @@ rol están definidos.
 - **Hotel:** respeta el filtro (con «Atankalama» solo cuentan asignaciones de ese hotel).
 - **No es asistencia:** sale de lo que se asignó en la app (ver «Alcance»). Sin semáforo ni
   promedio del equipo (es un conteo de contexto, no un KPI de desempeño).
+- **Desde el 01/11/2026 (v7.18, decisión de Nicolás del 08/11):** un día cuenta si la persona **empezó al menos una
+  limpieza**, de una pieza o de un área común (hasta octubre las áreas no contaban: era un bug, H-28), o tiene horas
+  anotadas en Cambio Tarea. **Una pieza que sigue a su nombre sin empezar ya no hace día trabajado:** si faltó y nadie
+  la movió, le sumaría un turno sin piezas. Le sigue contando como asignada. Hasta octubre queda la regla de arriba.
+  Ver «KPIs por hora».
 - **Dónde se ve:** columna «Días trab.» en las tres tablas de trabajadores de Reportes (Detalle
   por trabajadora, Ficha de KPIs · Trabajador, Resumen mensual por trabajador) y «Días
   trabajados» en sus CSV. Implementado en `ReportesService::fichaTrabajadores` (`dias_trabajados`).
@@ -662,6 +667,60 @@ de ese día, no con el promedio del mes. La planilla no puede hacerlo; la app s�
   rechazadas no están en «hab. hechas»; sin tope el logro podría salir negativo.
 - **Promedio del mes, no día por día:** igual que la planilla de RRHH (extras = hab. hechas − base × días).
 
+### KPIs por hora (v7.18, desde noviembre de 2026)
+
+Pedido de gerencia del 06/11/2026: quien apoya a otras áreas hace menos piezas y le bajaba el bono; quien hace muchas
+horas extras tenía el hab./día «al cielo». Desde **noviembre de 2026** el bono y la Productividad se miden por hora.
+**Octubre y los meses anteriores no cambian** (`BonoAseoService::POR_HORA_DESDE`).
+
+**Fórmulas** (`BonoAseoService::calcularPorHora`; las horas salen de `HorasAseoService`):
+
+| Col. | Qué es | Regla |
+|---|---|---|
+| — | **Horas en Aseo** | horas de turno de los días trabajados + horas extras del mes − horas en otras áreas |
+| F | Act. por hora | hab. hechas ÷ horas en Aseo, con dos decimales |
+| — | **Base** | el corte por hora del mes, **el mismo para jornada completa y parcial** |
+| L | Eficacia | `min(F ÷ base, 1)` |
+| M, N, O, J | % observadas, logro, factor, KPIs Calidad | igual que antes |
+| I | Actividades extras | `max(hab. hechas − base × horas, 0)` |
+
+**Horas de un día:** las de su turno. La jornada completa descuenta 30 min de colación (08–16 son 7,5 h); la parcial
+cuenta el turno entero. **Un día trabajado sin turno cargado vale siempre la jornada estándar**: 7,5 h en jornada
+completa y 3,75 h en parcial (decisión de Nicolás, 08/11/2026: si limpió, vino, y el personal se divide entre completa y
+parcial). La fila lo avisa con la etiqueta «N días sin turno». Si después le cargan el turno, el número se corrige solo.
+
+**Horas extras** ([horas-extras.md](horas-extras.md)): son un total por persona y mes, así que solo suman en un período
+que **cubre el mes completo** (desde ≤ día 1 y hasta ≥ último día). En uno parcial no suman y el indicador dice «sin
+extras del mes». El resumen mensual y el Excel siempre son del mes completo. Se pueden editar hasta el día 6 del mes
+siguiente: **el bono de un mes queda definitivo recién después de esa fecha**.
+
+**Horas en otras áreas** ([cambio-tarea.md](cambio-tarea.md)): se descuentan sobre el total y no por día, para que las
+que pasan del turno de ese día se compensen con las extras. Solo las de los días que entran en la fila. Anotar
+exactamente el largo del turno (8 h en un 08–16) significa «todo el día» y descuenta sus horas de trabajo (7,5 h).
+
+**No se inventan horas.** Si falta el dato, el bono queda «—» y la fila dice por qué:
+- **Sin jornada:** la colación depende de ella. La jornada no tiene historial: si cambia a mitad de mes, aplica a todo
+  el mes.
+- **Sin horas:** sus horas en otras áreas igualan o superan sus turnos más sus extras.
+
+**Corte por hora:** cuadro «Corte hab./hora» de Reportes → Mensual. Se guarda por mes (`alertas_config`, clave
+`bono_corte_hab_hora_YYYY-MM`), con dos decimales, entre 0,50 y 6,00; el rango angosto hace que escribir 18 por costumbre
+dé error en vez de dejar a todas con una eficacia cercana a 13 %. Un mes sin valor propio hereda el del último mes que lo
+tenga. Si no hay ninguno, se calcula del corte por día vigente de ese mes ÷ 7,5 (18 → 2,40).
+
+**Productividad por hora** (`ReportesService::kpiProductividadPorHora`): hab. hechas ÷ horas en Aseo de las filas de la
+ficha, el mismo cálculo que el bono. Las rechazadas ya no suman (por día, el numerador eran todas las limpiezas
+terminadas). Quien no tiene horas queda fuera de la cuenta del equipo y el indicador dice cuántas son. Un período que
+empieza antes del 01/11/2026 sigue por día.
+
+**Filtro de hotel:** los días trabajados se cuentan por hotel, como siempre. Las horas en otras áreas se descuentan de
+los días de esa fila, y un día con solo horas anotadas se atribuye por `hotel_default`, igual que Cambio Tarea. Las
+extras van enteras, porque son de la persona. Solo afecta a quien trabaja en los dos hoteles y se mira uno: **con «Ambos
+hoteles» el número es exacto**.
+
+**Excel mensual:** suma «Horas de turno», «Horas extras», «Horas en otras áreas» y «Horas en Aseo», y «Act. por hora» en
+vez de «Act. por día». Si faltan las horas, la columna «Horas en Aseo» dice el motivo.
+
 ### Pendientes con RRHH
 
 1. La respuesta sobre la **supervisora** llegó cortada.
@@ -745,3 +804,4 @@ re-clean **<5%**.
 | 25/10/2026 | **v7.11 — «No se pudo inspeccionar» (decisiones de Nicolás):** la supervisora llega y ya hay un huésped; la marca así (con un motivo de la lista «sin_inspeccion») para que salga de la bandeja y otra no vuelva a molestar. Veredicto **`sin_inspeccion`**, firmado por ella; la pieza queda **igual que con el cierre automático** (`aprobada_automatica`, Clean). **KPIs igual que `aprobado_automatico`:** para la trabajadora, aprobada sin inspeccionar (lado B, cuenta en piezas, créditos y bono); para la sección, **no auditada** (baja la cobertura, fuera de los % de rechazo y aprobación a la 1ª); para la supervisora no es una inspección (fuera de «Supervisora · Inspección», de su Total y de sus Aprobadas, y de la calidad según Recepción). **Nombre distinto en reportes:** «Sin inspección» — columna propia en el «Resumen mensual de inspecciones» (pantalla y Excel) y «Sin inspección (motivo)» en «Pendientes al corte» (pantalla, CSV, correo de las 23:50). En el Inicio del Admin cuenta como el automático (aprobadas del día y total de la tasa de rechazo). |
 | 07/11/2026 | **v7.16 «Cambio Tarea» y v7.17 «KPIs por hora» (pedido de gerencia del 06/11; decisiones de Nicolás):** en noviembre mucha gente de Aseo apoyó en otras áreas y le bajaron las piezas por día y el bono; otra persona hizo muchas extras y sus piezas por día se fueron «al cielo», porque el corte está pensado para un día de **7,5 h** (turno de 8 h con 30 min de colación no pagada en jornada completa). **v7.16** (construida): la supervisora anota, **solo el mismo día**, las horas que cada persona de Aseo estuvo en otra área ([cambio-tarea.md](cambio-tarea.md)); el bono todavía no cambia. **v7.17** (aprobada, sin construir): horas en Aseo = turnos de los días trabajados (piezas, áreas comunes u horas anotadas; colación descontada en completa; sin turno = promedio de sus turnos del mes) + **extras del mes que carga el Admin** − horas en otras áreas; **bono y Productividad pasan a hab./hora**, corte escrito directo por hora y la misma base para completa y parcial; las extras valen como horas normales, con fecha, sin prorrateo; las áreas comunes cuentan como Aseo (no se descuentan), así que los días de solo áreas pasan a contar. Aplica desde noviembre 2026 (los días 1–7 sin horas anotadas); los meses anteriores quedan como se calcularon. |
 | 08/11/2026 | **v7.17 «Horas extras» (decisiones de Nicolás):** se adelanta la ventana de extras del Admin como entrega propia y los «KPIs por hora» pasan a ser la **v7.18**. Las extras se cargan como **total del mes por persona** (no con fecha), en una **cuadrícula del año** (personas × meses) en Reportes → Mensual; cada mes se escribe desde su día 1 hasta el **6 del mes siguiente** y después queda en solo lectura. Permiso nuevo `horas_extras.registrar` (Admin). Solo guarda el dato: el bono todavía no cambia. Queda por decidir en la v7.18 cómo cuentan las extras en un período que no es el mes completo. Ver [horas-extras.md](horas-extras.md). |
+| 08/11/2026 | **v7.18 «KPIs por hora» (decisiones de Nicolás):** las extras solo suman si el período cubre el mes completo; en uno parcial, el indicador dice «sin extras del mes». Plan aprobado con estas reglas: un período que empieza antes del 01/11 sigue por día; un día solo cuenta si la persona empezó alguna limpieza (pieza o área común) o tiene horas anotadas, así que tener piezas a su nombre sin empezar no suma (reemplaza, desde noviembre, la definición del 30/09); anotar el largo exacto del turno descuenta sus horas de trabajo; un día trabajado sin turno cargado vale siempre la jornada estándar, 7,5 h en completa y 3,75 h en parcial (reemplaza al «promedio de sus turnos del mes» del 07/11); sin jornada o sin horas, el bono queda «—» con el motivo; corte por hora entre 0,50 y 6,00, derivado del corte por día ÷ 7,5 si no hay uno guardado; con un hotel filtrado, las extras van enteras; la Productividad por hora usa las hab. hechas, igual que el bono. Ver «KPIs por hora». |
