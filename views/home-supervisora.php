@@ -202,6 +202,19 @@ if ($hora < 12) {
                 </section>
             </template>
 
+            <?php if ($usuario->tienePermiso('cambio_tarea.registrar')): ?>
+            <!-- v7.16 «Cambio Tarea»: en el celular se entra por aquí (la barra de abajo ya no tiene espacio). -->
+            <a href="<?= u('/cambio-tarea') ?>"
+               class="flex items-center gap-3 min-h-[56px] px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition">
+                <i data-lucide="shuffle" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100">Cambio Tarea</span>
+                    <span class="block text-xs text-gray-500 dark:text-gray-400">¿Alguien de Aseo apoyó hoy en otra área? Anótalo hoy mismo.</span>
+                </span>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 flex-shrink-0"></i>
+            </a>
+            <?php endif; ?>
+
             <!-- Sección Estado del equipo -->
             <section data-tour="home.equipo">
                 <div class="flex items-center justify-between mb-2">

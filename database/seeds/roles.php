@@ -55,6 +55,7 @@ return [
             'turnos.ver',
             'turnos.crear_editar',
             'turnos.asignar_a_usuario',
+            'cambio_tarea.registrar',
             'copilot.usar_nivel_1_consultas',
             'copilot.usar_nivel_2_acciones',
             'copilot.ver_historial_propio',

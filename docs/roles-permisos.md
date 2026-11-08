@@ -60,7 +60,7 @@ Formato: `codigo | descripcion | categoria | scope`
 |---|---|---|---|
 | `checklists.ver` | Ver los templates de checklist por tipo de habitación | Checklists | global |
 | `checklists.editar` | Modificar items de un template existente | Checklists | global |
-| `listas.editar` | (v7.3) Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar» (v7.11), de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas). Solo Admin por defecto (decisión de Nicolás, 10/10/2026) | Checklists | global |
+| `listas.editar` | (v7.3) Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar» (v7.11), de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama, tipos y respuestas de tickets y áreas de «Cambio Tarea» (v7.16) (Ajustes → Checklists y listas). Solo Admin por defecto (decisión de Nicolás, 10/10/2026) | Checklists | global |
 | `checklists.crear_nuevos` | Crear templates nuevos (para tipo de habitación nuevo) | Checklists | global |
 
 ### 2.3 Asignaciones
@@ -134,6 +134,7 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 | `turnos.ver` | Ver los turnos configurados | Turnos | global |
 | `turnos.crear_editar` | Crear o editar definiciones de turnos (mañana, tarde, etc.) | Turnos | global |
 | `turnos.asignar_a_usuario` | Asignar un turno a un usuario | Turnos | global |
+| `cambio_tarea.registrar` | (v7.16) Anotar en «Cambio Tarea» las horas que alguien de Aseo estuvo hoy en otra área, solo el mismo día. Por defecto Supervisora y Admin. Ver [cambio-tarea.md](cambio-tarea.md) | Turnos | global |
 
 ### 2.9 Copilot IA
 
@@ -348,6 +349,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `turnos.ver` | ⚪ | ✅ | ⚪ | ✅ |
 | `turnos.crear_editar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `turnos.asignar_a_usuario` | ⚪ | ⚪ | ⚪ | ✅ |
+| `cambio_tarea.registrar` (v7.16) | ⚪ | ✅ | ⚪ | ✅ |
 | `copilot.usar_nivel_1_consultas` | ✅ | ✅ | ✅ | ✅ |
 | `copilot.usar_nivel_2_acciones` | ✅ | ✅ | ✅ | ✅ |
 | `copilot.ver_historial_propio` | ✅ | ✅ | ✅ | ✅ |

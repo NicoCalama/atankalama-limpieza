@@ -26,12 +26,15 @@ final class ListasOpcionesService
     /**
      * Listas que se editan desde Ajustes, en el orden en que se muestran. La v7.4 suma el mensaje de
      * Recepción a la mucama y el tipo de problema y las respuestas de un ticket; la v7.11, el motivo de
-     * «No se pudo inspeccionar».
+     * «No se pudo inspeccionar»; la v7.16, las áreas de «Cambio Tarea».
      */
-    public const LISTAS = ['rechazo', 'sin_inspeccion', 'reasignar', 'saltar', self::NO_RECEPCION, 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'];
+    public const LISTAS = ['rechazo', 'sin_inspeccion', 'reasignar', 'area_apoyo', 'saltar', self::NO_RECEPCION, 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'];
 
     /** Lista del motivo de «No se pudo inspeccionar» (v7.11). */
     public const SIN_INSPECCION = 'sin_inspeccion';
+
+    /** Lista de las otras áreas a las que va a apoyar alguien de Aseo («Cambio Tarea», v7.16). */
+    public const AREA_APOYO = 'area_apoyo';
 
     /** Lista del mensaje de Recepción a la mucama: la única en que se pueden elegir varias opciones a la vez. */
     public const NOTA_RECEPCION = 'nota_recepcion';

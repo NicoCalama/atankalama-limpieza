@@ -68,6 +68,13 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                 </div>
             </div>
             <div class="flex items-center gap-1 flex-shrink-0">
+                <?php if ($usuario->tienePermiso('cambio_tarea.registrar')): ?>
+                <!-- v7.16: acceso a «Cambio Tarea» (horas de Aseo en otra área), también en el celular. -->
+                <a href="<?= u('/cambio-tarea') ?>" title="Cambio Tarea: horas en otra área" aria-label="Cambio Tarea"
+                   class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                    <i data-lucide="shuffle" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                </a>
+                <?php endif; ?>
                 <button @click="cargar()" :disabled="cargando"
                         class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Refrescar">

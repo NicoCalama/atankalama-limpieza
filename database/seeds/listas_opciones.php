@@ -71,4 +71,13 @@ return [
         'Huésped en la pieza',
         'Cartel No molestar',
     ],
+    // v7.16 «Cambio Tarea» (gerencia, 06/11/2026): a qué otra área fue a apoyar alguien de Aseo. «Áreas
+    // comunes» no va: es trabajo de Aseo y no se descuenta (decisión de Nicolás, 07/11/2026).
+    'area_apoyo' => [
+        'Recepción',
+        'Lavandería',
+        'Mantención',
+        'Cocina',
+        'Bodega',
+    ],
 ];

@@ -31,6 +31,12 @@ final class ToursAnchorTest extends TestCase
         $this->verificarAnclas('asignaciones', 'asignaciones');
     }
 
+    public function test_anclas_de_cambio_tarea(): void
+    {
+        // v7.16: la ruta /cambio-tarea resuelve directo a esta pantalla del catálogo.
+        $this->verificarAnclas('cambio_tarea', 'cambio-tarea');
+    }
+
     public function test_anclas_de_home_supervisora(): void
     {
         // /home incluye home-supervisora.php para la supervisora (ver home.php);

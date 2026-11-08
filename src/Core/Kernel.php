@@ -10,6 +10,7 @@ use Atankalama\Limpieza\Controllers\ReportesController;
 use Atankalama\Limpieza\Controllers\AsignacionesController;
 use Atankalama\Limpieza\Controllers\AuditoriaController;
 use Atankalama\Limpieza\Controllers\AuthController;
+use Atankalama\Limpieza\Controllers\CambioTareaController;
 use Atankalama\Limpieza\Controllers\ChecklistsController;
 use Atankalama\Limpieza\Controllers\CloudbedsController;
 use Atankalama\Limpieza\Controllers\CopilotController;
@@ -68,6 +69,7 @@ final class Kernel
         $router->get('/auditoria', [$paginas, 'auditoriaBandeja'], [$optionalAuth]);
         $router->get('/auditoria/{id}', [$paginas, 'auditoriaDetalle'], [$optionalAuth]);
         $router->get('/asignaciones', [$paginas, 'asignaciones'], [$optionalAuth]);
+        $router->get('/cambio-tarea', [$paginas, 'cambioTarea'], [$optionalAuth]);
         $router->get('/alertas', [$paginas, 'alertas'], [$optionalAuth]);
         $router->get('/espacios', [$paginas, 'espacios'], [$optionalAuth]);
         $router->get('/tickets', [$paginas, 'tickets'], [$optionalAuth]);
@@ -512,6 +514,17 @@ final class Kernel
         $router->get('/api/turnos/dia', [$turnos, 'turnosDelDia'], [
             $authCheck,
             new PermissionCheck('turnos.ver'),
+        ]);
+
+        // «Cambio Tarea» (v7.16): horas que alguien de Aseo estuvo hoy en otra área. Solo el mismo día.
+        $cambioTarea = new CambioTareaController();
+        $router->get('/api/cambio-tarea', [$cambioTarea, 'listar'], [
+            $authCheck,
+            new PermissionCheck('cambio_tarea.registrar'),
+        ]);
+        $router->put('/api/cambio-tarea/{usuario_id}', [$cambioTarea, 'guardar'], [
+            $authCheck,
+            new PermissionCheck('cambio_tarea.registrar'),
         ]);
 
         // Festivos (informativo, se muestran en el calendario de turnos)

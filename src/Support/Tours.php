@@ -57,6 +57,60 @@ final class Tours
         return [
 
             // ════════════════════════════════════════════════════════════
+            //  CAMBIO TAREA (supervisora, v7.16) — vista: views/cambio-tarea.php
+            //  Ruta /cambio-tarea. Horas que alguien de Aseo estuvo hoy en otra
+            //  área; solo el mismo día. La ficha vive dentro de un x-for: los
+            //  pasos apuntan a la lista entera (contenedor estable).
+            // ════════════════════════════════════════════════════════════
+            'cambio_tarea' => [
+                'nombre'    => 'Cambio Tarea',
+                'capacidad' => 'cambio_tarea.registrar',
+                'recorridos' => [
+                    [
+                        'id' => 'anotar', 'v' => 1,
+                        'titulo' => 'Anotar horas en otra área',
+                        'pregunta' => '¿Cómo anoto que alguien apoyó en otra área?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ct.lista"]', 'titulo' => 'Toca a la persona',
+                             'texto' => 'Cada fila es alguien de Aseo de hoy. Tócala para abrir su ficha.'],
+                            ['sel' => '[data-tour="ct.lista"]', 'titulo' => 'Elige el área y las horas',
+                             'texto' => 'En la ficha eliges el área y cuántas horas estuvo ahí, de media en media hora. «Otra área» suma una más y el basurero la quita.'],
+                            ['sel' => '[data-tour="ct.intro"]', 'titulo' => 'Se guarda solo',
+                             'texto' => 'Cada cambio se guarda al momento y la ficha dice «Guardado». Solo se puede anotar el mismo día: al día siguiente ya no se puede cambiar.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'resumen', 'v' => 1,
+                        'titulo' => 'Revisar el día',
+                        'pregunta' => '¿Quién estuvo hoy en otras áreas?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ct.resumen"]', 'titulo' => 'El resumen',
+                             'texto' => 'Aquí ves cuántas personas de Aseo hay hoy. En cada fila, a la derecha, sale si esa persona estuvo en otra área y cuántas horas.'],
+                            ['sel' => '[data-tour="ct.buscar"]', 'titulo' => 'Buscar a alguien',
+                             'texto' => 'Escribe el nombre o parte de él y la lista muestra solo a quien coincide. No importan las tildes: «munoz» encuentra a Muñoz.'],
+                            ['sel' => '[data-tour="ct.filtros"]', 'titulo' => 'Por hotel',
+                             'texto' => 'Con estos botones ves un hotel o los dos. Quien trabaja en ambos hoteles sale siempre.'],
+                        ],
+                    ],
+                    [
+                        'id' => 'sin-turno', 'v' => 1,
+                        'capacidad' => 'turnos.asignar_a_usuario',
+                        'titulo' => 'Cargar un turno que falta',
+                        'pregunta' => '¿Qué hago si alguien sale «Sin turno»?',
+                        'requiere' => [],
+                        'pasos' => [
+                            ['sel' => '[data-tour="ct.lista"]', 'titulo' => 'Sin turno',
+                             'texto' => 'Si alguien trabajó hoy sin turno cargado, sale con la etiqueta «Sin turno». Sin turno no se sabe cuántas horas trabajó.'],
+                            ['sel' => '[data-tour="ct.lista"]', 'titulo' => 'Elige su turno',
+                             'texto' => 'Abre su ficha, elige qué turno hizo y toca «Cargar turno». Queda igual que si lo cargaras en Ajustes, en Turnos.'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // ════════════════════════════════════════════════════════════
             //  ASIGNACIONES (supervisora) — vista: views/asignaciones.php
             //  Ruta /asignaciones. Solo la ve quien puede asignar a mano
             //  (el endpoint que la alimenta exige asignaciones.asignar_manual).
@@ -1369,14 +1423,14 @@ final class Tours
                     ],
                     [
                         // v7.3 (gerencia, 10/10/2026): listas de selección, sin cuadros de texto.
-                        'id' => 'listas', 'v' => 1,
+                        'id' => 'listas', 'v' => 2,
                         'capacidad' => 'listas.editar',
                         'titulo' => 'Listas para elegir',
                         'pregunta' => '¿Cómo cambio las opciones de rechazar o saltar?',
                         'requiere' => [],
                         'pasos' => [
                             ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Dos pestañas',
-                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen en vez de escribir: rechazar, reasignar, saltar, el NO de Recepción, el mensaje a la mucama y los tickets.'],
+                             'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen en vez de escribir: rechazar, reasignar, saltar, las áreas de Cambio Tarea, Recepción y tickets.'],
                             ['sel' => '[data-tour="lst.tarjetas"]', 'titulo' => 'Una tarjeta por acción',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Listas» y la ayuda sigue sola.',
                              'texto' => 'Cada tarjeta dice quién usa la lista y cuándo, y cuántas opciones tiene activas. Tócala para editarla.'],

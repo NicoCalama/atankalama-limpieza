@@ -131,6 +131,24 @@ final class PaginasController
         ]);
     }
 
+    /** «Cambio Tarea» (v7.16): horas que alguien de Aseo estuvo hoy en otra área. Ver docs/cambio-tarea.md. */
+    public function cambioTarea(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('cambio_tarea.registrar')) {
+            return self::redirect('/home');
+        }
+        return View::conLayout('cambio-tarea', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Cambio Tarea',
+        ]);
+    }
+
     public function espacios(Request $request): Response
     {
         if ($request->usuario === null) {

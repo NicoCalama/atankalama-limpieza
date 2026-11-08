@@ -52,6 +52,7 @@ otro rol desde Roles y permisos).
 | `rechazo` | Supervisora | Al rechazar en la inspección, además de los ítems fallidos | `auditorias.motivo_id` + el nombre en `comentario` |
 | `sin_inspeccion` (v7.11) | Supervisora | «No se pudo inspeccionar» (ya hay un huésped…); la pieza sale de la bandeja ([auditoria.md](auditoria.md) §2.4) | `auditorias.motivo_id` + el nombre en `comentario` |
 | `reasignar` | Supervisora | Al reasignar una pieza (ventana o arrastre en el tablero) | `audit_log` (`asignacion.reasignar`: `motivo` + `opcion_id`) |
+| `area_apoyo` (v7.16) | Supervisora | «Cambio Tarea»: a qué otra área fue a apoyar alguien de Aseo ese día ([cambio-tarea.md](cambio-tarea.md)) | `horas_otras_areas.area_id` |
 | `saltar` | Trabajadora | «No puedo limpiarla / terminarla ahora» | `audit_log` y la alerta P2 (`motivo` + `opcion_id`) |
 | `no_recepcion` | Recepción | NO de la inspección pre-entrega | `revisiones_entrega.motivo_id` (tabla propia `motivos_revision_entrega`) |
 | `nota_recepcion` (v7.4) | Recepción | Mensaje a la mucama (detalle de la pieza y menú de Habitaciones); **se pueden elegir varias** | `habitaciones.nota_recepcion` (los nombres unidos con « · ») |

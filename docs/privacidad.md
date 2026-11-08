@@ -53,6 +53,7 @@ A continuación se listan los datos personales que la aplicación procesa, agrup
 |------|---------------|-----------|
 | Asignaciones de habitaciones | `asignaciones` | Saber qué habitaciones te corresponden cada día |
 | Turno y fecha | `usuarios_turnos` | Organizar la jornada y los relevos |
+| Horas que estuviste en otra área ese día (las anota tu supervisora, v7.16) | `horas_otras_areas` | Descontarlas de tus horas en Aseo para que apoyar a otra área no te baje el bono |
 | Items marcados/desmarcados del checklist | `ejecuciones_items` | Guardar tu avance tap-a-tap, incluso si pierdes conexión |
 | Inicio y fin de cada limpieza (ocultos al trabajador) | `ejecuciones_checklist` | Calcular tu tiempo promedio personal y alimentar las alertas predictivas (ver sección 4) |
 | Auditorías recibidas | `auditorias` | Dejar registro del veredicto (aprobada / aprobada con observación / rechazada) |

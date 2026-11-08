@@ -352,7 +352,7 @@ CREATE INDEX idx_ejecuciones_items_ejecucion ON #__ejecuciones_items(ejecucion_i
 CREATE TABLE #__listas_opciones (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     lista       VARCHAR(30) NOT NULL CHECK (lista IN (
-        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion'
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion', 'area_apoyo'
     )),
     nombre      VARCHAR(60) NOT NULL,
     activo      TINYINT NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
@@ -360,6 +360,24 @@ CREATE TABLE #__listas_opciones (
     created_at  VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     UNIQUE KEY uq_listas_opciones_nombre (lista, nombre),
     KEY idx_listas_opciones_lista (lista, orden)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- v7.16 «Cambio Tarea»: horas de una persona de Aseo en OTRA área ese día, en minutos de 30 en 30.
+-- La anota la supervisora solo el mismo día. Ver docs/cambio-tarea.md.
+CREATE TABLE #__horas_otras_areas (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id      INT NOT NULL,
+    fecha           VARCHAR(10) NOT NULL,
+    area_id         INT NOT NULL,
+    minutos         INT NOT NULL CHECK (minutos > 0 AND minutos <= 720 AND minutos % 30 = 0),
+    registrado_por  INT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_horas_otras_areas (usuario_id, fecha, area_id),
+    KEY idx_horas_otras_areas_fecha (fecha),
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (area_id) REFERENCES #__listas_opciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (registrado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

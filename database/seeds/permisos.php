@@ -20,7 +20,7 @@ return [
     ['checklists.editar', 'Modificar items de un template existente', 'Checklists', 'global'],
     ['checklists.crear_nuevos', 'Crear templates nuevos', 'Checklists', 'global'],
     // v7.3 (gerencia, 10/10/2026): las acciones se eligen de listas, sin cuadro de texto. Solo Admin por defecto.
-    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar», de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama y tipos y respuestas de tickets (Ajustes → Checklists y listas)', 'Checklists', 'global'],
+    ['listas.editar', 'Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar», de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama, tipos y respuestas de tickets y áreas de «Cambio Tarea» (Ajustes → Checklists y listas)', 'Checklists', 'global'],
 
     ['asignaciones.asignar_manual', 'Asignar/reasignar habitaciones manualmente', 'Asignaciones', 'global'],
     ['asignaciones.auto_asignar', 'Ejecutar round-robin automático', 'Asignaciones', 'global'],
@@ -75,6 +75,9 @@ return [
     ['turnos.crear_editar', 'Crear o editar definiciones de turnos', 'Turnos', 'global'],
     ['turnos.asignar_a_usuario', 'Asignar un turno a un usuario', 'Turnos', 'global'],
     ['turnos.importar', 'Importar turnos masivamente desde CSV de Breik', 'Turnos', 'global'],
+    // v7.16 (gerencia, 06/11/2026): la supervisora anota, el mismo día, las horas que alguien de Aseo
+    // estuvo en otra área, para que no le bajen el bono (se descuentan en la v7.17).
+    ['cambio_tarea.registrar', 'Anotar en «Cambio Tarea» las horas que alguien de Aseo estuvo hoy en otra área (solo el mismo día)', 'Turnos', 'global'],
 
     ['copilot.usar_nivel_1_consultas', 'Usar el copilot para consultas', 'Copilot', 'propio'],
     ['copilot.usar_nivel_2_acciones', 'Usar el copilot para ejecutar acciones', 'Copilot', 'propio'],

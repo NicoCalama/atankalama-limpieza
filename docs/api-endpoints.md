@@ -212,6 +212,15 @@ Ver [turnos.md](turnos.md).
 | DELETE | `/api/usuarios-turnos/{id}` | `turnos.asignar_a_usuario` | Quitar |
 | POST | `/api/usuarios-turnos/copiar-semana` | `turnos.asignar_a_usuario` | Copiar semana |
 
+### 11b. Cambio Tarea (v7.16)
+
+Ver [cambio-tarea.md](cambio-tarea.md). Horas que alguien de Aseo estuvo hoy en otra área; solo el mismo día.
+
+| Método | Endpoint | Permiso | Descripción |
+|---|---|---|---|
+| GET | `/api/cambio-tarea?hotel=&fecha=` | `cambio_tarea.registrar` | Personal de Aseo del día (turno, piezas, horas en otras áreas), áreas activas y turnos para cargar. Solo hoy salvo `CAMBIO_TAREA_NAVEGAR_DIAS=true` (días pasados, solo lectura) |
+| PUT | `/api/cambio-tarea/{usuario_id}` | `cambio_tarea.registrar` | `{fecha, areas: [{area_id, minutos}]}`, juego completo del día. 409 `SOLO_MISMO_DIA` si la fecha no es hoy |
+
 ---
 
 ## 12. Cloudbeds

@@ -389,7 +389,7 @@ CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);
 CREATE TABLE listas_opciones (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     lista       TEXT NOT NULL CHECK (lista IN (
-        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion'
+        'rechazo', 'saltar', 'reasignar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta', 'sin_inspeccion', 'area_apoyo'
     )),
     nombre      TEXT NOT NULL,                                 -- 'Baño sucio' (2 a 60, lo valida el servicio)
     activo      INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
@@ -398,6 +398,27 @@ CREATE TABLE listas_opciones (
     UNIQUE (lista, nombre)
 );
 CREATE INDEX idx_listas_opciones_lista ON listas_opciones(lista, orden);
+
+-- v7.16 «Cambio Tarea» (pedido de gerencia, 06/11/2026): horas que una persona de Aseo pasó en OTRA
+-- área ese día (Recepción, Lavandería…), para descontarlas de sus horas en Aseo en el bono (v7.17).
+-- La anota la supervisora SOLO el mismo día (lo exige CambioTareaService). Una fila por persona, día
+-- y área. Las horas van en minutos enteros, de 30 en 30 (exacto en SQLite y MariaDB). Ver
+-- docs/cambio-tarea.md.
+CREATE TABLE horas_otras_areas (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id      INTEGER NOT NULL,                  -- persona de Aseo
+    fecha           TEXT NOT NULL,                     -- 'YYYY-MM-DD' local (America/Santiago)
+    area_id         INTEGER NOT NULL,                  -- opción de la lista 'area_apoyo' de listas_opciones
+    minutos         INTEGER NOT NULL CHECK (minutos > 0 AND minutos <= 720 AND minutos % 30 = 0),
+    registrado_por  INTEGER,                           -- quien la anotó o cambió por última vez
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (usuario_id, fecha, area_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (area_id) REFERENCES listas_opciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_horas_otras_areas_fecha ON horas_otras_areas(fecha);
 
 -- ============================================================================
 -- BLOQUE 3 — AUDITORÍA

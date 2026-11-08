@@ -3499,3 +3499,158 @@ extrae en `public_html/`) y la fila de la v7.15.2 del `CHANGELOG.md` fechada ant
 
 **Desplegada el 07/11/2026 ~18:10** (ZIP `build/limpieza-v7152-delta.zip` desde `da79f6e`, sin SQL; la fila del
 CHANGELOG se re-fechó al 07/11 porque el deploy pasó del 06/11). Smoke OK (Nicolás).
+
+### 11.48 Release "Cambio Tarea" → v7.16
+
+Origen: pedido de gerencia del 06/11/2026; plan aprobado por Nicolás el 07/11/2026. En noviembre mucha gente de Aseo
+fue a apoyar a otras áreas: hizo menos piezas, le bajaron las piezas por día y con eso el bono. Es la primera de dos
+entregas. Esta solo **guarda el dato**; el bono por hora llega en la v7.17. Detalle en [cambio-tarea.md](cambio-tarea.md).
+
+**Qué cambia:**
+- **Pantalla nueva «Cambio Tarea»** (`/cambio-tarea`):
+  - la supervisora anota cuántas horas estuvo **hoy** cada persona de Aseo en otra área, de media en media hora y con
+    varias áreas si hace falta;
+  - se guarda solo a cada cambio, **solo el mismo día** (el servidor lo exige con un 409);
+  - quien trabajó sin turno cargado sale «Sin turno», y ahí mismo se le carga.
+- **Dónde se entra:** el menú lateral, una tarjeta en el Inicio de la supervisora (el celular entra por ahí) y un botón
+  en el encabezado de Asignaciones.
+- **Lista nueva «Áreas de Cambio Tarea»** (`area_apoyo`) en Ajustes → Checklists y listas, con Recepción, Lavandería,
+  Mantención, Cocina y Bodega.
+- **Permiso nuevo `cambio_tarea.registrar`** para todo rol que hoy reparte piezas (`asignaciones.asignar_manual`:
+  Supervisora y Admin).
+- **El bono todavía no cambia.**
+
+**Lleva SQL:** la tabla nueva, el CHECK de la lista, sus opciones y el permiso. Sin `.env` (el interruptor
+`CAMBIO_TAREA_NAVEGAR_DIAS` es opcional y queda apagado si falta), sin `vendor/`, sin estáticos de `public/` y sin
+cambios en los cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) CHECK vivo de listas_opciones.lista. Esperado: UNA fila (`lista`) sin 'area_apoyo' (más la de `activo`, que es
+--    de otra columna). Si sale una SEGUNDA fila que también enumera las listas, avisar antes de seguir.
+SELECT CONSTRAINT_NAME, CHECK_CLAUSE
+  FROM information_schema.CHECK_CONSTRAINTS
+ WHERE CONSTRAINT_SCHEMA = 'cat6852_australia' AND TABLE_NAME = 'limpieza_listas_opciones';
+
+-- 2) La tabla nueva no existe todavía y los id a los que apunta son INT. Esperado: 0, y dos filas int(11).
+SELECT COUNT(*) FROM information_schema.tables
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_horas_otras_areas';
+SELECT TABLE_NAME, COLUMN_TYPE FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND column_name = 'id'
+   AND table_name IN ('limpieza_usuarios', 'limpieza_listas_opciones');
+
+-- 3) Ni la lista ni el permiso existen. Esperado: 0 y 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_listas_opciones WHERE lista = 'area_apoyo';
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos WHERE codigo = 'cambio_tarea.registrar';
+
+-- 4) Roles que hoy reparten piezas: son los que recibirán el permiso. Esperado: Admin y Supervisora.
+SELECT r.nombre
+  FROM cat6852_australia.limpieza_rol_permisos rp
+  JOIN cat6852_australia.limpieza_roles r ON r.id = rp.rol_id
+ WHERE rp.permiso_codigo = 'asignaciones.asignar_manual'
+ ORDER BY r.nombre;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_listas_opciones
+  MODIFY COLUMN lista VARCHAR(30) NOT NULL CHECK (lista IN (
+    'rechazo', 'sin_inspeccion', 'reasignar', 'area_apoyo', 'saltar', 'nota_recepcion', 'ticket_tipo', 'ticket_respuesta'));
+
+CREATE TABLE cat6852_australia.limpieza_horas_otras_areas (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id      INT NOT NULL,
+    fecha           VARCHAR(10) NOT NULL,
+    area_id         INT NOT NULL,
+    minutos         INT NOT NULL CHECK (minutos > 0 AND minutos <= 720 AND minutos % 30 = 0),
+    registrado_por  INT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_horas_otras_areas (usuario_id, fecha, area_id),
+    KEY idx_horas_otras_areas_fecha (fecha),
+    FOREIGN KEY (usuario_id) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (area_id) REFERENCES cat6852_australia.limpieza_listas_opciones(id) ON DELETE RESTRICT,
+    FOREIGN KEY (registrado_por) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO cat6852_australia.limpieza_listas_opciones (lista, nombre, orden) VALUES
+  ('area_apoyo', 'Recepción', 1), ('area_apoyo', 'Lavandería', 2), ('area_apoyo', 'Mantención', 3),
+  ('area_apoyo', 'Cocina', 4), ('area_apoyo', 'Bodega', 5);
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('cambio_tarea.registrar', 'Anotar en «Cambio Tarea» las horas que alguien de Aseo estuvo hoy en otra área (solo el mismo día)', 'Turnos', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT rp.rol_id, 'cambio_tarea.registrar'
+  FROM cat6852_australia.limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'asignaciones.asignar_manual';
+
+UPDATE cat6852_australia.limpieza_permisos
+   SET descripcion = 'Editar las listas de selección: motivos de rechazo, de «No se pudo inspeccionar», de saltar y de reasignar una habitación, del NO de Recepción, mensajes a la mucama, tipos y respuestas de tickets y áreas de «Cambio Tarea» (Ajustes → Checklists y listas)'
+ WHERE codigo = 'listas.editar';
+```
+
+La base va escrita en cada tabla, también en las FK (§11.34). El `MODIFY` reemplaza el CHECK de la columna con la lista
+completa: nada de `DROP CONSTRAINT` (ver incidente-2026-09-23.md §5). `scripts/migrate-add-cambio-tarea.php` hace lo
+mismo. Se probó en los tests sobre una base SQLite como la de antes de la v7.16: amplía, crea, siembra y da el permiso,
+y la segunda corrida no hace nada.
+
+**Comprobación:**
+- el precheck (1) muestra `'area_apoyo'`;
+- el (2) da 1;
+- el (3) da 5 y 1;
+- el permiso queda en 2 roles: `SELECT COUNT(*) FROM cat6852_australia.limpieza_rol_permisos WHERE permiso_codigo = 'cambio_tarea.registrar'`;
+- después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL.** El verificador vería la tabla y el permiso faltantes (health 503) y la pantalla nueva
+daría error.
+
+#### ZIP
+
+`build/limpieza-v716-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.16 del `CHANGELOG.md` se fecha antes de armarlo (§10 paso 0) y tiene que terminar en
+« |». Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md` y `.env.example`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `database/seeds/{listas_opciones,permisos,roles}.php`;
+- `scripts/migrate-add-cambio-tarea.php`;
+- en `src/`:
+  - `src/Controllers/{CambioTareaController,PaginasController}.php`;
+  - `src/Core/Kernel.php`;
+  - `src/Helpers/HorasTurno.php`;
+  - `src/Services/{CambioTareaService,CambioTareaException,ListasOpcionesService}.php`;
+  - `src/Support/{Tours,TourResolver}.php`;
+- en `views/`:
+  - `views/{cambio-tarea,asignaciones,home-supervisora}.php`;
+  - `views/componentes/sidebar.php`;
+  - `views/recursos/ajustes/listas-opciones.js`.
+
+**Vuelta atrás:** `build/limpieza-v716-vuelta-atras.zip`, con los archivos que ya existían en la v7.15.2 (`edca6d0`).
+- Los archivos nuevos pueden quedar, porque nada los llama.
+- El SQL también puede quedar: la v7.15.2 no lee la tabla, la lista ni el permiso, y el CHECK más ancho no le molesta.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.16** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Como Supervisora:**
+   - en el Inicio aparece la tarjeta «Cambio Tarea»;
+   - al abrirla sale el personal de Aseo con turno de hoy, con su turno y sus piezas.
+3. **Probar el guardado** con alguien que de verdad estuvo hoy en otra área: tocarla, «+ Otra área», elegir el área y
+   las horas, y ver «✓ Guardado». Al recargar, la fila dice el área y las horas.
+   - Si nadie apoyó hoy, se prueba con cualquiera y después se quita con el basurero (dice «Sin novedades»). Queda en
+     el registro de auditoría.
+4. Ajustes → Checklists y listas → «Listas»: la tarjeta «Áreas de Cambio Tarea» con 5 opciones.
+5. Asignaciones: el botón de las flechas cruzadas lleva a Cambio Tarea.
+
+**Consulta de uso** (cuántas horas en otras áreas se anotaron, por día y área):
+
+```sql
+SELECT h.fecha, lo.nombre AS area, COUNT(*) AS personas, SUM(h.minutos) / 60 AS horas
+  FROM cat6852_australia.limpieza_horas_otras_areas h
+  JOIN cat6852_australia.limpieza_listas_opciones lo ON lo.id = h.area_id
+ GROUP BY h.fecha, lo.nombre
+ ORDER BY h.fecha DESC, lo.nombre;
+```

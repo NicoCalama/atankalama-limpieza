@@ -38,6 +38,17 @@ if ($usuario->tienePermiso('asignaciones.asignar_manual')) {
     ];
 }
 
+// v7.16: horas que alguien de Aseo estuvo hoy en otra área. En el celular se entra desde el Inicio de la
+// supervisora (la barra de abajo ya no tiene espacio).
+if ($usuario->tienePermiso('cambio_tarea.registrar')) {
+    $items[] = [
+        'ruta' => '/cambio-tarea',
+        'icono' => 'shuffle',
+        'label' => 'Cambio Tarea',
+        'activo' => str_starts_with($rutaActual, '/cambio-tarea'),
+    ];
+}
+
 if ($usuario->tienePermiso('espacios.ver')) {
     $items[] = [
         'ruta' => '/espacios',
