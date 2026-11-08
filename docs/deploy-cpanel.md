@@ -3796,3 +3796,51 @@ SELECT he.mes, u.nombre, he.minutos / 60 AS horas, he.updated_at
 recibió `reportes.ver`, así que ahora entra a Reportes (KPIs de Aseo, Recepción y Mensual; el corte en solo lectura). No
 tiene `reportes.ver_supervisoras` ni `horas_extras.registrar`. Hasta ahora la Supervisora nunca había tenido Reportes; la
 semilla `database/seeds/roles.php` sigue sin dárselo (solo vale para una base nueva).
+
+### 11.50 Release "KPIs por hora" → v7.18
+
+Origen: pedido de gerencia del 06/11/2026; decisiones de Nicolás del 07 y 08/11/2026. Detalle en
+[kpis-sueldos.md](kpis-sueldos.md), «KPIs por hora».
+
+**Qué cambia, solo desde noviembre de 2026 (octubre y antes quedan igual):**
+- El bono de Aseo y la Productividad se miden por hora: horas en Aseo = turnos de los días trabajados + extras del mes −
+  horas en otras áreas.
+- El corte se escribe por hora, el mismo para jornada completa y parcial.
+- Un día cuenta como trabajado si la persona empezó alguna limpieza (pieza o área común) o tiene horas anotadas en
+  Cambio Tarea. Sin turno cargado, ese día vale 7,5 h en completa y 3,75 h en parcial.
+- El Excel mensual suma 4 columnas de horas entre «Hab. hechas» y «Observaciones», y «Act. por hora» reemplaza a «Act.
+  por día». **Avisar a RRHH** si pegan la planilla por posición.
+
+**No lleva SQL:** el corte por hora se guarda en `alertas_config`, con la clave nueva `bono_corte_hab_hora_YYYY-MM`. Sin
+`.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+#### ZIP
+
+`build/limpieza-v718-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` desde `7c4b80f` y la
+fila de la v7.18 del `CHANGELOG.md` fechada (se extrae en `public_html/`). Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `src/Controllers/ReportesController.php`;
+- `src/Services/{BonoAseoService,HorasAseoService,HorasExtrasService,ReportesService}.php` (`HorasAseoService` es nuevo;
+  en `HorasExtrasService`, solo un comentario);
+- `src/Support/Tours.php`;
+- `views/reportes.php`.
+
+**Vuelta atrás:** `build/limpieza-v718-vuelta-atras.zip`, con los archivos que ya existían en la v7.17 (`0ff6858`).
+`HorasAseoService.php` puede quedar, porque nada lo llama, y la clave del corte por hora también.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Después de subir:** el Admin guarda el corte de noviembre en Reportes → Mensual. Mientras no se guarde, se usa el corte
+por día del mes ÷ 7,5 (18 → 2,40).
+
+**Smoke:**
+1. Badge **v7.18** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Como Admin**, en Reportes → Mensual, con noviembre:
+   - el cuadro dice «Corte hab./hora» y las columnas «Horas» y «Act./hora» traen datos;
+   - al pasar el mouse por las horas de alguien aparece el detalle (turnos + extras − otras áreas);
+   - escribir 18 como corte da error; guardar el corte real queda sin error.
+3. **Con octubre:** vuelve «Corte hab./día», sin columna «Horas», y los números son los de siempre.
+4. **Reportes → Aseo** con «Últimos 7 días» (si el período empieza en noviembre): Productividad en hab/hora con «sin extras
+   del mes».
+5. **Exportar Excel → Resumen mensual** de noviembre: trae las columnas de horas y el total no se corre.
+6. **Como Supervisora:** el corte en solo lectura y sin el botón «Horas extras».
