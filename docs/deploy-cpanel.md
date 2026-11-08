@@ -3844,3 +3844,6 @@ por día del mes ÷ 7,5 (18 → 2,40).
    del mes».
 5. **Exportar Excel → Resumen mensual** de noviembre: trae las columnas de horas y el total no se corre.
 6. **Como Supervisora:** el corte en solo lectura y sin el botón «Horas extras».
+
+**Desplegada el 08/11/2026.** ZIP `build/limpieza-v718-delta.zip` desde `7c4b80f` con la fila del `CHANGELOG.md` fechada, sin
+SQL. `/api/health` 200 con `esquema.ok: true` (07:03:33). Smoke OK (Nicolás).
