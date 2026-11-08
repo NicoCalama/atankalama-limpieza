@@ -13,7 +13,7 @@ use Atankalama\Limpieza\Helpers\HorasTurno;
  *
  * En noviembre mucha gente de Aseo fue a apoyar a otras áreas: dejó de hacer piezas, le bajaron las
  * piezas por día y con eso el bono. La supervisora anota acá, para cada persona de Aseo, cuántas horas
- * estuvo HOY en otra área (Recepción, Lavandería…). En la v7.17 esas horas se descuentan de sus horas
+ * estuvo HOY en otra área (Recepción, Lavandería…). En la v7.18 esas horas se descuentan de sus horas
  * en Aseo y el bono pasa a medirse por hora. Ver docs/cambio-tarea.md.
  *
  * Reglas (decisiones de Nicolás, 07/11/2026):
@@ -25,7 +25,7 @@ use Atankalama\Limpieza\Helpers\HorasTurno;
  *  - Las áreas salen de la lista «area_apoyo» (Ajustes → Checklists y listas); varias por persona y día.
  *  - Las horas van de media en media hora (minutos de 30 en 30), hasta 12 h por área y 16 h en el día.
  *    Pueden pasar del turno: si se quedó después de hora apoyando en otra área, esas horas también se
- *    anotan (en la v7.17 el Admin las suma como extras del mes y se compensan).
+ *    anotan (el Admin las suma como extras del mes en la v7.17 y en la v7.18 se compensan).
  *  - Las horas extras NO se anotan acá: las carga el Admin como total del mes (v7.17).
  */
 final class CambioTareaService

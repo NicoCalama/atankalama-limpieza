@@ -2,7 +2,7 @@
 /**
  * «Cambio Tarea» (v7.16, pedido de gerencia del 06/11/2026; plan aprobado por Nicolás el 07/11/2026).
  * La supervisora anota cuántas horas estuvo HOY alguien de Aseo en otra área (Recepción, Lavandería…),
- * para que en la v7.17 se descuenten de sus horas en Aseo y no le bajen el bono. Solo el mismo día.
+ * para que en la v7.18 se descuenten de sus horas en Aseo y no le bajen el bono. Solo el mismo día.
  * Spec: docs/cambio-tarea.md.
  *
  * Fuente de datos: GET /api/cambio-tarea?hotel=&fecha= · guardar: PUT /api/cambio-tarea/{usuario_id}

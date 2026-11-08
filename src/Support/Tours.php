@@ -1292,7 +1292,7 @@ final class Tours
                         ],
                     ],
                     [
-                        'id' => 'mensuales', 'v' => 3,
+                        'id' => 'mensuales', 'v' => 4,
                         'titulo' => 'Consultar los resúmenes',
                         'pregunta' => '¿Cómo veo los totales de cada mes?',
                         'requiere' => [],
@@ -1300,6 +1300,10 @@ final class Tours
                             ['sel' => '[data-tour="rep.mensual"]', 'titulo' => 'Resumen mensual del equipo',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Mensual» y la ayuda sigue sola.',
                              'texto' => 'Elige el mes arriba y verás por trabajador lo limpiado y lo que quedó bien, sus días, el bono de aseo de RRHH y sus créditos. «Corte hab./día» es la base de jornada completa del mes (parcial = la mitad).'],
+                            // v7.17: el botón sale solo con horas_extras.registrar (bandera carga_extras).
+                            ['sel' => '[data-tour="rep.horas_extras"]', 'titulo' => 'Horas extras del mes',
+                             'requiere' => ['carga_extras'],
+                             'texto' => 'Abre la cuadrícula del año con el total de horas extras de cada persona de Aseo, mes a mes. Cada mes se llena hasta el 6 del mes siguiente y después queda en solo lectura.'],
                             ['sel' => '[data-tour="rep.auditorias"]', 'titulo' => 'Inspecciones del mes',
                              'texto' => 'Aquí ves, por inspector, cuántas habitaciones revisó, cómo quedaron (aprobadas, con observación o rechazadas) y cuántas casillas del checklist desmarcó.'],
                             ['sel' => '[data-tour="rep.recepcion_mensual"]', 'titulo' => 'Recepción en el mes',

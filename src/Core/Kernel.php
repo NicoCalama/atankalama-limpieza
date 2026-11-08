@@ -19,6 +19,7 @@ use Atankalama\Limpieza\Controllers\EspaciosController;
 use Atankalama\Limpieza\Controllers\FestivosController;
 use Atankalama\Limpieza\Controllers\HabitacionesController;
 use Atankalama\Limpieza\Controllers\HomeController;
+use Atankalama\Limpieza\Controllers\HorasExtrasController;
 use Atankalama\Limpieza\Controllers\InventarioController;
 use Atankalama\Limpieza\Controllers\ListasOpcionesController;
 use Atankalama\Limpieza\Controllers\ModoEspiaController;
@@ -674,6 +675,16 @@ final class Kernel
         $router->put('/api/reportes/corte-hab-dia', [$reportes, 'guardarCorte'], [
             $authCheck,
             new PermissionCheck('reportes.editar_corte'),
+        ]);
+        // «Horas extras» (v7.17): total del mes por persona de Aseo, hasta el 6 del mes siguiente.
+        $horasExtras = new HorasExtrasController();
+        $router->get('/api/reportes/horas-extras', [$horasExtras, 'listar'], [
+            $authCheck,
+            new PermissionCheck('horas_extras.registrar'),
+        ]);
+        $router->put('/api/reportes/horas-extras/{usuario_id}', [$horasExtras, 'guardar'], [
+            $authCheck,
+            new PermissionCheck('horas_extras.registrar'),
         ]);
         $router->get('/api/reportes/exportar-mensual', [$reportes, 'exportarMensual'], [
             $authCheck,

@@ -380,6 +380,22 @@ CREATE TABLE #__horas_otras_areas (
     FOREIGN KEY (registrado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- v7.17 «Horas extras»: total de horas extras del MES de una persona de Aseo ('YYYY-MM'), en minutos de
+-- 30 en 30. Lo carga administración hasta el 6 del mes siguiente. Ver docs/horas-extras.md.
+CREATE TABLE #__horas_extras (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id      INT NOT NULL,
+    mes             VARCHAR(7) NOT NULL,
+    minutos         INT NOT NULL CHECK (minutos > 0 AND minutos <= 6000 AND minutos % 30 = 0),
+    registrado_por  INT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_horas_extras (usuario_id, mes),
+    KEY idx_horas_extras_mes (mes),
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (registrado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ============================================================================
 -- BLOQUE 3 — AUDITORÍA
 -- ============================================================================

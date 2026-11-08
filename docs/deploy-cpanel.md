@@ -3659,3 +3659,130 @@ SELECT h.fecha, lo.nombre AS area, COUNT(*) AS personas, SUM(h.minutos) / 60 AS 
 **Desplegada el 08/11/2026 ~01:10.** Primero el SQL de arriba en phpMyAdmin (precheck como se esperaba; comprobación:
 tabla 1, 5 opciones `area_apoyo`, permiso en 2 roles) y después el ZIP `build/limpieza-v716-delta.zip` desde
 `251b3d9`. `/api/health` 200 con `esquema.ok: true` (01:09:57). Smoke OK (Nicolás).
+
+### 11.49 Release "Horas extras" → v7.17
+
+Origen: pedido de gerencia del 06/11/2026; decisiones de Nicolás del 07/11/2026 (las extras las carga el Admin como
+total del mes) y del 08/11/2026 (cuadrícula del año, plazo hasta el 6 del mes siguiente, y la ventana sale antes que
+los KPIs por hora, que pasan a ser la v7.18). Esta entrega solo **guarda el dato**. Detalle en
+[horas-extras.md](horas-extras.md).
+
+**Qué cambia:**
+- **Botón nuevo «Horas extras»** en Reportes → Mensual, al lado de «Corte hab./día». Abre una cuadrícula del año:
+  - filas = personas de Aseo y columnas = meses, con el total de horas extras de cada mes;
+  - de media en media hora, hasta 100 h; se guarda solo al salir de la casilla;
+  - cada mes se escribe desde su día 1 hasta el **6 del mes siguiente** (el servidor lo exige con un 409); el resto,
+    solo lectura. Empieza en noviembre de 2026.
+- **Permiso nuevo `horas_extras.registrar`** para todo rol que hoy edita el corte del bono (`reportes.editar_corte`:
+  el Admin). La supervisora no lo ve.
+- La ayuda «?» de Reportes («Consultar los resúmenes») suma un paso sobre el botón, solo para quien lo tiene.
+- **El bono todavía no cambia.**
+
+**Lleva SQL:** la tabla nueva y el permiso. Sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los
+cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La tabla nueva no existe todavía y el id al que apunta es INT. Esperado: 0, y una fila int(11).
+SELECT COUNT(*) FROM information_schema.tables
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_horas_extras';
+SELECT TABLE_NAME, COLUMN_TYPE FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND column_name = 'id' AND table_name = 'limpieza_usuarios';
+
+-- 2) El permiso no existe. Esperado: 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos WHERE codigo = 'horas_extras.registrar';
+
+-- 3) Roles que hoy editan el corte: son los que recibirán el permiso. Esperado: Admin.
+SELECT r.nombre
+  FROM cat6852_australia.limpieza_rol_permisos rp
+  JOIN cat6852_australia.limpieza_roles r ON r.id = rp.rol_id
+ WHERE rp.permiso_codigo = 'reportes.editar_corte'
+ ORDER BY r.nombre;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+CREATE TABLE cat6852_australia.limpieza_horas_extras (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id      INT NOT NULL,
+    mes             VARCHAR(7) NOT NULL,
+    minutos         INT NOT NULL CHECK (minutos > 0 AND minutos <= 6000 AND minutos % 30 = 0),
+    registrado_por  INT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    UNIQUE KEY uq_horas_extras (usuario_id, mes),
+    KEY idx_horas_extras_mes (mes),
+    FOREIGN KEY (usuario_id) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (registrado_por) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('horas_extras.registrar', 'Cargar las horas extras del mes del personal de Aseo (Reportes → Mensual → Horas extras)', 'Reportes', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT rp.rol_id, 'horas_extras.registrar'
+  FROM cat6852_australia.limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'reportes.editar_corte';
+```
+
+La base va escrita en cada tabla, también en las FK (§11.34). `scripts/migrate-add-horas-extras.php` hace lo mismo. Se
+probó en los tests sobre una base SQLite como la de antes de la v7.17: crea la tabla y da el permiso, y la segunda
+corrida no hace nada.
+
+**Comprobación:**
+- el precheck (1) da 1;
+- el (2) da 1;
+- el permiso queda en tantos roles como salieron en el (3):
+  `SELECT COUNT(*) FROM cat6852_australia.limpieza_rol_permisos WHERE permiso_codigo = 'horas_extras.registrar'`;
+- después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL.** El verificador vería la tabla y el permiso faltantes (health 503) y la ventana nueva
+daría error.
+
+#### ZIP
+
+`build/limpieza-v717-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.17 del `CHANGELOG.md` se fecha antes de armarlo (§10 paso 0) y tiene que terminar en
+« |». Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `database/seeds/permisos.php`;
+- `scripts/migrate-add-horas-extras.php`;
+- en `src/`:
+  - `src/Controllers/HorasExtrasController.php`;
+  - `src/Core/Kernel.php`;
+  - `src/Helpers/HorasTurno.php` (solo un comentario);
+  - `src/Services/{HorasExtrasService,HorasExtrasException,CambioTareaService}.php` (en CambioTareaService, solo
+    comentarios);
+  - `src/Support/Tours.php`;
+- en `views/`: `views/{reportes,cambio-tarea}.php` (en cambio-tarea, solo un comentario).
+
+**Vuelta atrás:** `build/limpieza-v717-vuelta-atras.zip`, con los archivos que ya existían en la v7.16 (`83d6fdf`).
+- Los archivos nuevos pueden quedar, porque nada los llama.
+- El SQL también puede quedar: la v7.16 no lee la tabla ni el permiso.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.17** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Como Admin**, en Reportes → Mensual:
+   - al lado de «Corte hab./día» aparece el botón «Horas extras»;
+   - abre la cuadrícula de 2026 con el personal de Aseo (sin supervisoras ni Recepción); la columna de noviembre va en
+     azul con «hasta 06/12» y de enero a octubre sale «—»;
+   - el buscador encuentra a alguien escribiendo parte de su nombre.
+3. **Probar el guardado:** escribir las horas extras de noviembre de alguien que de verdad las tenga y salir de la
+   casilla: borde verde. Al cerrar y abrir de nuevo, sigue ahí.
+   - Si nadie tiene extras todavía, se prueba con cualquiera y después se vacía la casilla (queda sin extras). Queda en
+     el registro de auditoría.
+4. **Como Supervisora:** en Reportes → Mensual no aparece el botón.
+
+**Consulta de uso** (lo cargado por mes y persona):
+
+```sql
+SELECT he.mes, u.nombre, he.minutos / 60 AS horas, he.updated_at
+  FROM cat6852_australia.limpieza_horas_extras he
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = he.usuario_id
+ ORDER BY he.mes DESC, u.nombre;
+```

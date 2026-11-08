@@ -6,7 +6,7 @@ namespace Atankalama\Limpieza\Helpers;
 
 /**
  * Horas de trabajo de un turno (v7.16, pedido de gerencia del 06/11/2026). El bono de Aseo pasa a medirse
- * por hora (v7.17), y las horas de cada día salen del turno de la persona.
+ * por hora (v7.18), y las horas de cada día salen del turno de la persona.
  *
  * Jornada completa: el turno incluye 30 min de colación NO pagada (Nicolás, 07/11/2026), así que un turno
  * 08:00–16:00 son 7,5 h de trabajo, que es para lo que está pensado el corte del bono. La jornada parcial

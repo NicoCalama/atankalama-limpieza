@@ -399,7 +399,7 @@ En **Reportes** hay cuatro pestañas (v7.2). La elegida se mantiene si recargas 
 1. **Trabajadores**: KPIs del equipo (rechazo, eficiencia, créditos…), detalle por trabajadora y ficha de KPIs. Filtra por período, hotel y trabajadora.
 2. **Supervisoras**: «Supervisora · Inspección» (cobertura, rechazo, por turno y por inspectora, con su calidad según Recepción) e «Inspecciones pendientes al corte» de un día.
 3. **Recepción**: la inspección pre-entrega (SÍ / NO, por recepcionista, NO por motivo e historial).
-4. **Mensual**: resumen mensual por trabajador (con el «Corte hab./día» del bono), resumen mensual de inspecciones e inspección pre-entrega del mes (total y por recepcionista), con un solo selector de mes.
+4. **Mensual**: resumen mensual por trabajador (con el «Corte hab./día» del bono), resumen mensual de inspecciones e inspección pre-entrega del mes (total y por recepcionista), con un solo selector de mes. Desde la v7.17, el Admin tiene ahí el botón **«Horas extras»**: una cuadrícula del año donde carga el total de horas extras de cada persona de Aseo, mes a mes, hasta el 6 del mes siguiente ([horas-extras.md](horas-extras.md)).
 
 Para descargar, el botón **"Exportar Excel"** de arriba abre una ventana con las tres descargas: resumen mensual (Excel), KPIs del período (CSV) e inspecciones pendientes de un día (CSV).
 

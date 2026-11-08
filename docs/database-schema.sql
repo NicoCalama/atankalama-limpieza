@@ -400,7 +400,7 @@ CREATE TABLE listas_opciones (
 CREATE INDEX idx_listas_opciones_lista ON listas_opciones(lista, orden);
 
 -- v7.16 «Cambio Tarea» (pedido de gerencia, 06/11/2026): horas que una persona de Aseo pasó en OTRA
--- área ese día (Recepción, Lavandería…), para descontarlas de sus horas en Aseo en el bono (v7.17).
+-- área ese día (Recepción, Lavandería…), para descontarlas de sus horas en Aseo en el bono (v7.18).
 -- La anota la supervisora SOLO el mismo día (lo exige CambioTareaService). Una fila por persona, día
 -- y área. Las horas van en minutos enteros, de 30 en 30 (exacto en SQLite y MariaDB). Ver
 -- docs/cambio-tarea.md.
@@ -419,6 +419,25 @@ CREATE TABLE horas_otras_areas (
     FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_horas_otras_areas_fecha ON horas_otras_areas(fecha);
+
+-- v7.17 «Horas extras» (pedido de gerencia, 06/11/2026; decisiones de Nicolás, 08/11/2026): el TOTAL de
+-- horas extras del mes de una persona de Aseo. Lo carga administración en Reportes → Mensual, en una
+-- cuadrícula del año; cada mes se puede escribir desde su día 1 hasta el 6 del mes siguiente (lo exige
+-- HorasExtrasService). Sin fila = sin extras. Minutos enteros de 30 en 30, hasta 100 h. Ver
+-- docs/horas-extras.md.
+CREATE TABLE horas_extras (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id      INTEGER NOT NULL,                  -- persona de Aseo
+    mes             TEXT NOT NULL,                     -- 'YYYY-MM'
+    minutos         INTEGER NOT NULL CHECK (minutos > 0 AND minutos <= 6000 AND minutos % 30 = 0),
+    registrado_por  INTEGER,                           -- quien la cargó o cambió por última vez
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (usuario_id, mes),
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (registrado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_horas_extras_mes ON horas_extras(mes);
 
 -- ============================================================================
 -- BLOQUE 3 — AUDITORÍA

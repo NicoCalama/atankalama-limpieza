@@ -166,6 +166,7 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 | `reportes.ver` | Ver el módulo de reportes y KPIs exportables (página Reportes, ficha de KPIs del trabajador) | Reportes | global |
 | `reportes.ver_supervisoras` | Ver los KPIs y tiempos de las supervisoras en Reportes (sección «Supervisora · Inspección»). **Privacidad jerárquica de tiempos** (jefatura, 16/09/2026): nadie ve sus propios tiempos, solo el nivel de arriba → solo roles administradores; una supervisora con `reportes.ver` ve a sus trabajadoras y nada de sí misma. Migración `scripts/migrate-add-permiso-reportes-supervisoras.php` | Reportes | global |
 | `reportes.editar_corte` | Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual por trabajador). Es el único dato manual del bono de RRHH; depende de la ocupación y se guarda por mes. Solo administración (decisión de Nicolás, 01/10/2026). Migración `scripts/migrate-add-permiso-reportes-editar-corte.php` | Reportes | global |
+| `horas_extras.registrar` | (v7.17) Cargar el total de horas extras del mes de cada persona de Aseo en la cuadrícula del año (Reportes → Mensual → «Horas extras»), hasta el 6 del mes siguiente. Por defecto solo el Admin (la migración se lo da a quien tiene `reportes.editar_corte`). Ver [horas-extras.md](horas-extras.md) | Reportes | global |
 
 ### 2.12 Alertas
 
@@ -350,6 +351,7 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `turnos.crear_editar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `turnos.asignar_a_usuario` | ⚪ | ⚪ | ⚪ | ✅ |
 | `cambio_tarea.registrar` (v7.16) | ⚪ | ✅ | ⚪ | ✅ |
+| `horas_extras.registrar` (v7.17) | ⚪ | ⚪ | ⚪ | ✅ |
 | `copilot.usar_nivel_1_consultas` | ✅ | ✅ | ✅ | ✅ |
 | `copilot.usar_nivel_2_acciones` | ✅ | ✅ | ✅ | ✅ |
 | `copilot.ver_historial_propio` | ✅ | ✅ | ✅ | ✅ |

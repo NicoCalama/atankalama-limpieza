@@ -76,7 +76,7 @@ return [
     ['turnos.asignar_a_usuario', 'Asignar un turno a un usuario', 'Turnos', 'global'],
     ['turnos.importar', 'Importar turnos masivamente desde CSV de Breik', 'Turnos', 'global'],
     // v7.16 (gerencia, 06/11/2026): la supervisora anota, el mismo día, las horas que alguien de Aseo
-    // estuvo en otra área, para que no le bajen el bono (se descuentan en la v7.17).
+    // estuvo en otra área, para que no le bajen el bono (se descuentan en la v7.18).
     ['cambio_tarea.registrar', 'Anotar en «Cambio Tarea» las horas que alguien de Aseo estuvo hoy en otra área (solo el mismo día)', 'Turnos', 'global'],
 
     ['copilot.usar_nivel_1_consultas', 'Usar el copilot para consultas', 'Copilot', 'propio'],
@@ -116,6 +116,9 @@ return [
     // Único dato manual del bono de aseo de RRHH (01/10/2026): el corte de habitaciones diarias, que
     // depende de la ocupación. Pensado solo para administración.
     ['reportes.editar_corte', 'Editar el corte de habitaciones diarias del bono de aseo (Reportes → Resumen mensual)', 'Reportes', 'global'],
+    // v7.17 (gerencia, 06/11/2026; Nicolás 08/11/2026): las horas extras del mes de cada persona de Aseo
+    // las carga administración, en una cuadrícula del año, hasta el 6 del mes siguiente.
+    ['horas_extras.registrar', 'Cargar las horas extras del mes del personal de Aseo (Reportes → Mensual → Horas extras)', 'Reportes', 'global'],
 
     ['disponibilidad.notificar_supervisora', 'Marcarse disponible para más habitaciones', 'Disponibilidad', 'propio'],
 

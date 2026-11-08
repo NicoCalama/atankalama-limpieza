@@ -198,6 +198,145 @@
             </div>
         </div>
 
+        <?php if ($usuario->tienePermiso('horas_extras.registrar')): ?>
+        <!-- Ventana «Horas extras» (v7.17; Nicolás, 08/11/2026): total del mes por persona de Aseo en una
+             cuadrícula del año. Cada mes se escribe hasta el 6 del mes siguiente; lo demás, solo lectura. -->
+        <div x-show="extrasAbierto" x-cloak
+             @keydown.escape.window="extrasAbierto && cerrarExtras()"
+             @click.self="cerrarExtras()"
+             role="dialog" aria-modal="true" aria-labelledby="extras-titulo"
+             class="fixed inset-0 z-50 flex items-stretch md:items-center justify-center md:p-4 bg-black/50">
+            <div class="bg-white dark:bg-gray-800 w-full md:max-w-5xl h-full md:h-auto md:max-h-[90vh] md:rounded-xl shadow-xl flex flex-col min-h-0">
+                <!-- Encabezado: título, año y cerrar -->
+                <div class="px-4 pt-4 pb-3 border-b border-gray-200 dark:border-gray-700 space-y-3">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="clock-plus" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"></i>
+                        <h3 id="extras-titulo" class="text-lg font-semibold text-gray-900 dark:text-gray-100 flex-1 min-w-0">Horas extras</h3>
+                        <div class="flex items-center">
+                            <button type="button" @click="cambiarAnioExtras(-1)" :disabled="extrasCargando || !extrasAnio || extrasAnio <= extrasAnioMin()"
+                                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30" aria-label="Año anterior">
+                                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                            </button>
+                            <span class="w-12 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums" x-text="extrasAnio || ''"></span>
+                            <button type="button" @click="cambiarAnioExtras(1)" :disabled="extrasCargando || !extrasAnio || extrasAnio >= extrasAnioMax"
+                                    class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30" aria-label="Año siguiente">
+                                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        <button type="button" @click="cerrarExtras()"
+                                class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        El total de horas extras del mes de cada persona de Aseo. Cada mes se llena hasta el 6 del mes siguiente y se guarda solo al salir de la casilla.
+                    </p>
+                    <div class="relative">
+                        <label class="sr-only" for="extras-buscar">Buscar persona</label>
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        <input id="extras-buscar" x-model="extrasBusqueda" type="search" autocomplete="off"
+                               @input="$nextTick(function () { lucide.createIcons(); })"
+                               placeholder="Buscar por nombre..."
+                               class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                    </div>
+                </div>
+
+                <!-- Cuerpo -->
+                <div class="flex-1 min-h-0 overflow-auto" x-ref="extrasScroll">
+                    <template x-if="extrasCargando && !extrasData">
+                        <div class="flex flex-col items-center justify-center py-16 gap-3">
+                            <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+                        </div>
+                    </template>
+
+                    <template x-if="extrasError">
+                        <div class="p-8 text-center">
+                            <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3" x-text="extrasError"></p>
+                            <button type="button" @click="cargarExtras(extrasAnio)" class="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Reintentar</button>
+                        </div>
+                    </template>
+
+                    <template x-if="!extrasError && extrasData && extrasData.personas.length === 0">
+                        <div class="p-8 text-center">
+                            <i data-lucide="users" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3"></i>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">No hay personal de Aseo para este año.</p>
+                        </div>
+                    </template>
+
+                    <template x-if="!extrasError && extrasData && extrasData.personas.length > 0">
+                        <div>
+                            <table class="min-w-full text-sm border-separate border-spacing-0">
+                                <thead>
+                                    <tr>
+                                        <th class="sticky top-0 left-0 z-30 bg-gray-50 dark:bg-gray-700 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 min-w-[9rem]">Persona</th>
+                                        <template x-for="m in extrasMeses()" :key="m">
+                                            <th class="sticky top-0 z-20 px-1.5 py-2 text-center text-xs font-semibold uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 whitespace-nowrap"
+                                                :class="mesEditable(m) ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                                                :data-abierto="mesEditable(m) ? '1' : null">
+                                                <span x-text="mesCorto(m)"></span>
+                                                <template x-if="mesEditable(m)">
+                                                    <span class="block text-[10px] font-normal normal-case tracking-normal" x-text="plazoMes(m)"></span>
+                                                </template>
+                                            </th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="p in extrasVisibles()" :key="p.id">
+                                        <tr>
+                                            <td class="sticky left-0 z-10 bg-white dark:bg-gray-800 px-4 py-1.5 border-b border-gray-100 dark:border-gray-700 text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                                <span x-text="p.nombre"></span>
+                                                <template x-if="!p.activo">
+                                                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="Ya no está activa en la app.">Inactiva</span>
+                                                </template>
+                                            </td>
+                                            <template x-for="m in extrasMeses()" :key="p.id + '|' + m">
+                                                <td class="px-1.5 py-1.5 border-b border-gray-100 dark:border-gray-700 text-center"
+                                                    :class="mesEditable(m) ? 'bg-blue-50/60 dark:bg-blue-900/20' : ''">
+                                                    <template x-if="mesEditable(m)">
+                                                        <input type="number" inputmode="decimal" step="0.5" min="0" max="100"
+                                                               :value="p.meses[m] != null ? p.meses[m] : ''"
+                                                               @change="guardarExtra(p, m, $event.target)"
+                                                               :aria-label="'Horas extras de ' + p.nombre + ' en ' + mesLargo(m)"
+                                                               class="w-16 min-h-[44px] px-2 py-1 text-sm text-right rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 tabular-nums"
+                                                               :class="claseCeldaExtra(p.id + '|' + m)">
+                                                    </template>
+                                                    <template x-if="!mesEditable(m)">
+                                                        <span class="tabular-nums" :class="p.meses[m] != null ? 'text-gray-900 dark:text-gray-100' : 'text-gray-300 dark:text-gray-600'"
+                                                              x-text="fmtHoras(p.meses[m])"></span>
+                                                    </template>
+                                                </td>
+                                            </template>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p x-show="extrasVisibles().length === 0" class="px-4 py-6 text-sm text-center text-gray-500 dark:text-gray-400">
+                                Nadie de Aseo se llama así. Revisa el nombre.
+                            </p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Pie: aviso de error y cerrar -->
+                <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-3">
+                    <p class="flex-1 min-w-[12rem] text-xs"
+                       :class="extrasAviso ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'"
+                       x-text="extrasAviso || 'Por ahora solo se guardan: todavía no cambian el bono.'"></p>
+                    <button type="button" @click="cerrarExtras()"
+                            class="min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- ═══════════════ Pestaña TRABAJADORES ═══════════════ -->
         <template x-if="pestana === 'trabajadores'">
         <div class="space-y-4">
@@ -457,7 +596,8 @@
         <!-- Privacidad jerárquica (jefatura, 16/09): «Supervisora · Inspección» se renderiza solo con
              reportes.ver_supervisoras; el backend tampoco la envía sin el permiso. La bandera gatea el tour.
              (Desde la v7.10 ya no trae el tiempo por auditación.) -->
-        <div data-vg-context='{"ve_supervisoras": <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>}' hidden></div>
+        <!-- carga_extras (v7.17): el botón «Horas extras» de la pestaña Mensual sale solo con horas_extras.registrar. -->
+        <div data-vg-context='{"ve_supervisoras": <?= $usuario->tienePermiso('reportes.ver_supervisoras') ? 'true' : 'false' ?>, "carga_extras": <?= $usuario->tienePermiso('horas_extras.registrar') ? 'true' : 'false' ?>}' hidden></div>
 
         <!-- ═══════════════ Pestaña SUPERVISORAS ═══════════════ -->
         <template x-if="pestana === 'supervisoras'">
@@ -727,6 +867,14 @@
                                class="w-20 min-h-[40px] px-2 py-1 text-sm text-right bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">
                         <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap" x-text="corteNota()"></span>
                     </div>
+                    <?php if ($usuario->tienePermiso('horas_extras.registrar')): ?>
+                    <!-- Horas extras del mes por persona (v7.17): cuadrícula del año, solo administración -->
+                    <button type="button" @click="abrirExtras()" data-tour="rep.horas_extras"
+                            class="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
+                        <i data-lucide="clock-plus" class="w-4 h-4 flex-shrink-0"></i>
+                        <span>Horas extras</span>
+                    </button>
+                    <?php endif; ?>
                     <template x-if="corteError">
                         <span class="text-xs text-red-600 dark:text-red-400" x-text="corteError"></span>
                     </template>
@@ -1210,6 +1358,20 @@ function reportes() {
         corteError:        '',
         puedeEditarCorte:  <?= $usuario->tienePermiso('reportes.editar_corte') ? 'true' : 'false' ?>,
 
+        // Horas extras (v7.17): total del mes por persona de Aseo, en una cuadrícula del año. La ventana existe
+        // solo con horas_extras.registrar; el servidor exige el plazo (hasta el 6 del mes siguiente).
+        extrasAbierto:   false,
+        extrasAnio:      null,
+        extrasAnioMax:   null,
+        extrasData:      null,   // { anio, hoy, mes_inicio, dia_plazo, meses_editables, personas }
+        extrasCargando:  false,
+        extrasError:     '',
+        extrasBusqueda:  '',
+        extrasAviso:     '',
+        extrasAvisoClave: '',    // casilla del último error: el aviso se va cuando esa casilla se guarda bien
+        extrasEstado:    {},     // 'usuarioId|YYYY-MM' → 'guardando' | 'guardado' | 'error'
+        extrasSeq:       0,
+
         // Inspección pre-entrega del mes (pestaña Mensual): total y cuántas hizo cada recepcionista.
         recMes:          null,
         recMesCargando:  false,
@@ -1479,6 +1641,164 @@ function reportes() {
                 return parcial + ' · igual que ' + p[1] + '/' + p[0];
             }
             return parcial + ' · valor por defecto';
+        },
+
+        // ── Horas extras (v7.17) ──
+        abrirExtras() {
+            this.extrasAbierto = true;
+            this.extrasBusqueda = '';
+            this.extrasAviso = '';
+            this.extrasEstado = {};
+            this.cargarExtras(this.extrasAnio);
+        },
+
+        cerrarExtras() {
+            this.extrasAbierto = false;
+        },
+
+        async cargarExtras(anio) {
+            var seq = ++this.extrasSeq;
+            this.extrasCargando = true;
+            this.extrasError = '';
+            try {
+                var r = await apiFetch('/api/reportes/horas-extras' + (anio ? '?anio=' + encodeURIComponent(anio) : ''));
+                if (seq !== this.extrasSeq) return;
+                if (r && r.ok) {
+                    // Sin extras, PHP manda «meses» como lista vacía: se pasa a objeto para poder escribirle meses.
+                    r.data.personas.forEach(function (p) { if (Array.isArray(p.meses)) p.meses = {}; });
+                    this.extrasData = r.data;
+                    this.extrasAnio = r.data.anio;
+                    this.extrasAnioMax = parseInt(String(r.data.hoy).slice(0, 4), 10);
+                    var self = this;
+                    this.$nextTick(function () { lucide.createIcons(); self.centrarMesAbierto(0); });
+                } else {
+                    this.extrasData = null;
+                    this.extrasError = (r && r.error && r.error.mensaje) || 'No pudimos cargar las horas extras, intenta de nuevo.';
+                }
+            } catch (e) {
+                if (seq === this.extrasSeq) {
+                    this.extrasData = null;
+                    this.extrasError = 'No pudimos cargar las horas extras, intenta de nuevo.';
+                }
+            } finally {
+                if (seq === this.extrasSeq) this.extrasCargando = false;
+            }
+        },
+
+        // En el celular la cuadrícula se desliza de lado: se abre mostrando el mes que sigue abierto. La tabla
+        // vive en un x-if que se arma después del nextTick y la ventana se muestra en el cuadro siguiente:
+        // mientras no esté a la vista, se reintenta un rato.
+        centrarMesAbierto(intento) {
+            var self = this;
+            var caja = this.$refs.extrasScroll;
+            var th = caja ? caja.querySelector('th[data-abierto]') : null;
+            var nombre = caja ? caja.querySelector('thead th') : null;
+            if (!caja || !th || !nombre || caja.clientWidth === 0) {
+                if (intento < 15 && this.extrasAbierto) setTimeout(function () { self.centrarMesAbierto(intento + 1); }, 80);
+                return;
+            }
+            caja.scrollLeft = Math.max(th.offsetLeft - nombre.offsetWidth - 16, 0);
+        },
+
+        extrasAnioMin() {
+            return this.extrasData ? parseInt(String(this.extrasData.mes_inicio).slice(0, 4), 10) : null;
+        },
+
+        cambiarAnioExtras(delta) {
+            var nuevo = (this.extrasAnio || 0) + delta;
+            if (nuevo < this.extrasAnioMin() || nuevo > this.extrasAnioMax) return;
+            this.extrasAviso = '';
+            this.extrasEstado = {};
+            this.cargarExtras(nuevo);
+        },
+
+        extrasMeses() {
+            var meses = [];
+            if (!this.extrasData) return meses;
+            for (var i = 1; i <= 12; i++) meses.push(this.extrasData.anio + '-' + (i < 10 ? '0' : '') + i);
+            return meses;
+        },
+
+        mesEditable(mes) {
+            return !!this.extrasData && this.extrasData.meses_editables.indexOf(mes) !== -1;
+        },
+
+        mesCorto(mes) {
+            return ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][parseInt(mes.slice(5, 7), 10) - 1];
+        },
+
+        mesLargo(mes) {
+            return ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'][parseInt(mes.slice(5, 7), 10) - 1]
+                + ' de ' + mes.slice(0, 4);
+        },
+
+        // «hasta 06/12»: último día para escribir ese mes (el día del plazo del mes siguiente).
+        plazoMes(mes) {
+            var anio = parseInt(mes.slice(0, 4), 10);
+            var m = parseInt(mes.slice(5, 7), 10) + 1;
+            if (m > 12) { m = 1; anio++; }
+            var dia = this.extrasData ? this.extrasData.dia_plazo : 6;
+            return 'hasta ' + (dia < 10 ? '0' : '') + dia + '/' + (m < 10 ? '0' : '') + m;
+        },
+
+        normalizarNombre(texto) {
+            return String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+        },
+
+        // Mismo buscador que Cambio Tarea: sin tildes ni mayúsculas, cada palabra tiene que estar en el nombre.
+        extrasVisibles() {
+            if (!this.extrasData) return [];
+            var palabras = this.normalizarNombre(this.extrasBusqueda).split(/\s+/).filter(Boolean);
+            if (palabras.length === 0) return this.extrasData.personas;
+            var self = this;
+            return this.extrasData.personas.filter(function (p) {
+                var nombre = self.normalizarNombre(p.nombre);
+                return palabras.every(function (w) { return nombre.indexOf(w) !== -1; });
+            });
+        },
+
+        fmtHoras(horas) {
+            return horas == null ? '—' : String(horas).replace('.', ',');
+        },
+
+        claseCeldaExtra(clave) {
+            switch (this.extrasEstado[clave]) {
+                case 'guardando': return 'border-blue-400 opacity-70';
+                case 'guardado':  return 'border-green-500 ring-1 ring-green-500';
+                case 'error':     return 'border-red-500 ring-1 ring-red-500';
+                default:          return 'border-gray-300 dark:border-gray-600';
+            }
+        },
+
+        async guardarExtra(p, mes, input) {
+            var clave = p.id + '|' + mes;
+            var anterior = p.meses[mes] != null ? p.meses[mes] : null;
+            var texto = String(input.value).trim().replace(',', '.');
+            var self = this;
+            var fallo = function (mensaje) {
+                self.extrasEstado[clave] = 'error';
+                input.value = anterior === null ? '' : anterior;
+                self.extrasAviso = p.nombre + ' (' + self.mesLargo(mes) + '): ' + mensaje;
+                self.extrasAvisoClave = clave;
+            };
+            this.extrasEstado[clave] = 'guardando';
+            try {
+                var r = await apiPut('/api/reportes/horas-extras/' + p.id, { mes: mes, horas: texto === '' ? null : texto });
+                if (r && r.ok) {
+                    if (r.data.horas === null) delete p.meses[mes]; else p.meses[mes] = r.data.horas;
+                    input.value = r.data.horas === null ? '' : r.data.horas;
+                    // El aviso de error se va cuando se corrige ESA casilla, no al guardar otra.
+                    if (this.extrasAvisoClave === clave) { this.extrasAviso = ''; this.extrasAvisoClave = ''; }
+                    this.extrasEstado[clave] = 'guardado';
+                    setTimeout(function () { if (self.extrasEstado[clave] === 'guardado') delete self.extrasEstado[clave]; }, 2000);
+                } else {
+                    fallo((r && r.error && r.error.mensaje) || 'No pudimos guardar, intenta de nuevo.');
+                    // El plazo se cerró con la ventana abierta: se recarga para mostrar el mes en solo lectura.
+                    if (r && r.error && r.error.codigo === 'FUERA_DE_PLAZO') this.cargarExtras(this.extrasAnio);
+                }
+            } catch (e) {
+                fallo('No pudimos guardar, intenta de nuevo en un momento.');
+            }
         },
 
         hotelLabelCodigo(codigo) {

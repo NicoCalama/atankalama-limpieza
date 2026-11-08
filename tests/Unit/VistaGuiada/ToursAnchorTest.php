@@ -262,6 +262,7 @@ final class ToursAnchorTest extends TestCase
                 'turnos.asignar_a_usuario',
                 'revision_entrega.registrar',
                 'revision_entrega.configurar',
+                'horas_extras.registrar', // el botón «Horas extras» de Reportes → Mensual se renderiza solo con este permiso
             ],
             roles: ['Supervisora'],
         );
