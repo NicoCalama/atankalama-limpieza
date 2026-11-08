@@ -3637,7 +3637,8 @@ daría error.
 1. Badge **v7.16** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
 2. **Como Supervisora:**
    - en el Inicio aparece la tarjeta «Cambio Tarea»;
-   - al abrirla sale el personal de Aseo con turno de hoy, con su turno y sus piezas.
+   - al abrirla sale el personal de Aseo de hoy (solo nombres, «Sin novedades» a la derecha) y el buscador encuentra a
+     alguien escribiendo parte de su nombre.
 3. **Probar el guardado** con alguien que de verdad estuvo hoy en otra área: tocarla, «+ Otra área», elegir el área y
    las horas, y ver «✓ Guardado». Al recargar, la fila dice el área y las horas.
    - Si nadie apoyó hoy, se prueba con cualquiera y después se quita con el basurero (dice «Sin novedades»). Queda en
