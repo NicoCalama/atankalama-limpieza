@@ -3786,3 +3786,13 @@ SELECT he.mes, u.nombre, he.minutos / 60 AS horas, he.updated_at
   JOIN cat6852_australia.limpieza_usuarios u ON u.id = he.usuario_id
  ORDER BY he.mes DESC, u.nombre;
 ```
+
+**Desplegada el 08/11/2026 ~04:47.** Primero el SQL de arriba en phpMyAdmin (precheck como se esperaba: tabla 0,
+`limpieza_usuarios.id` int(11), permiso 0, corte solo en Admin; comprobación 1, 1 y 1) y después el ZIP
+`build/limpieza-v717-delta.zip` desde `0ff6858`. `/api/health` 200 con `esquema.ok: true` (04:48:06). Smoke OK
+(Nicolás).
+
+**Cambio de roles en producción, el mismo día (Nicolás, desde Ajustes → Roles y Permisos):** el rol Supervisora
+recibió `reportes.ver`, así que ahora entra a Reportes (KPIs de Aseo, Recepción y Mensual; el corte en solo lectura). No
+tiene `reportes.ver_supervisoras` ni `horas_extras.registrar`. Hasta ahora la Supervisora nunca había tenido Reportes; la
+semilla `database/seeds/roles.php` sigue sin dárselo (solo vale para una base nueva).
