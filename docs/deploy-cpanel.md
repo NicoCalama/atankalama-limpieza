@@ -3655,3 +3655,7 @@ SELECT h.fecha, lo.nombre AS area, COUNT(*) AS personas, SUM(h.minutos) / 60 AS 
  GROUP BY h.fecha, lo.nombre
  ORDER BY h.fecha DESC, lo.nombre;
 ```
+
+**Desplegada el 08/11/2026 ~01:10.** Primero el SQL de arriba en phpMyAdmin (precheck como se esperaba; comprobación:
+tabla 1, 5 opciones `area_apoyo`, permiso en 2 roles) y después el ZIP `build/limpieza-v716-delta.zip` desde
+`251b3d9`. `/api/health` 200 con `esquema.ok: true` (01:09:57). Smoke OK (Nicolás).
