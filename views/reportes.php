@@ -1672,7 +1672,7 @@ function reportes() {
             if (h.dias_estimados > 0) {
                 return {
                     texto: h.dias_estimados + (h.dias_estimados === 1 ? ' día sin turno' : ' días sin turno'),
-                    titulo: 'Trabajó sin turno cargado: cada uno de esos días vale la jornada estándar (7,5 h completa, 3,75 h parcial). Si le cargas el turno en Turnos, el número se corrige solo.',
+                    titulo: 'Trabajó sin turno cargado: cada uno de esos días vale la jornada estándar (7,5 h completa, 4 h parcial). Si le cargas el turno en Turnos, el número se corrige solo.',
                 };
             }
             return null;

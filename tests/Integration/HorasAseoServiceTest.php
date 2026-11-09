@@ -67,7 +67,7 @@ final class HorasAseoServiceTest extends TestCase
         $this->assertSame(2, $completa['dias_estimados']);
 
         $parcial = $this->horas(['2026-11-03', '2026-11-04'], 'parcial');
-        $this->assertSame(7.5, $parcial['aseo'], 'parcial = 3,75 h por día');
+        $this->assertSame(8.0, $parcial['aseo'], 'parcial = 4 h por día');
         $this->assertSame(2, $parcial['dias_estimados']);
     }
 

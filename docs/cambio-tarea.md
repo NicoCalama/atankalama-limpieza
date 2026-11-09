@@ -95,7 +95,7 @@ Decisión de Nicolás del 07/11/2026: «que las personas se vuelvan menos procra
   - Cuentan los días con alguna limpieza empezada (pieza o área común) o con horas anotadas. Tener piezas a su nombre
     sin empezar no hace día trabajado.
   - En jornada completa, el turno descuenta la colación.
-  - Si alguien trabajó sin turno, ese día vale la jornada estándar: 7,5 h en completa y 3,75 h en parcial.
+  - Si alguien trabajó sin turno, ese día vale la jornada estándar: 7,5 h en completa y 4 h en parcial.
 - **Bono y Productividad se miden en hab./hora.** El corte se escribe directo por hora y la base es la misma para
   jornada completa y parcial.
 - **Las extras valen como horas normales.** Se cargan como total del mes (v7.17, [horas-extras.md](horas-extras.md)) y

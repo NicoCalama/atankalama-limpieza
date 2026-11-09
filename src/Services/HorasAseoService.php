@@ -33,8 +33,8 @@ final class HorasAseoService
     public const ESTADO_SIN_JORNADA = 'sin_jornada';
     public const ESTADO_SIN_HORAS = 'sin_horas';
 
-    /** Minutos de un día sin turno cargado: 7,5 h en jornada completa y la mitad en parcial, como el corte por día. */
-    public const MINUTOS_ESTANDAR = ['completa' => 450, 'parcial' => 225];
+    /** Minutos de un día sin turno cargado: 7,5 h en jornada completa y 4 h en parcial (Nicolás, 09/11/2026). */
+    public const MINUTOS_ESTANDAR = ['completa' => 450, 'parcial' => 240];
 
     /**
      * @param array<int, list<string>> $fechasPorUsuario uid → días trabajados ('YYYY-MM-DD')
