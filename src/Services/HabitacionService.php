@@ -12,8 +12,25 @@ use Atankalama\Limpieza\Models\Habitacion;
 
 final class HabitacionService
 {
-    /** Desde esta hora (Chile) el barrido devuelve los nocheros aprobados a sucia para la tarde. */
-    public const HORA_BARRIDO_NOCHEROS = '16:00';
+    // La hora del barrido ya no es 16:00 fijo: es la «hora de la tarde» de Ajustes (HoraTardeService, v7.23).
+
+    /**
+     * v7.23: «dia», «noche» o «dia_noche» desde una fila con es_nochero y nochero_modo (las listas que viajan
+     * crudas a la pantalla: Habitaciones, Asignaciones, Inspección). Sin marca, «dia». Con $fecha (y la fila con
+     * nochero_hasta), una marca que ya no está vigente ese día también es «dia»: sirve para planificar un día futuro.
+     *
+     * @param array<string, mixed> $fila
+     */
+    public static function chapaDeFila(array $fila, ?string $fecha = null): string
+    {
+        if (((int) ($fila['es_nochero'] ?? 0)) !== 1) {
+            return 'dia';
+        }
+        if ($fecha !== null && isset($fila['nochero_hasta']) && (string) $fila['nochero_hasta'] < $fecha) {
+            return 'dia';
+        }
+        return ($fila['nochero_modo'] ?? null) === Habitacion::NOCHERO_NOCHE ? Habitacion::NOCHERO_NOCHE : Habitacion::NOCHERO_DIA_NOCHE;
+    }
 
     /** Desde esta hora (Chile) se avisa qué marcas de nochero vencen hoy (una vez por día). */
     public const HORA_AVISO_NOCHEROS = '08:00';
@@ -97,6 +114,8 @@ final class HabitacionService
             // activo en TODAS las habitaciones sin este cast. Ver docs/nocheros.md
             $f['es_nochero'] = ((int) ($f['es_nochero'] ?? 0)) === 1;
             $f['es_prueba'] = ((int) ($f['es_prueba'] ?? 0)) === 1;
+            // v7.23: la chapa vigente hoy, ya resuelta («dia», «noche» o «dia_noche»).
+            $f['chapa'] = self::chapaDeFila($f, date('Y-m-d'));
             return $this->sabanas->anotarFila($f);
         }, $filas);
     }
@@ -209,13 +228,16 @@ final class HabitacionService
     }
 
     /**
-     * Marca (o actualiza la vigencia de) una habitación como "nochero": pieza con huésped de
-     * turno día Y turno noche (hotel minero), que necesita aseo dos veces al día. Mientras esté
-     * vigente, el cron de las 16:00 la revierte a 'sucia' si ya quedó en un estado terminal
-     * (ver listarNocherosVigentesEnEstadoTerminal). Ver docs/nocheros.md.
+     * Pone (o cambia) la chapa de una habitación, con su vigencia (v7.23: Noche o Día/Noche; sin marca es Día).
+     *  - Día/Noche: huésped de turno día Y turno noche (hotel minero), aseo dos veces al día. Mientras esté
+     *    vigente, desde la hora de la tarde el barrido la vuelve a 'sucia' si ya quedó aprobada
+     *    (ver listarNocherosVigentesEnEstadoTerminal). Es lo que era «nochero» hasta la v7.22.
+     *  - Noche: un aseo, en la tarde. No entra al barrido: queda sucia por el «sucio» diario de Cloudbeds.
+     * Ver docs/nocheros.md.
      *
      * @param string $hasta último día vigente ('YYYY-MM-DD'), desde hoy en adelante (sin
      *                       vigencia mínima: puede ser 1 día, 4, 7, 15... según lo pida el huésped).
+     * @param string $modo  Habitacion::NOCHERO_DIA_NOCHE (por defecto) o Habitacion::NOCHERO_NOCHE.
      */
     public function marcarNochero(
         int $id,
@@ -223,10 +245,14 @@ final class HabitacionService
         ?int $usuarioId = null,
         ?CloudbedsSyncService $sync = null,
         ?string $horaActual = null,
+        string $modo = Habitacion::NOCHERO_DIA_NOCHE,
     ): Habitacion {
         $habitacion = $this->obtener($id);
         if ($habitacion === null) {
             throw new HabitacionException('HABITACION_NO_ENCONTRADA', 'Habitación no encontrada.', 404);
+        }
+        if (!in_array($modo, Habitacion::NOCHERO_MODOS, true)) {
+            throw new HabitacionException('MODO_INVALIDO', 'Elige Noche o Día/Noche.', 400);
         }
 
         $fechaHasta = \DateTime::createFromFormat('Y-m-d', $hasta);
@@ -243,25 +269,25 @@ final class HabitacionService
         }
 
         Database::execute(
-            "UPDATE #__habitaciones SET es_nochero = 1, nochero_hasta = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            [$hasta, $id]
+            "UPDATE #__habitaciones SET es_nochero = 1, nochero_hasta = ?, nochero_modo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            [$hasta, $modo, $id]
         );
 
-        Logger::info('habitaciones', 'nochero_marcado', ['habitacion_id' => $id, 'hasta' => $hasta], $usuarioId);
-        Logger::audit($usuarioId, 'habitacion.marcar_nochero', 'habitacion', $id, ['hasta' => $hasta], 'ui');
+        Logger::info('habitaciones', 'nochero_marcado', ['habitacion_id' => $id, 'hasta' => $hasta, 'modo' => $modo], $usuarioId);
+        Logger::audit($usuarioId, 'habitacion.marcar_nochero', 'habitacion', $id, ['hasta' => $hasta, 'modo' => $modo], 'ui');
 
-        // Marcada después de las 16:00 y ya aprobada: el barrido la tomaría recién en la próxima
-        // pasada del cron (hasta 10 min). Se barre al tiro, con el mismo efecto (v6.17, pedido de
-        // Nicolás tras los nocheros del INN del 02/10/2026).
+        // Día/Noche marcada después de la hora de la tarde y ya aprobada: el barrido la tomaría recién en
+        // la próxima pasada del cron (hasta 10 min). Se barre al tiro, con el mismo efecto (v6.17, pedido
+        // de Nicolás tras los nocheros del INN del 02/10/2026). Una Noche no se barre nunca.
         $horaActual ??= date('H:i');
-        if ($horaActual >= self::HORA_BARRIDO_NOCHEROS) {
+        if ($modo === Habitacion::NOCHERO_DIA_NOCHE && $horaActual >= (new HoraTardeService())->hora()) {
             $hoy = date('Y-m-d');
             $candidata = Database::fetchOne(
                 'SELECT * FROM #__habitaciones
-                  WHERE id = ? AND activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
+                  WHERE id = ? AND activa = 1 AND es_nochero = 1 AND nochero_modo = ? AND nochero_hasta >= ?
                     AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
                     AND estado IN (?, ?, ?)',
-                [$id, $hoy, $hoy, ...Habitacion::ESTADOS_APROBADOS]
+                [$id, Habitacion::NOCHERO_DIA_NOCHE, $hoy, $hoy, ...Habitacion::ESTADOS_APROBADOS]
             );
             if ($candidata !== null) {
                 $this->barrerNochero(Habitacion::desdeFila($candidata), $hoy, $sync, $usuarioId, 'ui');
@@ -280,8 +306,8 @@ final class HabitacionService
         }
 
         Database::execute(
-            "UPDATE #__habitaciones SET es_nochero = 0, nochero_hasta = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            [$id]
+            "UPDATE #__habitaciones SET es_nochero = 0, nochero_hasta = NULL, nochero_modo = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            [Habitacion::NOCHERO_DIA_NOCHE, $id]
         );
 
         Logger::audit($usuarioId, 'habitacion.desmarcar_nochero', 'habitacion', $id, [], 'ui');
@@ -371,26 +397,27 @@ final class HabitacionService
     }
 
     /**
-     * Apaga es_nochero de las habitaciones cuya vigencia ya venció (nochero_hasta < $hoy). No
-     * toca 'estado' — solo limpia la marca para que el botón no siga viéndose activado solo.
-     * Llamado desde el cron de las 16:00 (ver scripts/sync-cloudbeds.php). Ver docs/nocheros.md
+     * Apaga la marca de las habitaciones cuya vigencia ya venció (nochero_hasta < $hoy): vuelven a Día. No
+     * toca 'estado' — solo limpia la marca para que la chapa no siga viéndose puesta sola.
+     * Desde la v7.23 el cron la llama en cada pasada, a cualquier hora (antes, solo desde las 16:00: una marca
+     * vencida seguía puesta toda la mañana). Ver scripts/sync-cloudbeds.php y docs/nocheros.md.
      *
      * @return int cantidad de habitaciones desactivadas
      */
     public function desactivarNocherosVencidos(string $hoy): int
     {
         return Database::execute(
-            "UPDATE #__habitaciones SET es_nochero = 0, nochero_hasta = NULL,
+            "UPDATE #__habitaciones SET es_nochero = 0, nochero_hasta = NULL, nochero_modo = ?,
                     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
               WHERE es_nochero = 1 AND nochero_hasta < ?",
-            [$hoy]
+            [Habitacion::NOCHERO_DIA_NOCHE, $hoy]
         );
     }
 
     /**
      * Habitaciones "nochero" vigentes hoy que ya quedaron APROBADAS (aprobada,
      * aprobada_con_observacion, aprobada_automatica) — candidatas a revertir a 'sucia' desde las
-     * 16:00. Una RECHAZADA no entra (R4, v6.17): la limpieza de la mañana todavía no está hecha;
+     * la hora de la tarde. Una RECHAZADA no entra (R4, v6.17): la limpieza de la mañana todavía no está hecha;
      * el barrido espera a que se rehaga y apruebe, y recién ahí pide la de la tarde (sigue sin
      * barrer hoy, así que el tick siguiente a la aprobación la toma). Antes la mandaba a 'sucia',
      * se perdía la marca de rechazo y la re-limpieza de la mañana pasaba por la de la tarde. No
@@ -406,12 +433,14 @@ final class HabitacionService
      */
     public function listarNocherosVigentesEnEstadoTerminal(string $hoy): array
     {
+        // v7.23: solo Día/Noche (dos aseos). Una Noche tiene un aseo, en la tarde: nada que barrer.
         $filas = Database::fetchAll(
             'SELECT * FROM #__habitaciones
-              WHERE activa = 1 AND es_nochero = 1 AND nochero_hasta >= ?
+              WHERE activa = 1 AND es_nochero = 1 AND nochero_modo = ? AND nochero_hasta >= ?
                 AND (nochero_ultima_reversion IS NULL OR nochero_ultima_reversion < ?)
                 AND estado IN (?, ?, ?)',
             [
+                Habitacion::NOCHERO_DIA_NOCHE,
                 $hoy,
                 $hoy,
                 Habitacion::ESTADO_APROBADA,
@@ -423,7 +452,7 @@ final class HabitacionService
     }
 
     /**
-     * Barrido de nocheros (cron, desde las 16:00): apaga los vencidos y revierte a 'sucia' los
+     * Barrido de nocheros (cron, desde la hora de la tarde): apaga los vencidos y revierte a 'sucia' los
      * vigentes que ya quedaron en un estado terminal, UNA vez por día, avisando 'dirty' a
      * Cloudbeds para que su propio sync no los cierre de vuelta (best-effort: si la escritura
      * falla ya queda una alerta P0). Lo llama scripts/sync-cloudbeds.php; vive acá para que los
@@ -445,7 +474,7 @@ final class HabitacionService
     /**
      * Una pieza del barrido: a 'sucia' para la limpieza de la tarde, anotada como barrida hoy
      * (una reversión por día, no una por cada aprobación) y avisada 'dirty' a Cloudbeds para que
-     * su sync no la cierre de vuelta. La usan el cron y marcarNochero() después de las 16:00.
+     * su sync no la cierre de vuelta. La usan el cron y marcarNochero() después de la hora de la tarde.
      */
     private function barrerNochero(Habitacion $hab, string $hoy, ?CloudbedsSyncService $sync, ?int $usuarioId, string $origen): void
     {
@@ -458,8 +487,8 @@ final class HabitacionService
 
     /**
      * Avisa a quienes pueden marcar nocheros (permiso habitaciones.marcar_nochero) qué marcas
-     * vencen HOY: es el último día en que el barrido de las 16:00 las devuelve a sucia; mañana
-     * el cron las apaga sin decir nada. Así pasó el 02/10/2026 con 11 piezas del INN: nadie
+     * vencen HOY: es el último día en que el barrido de la hora de la tarde las devuelve a sucia
+     * (las Día/Noche); mañana el cron las apaga sin decir nada. Así pasó el 02/10/2026 con 11 piezas del INN: nadie
      * renovó las marcas del turno 10x10 y no se limpiaron en la tarde (v6.17).
      *
      * Una notificación por persona y por día (bandeja + push): el cron la llama en cada pasada
@@ -511,7 +540,8 @@ final class HabitacionService
         }
         $n = count($piezas);
         $titulo = $n === 1 ? '1 marca de nochero vence hoy' : "{$n} marcas de nochero vencen hoy";
-        $cuerpo = implode(' · ', $partes) . '. Desde mañana ya no pasan a sucia a las 16:00. '
+        // v7.23: la marca puede ser Noche o Día/Noche; al vencer, las dos vuelven a Día.
+        $cuerpo = implode(' · ', $partes) . '. Desde mañana vuelven a Día (sin marca). '
             . 'Si el huésped sigue en el turno, renueva la marca en Habitaciones.';
 
         $this->push->notificar($destinatarios, $titulo, $cuerpo, '/habitaciones', [], false, self::NOTIF_NOCHEROS_POR_VENCER);
@@ -522,7 +552,7 @@ final class HabitacionService
 
     /**
      * Registra que HOY ya se disparó el barrido de nochero para esta habitación (revertida a
-     * 'sucia' por el cron de las 16:00). Ver listarNocherosVigentesEnEstadoTerminal().
+     * 'sucia' por el barrido de la hora de la tarde). Ver listarNocherosVigentesEnEstadoTerminal().
      */
     public function marcarBarridoNocheroHoy(int $id, string $hoy): void
     {
@@ -542,7 +572,7 @@ final class HabitacionService
      * Se lee del audit_log —la fila 'habitacion.cambiar_estado' que escribe cambiarEstado() en
      * cada transición— y NO de `habitaciones.updated_at`, como se hacía desde la v6.10:
      * updated_at también lo mueven ediciones que no cambian el estado (nota de Recepción,
-     * marcar/desmarcar nochero, estructura, el vencimiento de nocheros de las 16:00…), y con
+     * marcar/desmarcar nochero, estructura, el vencimiento de nocheros de cada día…), y con
      * eso una aprobación de ayer pasaba por «de hoy». Encontrado en la revisión de la v6.16.
      * Sin ninguna fila (pieza sin historial, o purgado por la retención) → no es de hoy.
      */
@@ -727,6 +757,7 @@ final class HabitacionService
             esEspacioComun: $habitacion->esEspacioComun,
             esNochero: $habitacion->esNochero,
             nocheroHasta: $habitacion->nocheroHasta,
+            nocheroModo: $habitacion->nocheroModo,
         );
     }
 

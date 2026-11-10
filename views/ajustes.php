@@ -93,6 +93,14 @@ $secciones = [
         'visible' => $usuario->tienePermiso('alertas.configurar_umbrales'),
     ],
     [
+        'ruta' => '/ajustes/hora-tarde',
+        'icono' => 'sunset',
+        'label' => 'Hora de la tarde',
+        'letra_indice' => 0, // H (v7.23; las otras letras de la etiqueta ya están tomadas o reservadas)
+        'descripcion' => 'Desde cuándo las piezas Día/Noche vuelven a sucias para su segundo aseo',
+        'visible' => $usuario->tienePermiso('habitaciones.configurar_hora_tarde'),
+    ],
+    [
         'ruta' => '/ajustes/cloudbeds',
         'icono' => 'cloud',
         'label' => 'Cloudbeds',

@@ -106,6 +106,10 @@ Ver [habitaciones.md](habitaciones.md).
 |---|---|---|---|
 | GET | `/api/habitaciones` | `habitaciones.ver_todas` | Lista (filtros hotel/estado/fecha). Desde v7 cada fila trae `revision_vigente` (última inspección pre-entrega de la pieza mientras no haya cambiado de estado, o `null`) para el botón de la tarjeta — ver §19 |
 | PUT | `/api/habitaciones/{id}/estructura` | `habitaciones.gestionar_edificios` | Edificio y piso de la pieza (Edificios y Mapeo). Antes de la v7 alcanzaba con `habitaciones.ver_todas` |
+| PUT | `/api/habitaciones/{id}/nochero` | `habitaciones.marcar_nochero` | v7.23: chapa Noche o Día/Noche con vigencia. `{hasta: 'YYYY-MM-DD', modo?: 'noche'\|'dia_noche'}` (sin modo, Día/Noche). 400 `MODO_INVALIDO`, `FECHA_INVALIDA`, `NOCHERO_FECHA_PASADA`. Ver `docs/nocheros.md` |
+| DELETE | `/api/habitaciones/{id}/nochero` | `habitaciones.marcar_nochero` | Quita la chapa: vuelve a Día |
+| GET | `/api/nocheros/hora-tarde` | `habitaciones.configurar_hora_tarde` | v7.23: `{hora, por_defecto, minima, maxima}` («HH:MM») |
+| PUT | `/api/nocheros/hora-tarde` | `habitaciones.configurar_hora_tarde` | v7.23: `{hora: 'HH:MM'}`, de 12:00 a 20:00 en cuartos de hora; 400 `HORA_INVALIDA` |
 | GET | `/api/habitaciones/asignadas` | `habitaciones.ver_asignadas_propias` | Mis asignaciones hoy |
 | GET | `/api/habitaciones/{id}` | `habitaciones.ver_todas` o asignada | Detalle. Desde v7 incluye `revision_entrega` (última inspección pre-entrega de Recepción con `vigente`, `relimpiable`, `relimpieza_trabajador`, `relimpieza_iniciada`, o `null`) solo si el usuario tiene `habitaciones.ver_todas` — ver §19 — y `asignado_a_nombre` (a quién está asignada hoy) |
 | GET | `/api/habitaciones/{id}/historial` | `habitaciones.ver_historial` | Historial completo |
@@ -159,7 +163,7 @@ Ver [auditoria.md](auditoria.md).
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes. Por pieza: `id`, `numero`, `piso`, `es_espacio_comun` (v7.19, para ordenar en pantalla), `estado`, `es_nochero`, `auditoria_orden`, `se_va_hoy`, `cb_frontdesk_status`, `cloudbeds_room_name`, `hotel_codigo`, `tipo_nombre`, `ejecucion_id`, `trabajador_id` |
+| GET | `/api/auditoria/bandeja` | `auditoria.ver_bandeja` | Lista pendientes. Por pieza: `id`, `numero`, `piso`, `es_espacio_comun` (v7.19, para ordenar en pantalla), `estado`, `es_nochero`, `chapa` (v7.23: `dia`, `noche` o `dia_noche`), `auditoria_orden`, `se_va_hoy`, `cb_frontdesk_status`, `cloudbeds_room_name`, `hotel_codigo`, `tipo_nombre`, `ejecucion_id`, `trabajador_id` |
 | POST | `/api/auditoria/{habitacion_id}` | `auditoria.aprobar` / `.aprobar_con_observacion` / `.rechazar` / `.sin_inspeccion` | Veredicto: `{ veredicto, motivo_id?, items_desmarcados? }`. Desde la v7.3 no hay comentario escrito: el rechazo exige `motivo_id` (lista «rechazo», §18b; 400 `OPCION_REQUERIDA`/`OPCION_INVALIDA`) y al menos un ítem; la observación exige al menos un ítem desmarcado (400 `OBSERVACION_SIN_ITEMS`) y su comentario lo arma el sistema («Observado: …»). v7.11: `veredicto: "sin_inspeccion"` («No se pudo inspeccionar») exige `motivo_id` de la lista «sin_inspeccion» y no admite ítems (400 `ITEMS_DESMARCADOS_NO_APLICABLE`); la pieza queda `aprobada_automatica` como con el cierre de día. Ver [auditoria.md](auditoria.md) §2.4 |
 | GET | `/api/auditoria/{id}/historial` | `habitaciones.ver_historial` | Detalle histórico |
 | POST | `/api/auditoria/{habitacion_id}/iniciar` | `auditoria.ver_bandeja` | Marca el inicio de la inspección (`ejecuciones_checklist.auditoria_iniciada_at`) de la última ejecución completada; lo dispara el detalle al abrirse. Alimentaba el KPI «tiempo por auditación» (v6.4), retirado en la v7.10; la marca se sigue grabando. Devuelve `{ registrado: bool }` |

@@ -369,6 +369,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                              :data-worker-id="tr.usuario.id"
                                                              @pointerdown="iniciarDrag($event)">
                                                             <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
+                                                            <template x-if="chapaCorta(hab.chapa)">
+                                                                <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                            </template>
                                                             <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
                                                             <template x-if="!colaConTipoDia(hab)">
                                                                 <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
@@ -460,11 +463,13 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                      :class="seleccionadas.includes(hab.id) ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-300 dark:ring-green-500 ring-offset-1 dark:ring-offset-gray-800 shadow-md' : colorEstadoPool(hab.estado)"
                                                      data-drag-room :data-room-id="hab.id" :data-room-estado="hab.estado" data-room-origin="pool"
                                                      @pointerdown="iniciarDrag($event)">
-                                                    <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
                                                     <template x-if="dotOcupacion(hab.cb_frontdesk_status)">
                                                         <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
                                                     </template>
                                                     <span x-text="hab.numero"></span>
+                                                    <template x-if="chapaCorta(hab.chapa)">
+                                                        <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                    </template>
                                                     <template x-if="esFuturo && etiquetaDia(hab.tipo_dia)">
                                                         <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none" :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
                                                     </template>
@@ -566,11 +571,13 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                     <button @click="toggleSeleccion(hab.id)"
                                                             :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : colorEstadoPool(hab.estado)"
                                                             class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
-                                                        <span x-show="hab.es_nochero" class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0" title="Nochero"></span>
                                                         <template x-if="dotOcupacion(hab.cb_frontdesk_status)">
                                                             <span class="w-2 h-2 rounded-full flex-shrink-0" :class="dotOcupacion(hab.cb_frontdesk_status).c" :title="dotOcupacion(hab.cb_frontdesk_status).t"></span>
                                                         </template>
                                                         <span x-text="hab.numero"></span>
+                                                        <template x-if="chapaCorta(hab.chapa)">
+                                                            <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="seleccionadas.includes(hab.id) ? 'bg-white/90 text-blue-700' : chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                        </template>
                                                         <template x-if="esFuturo && etiquetaDia(hab.tipo_dia)">
                                                             <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold leading-none" :class="etiquetaDia(hab.tipo_dia).c" x-text="etiquetaDia(hab.tipo_dia).t"></span>
                                                         </template>
@@ -684,6 +691,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                         <li class="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                                             <div class="flex items-center gap-2 min-w-0 flex-1">
                                                                 <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
+                                                                <template x-if="chapaCorta(hab.chapa)">
+                                                                    <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                                </template>
                                                                 <span class="hidden sm:inline text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0" x-text="hab.tipo_nombre"></span>
                                                                 <template x-if="!colaConTipoDia(hab)">
                                                                     <span class="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
@@ -1285,6 +1295,17 @@ function asignacionesApp() {
             return lista;
         },
 
+        // v7.23: chapa de la pieza ese día ({t, c, title}). Se ve siempre, también la de Día (pedido de Nicolás,
+        // 10/11/2026). null solo si la fila no la trae (áreas comunes, o datos que no la calculan). Reemplaza al
+        // punto amarillo de «nochero» (que ahora es Día/Noche).
+        chapaCorta(chapa) {
+            if (chapa === 'dia') return { t: 'D', c: 'bg-sky-600 text-white', title: 'Día: un aseo en la mañana' };
+            if (chapa === 'noche') return { t: 'N', c: 'bg-indigo-600 text-white', title: 'Noche: un aseo, en la tarde' };
+            // Ámbar oscuro: se tiene que leer también sobre la tarjeta amarilla de una pieza sucia.
+            if (chapa === 'dia_noche') return { t: 'D/N', c: 'bg-amber-800 text-white', title: 'Día/Noche: dos aseos; vuelve a sucia en la tarde' };
+            return null;
+        },
+
         // Etiqueta de la tarjeta ({t, c}) o null («Sigue» y las piezas sin dato no llevan).
         // «Sin limpieza» solo aparece en las colas: una preasignada que ese día no necesita aseo (sin
         // reserva o solo llega). En el pool esas no salen, por eso no tiene filtro.
@@ -1411,7 +1432,7 @@ function asignacionesApp() {
                 }
             });
             movidas.forEach(function (h) {
-                destino.cola.push({ habitacion_id: h.id, numero: h.numero, tipo_nombre: h.tipo_nombre, estado: 'sucia', franja: null });
+                destino.cola.push({ habitacion_id: h.id, numero: h.numero, tipo_nombre: h.tipo_nombre, estado: 'sucia', franja: null, chapa: h.chapa });
             });
             this.seleccionadas = [];
             this.$nextTick(function () { lucide.createIcons(); });

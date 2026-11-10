@@ -25,9 +25,13 @@ $puedeInspeccionar = $usuario->tienePermiso('revision_entrega.registrar');
 $puedeGestionarEdificios = $usuario->tienePermiso('habitaciones.gestionar_edificios');
 // «Re-limpiar» una pieza que Recepción no aprobó (v7): es una asignación.
 $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
+// v7.23: la chapa Día / Noche / Día-Noche se cambia con el permiso de marcar nocheros (antes el botón «N» salía
+// a todo el que veía todas las piezas). La hora de la tarde sale de Ajustes (HoraTardeService).
+$puedeMarcarNochero = $usuario->tienePermiso('habitaciones.marcar_nochero');
+$horaTarde = (new \Atankalama\Limpieza\Services\HoraTardeService())->hora();
 ?>
 
-<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>, <?= $puedeInspeccionar ? 'true' : 'false' ?>, <?= $puedeGestionarEdificios ? 'true' : 'false' ?>, <?= $puedeRelimpiar ? 'true' : 'false' ?>)"
+<div x-data="habitacionesApp(<?= $puedeVerTodas ? 'true' : 'false' ?>, <?= (int) $usuario->id ?>, <?= $puedeGestionarEstado ? 'true' : 'false' ?>, <?= $puedeAgregarNota ? 'true' : 'false' ?>, <?= $puedeInspeccionar ? 'true' : 'false' ?>, <?= $puedeGestionarEdificios ? 'true' : 'false' ?>, <?= $puedeRelimpiar ? 'true' : 'false' ?>, <?= $puedeMarcarNochero ? 'true' : 'false' ?>, '<?= htmlspecialchars($horaTarde, ENT_QUOTES, 'UTF-8') ?>')"
      x-init="cargar()"
      @inspeccion-pre-entrega-registrada.window="onInspeccionRegistrada($event.detail)"
      @relimpieza-pedida.window="onRelimpiezaPedida($event.detail)">
@@ -168,11 +172,11 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
             </div>
 
             <!-- Quitar nochero masivo: solo aparece si hay alguna activa con los filtros actuales -->
-            <div x-show="nocherosActivosFiltrados.length > 0" x-cloak
+            <div x-show="puedeMarcarNochero && nocherosActivosFiltrados.length > 0" x-cloak
                  class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800">
                 <p class="text-sm text-yellow-900 dark:text-yellow-200">
                     <span x-text="nocherosActivosFiltrados.length"></span>
-                    <span x-text="nocherosActivosFiltrados.length === 1 ? 'habitación marcada' : 'habitaciones marcadas'"></span> como nochero (con los filtros actuales).
+                    <span x-text="nocherosActivosFiltrados.length === 1 ? 'habitación' : 'habitaciones'"></span> con chapa Noche o Día/Noche (con los filtros actuales).
                 </p>
                 <button type="button" @click="quitarTodosNocheros()" :disabled="quitandoTodosNocheros"
                         class="shrink-0 min-h-[36px] px-3 py-1.5 rounded-lg border border-yellow-500 text-yellow-800 dark:text-yellow-200 text-sm font-medium hover:bg-yellow-100 dark:hover:bg-yellow-900/40 disabled:opacity-50 transition">
@@ -335,13 +339,15 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                                     <i data-lucide="sticky-note" class="w-3 h-3"></i> Nota
                                 </span>
                             </template>
+                            <!-- v7.23: chapa Día / Noche / Día-Noche (antes el botón «N»). Se ve siempre, también la
+                                 de Día (Nicolás, 10/11/2026); quien no puede marcar nocheros la ve sin poder tocarla. -->
                             <template x-if="puedeVerTodas">
-                                <button type="button" @click.stop="abrirNochero(hab)"
-                                        class="ml-auto shrink-0 w-7 h-7 rounded-full text-xs font-bold border-2 transition flex items-center justify-center"
-                                        :class="hab.es_nochero
-                                            ? 'bg-yellow-400 border-red-500 text-red-600'
-                                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-300 dark:text-gray-500 hover:border-gray-400'"
-                                        :title="hab.es_nochero ? ('Nochero hasta ' + hab.nochero_hasta + ' — clic para quitar') : 'Marcar como nochero'">N</button>
+                                <button type="button" @click.stop="puedeMarcarNochero && abrirNochero(hab)" :disabled="!puedeMarcarNochero"
+                                        class="ml-auto shrink-0 min-h-[28px] px-2.5 rounded-full text-[11px] font-bold border transition inline-flex items-center disabled:cursor-default"
+                                        :class="claseChapa(chapaDe(hab))"
+                                        :title="tituloChapa(hab)"
+                                        :aria-label="'Chapa de la habitación ' + hab.numero + ': ' + textoChapa(chapaDe(hab))"
+                                        x-text="textoChapa(chapaDe(hab))"></button>
                             </template>
                         </div>
 
@@ -441,20 +447,38 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
         </div>
     </template>
 
-    <!-- Modal Marcar Nochero -->
+    <!-- Modal de la chapa (v7.23): Día (sin marca), Noche o Día/Noche, con su vigencia -->
     <template x-if="modalNochero.abierta">
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cerrarModalNochero()">
-            <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl relative">
-                <button @click="cerrarModalNochero()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+            <div class="bg-white dark:bg-gray-800 rounded-xl max-w-sm w-full p-5 shadow-xl relative max-h-[90vh] overflow-y-auto">
+                <button @click="cerrarModalNochero()" class="absolute top-4 right-4 min-h-[44px] min-w-[44px] -mt-3 -mr-3 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" aria-label="Cerrar">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Marcar como nochero</h3>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Habitación <span x-text="modalNochero.hab.numero"></span>: Día o Noche</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Habitación <span x-text="modalNochero.hab.numero"></span>: desde las 16:00 volverá a aparecer sucia mientras esté vigente, aunque ya esté aprobada.
+                    Para huéspedes de turno. La chapa se ve en Asignaciones e Inspección mientras esté vigente; al vencer vuelve a Día.
                 </p>
 
                 <form @submit.prevent="guardarNochero()">
-                    <div>
+                    <div class="space-y-2 mb-4" role="radiogroup" aria-label="Chapa de la habitación">
+                        <template x-for="op in opcionesChapa" :key="op.valor">
+                            <button type="button" role="radio" :aria-checked="modalNochero.form.modo === op.valor ? 'true' : 'false'"
+                                    @click="elegirModoChapa(op.valor)"
+                                    :class="modalNochero.form.modo === op.valor ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'"
+                                    class="w-full min-h-[52px] text-left rounded-xl border-2 p-3 flex items-start gap-3 transition">
+                                <span :class="modalNochero.form.modo === op.valor ? 'border-blue-600' : 'border-gray-300 dark:border-gray-600'"
+                                      class="mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0">
+                                    <span x-show="modalNochero.form.modo === op.valor" class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                                </span>
+                                <span>
+                                    <span class="block text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="op.titulo"></span>
+                                    <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="op.texto"></span>
+                                </span>
+                            </button>
+                        </template>
+                    </div>
+
+                    <div x-show="modalNochero.form.modo !== 'dia'">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vigente hasta</label>
                         <input type="date" x-model="modalNochero.form.hasta" :min="fechaMinimaNochero"
                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500">
@@ -472,10 +496,10 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
                     </div>
 
                     <div class="mt-6 flex justify-end gap-2">
-                        <button type="button" @click="cerrarModalNochero()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                        <button type="button" @click="cerrarModalNochero()" class="min-h-[44px] px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                             Cancelar
                         </button>
-                        <button type="submit" :disabled="modalNochero.guardando" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
+                        <button type="submit" :disabled="modalNochero.guardando" class="min-h-[44px] px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50">
                             <span x-show="!modalNochero.guardando">Guardar</span>
                             <span x-show="modalNochero.guardando">Guardando...</span>
                         </button>
@@ -574,9 +598,12 @@ $puedeRelimpiar = $usuario->tienePermiso('asignaciones.asignar_manual');
 </div>
 
 <script>
-function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota, puedeInspeccionar, puedeGestionarEdificios, puedeRelimpiar) {
+function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAgregarNota, puedeInspeccionar, puedeGestionarEdificios, puedeRelimpiar, puedeMarcarNochero, horaTarde) {
     return {
         puedeVerTodas: puedeVerTodas,
+        // v7.23: la chapa la cambia quien puede marcar nocheros; la hora de la tarde viene de Ajustes.
+        puedeMarcarNochero: !!puedeMarcarNochero,
+        horaTarde: horaTarde || '16:00',
         usuarioId: usuarioId,
         puedeGestionarEstado: puedeGestionarEstado,
         puedeAgregarNota: puedeAgregarNota,
@@ -622,9 +649,18 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             abierta: false,
             guardando: false,
             hab: null,
-            form: { hasta: '' }
+            form: { modo: 'dia', hasta: '' } // v7.23: modo 'dia' (sin marca), 'noche' o 'dia_noche'
         },
         quitandoTodosNocheros: false,
+
+        // v7.23: las tres chapas de la ventana. Noche y Día/Noche piden «hasta cuándo»; Día quita la marca.
+        get opcionesChapa() {
+            return [
+                { valor: 'dia', titulo: 'Día', texto: 'Como un hotel normal: un aseo en la mañana. Es lo de siempre, sin marca.' },
+                { valor: 'noche', titulo: 'Noche', texto: 'Huésped de turno noche: un aseo, en la tarde.' },
+                { valor: 'dia_noche', titulo: 'Día/Noche', texto: 'Huéspedes de turno día y noche: dos aseos. Desde las ' + this.horaTarde + ' vuelve a sucia, aunque ya esté aprobada.' },
+            ];
+        },
 
         get edificiosDisponibles() {
             if (!this.modalEstructura.hab) return [];
@@ -716,12 +752,12 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             return this.habitacionesFiltradas.filter(function (h) { return h.es_nochero; });
         },
 
-        // Complemento del contador de resultados: " · N nocheros" (vacío si no hay
+        // Complemento del contador de resultados: " · N con chapa" (Noche o Día/Noche; vacío si no hay
         // ninguna con los filtros actuales, para no ensuciar el contador siempre).
         resumenNocheros() {
             var n = this.nocherosActivosFiltrados.length;
             if (n === 0) return '';
-            return ' · ' + n + ' nochero' + (n === 1 ? '' : 's');
+            return ' · ' + n + ' con chapa Noche o Día/Noche';
         },
 
         alCambiarEdificioModal() {
@@ -862,17 +898,49 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             this.cargar();
         },
 
-        // Botón "N": si ya es nochero, quitarlo es un solo paso (confirm nativo, sin
-        // formulario); si no, abre el modal a elegir la vigencia. Ver docs/nocheros.md
+        // ─── Chapa Día / Noche / Día-Noche (v7.23; antes el botón «N» de nochero). Ver docs/nocheros.md ───
+
+        // La chapa vigente de la tarjeta: 'dia' (sin marca), 'noche' o 'dia_noche'.
+        chapaDe(hab) {
+            if (!hab || !hab.es_nochero) return 'dia';
+            return hab.chapa || hab.nochero_modo || 'dia_noche';
+        },
+
+        textoChapa(chapa) {
+            return chapa === 'noche' ? 'Noche' : (chapa === 'dia_noche' ? 'Día/Noche' : 'Día');
+        },
+
+        claseChapa(chapa) {
+            if (chapa === 'noche') return 'bg-indigo-600 border-indigo-700 text-white';
+            if (chapa === 'dia_noche') return 'bg-amber-400 border-amber-500 text-amber-950';
+            // Día: celeste (se ve siempre, no parece desactivada).
+            return 'bg-sky-100 border-sky-300 text-sky-800 dark:bg-sky-900/40 dark:border-sky-700 dark:text-sky-200';
+        },
+
+        tituloChapa(hab) {
+            var chapa = this.chapaDe(hab);
+            if (chapa === 'dia') return this.puedeMarcarNochero ? 'Día: un aseo en la mañana. Toca para marcar Noche o Día/Noche.' : 'Día: un aseo en la mañana';
+            var hasta = hab.nochero_hasta ? ' hasta el ' + hab.nochero_hasta.split('-').reverse().join('/') : '';
+            return this.textoChapa(chapa) + hasta + (this.puedeMarcarNochero ? '. Toca para cambiarla.' : '');
+        },
+
+        // Abre la ventana con la chapa actual. Antes, tocar una «N» puesta la quitaba de un toque; ahora
+        // quitarla es elegir «Día» y guardar.
         abrirNochero(hab) {
-            if (hab.es_nochero) {
-                this.quitarNochero(hab);
-                return;
-            }
+            var chapa = this.chapaDe(hab);
             this.modalNochero.hab = hab;
-            this.modalNochero.form.hasta = this.fechaMinimaNochero;
+            this.modalNochero.form.modo = chapa;
+            var hoy = this.fechaMinimaNochero;
+            this.modalNochero.form.hasta = (chapa !== 'dia' && hab.nochero_hasta && hab.nochero_hasta >= hoy) ? hab.nochero_hasta : hoy;
             this.modalNochero.abierta = true;
             this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        elegirModoChapa(valor) {
+            this.modalNochero.form.modo = valor;
+            if (valor !== 'dia' && !this.modalNochero.form.hasta) {
+                this.modalNochero.form.hasta = this.fechaMinimaNochero;
+            }
         },
 
         cerrarModalNochero() {
@@ -881,21 +949,45 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         },
 
         async guardarNochero() {
-            if (this.modalNochero.guardando || !this.modalNochero.hab) return;
+            var hab = this.modalNochero.hab;
+            if (this.modalNochero.guardando || !hab) return;
+            var modo = this.modalNochero.form.modo;
+
+            // Día: quitar la marca (si no tenía, no hay nada que hacer).
+            if (modo === 'dia') {
+                if (!hab.es_nochero) {
+                    this.cerrarModalNochero();
+                    return;
+                }
+                this.modalNochero.guardando = true;
+                try {
+                    if (await this.quitarNochero(hab)) this.cerrarModalNochero();
+                } finally {
+                    this.modalNochero.guardando = false;
+                }
+                return;
+            }
+
+            var hasta = this.modalNochero.form.hasta;
+            if (!hasta) {
+                alert('Elige hasta qué día vale la chapa.');
+                return;
+            }
             this.modalNochero.guardando = true;
             try {
-                var hasta = this.modalNochero.form.hasta;
-                var r = await apiPut('/api/habitaciones/' + this.modalNochero.hab.id + '/nochero', { hasta: hasta });
+                var r = await apiPut('/api/habitaciones/' + hab.id + '/nochero', { hasta: hasta, modo: modo });
                 if (r.ok) {
-                    this.modalNochero.hab.es_nochero = true;
-                    this.modalNochero.hab.nochero_hasta = hasta;
-                    // Después de las 16:00 una pieza aprobada pasa a sucia al marcarla (v6.17).
+                    hab.es_nochero = true;
+                    hab.nochero_hasta = hasta;
+                    hab.nochero_modo = modo;
+                    hab.chapa = modo;
+                    // Día/Noche después de la hora de la tarde: una pieza aprobada pasa a sucia al marcarla (v6.17).
                     if (r.data && r.data.habitacion && r.data.habitacion.estado) {
-                        this.modalNochero.hab.estado = r.data.habitacion.estado;
+                        hab.estado = r.data.habitacion.estado;
                     }
                     this.cerrarModalNochero();
                 } else {
-                    alert((r.error && r.error.mensaje) || 'No pudimos marcar la habitación como nochero.');
+                    alert((r.error && r.error.mensaje) || 'No pudimos guardar la chapa de la habitación.');
                 }
             } catch (e) {
                 alert('No pudimos conectar con el servidor.');
@@ -904,19 +996,22 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
             }
         },
 
+        // Vuelve la pieza a Día. Devuelve true si se pudo.
         async quitarNochero(hab) {
-            if (!confirm('¿Quitar la marca de nochero de esta habitación?')) return;
             try {
                 var r = await apiFetch('/api/habitaciones/' + hab.id + '/nochero', { method: 'DELETE' });
                 if (r && r.ok) {
                     hab.es_nochero = false;
                     hab.nochero_hasta = null;
-                } else {
-                    alert((r && r.error && r.error.mensaje) || 'No pudimos quitar la marca de nochero.');
+                    hab.nochero_modo = 'dia_noche';
+                    hab.chapa = 'dia';
+                    return true;
                 }
+                alert((r && r.error && r.error.mensaje) || 'No pudimos quitar la chapa.');
             } catch (e) {
                 alert('No pudimos conectar con el servidor.');
             }
+            return false;
         },
 
         // Quita nochero de todas las que se ven ahora mismo (respeta los filtros).
@@ -926,7 +1021,7 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         async quitarTodosNocheros() {
             var lista = this.nocherosActivosFiltrados;
             if (lista.length === 0 || this.quitandoTodosNocheros) return;
-            if (!confirm('¿Quitar la marca de nochero de las ' + lista.length + ' habitaciones marcadas (las que ves con los filtros actuales)?')) return;
+            if (!confirm('¿Volver a Día las ' + lista.length + ' habitaciones con chapa Noche o Día/Noche (las que ves con los filtros actuales)?')) return;
 
             this.quitandoTodosNocheros = true;
             try {

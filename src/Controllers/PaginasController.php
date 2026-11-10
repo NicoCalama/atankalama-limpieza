@@ -372,6 +372,24 @@ final class PaginasController
         ]);
     }
 
+    /** v7.23: Ajustes → Hora de la tarde (solo Admin, habitaciones.configurar_hora_tarde). */
+    public function ajustesHoraTarde(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return self::redirect('/login');
+        }
+        if ($request->usuario->requiereCambioPwd) {
+            return self::redirect('/cambiar-contrasena');
+        }
+        if (!$request->usuario->tienePermiso('habitaciones.configurar_hora_tarde')) {
+            return self::redirect('/ajustes');
+        }
+        return View::conLayout('ajustes-hora-tarde', [
+            'usuario' => $request->usuario,
+            'titulo' => 'Hora de la tarde',
+        ]);
+    }
+
     public function usuarios(Request $request): Response
     {
         if ($request->usuario === null) {

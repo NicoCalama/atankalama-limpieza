@@ -339,7 +339,7 @@ final class AuditoriaService
      */
     public function bandejaPendientes(?string $hotelCodigo = null, bool $incluirPrueba = false): array
     {
-        $sql = "SELECT h.id, h.numero, h.piso, h.es_espacio_comun, h.estado, h.es_nochero, h.auditoria_orden,
+        $sql = "SELECT h.id, h.numero, h.piso, h.es_espacio_comun, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.auditoria_orden,
                        (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
                        h.cb_frontdesk_status, h.cloudbeds_room_name, h.cb_huespedes, h.cb_huespedes_llegan,
                        ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre,
@@ -368,6 +368,8 @@ final class AuditoriaService
         // ("0"/"1"), truthy en JS. Mismo patrón ya aplicado esta sesión en
         // AsignacionService/HabitacionService para el mismo problema.
         foreach ($filas as &$fila) {
+            // v7.23: la chapa vigente hoy («dia», «noche» o «dia_noche»); las áreas comunes no llevan.
+            $fila['chapa'] = ((int) ($fila['es_espacio_comun'] ?? 0)) === 1 ? null : HabitacionService::chapaDeFila($fila, date('Y-m-d'));
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
             $fila['es_espacio_comun'] = ((int) ($fila['es_espacio_comun'] ?? 0)) === 1;
             $fila['se_va_hoy'] = ((int) ($fila['se_va_hoy'] ?? 0)) === 1;

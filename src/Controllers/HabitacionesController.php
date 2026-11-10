@@ -18,6 +18,7 @@ use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionException;
 use Atankalama\Limpieza\Services\HabitacionService;
 use Atankalama\Limpieza\Services\HabitacionesPrueba;
+use Atankalama\Limpieza\Services\HoraTardeService;
 use Atankalama\Limpieza\Services\HotelService;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\ListasOpcionesService;
@@ -442,7 +443,8 @@ final class HabitacionesController
 
     /**
      * PUT /api/habitaciones/{id}/nochero
-     * Marca (o actualiza la vigencia de) una habitación como "nochero". Body: {hasta: 'YYYY-MM-DD'}.
+     * Pone (o cambia) la chapa Noche o Día/Noche con su vigencia (v7.23).
+     * Body: {hasta: 'YYYY-MM-DD', modo?: 'noche'|'dia_noche'} (sin modo, Día/Noche, como antes de la v7.23).
      * Gateado por habitaciones.marcar_nochero (ver PermissionCheck en Kernel).
      */
     public function marcarNochero(Request $request): Response
@@ -456,15 +458,18 @@ final class HabitacionesController
         if (!is_string($hasta) || $hasta === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'El campo hasta (YYYY-MM-DD) es requerido.', 400);
         }
+        $modo = $request->inputString('modo', Habitacion::NOCHERO_DIA_NOCHE);
 
         try {
-            // Con el Cloudbeds real: si se marca después de las 16:00 y ya está aprobada, pasa a
-            // sucia al tiro y hay que avisarle 'dirty' (ver HabitacionService::marcarNochero).
+            // Con el Cloudbeds real: si se marca Día/Noche después de la hora de la tarde y ya está
+            // aprobada, pasa a sucia al tiro y hay que avisarle 'dirty' (ver HabitacionService::marcarNochero).
             $habitacion = $this->habitaciones->marcarNochero(
                 $id,
                 $hasta,
                 $request->usuario?->id,
                 new CloudbedsSyncService(CloudbedsClient::desdeConfig()),
+                null,
+                $modo,
             );
         } catch (HabitacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
@@ -474,8 +479,37 @@ final class HabitacionesController
     }
 
     /**
+     * GET /api/nocheros/hora-tarde — la hora de la tarde vigente (v7.23). habitaciones.configurar_hora_tarde.
+     */
+    public function horaTarde(Request $request): Response
+    {
+        return Response::ok([
+            'hora' => (new HoraTardeService())->hora(),
+            'por_defecto' => HoraTardeService::POR_DEFECTO,
+            'minima' => HoraTardeService::MINIMA,
+            'maxima' => HoraTardeService::MAXIMA,
+        ]);
+    }
+
+    /**
+     * PUT /api/nocheros/hora-tarde {hora: 'HH:MM'} — la cambia (v7.23). habitaciones.configurar_hora_tarde.
+     */
+    public function guardarHoraTarde(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        try {
+            $hora = (new HoraTardeService())->guardar($request->inputString('hora'), $request->usuario->id);
+        } catch (HabitacionException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['hora' => $hora]);
+    }
+
+    /**
      * DELETE /api/habitaciones/{id}/nochero
-     * Quita la marca de nochero. Gateado por habitaciones.marcar_nochero.
+     * Quita la marca: la pieza vuelve a Día. Gateado por habitaciones.marcar_nochero.
      */
     public function desmarcarNochero(Request $request): Response
     {

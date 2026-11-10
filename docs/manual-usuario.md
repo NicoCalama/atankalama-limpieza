@@ -271,7 +271,7 @@ Desde la v7, la pantalla principal de Recepción es **Habitaciones** (ya no hay 
 
 El botón muestra el resultado hasta que **la pieza cambia de estado** (se ensucia, empiezan a limpiarla o la vuelven a aprobar): ahí vuelve a decir «Inspección pre-entrega» para revisarla de nuevo. Si el resultado es de otro día, el botón muestra la fecha.
 
-Si la señal está mala y no sabes si llegó, vuelve a tocar el mismo botón: nunca se duplica. El botón «N» de la tarjeta sigue sirviendo para marcar nocheros.
+Si la señal está mala y no sabes si llegó, vuelve a tocar el mismo botón: nunca se duplica. La chapa de la tarjeta (Día, Noche o Día/Noche; antes el botón «N») sigue sirviendo para marcar nocheros: ver [nocheros.md](nocheros.md).
 
 **Supervisora / Admin:** en **Ajustes → Inspección pre-entrega** se elige qué hace un NO (solo avisar, o además devolver la pieza a limpieza) y se editan los motivos (crear, renombrar, activar o desactivar). En Habitaciones ven el resultado en cada tarjeta (hasta que la pieza cambia de estado); la última revisión de cada pieza aparece en su detalle, y **Reportes → Inspección pre-entrega (Recepción)** muestra los SÍ y NO del período, los NO por motivo y el historial con fotos.
 

@@ -173,8 +173,16 @@
                                             <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
                                                 <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
                                                       x-text="hotelCorto(hab.hotel_codigo)"></span>
-                                                <template x-if="hab.es_nochero">
-                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Nochero</span>
+                                                <!-- v7.23: chapa Día, Noche o Día/Noche (antes solo «Nochero», que hoy es Día/Noche).
+                                                     Se ve siempre, también la de Día; las áreas comunes no llevan. -->
+                                                <template x-if="hab.chapa === 'dia'">
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" title="Un aseo en la mañana">Día</span>
+                                                </template>
+                                                <template x-if="hab.chapa === 'dia_noche'">
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200" title="Dos aseos: vuelve a sucia en la tarde">Día/Noche</span>
+                                                </template>
+                                                <template x-if="hab.chapa === 'noche'">
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200" title="Un aseo, en la tarde">Noche</span>
                                                 </template>
                                                 <!-- Ocupación y código de camas: los mismos badges que ve el
                                                      trabajador en su ficha (htmlBadge* en app.js), en vivo desde

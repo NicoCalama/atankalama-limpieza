@@ -86,6 +86,7 @@ final class Kernel
         $router->get('/ajustes/importar-turnos', [$paginas, 'ajustesImportarTurnos'], [$optionalAuth]);
         $router->get('/ajustes/revision-entrega', [$paginas, 'ajustesRevisionEntrega'], [$optionalAuth]);
         $router->get('/ajustes/cloudbeds', [$paginas, 'ajustesCloudbeds'], [$optionalAuth]);
+        $router->get('/ajustes/hora-tarde', [$paginas, 'ajustesHoraTarde'], [$optionalAuth]);
         $router->get('/reportes', [$paginas, 'reportes'], [$optionalAuth]);
 
         // Auth público
@@ -195,6 +196,15 @@ final class Kernel
         $router->delete('/api/habitaciones/{id}/nochero', [$habitaciones, 'desmarcarNochero'], [
             $authCheck,
             new PermissionCheck('habitaciones.marcar_nochero'),
+        ]);
+        // v7.23: la hora de la tarde (Ajustes → Hora de la tarde). Ver HoraTardeService.
+        $router->get('/api/nocheros/hora-tarde', [$habitaciones, 'horaTarde'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.configurar_hora_tarde'),
+        ]);
+        $router->put('/api/nocheros/hora-tarde', [$habitaciones, 'guardarHoraTarde'], [
+            $authCheck,
+            new PermissionCheck('habitaciones.configurar_hora_tarde'),
         ]);
         $router->post('/api/habitaciones/{id}/nota', [$habitaciones, 'agregarNota'], [
             $authCheck,

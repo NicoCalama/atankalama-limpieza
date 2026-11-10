@@ -544,7 +544,7 @@ final class AsignacionService
             // cuáles son "cambio" (check-out/turnover, urgentes) vs "sigue" (stayover) — solo
             // informativo, no filtra el pool. Ver AsignacionService::vistaConsolidada().
             // Las bloqueadas en Cloudbeds (mantención/cerrada, v7.8) no salen: hoy no se pueden asignar.
-            $sqlSin ='SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cb_frontdesk_status,
+            $sqlSin ='SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.cb_frontdesk_status,
                               ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
@@ -560,7 +560,7 @@ final class AsignacionService
             // día), así que se trae todo el inventario activo sin asignación esa fecha. Para un día
             // futuro, después filtrarPorReservas() deja solo lo que ese día necesita limpieza según
             // Cloudbeds (v7.15). Ver plan "asignaciones a días futuros".
-            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.cloudbeds_room_id,
+            $sqlSin = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.cloudbeds_room_id,
                               ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, ho.cloudbeds_property_id,
                               ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
@@ -583,6 +583,8 @@ final class AsignacionService
         // (mismo problema documentado en HabitacionService::listar). Sin esto el círculo de
         // nochero se pintaría en todas las tarjetas del pool.
         foreach ($sinAsignar as &$fila) {
+            // v7.23: la chapa de ese día (una marca que vence antes no cuenta al planificar un día futuro).
+            $fila['chapa'] = HabitacionService::chapaDeFila($fila, $fecha);
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
         }
         unset($fila);
@@ -825,6 +827,7 @@ final class AsignacionService
         $filas = Database::fetchAll(
             "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.es_prueba, h.cb_frontdesk_status, h.cb_arrival_date,
                     h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan, h.limpieza_completa_pendiente,
+                    h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
                     (h.estado = 'en_progreso' AND EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
                              WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id
@@ -837,8 +840,12 @@ final class AsignacionService
               ORDER BY a.orden_cola, a.id",
             [$usuarioId, $fecha]
         );
-        return array_map(function (array $f): array {
+        return array_map(function (array $f) use ($fecha): array {
             $f['es_prueba'] = ((int) ($f['es_prueba'] ?? 0)) === 1;
+            // v7.23: la chapa de ese día (Día, Noche o Día/Noche), para la tarjeta de la cola. Las áreas comunes
+            // no llevan.
+            $f['chapa'] = ((int) ($f['es_espacio_comun'] ?? 0)) === 1 ? null : HabitacionService::chapaDeFila($f, $fecha);
+            $f['es_nochero'] = ((int) ($f['es_nochero'] ?? 0)) === 1;
             return $this->sabanas->anotarFila($f);
         }, $filas);
     }

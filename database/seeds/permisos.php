@@ -59,6 +59,9 @@ return [
     // de las 08:00. Es lo que elige el atajo «+ Todo Mantenimiento» al asignar.
     ['tickets.aviso_mantencion', 'Atender tickets: ver arriba de cada pantalla los trabajos abiertos, recibir el aviso de cada ticket nuevo sin responsable y el recordatorio diario', 'Tickets', 'global'],
 
+    // v7.23 (reunión del 08/11/2026; solo Admin, decisión de Nicolás del 10/11/2026).
+    ['habitaciones.configurar_hora_tarde', 'Cambiar la hora de la tarde (Ajustes): desde ahí las piezas Día/Noche vuelven a sucias para su segundo aseo', 'Habitaciones', 'global'],
+
     ['usuarios.ver', 'Ver la lista de usuarios', 'Usuarios', 'global'],
     ['usuarios.crear', 'Crear usuarios nuevos', 'Usuarios', 'global'],
     ['usuarios.editar', 'Editar datos de un usuario', 'Usuarios', 'global'],

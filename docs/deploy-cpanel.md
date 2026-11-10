@@ -4068,3 +4068,103 @@ SELECT n.created_at, n.tipo, u.nombre AS para, n.titulo, n.cuerpo
  ORDER BY n.id DESC
  LIMIT 40;
 ```
+
+### 11.56 Release "chapa Día / Noche / Día-Noche y hora de la tarde" → v7.23
+
+Origen: reunión del 08/11/2026; plan aprobado el 09/11; solo Admin cambia la hora (Nicolás, 10/11/2026). Detalle en
+[nocheros.md](nocheros.md).
+
+**Qué cambia:**
+- **Habitaciones:** la chapa de cada pieza (Día, Noche o Día/Noche) reemplaza al botón «N». Al tocarla, ventana con las
+  tres opciones; Noche y Día/Noche piden «hasta cuándo», Día quita la marca. Se cambia con `habitaciones.marcar_nochero`
+  (antes el botón salía a todo el que veía todas las piezas).
+- **Las marcas que ya había quedan Día/Noche**, que es exactamente lo que hacían.
+- **Noche no entra al barrido de la tarde** (un aseo, en la tarde; queda sucia por el «sucio» diario de Cloudbeds).
+- **La chapa se ve siempre, también la de Día** (Nicolás, 10/11/2026): **Asignaciones** muestra «D», «N» o «D/N» en el
+  pool y en las colas (antes, un punto amarillo solo en el pool); **Inspección**, «Día», «Noche» o «Día/Noche» (antes
+  solo «Nochero»). Las áreas comunes no llevan.
+- **Ajustes → Hora de la tarde** (permiso nuevo `habitaciones.configurar_hora_tarde`, solo Admin): reemplaza el 16:00
+  fijo del barrido. Sin tocarla sigue siendo 16:00. El Registro de días pasados, Reportes y el cierre de las 15:50 no
+  cambian.
+- **Una marca vencida vuelve a Día en la primera pasada del cron del día** (antes, recién a las 16:00).
+
+**Lleva SQL:** una columna y un permiso. Sin `.env`, sin `vendor/` y sin estáticos de `public/`. La línea del cron no
+cambia, pero `scripts/sync-cloudbeds.php` sí.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La columna no existe todavía. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'nochero_modo';
+
+-- 2) El permiso no existe. Esperado: 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos WHERE codigo = 'habitaciones.configurar_hora_tarde';
+
+-- 3) Quién administra la matriz: recibirá el permiso. Esperado: Admin.
+SELECT r.nombre
+  FROM cat6852_australia.limpieza_rol_permisos rp
+  JOIN cat6852_australia.limpieza_roles r ON r.id = rp.rol_id
+ WHERE rp.permiso_codigo = 'permisos.asignar_a_rol';
+
+-- 4) Para saber cuántas piezas quedarán Día/Noche (las marcadas hoy). Solo informativo.
+SELECT COUNT(*) AS marcadas FROM cat6852_australia.limpieza_habitaciones WHERE es_nochero = 1;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_habitaciones
+  ADD COLUMN nochero_modo VARCHAR(10) NOT NULL DEFAULT 'dia_noche' CHECK (nochero_modo IN ('noche', 'dia_noche'));
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('habitaciones.configurar_hora_tarde', 'Cambiar la hora de la tarde (Ajustes): desde ahí las piezas Día/Noche vuelven a sucias para su segundo aseo', 'Habitaciones', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT rp.rol_id, 'habitaciones.configurar_hora_tarde'
+  FROM cat6852_australia.limpieza_rol_permisos rp
+ WHERE rp.permiso_codigo = 'permisos.asignar_a_rol';
+```
+
+La hora no se siembra: sin fila en `limpieza_alertas_config` es 16:00. `scripts/migrate-add-chapa-hora-tarde.php` hace lo
+mismo. Se probó en los tests sobre una base SQLite como la de antes de la v7.23 (y que el `CHECK` rechaza un modo
+inventado).
+
+**Comprobación:**
+- el precheck (1) da 1 y el (2) da 1;
+- `SELECT COUNT(*) FROM cat6852_australia.limpieza_rol_permisos WHERE permiso_codigo = 'habitaciones.configurar_hora_tarde'`
+  da tantos como el (3);
+- `SELECT nochero_modo, COUNT(*) FROM cat6852_australia.limpieza_habitaciones WHERE es_nochero = 1 GROUP BY nochero_modo`
+  da solo `dia_noche`, con el número del (4);
+- después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL** (health 503 y Habitaciones daría error al marcar).
+
+#### ZIP
+
+`build/limpieza-v723-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.23 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `database/seeds/permisos.php`;
+- `scripts/{migrate-add-chapa-hora-tarde,sync-cloudbeds}.php`;
+- en `src/`: `src/Controllers/{HabitacionesController,PaginasController}.php`, `src/Core/Kernel.php`,
+  `src/Models/Habitacion.php` y `src/Services/{AsignacionService,AuditoriaService,HabitacionService,HoraTardeService}.php`;
+- en `views/`: `views/{ajustes,ajustes-hora-tarde,asignaciones,auditoria-bandeja,habitaciones}.php`.
+
+**Vuelta atrás:** `build/limpieza-v723-vuelta-atras.zip`, con los archivos que ya existían en la v7.22.
+- **Antes de subirlo**, en phpMyAdmin, apagar las chapas Noche (la v7.22 las trataría como nocheros y las barrería):
+  `UPDATE cat6852_australia.limpieza_habitaciones SET es_nochero = 0, nochero_hasta = NULL WHERE es_nochero = 1 AND nochero_modo = 'noche';`
+- La columna y el permiso pueden quedar: la v7.22 no los lee. Si se había cambiado la hora, la v7.22 vuelve a las 16:00.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (va el barrido de nocheros).
+
+**Smoke:**
+1. Badge **v7.23** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Habitaciones:** todas las piezas llevan chapa; las marcadas, la ámbar «Día/Noche», y las demás, la celeste «Día».
+   Al tocar una marcada, la ventana la trae elegida con su fecha (Cancelar). En la habitación PRUEBA: marcarla «Noche»
+   (chapa índigo), después «Día/Noche» y volver a «Día».
+3. **Asignaciones:** cada pieza lleva «D», o «D/N» si está marcada, junto al número (pool y colas).
+4. **Inspección:** las pendientes dicen «Día» o «Día/Noche».
+5. **Como Admin, Ajustes → Hora de la tarde:** muestra 16:00. Dejarla así salvo que se quiera cambiar.
+6. **En la tarde:** después de la hora, las Día/Noche aprobadas vuelven a sucia como siempre.

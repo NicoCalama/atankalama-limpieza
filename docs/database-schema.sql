@@ -224,10 +224,14 @@ CREATE TABLE habitaciones (
     limpieza_completa_pendiente INTEGER NOT NULL DEFAULT 0 CHECK (limpieza_completa_pendiente IN (0, 1)),
     -- Nochero: pieza con huésped de turno día Y turno noche (hotel minero), necesita aseo dos
     -- veces al día. Mientras es_nochero=1 y nochero_hasta (YYYY-MM-DD) no venció, el cron de
-    -- las 16:00 la vuelve a 'sucia' si ya quedó aprobada/rechazada. Ver docs/nocheros.md
+    -- la hora de la tarde (Ajustes, 16:00 por defecto) la vuelve a 'sucia' si ya quedó aprobada.
     es_nochero              INTEGER NOT NULL DEFAULT 0 CHECK (es_nochero IN (0, 1)),
     nochero_hasta           TEXT,                             -- último día vigente (YYYY-MM-DD)
     nochero_ultima_reversion TEXT,                            -- último día (YYYY-MM-DD) en que el cron ya la revirtió a sucia; evita revertirla más de una vez por día si el trabajador la vuelve a aprobar
+    -- v7.23 (reunión del 08/11/2026): la chapa. Sin marca (es_nochero=0) es «Día». Con marca, 'dia_noche' (dos aseos:
+    -- el barrido de la hora de la tarde la vuelve a sucia, como siempre) o 'noche' (un aseo en la tarde: no entra al
+    -- barrido). Las marcas de antes de la v7.23 quedan 'dia_noche'. Solo cuenta mientras es_nochero=1.
+    nochero_modo            TEXT NOT NULL DEFAULT 'dia_noche' CHECK (nochero_modo IN ('noche', 'dia_noche')),
     -- Nota de Recepción para la mucama: instrucción puntual para la próxima limpieza (ej.
     -- "cliente pidió cama extra"). Una nota activa por habitación (no historial); se limpia
     -- sola al completar la ejecución. Ver ChecklistService::completar().

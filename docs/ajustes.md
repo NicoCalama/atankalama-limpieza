@@ -32,6 +32,7 @@ Header común: breadcrumb "Ajustes > {sección}", botón volver (móvil).
 | Usuarios | `usuarios.ver` | delega a [usuarios.md](usuarios.md) |
 | Turnos | `turnos.ver` | delega a [turnos.md](turnos.md) |
 | Checklists y listas | `checklists.editar` o `listas.editar` | Dos pestañas (v7.3): «Checklists» delega a [checklist.md](checklist.md) §2; «Listas» = §2.3 |
+| Hora de la tarde | `habitaciones.configurar_hora_tarde` | v7.23: desde qué hora (16:00 por defecto, de 12:00 a 20:00) las piezas Día/Noche vuelven a sucias para su segundo aseo. Solo Admin. Ver [nocheros.md](nocheros.md) |
 | Inspección pre-entrega | `revision_entrega.configurar` | Qué hace un NO de Recepción (solo avisar / además devolver la pieza aprobada a sucia). Desde la v7.3 los motivos se editan en «Checklists y listas». Delega a [revision-entrega.md](revision-entrega.md) (v7) |
 | Edificios y Mapeo | `habitaciones.gestionar_edificios` | Edificios y edificio/piso de cada pieza. Antes de la v7 se veía con `habitaciones.ver_todas` (Recepción incluida) |
 | Colores | `apariencia.editar` | Colores de tarjetas por estado y hotel: la supervisora elige un color base por concepto (key-value en `ui_config`); el backend deriva variantes claro/oscuro (`Helpers\Colores`) y el layout las inyecta como CSS vars para las clases `.chip-estado-*` / `.hotel-accent-*` de custom.css. Endpoints en [api-endpoints.md](api-endpoints.md) |

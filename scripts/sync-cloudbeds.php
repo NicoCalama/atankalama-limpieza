@@ -31,6 +31,7 @@ use Atankalama\Limpieza\Services\AvisoMantencionService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionService;
+use Atankalama\Limpieza\Services\HoraTardeService;
 use Atankalama\Limpieza\Services\HotelService;
 use Atankalama\Limpieza\Services\InventarioCheckService;
 use Atankalama\Limpieza\Services\InventarioImportService;
@@ -40,7 +41,7 @@ Config::load(dirname(__DIR__));
 $opts = getopt('', ['hotel::', 'force', 'fecha::', 'hora::']);
 $hotelCodigo = $opts['hotel'] ?? null;
 $force = array_key_exists('force', $opts);
-// --fecha/--hora: solo para probar el barrido de nocheros sin esperar a las 16:00 real
+// --fecha/--hora: solo para probar el barrido de nocheros sin esperar a la hora de la tarde real
 // (mismo patrón que AlertasPredictivasService / recalcular-alertas.php).
 $hoy = is_string($opts['fecha'] ?? null) && $opts['fecha'] !== '' ? $opts['fecha'] : date('Y-m-d');
 $horaActual = is_string($opts['hora'] ?? null) && $opts['hora'] !== '' ? $opts['hora'] : date('H:i');
@@ -57,15 +58,23 @@ if (is_string($hotelCodigo) && $hotelCodigo !== '') {
 
 $sync = new CloudbedsSyncService(CloudbedsClient::desdeConfig());
 
-// Nocheros (hotel minero, aseo doble por turno): desde las 16:00 revierte a 'sucia' las piezas
-// nochero que ya quedaron en un estado terminal, y avisa a Cloudbeds ('dirty') para que su propio
+// Nocheros (hotel minero, aseo doble por turno): desde la hora de la tarde revierte a 'sucia' las piezas
+// Día/Noche que ya quedaron en un estado terminal, y avisa a Cloudbeds ('dirty') para que su propio
 // sync entrante no las cierre de vuelta. Va ANTES del throttle del sync de Cloudbeds (más abajo)
 // porque debe evaluarse en CADA tick del cron, no solo cuando toca sincronizar. No crítico: si
 // falla, el próximo tick reintenta. Ver docs/nocheros.md
 try {
-    if ($horaActual >= HabitacionService::HORA_BARRIDO_NOCHEROS) {
-        $barrido = (new HabitacionService())->barrerNocheros($hoy, $sync);
-        echo "Nocheros: {$barrido['vencidos']} vencidos desactivados, {$barrido['revertidas']} revertidas a sucia.\n";
+    // v7.23: las marcas vencidas vuelven a Día en cualquier pasada (antes, recién a las 16:00), y el barrido
+    // corre desde la «hora de la tarde» de Ajustes (16:00 por defecto) y solo toma las piezas Día/Noche.
+    $habitacionesCron = new HabitacionService();
+    $vencidas = $habitacionesCron->desactivarNocherosVencidos($hoy);
+    if ($vencidas > 0) {
+        echo "Nocheros: {$vencidas} marca(s) vencida(s) vuelven a Día.\n";
+    }
+    $horaTarde = (new HoraTardeService())->hora();
+    if ($horaActual >= $horaTarde) {
+        $barrido = $habitacionesCron->barrerNocheros($hoy, $sync);
+        echo "Nocheros (desde las {$horaTarde}): {$barrido['vencidos']} vencidos desactivados, {$barrido['revertidas']} revertidas a sucia.\n";
     }
 } catch (\Throwable $e) {
     fwrite(STDERR, "Barrido de nocheros falló (no crítico): {$e->getMessage()}\n");

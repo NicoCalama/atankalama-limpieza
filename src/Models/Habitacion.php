@@ -26,6 +26,15 @@ final class Habitacion
         self::ESTADO_RECHAZADA,
     ];
 
+    /**
+     * v7.23 (reunión del 08/11/2026): modo de la chapa mientras la marca está puesta (es_nochero = 1). Sin marca es
+     * «Día». Día/Noche = dos aseos, el barrido de la hora de la tarde la vuelve a sucia. Noche = un aseo en la tarde,
+     * no entra al barrido.
+     */
+    public const NOCHERO_NOCHE = 'noche';
+    public const NOCHERO_DIA_NOCHE = 'dia_noche';
+    public const NOCHERO_MODOS = [self::NOCHERO_NOCHE, self::NOCHERO_DIA_NOCHE];
+
     /** Estados en que la pieza quedó limpia y cerrada (por inspección, a mano, por Cloudbeds o por el cierre de día). */
     public const ESTADOS_APROBADOS = [
         self::ESTADO_APROBADA,
@@ -52,7 +61,15 @@ final class Habitacion
         public readonly ?string $notaRecepcionAt = null,
         // v7.5: habitación de prueba (sin Cloudbeds, fuera de KPIs y avisos). Ver HabitacionesPrueba.
         public readonly bool $esPrueba = false,
+        // v7.23: modo de la chapa (solo cuenta con esNochero).
+        public readonly string $nocheroModo = self::NOCHERO_DIA_NOCHE,
     ) {
+    }
+
+    /** «dia», «noche» o «dia_noche»: lo que muestra la chapa. */
+    public function chapa(): string
+    {
+        return $this->esNochero ? $this->nocheroModo : 'dia';
     }
 
     /** @param array<string, mixed> $fila */
@@ -76,6 +93,7 @@ final class Habitacion
             notaRecepcionAutorId: isset($fila['nota_recepcion_autor_id']) ? (int) $fila['nota_recepcion_autor_id'] : null,
             notaRecepcionAt: isset($fila['nota_recepcion_at']) ? (string) $fila['nota_recepcion_at'] : null,
             esPrueba: ((int) ($fila['es_prueba'] ?? 0)) === 1,
+            nocheroModo: ($fila['nochero_modo'] ?? null) === self::NOCHERO_NOCHE ? self::NOCHERO_NOCHE : self::NOCHERO_DIA_NOCHE,
         );
     }
 
@@ -95,6 +113,8 @@ final class Habitacion
             'es_espacio_comun' => $this->esEspacioComun,
             'es_nochero' => $this->esNochero,
             'nochero_hasta' => $this->nocheroHasta,
+            'nochero_modo' => $this->nocheroModo,
+            'chapa' => $this->chapa(),
             'nota_recepcion' => $this->notaRecepcion,
             'nota_recepcion_autor_id' => $this->notaRecepcionAutorId,
             'nota_recepcion_at' => $this->notaRecepcionAt,
