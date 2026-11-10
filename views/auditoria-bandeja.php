@@ -138,57 +138,75 @@
              Asignaciones — acá no hay "trabajadores", así que se usa una única zona
              de drop con workerId fijo "0" (una sola cola, no varias). -->
         <template x-if="pendientes.length > 0">
-            <div data-tour="aud.lista" data-drop="worker" data-worker-id="0" class="max-w-2xl mx-auto">
-                <ul data-cola class="space-y-2">
-                    <template x-for="hab in listaVisible" :key="hab.id">
-                        <li data-room-slot data-drag-room :data-room-id="hab.id" data-room-origin="worker" data-worker-id="0"
-                            x-show="coincideBusqueda(hab)"
-                            @pointerdown="orden === 'prioridad' && iniciarDrag($event)"
-                            :style="orden === 'prioridad' ? '' : 'cursor: default'"
-                            class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3">
-                            <span x-show="orden === 'prioridad'" class="flex-shrink-0 inline-flex">
-                                <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600"></i>
-                            </span>
-                            <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
-                               class="flex-1 min-w-0 flex items-center gap-3">
-                                <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 truncate" x-text="hab.tipo_nombre || ''"></p>
-                                    <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
-                                              x-text="hotelCorto(hab.hotel_codigo)"></span>
-                                        <template x-if="hab.es_nochero">
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Nochero</span>
-                                        </template>
-                                        <!-- Ocupación y código de camas: los mismos badges que ve el
-                                             trabajador en su ficha (htmlBadge* en app.js), en vivo desde
-                                             Cloudbeds. Sin clases hidden/sm:/md: — el equipo trabaja en el
-                                             celular; si no caben, la fila (flex-wrap) los baja de línea.
-                                             El badge de ocupación ya cubre «Se va hoy» (check-out). -->
-                                        <template x-if="hab.cb_frontdesk_status && hab.cb_frontdesk_status !== 'unused'">
-                                            <span x-html="htmlBadgeOcupacion(hab.cb_frontdesk_status)"></span>
-                                        </template>
-                                        <template x-if="hab.cloudbeds_room_name">
-                                            <span x-html="htmlBadgeCodigoRoomName(hab.cloudbeds_room_name)"></span>
-                                        </template>
-                                        <!-- Personas al lado del código de camas («2S · 2 personas»): cuántas
-                                             hay o salieron hoy, y cuántas llegan hoy (Cloudbeds). Así la
-                                             supervisora sabe cuántas camas revisar. -->
-                                        <template x-if="hab.cb_huespedes">
-                                            <span x-html="htmlBadgePersonas(hab.cb_huespedes)"></span>
-                                        </template>
-                                        <template x-if="hab.cb_huespedes_llegan">
-                                            <span x-html="htmlBadgeLlegan(hab.cb_huespedes_llegan)"></span>
-                                        </template>
-                                    </div>
-                                </div>
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria flex-shrink-0">
-                                    Por inspeccionar
+            <div data-tour="aud.lista" data-drop="worker" data-worker-id="0" class="max-w-2xl mx-auto space-y-2">
+                <!-- v7.19.1: «Por piso» muestra un grupo por piso, como carpetas que se abren al tocarlas.
+                     En los otros órdenes hay un solo grupo sin título: la lista de siempre, con arrastre. -->
+                <template x-for="grupo in gruposVisibles" :key="grupo.clave">
+                    <div x-show="piezasQueCoinciden(grupo) > 0">
+                        <template x-if="grupo.titulo">
+                            <button type="button" @click="alternarCarpeta(grupo.clave)"
+                                    :aria-expanded="carpetaAbierta(grupo) ? 'true' : 'false'"
+                                    class="w-full min-h-[48px] px-4 flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition text-left">
+                                <span class="inline-flex flex-shrink-0 transition-transform" :class="carpetaAbierta(grupo) ? 'rotate-90' : ''">
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
                                 </span>
-                            </a>
-                        </li>
-                    </template>
-                </ul>
+                                <span class="flex-1 min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="grupo.titulo"></span>
+                                <span class="flex-shrink-0 min-w-[1.75rem] px-2 py-0.5 rounded-full text-center text-xs font-semibold bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                                      x-text="piezasQueCoinciden(grupo)"></span>
+                            </button>
+                        </template>
+                        <ul data-cola x-show="carpetaAbierta(grupo)" class="space-y-2" :class="grupo.titulo ? 'mt-2 pl-2' : ''">
+                            <template x-for="hab in grupo.piezas" :key="hab.id">
+                                <li data-room-slot data-drag-room :data-room-id="hab.id" data-room-origin="worker" data-worker-id="0"
+                                    x-show="coincideBusqueda(hab)"
+                                    @pointerdown="orden === 'prioridad' && iniciarDrag($event)"
+                                    :style="orden === 'prioridad' ? '' : 'cursor: default'"
+                                    class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3">
+                                    <span x-show="orden === 'prioridad'" class="flex-shrink-0 inline-flex">
+                                        <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600"></i>
+                                    </span>
+                                    <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
+                                       class="flex-1 min-w-0 flex items-center gap-3">
+                                        <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400 truncate" x-text="hab.tipo_nombre || ''"></p>
+                                            <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium"
+                                                      x-text="hotelCorto(hab.hotel_codigo)"></span>
+                                                <template x-if="hab.es_nochero">
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200">Nochero</span>
+                                                </template>
+                                                <!-- Ocupación y código de camas: los mismos badges que ve el
+                                                     trabajador en su ficha (htmlBadge* en app.js), en vivo desde
+                                                     Cloudbeds. Sin clases hidden/sm:/md: — el equipo trabaja en el
+                                                     celular; si no caben, la fila (flex-wrap) los baja de línea.
+                                                     El badge de ocupación ya cubre «Se va hoy» (check-out). -->
+                                                <template x-if="hab.cb_frontdesk_status && hab.cb_frontdesk_status !== 'unused'">
+                                                    <span x-html="htmlBadgeOcupacion(hab.cb_frontdesk_status)"></span>
+                                                </template>
+                                                <template x-if="hab.cloudbeds_room_name">
+                                                    <span x-html="htmlBadgeCodigoRoomName(hab.cloudbeds_room_name)"></span>
+                                                </template>
+                                                <!-- Personas al lado del código de camas («2S · 2 personas»): cuántas
+                                                     hay o salieron hoy, y cuántas llegan hoy (Cloudbeds). Así la
+                                                     supervisora sabe cuántas camas revisar. -->
+                                                <template x-if="hab.cb_huespedes">
+                                                    <span x-html="htmlBadgePersonas(hab.cb_huespedes)"></span>
+                                                </template>
+                                                <template x-if="hab.cb_huespedes_llegan">
+                                                    <span x-html="htmlBadgeLlegan(hab.cb_huespedes_llegan)"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-completada_pendiente_auditoria flex-shrink-0">
+                                            Por inspeccionar
+                                        </span>
+                                    </a>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </template>
             </div>
         </template>
 
@@ -271,6 +289,60 @@ function auditoriaBandejaApp() {
                     || (porPiso ? pisoDe(a) - pisoDe(b) : 0)
                     || String(a.numero || '').localeCompare(String(b.numero || ''), 'es', { numeric: true, sensitivity: 'base' });
             });
+        },
+
+        // v7.19.1 (pedido de Nicolás, 09/11/2026): en «Por piso», cada piso de cada hotel es una carpeta.
+        // Cada celular recuerda cuáles dejó abiertas, para que no se cierren al volver de inspeccionar.
+        carpetasAbiertas: (function () {
+            try {
+                var guardadas = JSON.parse(localStorage.getItem('auditoria_carpetas_abiertas'));
+                return Array.isArray(guardadas) ? guardadas : [];
+            } catch (e) {
+                return [];
+            }
+        })(),
+
+        get gruposVisibles() {
+            if (this.orden !== 'piso') return [{ clave: 'lista', titulo: null, piezas: this.listaVisible }];
+            var self = this;
+            var grupos = [];
+            var porClave = {};
+            this.listaVisible.forEach(function (h) {
+                var sinPiso = h.piso === null || h.piso === undefined;
+                var lugar = h.es_espacio_comun ? 'areas' : (sinPiso ? 'sin_piso' : String(h.piso));
+                var clave = h.hotel_codigo + ':' + lugar;
+                if (!porClave[clave]) {
+                    var nombre = lugar === 'areas' ? 'Áreas comunes' : (lugar === 'sin_piso' ? 'Sin piso' : 'Piso ' + lugar);
+                    porClave[clave] = { clave: clave, titulo: nombre + ' · ' + self.hotelCorto(h.hotel_codigo), piezas: [] };
+                    grupos.push(porClave[clave]);
+                }
+                porClave[clave].piezas.push(h);
+            });
+            return grupos;
+        },
+
+        // Al buscar se abren solas las carpetas con coincidencias; las demás se ocultan.
+        carpetaAbierta(grupo) {
+            return grupo.titulo === null || this.busqueda.trim() !== '' || this.carpetasAbiertas.includes(grupo.clave);
+        },
+
+        alternarCarpeta(clave) {
+            var i = this.carpetasAbiertas.indexOf(clave);
+            if (i === -1) {
+                this.carpetasAbiertas.push(clave);
+            } else {
+                this.carpetasAbiertas.splice(i, 1);
+            }
+            try {
+                localStorage.setItem('auditoria_carpetas_abiertas', JSON.stringify(this.carpetasAbiertas));
+            } catch (e) {
+                // Sin almacenamiento: la carpeta se abre igual, solo que no se recuerda.
+            }
+        },
+
+        piezasQueCoinciden(grupo) {
+            var self = this;
+            return grupo.piezas.filter(function (h) { return self.coincideBusqueda(h); }).length;
         },
 
         // Filtro solo visual (x-show en cada <li>, ver el HTML): el x-for sigue recorriendo

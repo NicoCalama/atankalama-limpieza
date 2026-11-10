@@ -139,7 +139,7 @@ Las habitaciones auditadas **no aparecen** por defecto (la bandeja lista `comple
 **Orden (v7.19, reunión del 08/11/2026).** El botón «Ordenar» junto al buscador tiene tres opciones:
 - **Prioridad** (por defecto): la del servidor, que primero respeta lo arrastrado a mano (`auditoria_orden`) y después va por nochero, «se va hoy», hotel y número.
 - **Número ascendente:** comparación numérica, la 201 antes que la 1001.
-- **Por piso:** de menor a mayor y, dentro de cada piso, por número.
+- **Por piso** (carpetas desde la v7.19.1): cada piso de cada hotel es una carpeta con su cantidad de piezas, que se abre al tocarla; adentro, por número. Las áreas comunes y las piezas sin piso tienen su propia carpeta, al final de cada hotel. Cada celular recuerda cuáles dejó abiertas (`auditoria_carpetas_abiertas`), y al buscar se abren solas las que tienen coincidencias y se ocultan las demás.
 
 Número y Piso solo reordenan la pantalla: la elección queda en el `localStorage` de cada celular (`auditoria_orden_vista`) y no toca `auditoria_orden`, así que el orden manual sigue igual al volver a Prioridad. Arrastrar funciona solo en Prioridad. Con «Ambos», primero un hotel y después el otro; las áreas comunes y lo que no tenga piso quedan al final.
 
