@@ -57,7 +57,7 @@ otro rol desde Roles y permisos).
 | `no_recepcion` | Recepción | NO de la inspección pre-entrega | `revisiones_entrega.motivo_id` (tabla propia `motivos_revision_entrega`) |
 | `nota_recepcion` (v7.4) | Recepción | Mensaje a la mucama (detalle de la pieza y menú de Habitaciones); **se pueden elegir varias** | `habitaciones.nota_recepcion` (los nombres unidos con « · ») |
 | `ticket_tipo` (v7.4) | Quien reporta | Tipo de problema al crear un ticket (reemplaza la descripción escrita) | `tickets.tipo_id` + el nombre como título y descripción |
-| `ticket_respuesta` (v7.4) | Quien atiende | Respuesta al comentar un ticket | `tickets_comentarios.comentario` (el nombre) |
+| `ticket_respuesta` (v7.4) | Quien atiende | Respuesta al comentar un ticket; desde la v7.19 se le puede sumar texto | `tickets_comentarios.comentario` (el nombre, o «nombre: texto») |
 
 **Aprobar con observación no tiene lista:** la observación son las casillas que la supervisora desmarca (decisión
 de Nicolás, 10/10/2026).

@@ -339,7 +339,7 @@ final class AuditoriaService
      */
     public function bandejaPendientes(?string $hotelCodigo = null, bool $incluirPrueba = false): array
     {
-        $sql = "SELECT h.id, h.numero, h.estado, h.es_nochero, h.auditoria_orden,
+        $sql = "SELECT h.id, h.numero, h.piso, h.es_espacio_comun, h.estado, h.es_nochero, h.auditoria_orden,
                        (h.cb_frontdesk_status = 'check-out') AS se_va_hoy,
                        h.cb_frontdesk_status, h.cloudbeds_room_name, h.cb_huespedes, h.cb_huespedes_llegan,
                        ho.codigo AS hotel_codigo, th.nombre AS tipo_nombre,
@@ -369,7 +369,9 @@ final class AuditoriaService
         // AsignacionService/HabitacionService para el mismo problema.
         foreach ($filas as &$fila) {
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
+            $fila['es_espacio_comun'] = ((int) ($fila['es_espacio_comun'] ?? 0)) === 1;
             $fila['se_va_hoy'] = ((int) ($fila['se_va_hoy'] ?? 0)) === 1;
+            $fila['piso'] = $fila['piso'] !== null ? (int) $fila['piso'] : null;
             $fila['auditoria_orden'] = $fila['auditoria_orden'] !== null ? (int) $fila['auditoria_orden'] : null;
             $fila['cb_huespedes'] = $fila['cb_huespedes'] !== null ? (int) $fila['cb_huespedes'] : null;
             $fila['cb_huespedes_llegan'] = $fila['cb_huespedes_llegan'] !== null ? (int) $fila['cb_huespedes_llegan'] : null;

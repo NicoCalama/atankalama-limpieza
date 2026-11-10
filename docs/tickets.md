@@ -120,7 +120,8 @@ Acciones:
   Recepción solo pueden **agregar** Trabajadores (`tickets.asignar_a_cualquier_perfil` es de Admin);
   los responsables que ya estaban se conservan, y los que quedaron inactivos se quitan al guardar.
 - **Marcar resuelto** → estado `resuelto`, `resuelto_at = now`.
-- **Cerrar** → estado `cerrado` (solo si estaba resuelto).
+- **Cerrar** → estado `cerrado` (solo si estaba resuelto). Fotos y comentario opcionales (v7.19, máx. 500 caracteres): el comentario queda en el historial. Volver a cerrar un ticket cerrado no da error y no repite el comentario.
+- **Comentar** (v7.19, reunión del 08/11/2026) → una respuesta de la lista `ticket_respuesta`, un texto de hasta 500 caracteres o ambos, guardados como «Respuesta: texto». Tocar de nuevo la respuesta elegida la quita.
 - **Reabrir** → estado `abierto` (revierte resuelto/cerrado).
 
 ### 6.2 Notificaciones

@@ -115,9 +115,10 @@ final class ListasSeleccionV74Test extends TestCase
         $ctrl = new TicketsController();
         $ruta = ['id' => (string) $ticket->id];
 
-        $escrito = $ctrl->comentar($this->req(['comentario' => 'ya voy'], $ruta));
-        $this->assertSame(400, $escrito->status);
-        $this->assertSame('OPCION_REQUERIDA', $this->codigo($escrito));
+        // v7.19: el texto escrito ya sirve (ver TicketComentariosV719Test); sin nada sigue siendo error.
+        $vacio = $ctrl->comentar($this->req([], $ruta));
+        $this->assertSame(400, $vacio->status);
+        $this->assertSame('OPCION_REQUERIDA', $this->codigo($vacio));
 
         $ok = $ctrl->comentar($this->req(['opcion_id' => TestDatabase::opcionId('ticket_respuesta', 'En reparación')], $ruta));
         $this->assertSame(200, $ok->status);

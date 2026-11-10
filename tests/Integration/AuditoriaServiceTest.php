@@ -523,6 +523,16 @@ final class AuditoriaServiceTest extends TestCase
         $this->assertFalse($fila['se_va_hoy']);
     }
 
+    public function testBandejaTraePisoYSiEsAreaParaOrdenarEnPantalla(): void
+    {
+        $fila = $this->svc->bandejaPendientes('1_sur')[0];
+        $this->assertNull($fila['piso']);
+        $this->assertFalse($fila['es_espacio_comun']);
+
+        Database::execute('UPDATE habitaciones SET piso = 3 WHERE id = ?', [$this->habitacionId]);
+        $this->assertSame(3, $this->svc->bandejaPendientes('1_sur')[0]['piso']);
+    }
+
     public function testItemsDesmarcadosEnAprobadoLimpioLanza(): void
     {
         try {

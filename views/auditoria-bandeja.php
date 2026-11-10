@@ -56,11 +56,33 @@
         </div>
 
         <template x-if="pendientes.length > 0">
-            <div class="relative mb-3 max-w-2xl mx-auto">
-                <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-                <input type="search" x-model="busqueda" placeholder="Buscar habitación..."
-                       aria-label="Buscar habitación"
-                       class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+            <div class="flex items-center gap-2 mb-3 max-w-2xl mx-auto">
+                <div class="relative flex-1 min-w-0">
+                    <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input type="search" x-model="busqueda" placeholder="Buscar habitación..."
+                           aria-label="Buscar habitación"
+                           class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                </div>
+                <!-- v7.19: el orden es solo de esta pantalla y de este celular; no toca el orden manual. -->
+                <div class="relative flex-shrink-0" @click.outside="menuOrden = false" @keydown.escape.window="menuOrden = false">
+                    <button type="button" @click="menuOrden = !menuOrden" :aria-expanded="menuOrden ? 'true' : 'false'" aria-haspopup="true"
+                            class="min-h-[44px] px-3 inline-flex items-center gap-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg text-sm font-medium"
+                            :class="orden === 'prioridad' ? 'text-gray-700 dark:text-gray-200' : 'text-blue-600 dark:text-blue-400'">
+                        <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+                        <span x-text="etiquetaOrden()"></span>
+                    </button>
+                    <div x-show="menuOrden" x-cloak
+                         class="absolute right-0 z-30 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
+                        <template x-for="o in opcionesOrden" :key="o.valor">
+                            <button type="button" @click="setOrden(o.valor)" :aria-current="orden === o.valor ? 'true' : 'false'"
+                                    class="w-full min-h-[44px] px-3 flex items-center justify-between gap-2 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    :class="orden === o.valor ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-700 dark:text-gray-200'">
+                                <span x-text="o.etiqueta"></span>
+                                <span x-show="orden === o.valor" aria-hidden="true">✓</span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
             </div>
         </template>
 
@@ -118,12 +140,15 @@
         <template x-if="pendientes.length > 0">
             <div data-tour="aud.lista" data-drop="worker" data-worker-id="0" class="max-w-2xl mx-auto">
                 <ul data-cola class="space-y-2">
-                    <template x-for="hab in pendientes" :key="hab.id">
+                    <template x-for="hab in listaVisible" :key="hab.id">
                         <li data-room-slot data-drag-room :data-room-id="hab.id" data-room-origin="worker" data-worker-id="0"
                             x-show="coincideBusqueda(hab)"
-                            @pointerdown="iniciarDrag($event)"
-                            class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3 cursor-grab">
-                            <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600 flex-shrink-0"></i>
+                            @pointerdown="orden === 'prioridad' && iniciarDrag($event)"
+                            :style="orden === 'prioridad' ? '' : 'cursor: default'"
+                            class="bg-white dark:bg-gray-800 rounded-xl border-2 border-indigo-200 dark:border-indigo-900 p-4 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm flex items-center gap-3">
+                            <span x-show="orden === 'prioridad'" class="flex-shrink-0 inline-flex">
+                                <i data-lucide="grip-vertical" class="w-4 h-4 text-gray-400 dark:text-gray-600"></i>
+                            </span>
                             <a :href="u('/auditoria/' + hab.id + '?ejecucion=' + (hab.ejecucion_id || ''))"
                                class="flex-1 min-w-0 flex items-center gap-3">
                                 <span class="text-2xl font-bold text-gray-900 dark:text-gray-100" x-text="hab.numero"></span>
@@ -209,6 +234,44 @@ function auditoriaBandejaApp() {
         hotel: localStorage.getItem('auditoria_hotel') || 'ambos',
         busqueda: '',
         _intervalId: null,
+
+        // v7.19 (reunión del 08/11/2026): orden elegido por cada celular. «Prioridad» es el orden de
+        // siempre (el del servidor, con el arrastre); los demás solo reordenan lo que se ve.
+        orden: ['numero', 'piso'].includes(localStorage.getItem('auditoria_orden_vista')) ? localStorage.getItem('auditoria_orden_vista') : 'prioridad',
+        menuOrden: false,
+        opcionesOrden: [
+            { valor: 'prioridad', etiqueta: 'Prioridad' },
+            { valor: 'numero', etiqueta: 'Número ascendente' },
+            { valor: 'piso', etiqueta: 'Por piso' }
+        ],
+
+        etiquetaOrden() {
+            if (this.orden === 'numero') return 'Número';
+            if (this.orden === 'piso') return 'Piso';
+            return 'Ordenar';
+        },
+
+        setOrden(valor) {
+            this.orden = valor;
+            this.menuOrden = false;
+            localStorage.setItem('auditoria_orden_vista', valor);
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // En Prioridad es el mismo array del arrastre. En los otros órdenes es una copia, así que el
+        // orden manual sigue intacto al volver. Primero un hotel y después el otro; áreas comunes al
+        // final; numeric hace que la 201 vaya antes que la 1001.
+        get listaVisible() {
+            if (this.orden === 'prioridad') return this.pendientes;
+            var porPiso = this.orden === 'piso';
+            var pisoDe = function (h) { return h.piso === null || h.piso === undefined ? Number.MAX_SAFE_INTEGER : h.piso; };
+            return this.pendientes.slice().sort(function (a, b) {
+                return String(a.hotel_codigo || '').localeCompare(String(b.hotel_codigo || ''))
+                    || (a.es_espacio_comun ? 1 : 0) - (b.es_espacio_comun ? 1 : 0)
+                    || (porPiso ? pisoDe(a) - pisoDe(b) : 0)
+                    || String(a.numero || '').localeCompare(String(b.numero || ''), 'es', { numeric: true, sensitivity: 'base' });
+            });
+        },
 
         // Filtro solo visual (x-show en cada <li>, ver el HTML): el x-for sigue recorriendo
         // el array completo "pendientes" sin tocarlo, porque el motor de arrastre calcula

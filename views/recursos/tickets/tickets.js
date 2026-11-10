@@ -27,7 +27,9 @@ function ticketsApp() {
             mostrarPrioridad: false,
             prioridadNueva: null,
             comentarios: [],
-            respuestaId: null, // v7.4: respuesta de la lista «ticket_respuesta», sin texto libre
+            respuestaId: null, // v7.4: respuesta de la lista «ticket_respuesta»
+            comentarioNuevo: '', // v7.19: comentario escrito, opcional (basta con este o con la respuesta)
+            comentarioCierre: '', // v7.19: comentario opcional al cerrar
             avisarSupervisora: false,
             enviandoComentario: false,
         },
@@ -200,6 +202,8 @@ function ticketsApp() {
                 prioridadNueva: null,
                 comentarios: [],
                 respuestaId: null,
+                comentarioNuevo: '',
+                comentarioCierre: '',
                 avisarSupervisora: false,
                 enviandoComentario: false,
             };
@@ -240,6 +244,8 @@ function ticketsApp() {
                 prioridadNueva: null,
                 comentarios: [],
                 respuestaId: null,
+                comentarioNuevo: '',
+                comentarioCierre: '',
                 avisarSupervisora: false,
                 enviandoComentario: false,
             };
@@ -264,7 +270,8 @@ function ticketsApp() {
         },
 
         async comentar() {
-            if (!this.detalle.ticket || this.detalle.respuestaId === null || this.detalle.enviandoComentario) return;
+            var escrito = this.detalle.comentarioNuevo.trim();
+            if (!this.detalle.ticket || (this.detalle.respuestaId === null && escrito === '') || this.detalle.enviandoComentario) return;
             this.detalle.enviandoComentario = true;
             try {
                 var r = await apiFetch('/api/tickets/' + this.detalle.ticket.id + '/comentarios', {
@@ -272,12 +279,14 @@ function ticketsApp() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         opcion_id: this.detalle.respuestaId,
+                        comentario: escrito,
                         avisar_supervisora: this.detalle.avisarSupervisora,
                     })
                 });
                 if (r && r.ok) {
                     this.detalle.comentarios = r.data.comentarios || [];
                     this.detalle.respuestaId = null;
+                    this.detalle.comentarioNuevo = '';
                     this.detalle.avisarSupervisora = false;
                     this.mostrarToast('exito', 'Comentario agregado.');
                 } else {
@@ -453,6 +462,7 @@ function ticketsApp() {
 
         cancelarCierre() {
             this.detalle.mostrarCierre = false;
+            this.detalle.comentarioCierre = '';
             this.limpiarCierreFotos();
         },
 
@@ -462,9 +472,12 @@ function ticketsApp() {
             try {
                 var datos = new FormData();
                 this.cierreFotos.forEach(function (f) { datos.append('fotos[]', f.file); });
+                datos.append('comentario', this.detalle.comentarioCierre);
                 var r = await apiPostForm('/api/tickets/' + this.detalle.ticket.id + '/cerrar', datos);
                 if (r && r.ok) {
                     this.detalle.ticket = Object.assign({}, this.detalle.ticket, r.data.ticket, { adjuntos: r.data.adjuntos });
+                    this.detalle.comentarios = r.data.comentarios || this.detalle.comentarios;
+                    this.detalle.comentarioCierre = '';
                     this.detalle.mostrarCierre = false;
                     this.limpiarCierreFotos();
                     var fallidas = r.data.adjuntos_fallidos || [];

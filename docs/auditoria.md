@@ -136,6 +136,13 @@ Una habitación con auditoría:
 
 Las habitaciones auditadas **no aparecen** por defecto (la bandeja lista `completada_pendiente_auditoria`).
 
+**Orden (v7.19, reunión del 08/11/2026).** El botón «Ordenar» junto al buscador tiene tres opciones:
+- **Prioridad** (por defecto): la del servidor, que primero respeta lo arrastrado a mano (`auditoria_orden`) y después va por nochero, «se va hoy», hotel y número.
+- **Número ascendente:** comparación numérica, la 201 antes que la 1001.
+- **Por piso:** de menor a mayor y, dentro de cada piso, por número.
+
+Número y Piso solo reordenan la pantalla: la elección queda en el `localStorage` de cada celular (`auditoria_orden_vista`) y no toca `auditoria_orden`, así que el orden manual sigue igual al volver a Prioridad. Arrastrar funciona solo en Prioridad. Con «Ambos», primero un hotel y después el otro; las áreas comunes y lo que no tenga piso quedan al final.
+
 Cada tarjeta muestra, además del número, tipo, hotel y Nochero, **los mismos badges que ve el trabajador en su ficha** (`htmlBadgeOcupacion()` / `htmlBadgeCodigoRoomName()` en `public/assets/js/app.js`), para que la supervisora sepa qué revisar sin abrir la pieza:
 - **Ocupación** (`cb_frontdesk_status`): Llega hoy / Se va hoy / Cambio / Sigue. Libre (`unused`) no lleva badge.
 - **Código de camas** (último token de `cloudbeds_room_name`, ej. «2S»).

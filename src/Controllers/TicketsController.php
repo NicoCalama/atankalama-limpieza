@@ -133,17 +133,25 @@ final class TicketsController
         if (!$this->puedeVerTicket($request, $ticket)) {
             return Response::error('PERMISO_INSUFICIENTE', 'No puedes comentar este ticket.', 403);
         }
-        // v7.4 (gerencia, 10/10/2026: sin cuadros de texto): el comentario es una respuesta de la lista
-        // «ticket_respuesta» (Ajustes → Checklists y listas). Texto escrito sin opcion_id → OPCION_REQUERIDA.
+        // v7.4 (gerencia, 10/10/2026) dejó solo la lista «ticket_respuesta». v7.19 (reunión del 08/11/2026):
+        // vuelve un cuadro de texto opcional. Alcanza con la respuesta, con el texto o con ambos.
+        $escrito = $this->comentarioEscrito($request);
+        if (mb_strlen($escrito) > self::MAX_COMENTARIO) {
+            return $this->comentarioMuyLargo();
+        }
         $opcionId = $request->inputInt('opcion_id');
-        if ($opcionId === null) {
-            return Response::error('OPCION_REQUERIDA', 'Elige una respuesta de la lista. Si no la ves, recarga la página.', 400);
+        if ($opcionId === null && $escrito === '') {
+            return Response::error('OPCION_REQUERIDA', 'Elige una respuesta o escribe un comentario.', 400);
         }
-        try {
-            $comentario = (new ListasOpcionesService())->opcionActiva('ticket_respuesta', $opcionId)['nombre'];
-        } catch (ListasOpcionesException $e) {
-            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        $respuesta = '';
+        if ($opcionId !== null) {
+            try {
+                $respuesta = (new ListasOpcionesService())->opcionActiva('ticket_respuesta', $opcionId)['nombre'];
+            } catch (ListasOpcionesException $e) {
+                return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+            }
         }
+        $comentario = $respuesta !== '' && $escrito !== '' ? "{$respuesta}: {$escrito}" : $respuesta . $escrito;
         $avisar = (bool) $request->input('avisar_supervisora', false);
         try {
             $comentarios = $this->svc->comentar($id, $request->usuario->id, $comentario, $avisar);
@@ -151,6 +159,24 @@ final class TicketsController
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
         return Response::ok(['comentarios' => $comentarios]);
+    }
+
+    /**
+     * Comentario escrito (opcional): sin espacios en los bordes y con los saltos de línea a «\n» antes de medir,
+     * porque el navegador los manda como «\r\n» y el textarea los cuenta como uno.
+     */
+    private function comentarioEscrito(Request $request): string
+    {
+        return trim(str_replace(["\r\n", "\r"], "\n", $request->inputString('comentario')));
+    }
+
+    private function comentarioMuyLargo(): Response
+    {
+        return Response::error(
+            'COMENTARIO_MUY_LARGO',
+            'El comentario puede tener hasta ' . self::MAX_COMENTARIO . ' caracteres. Acórtalo un poco y vuelve a enviarlo.',
+            400
+        );
     }
 
     /** Dueño, asignado (individual o múltiple), o tickets.ver_todos — ver obtener(), comentarios() y comentar(). */
@@ -214,15 +240,10 @@ final class TicketsController
         }
         // v7.9 (gerencia, 16/10/2026): comentario opcional en todo ticket, para que mantención sepa el detalle
         // y llegue con lo necesario. Si viene, es la descripción (la ve mantención y viaja a novedades); si no,
-        // la descripción sigue siendo el nombre del tipo. Saltos de línea a «\n» antes de medir: el navegador
-        // los manda como «\r\n» y el textarea los cuenta como uno.
-        $comentario = trim(str_replace(["\r\n", "\r"], "\n", $request->inputString('comentario')));
+        // la descripción sigue siendo el nombre del tipo.
+        $comentario = $this->comentarioEscrito($request);
         if (mb_strlen($comentario) > self::MAX_COMENTARIO) {
-            return Response::error(
-                'COMENTARIO_MUY_LARGO',
-                'El comentario puede tener hasta ' . self::MAX_COMENTARIO . ' caracteres. Acórtalo un poco y vuelve a enviarlo.',
-                400
-            );
+            return $this->comentarioMuyLargo();
         }
         if ($comentario !== '') {
             $descripcion = $comentario;
@@ -340,8 +361,8 @@ final class TicketsController
     }
 
     /**
-     * POST /api/tickets/{id}/cerrar — multipart/form-data. fotos[] opcional (máx. 3),
-     * evidencia de la solución. Mismo permiso que cambiarEstado (tickets.ver_todos).
+     * POST /api/tickets/{id}/cerrar — multipart/form-data. fotos[] opcional (máx. 3), evidencia de la
+     * solución, y comentario opcional (v7.19). Mismo permiso que cambiarEstado (tickets.ver_todos).
      */
     public function cerrar(Request $request): Response
     {
@@ -360,9 +381,20 @@ final class TicketsController
         if (count($archivos) > self::MAX_FOTOS) {
             return Response::error('DEMASIADAS_FOTOS', 'Máximo ' . self::MAX_FOTOS . ' fotos por ticket.', 400);
         }
+        $comentario = $this->comentarioEscrito($request);
+        if (mb_strlen($comentario) > self::MAX_COMENTARIO) {
+            return $this->comentarioMuyLargo();
+        }
 
         try {
+            // Volver a cerrar no da error (cambiarEstado lo ignora), así que un doble toque o un reintento
+            // duplicaría el comentario: solo se guarda en el cierre que de verdad cerró el ticket.
+            $yaEstabaCerrado = $this->svc->obtener($id)?->estado === Ticket::ESTADO_CERRADO;
             $ticket = $this->svc->cambiarEstado($id, Ticket::ESTADO_CERRADO, $request->usuario->id);
+            // Después de cerrar: si el cierre falla, no queda un comentario suelto en el historial.
+            if ($comentario !== '' && !$yaEstabaCerrado) {
+                $this->svc->comentar($id, $request->usuario->id, $comentario, false);
+            }
         } catch (TicketException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
@@ -388,6 +420,7 @@ final class TicketsController
             'ticket' => $ticket->toArray(),
             'adjuntos' => $this->svc->adjuntosDe($id),
             'adjuntos_fallidos' => $fallidas,
+            'comentarios' => $this->svc->comentariosDe($id),
         ]);
     }
 

@@ -539,9 +539,13 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                     </div>
                                 </template>
 
-                                <!-- Panel de cierre: foto opcional antes de confirmar -->
+                                <!-- Panel de cierre: comentario y foto opcionales antes de confirmar -->
                                 <template x-if="detalle.mostrarCierre">
                                     <div class="space-y-2">
+                                        <label for="ticket-comentario-cierre" class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Comentario de cierre (opcional)</label>
+                                        <textarea id="ticket-comentario-cierre" x-model="detalle.comentarioCierre" rows="2" maxlength="500" :disabled="detalle.enviando"
+                                                  placeholder="Ej.: se cambió la ampolleta"
+                                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm disabled:opacity-60"></textarea>
                                         <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Foto de cierre (opcional)</p>
                                         <div class="flex flex-wrap gap-2" x-show="cierreFotos.length > 0">
                                             <template x-for="(foto, idx) in cierreFotos" :key="foto.url">
@@ -599,8 +603,9 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                     </li>
                                 </template>
                             </ul>
-                            <!-- v7.4 (gerencia, 10/10/2026: sin cuadros de texto): respuestas de la lista
-                                 «ticket_respuesta» (Ajustes → Checklists y listas). -->
+                            <!-- v7.4: respuestas de la lista «ticket_respuesta» (Ajustes → Checklists y listas).
+                                 v7.19 (reunión del 08/11/2026): además, un comentario escrito opcional. -->
+                            <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Respuesta o comentario</p>
                             <template x-if="respuestasCargando && respuestas.length === 0">
                                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Cargando respuestas...</p>
                             </template>
@@ -610,7 +615,7 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                             <div class="grid grid-cols-2 gap-2 mb-2" role="radiogroup" aria-label="Respuesta">
                                 <template x-for="o in respuestas" :key="o.id">
                                     <button type="button" role="radio" :aria-checked="detalle.respuestaId === o.id ? 'true' : 'false'"
-                                            @click="detalle.respuestaId = o.id" :disabled="detalle.enviandoComentario"
+                                            @click="detalle.respuestaId = (detalle.respuestaId === o.id ? null : o.id)" :disabled="detalle.enviandoComentario"
                                             :class="detalle.respuestaId === o.id
                                                 ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
                                                 : 'border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'"
@@ -619,13 +624,20 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                     </button>
                                 </template>
                             </div>
+                            <div class="mb-2">
+                                <label for="ticket-comentario-nuevo" class="sr-only">Comentario opcional</label>
+                                <textarea id="ticket-comentario-nuevo" x-model="detalle.comentarioNuevo" rows="2" maxlength="500" :disabled="detalle.enviandoComentario"
+                                          placeholder="Escribe un comentario (opcional)"
+                                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm disabled:opacity-60"></textarea>
+                                <p x-show="detalle.comentarioNuevo.length > 0" x-cloak class="mt-1 text-xs text-right text-gray-500 dark:text-gray-400" x-text="detalle.comentarioNuevo.length + ' / 500'"></p>
+                            </div>
                             <div class="flex items-center justify-between gap-2">
                                 <label class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                                     <input type="checkbox" x-model="detalle.avisarSupervisora">
                                     Avisar a Supervisora / Admin
                                 </label>
                                 <button type="button" @click="comentar()"
-                                        :disabled="detalle.respuestaId === null || detalle.enviandoComentario"
+                                        :disabled="(detalle.respuestaId === null && detalle.comentarioNuevo.trim() === '') || detalle.enviandoComentario"
                                         class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
                                     Comentar
                                 </button>
