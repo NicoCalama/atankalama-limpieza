@@ -127,12 +127,12 @@ Ver [habitaciones.md](habitaciones.md) §6.
 
 | Método | Endpoint | Permiso | Descripción |
 |---|---|---|---|
-| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote. v7.8: una pieza en mantención o cerrada en Cloudbeds no se asigna para hoy → 409 `HABITACION_BLOQUEADA` (sí para otro día) |
-| POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin |
+| POST | `/api/asignaciones` | `asignaciones.asignar_manual` | Asignar manual (lote). Si alguna pieza está en progreso y asignada hoy, exige además `asignaciones.mover_en_progreso` (403 `HABITACION_EN_PROGRESO`) y no asigna ninguna del lote. v7.8: una pieza en mantención o cerrada en Cloudbeds no se asigna para hoy → 409 `HABITACION_BLOQUEADA` (sí para otro día). v7.25: una pieza con chapa Noche sin tarjeta no se asigna hoy antes de la hora de la tarde → 409 `NOCHE_ANTES_DE_HORA` (tampoco el resto del lote). `franja` opcional: `mañana`, `tarde` o `noche` (la pestaña Noche manda `noche`) |
+| POST | `/api/asignaciones/auto` | `asignaciones.auto_asignar` | Round-robin. v7.25: no reparte las piezas con chapa Noche |
 | POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar: `{ habitacion_id, usuario_id, fecha, opcion_id }`. Desde la v7.3 `opcion_id` (lista «reasignar», §18b) es obligatorio: 400 `OPCION_REQUERIDA` / `OPCION_INVALIDA`. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia. Quitar una en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
-| GET | `/api/asignaciones/vista` | `asignaciones.asignar_manual` | Tablero de hoy o de un día futuro. Un día pasado trae `registro[]` (v7.20, [asignacion.md](asignacion.md) §3.3) |
+| GET | `/api/asignaciones/vista` | `asignaciones.asignar_manual` | Tablero de hoy o de un día futuro. Un día pasado trae `registro[]` (v7.20, [asignacion.md](asignacion.md) §3.3). v7.25 (pestañas Día \| Noche, §3.4): `ventana_noche: {hora, disponible}`, `dia_noche_barridas[]` (hoy, desde la hora: Día/Noche barridas con la tarjeta de la mañana, con `asignada_a`) y en cada persona `progreso_ventana: {dia, noche}`; cada pieza del pool trae su `chapa` |
 
 Desde la v7.20, los `POST` y el `PUT` de arriba responden 409 `DIA_CERRADO` si la fecha ya pasó.
 | GET | `/api/usuarios/{id}/cola` | propia, o `asignaciones.asignar_manual` | Cola del trabajador. Sin `habitaciones.ver_todas` devuelve solo la **habitación actual** (la que tiene en curso; si no, la primera pendiente); con `?vista=completa` sobre la propia cola, todas las del día (pestaña Habitaciones del trabajador) |

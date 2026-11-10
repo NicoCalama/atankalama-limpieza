@@ -249,6 +249,27 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
     <template x-if="data && !data.registro">
         <div>
 
+            <!-- v7.25 (reunión del 08/11/2026): pestañas Día | Noche, compartidas por Tablero y Clásico. Cada
+                 una trae sus piezas sin asignar (según la chapa) y, de cada persona, solo sus tarjetas de esa
+                 ventana. Lo que se asigna en Noche queda como tarjeta de noche (franja 'noche'). Ver
+                 docs/asignacion.md §3.4. -->
+            <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto">
+                <div class="inline-flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-0.5"
+                     role="tablist" aria-label="Ventana" data-tour="asig.ventana">
+                    <template x-for="v in ventanas" :key="v.valor">
+                        <button type="button" role="tab" @click="setVentana(v.valor)"
+                                :aria-selected="ventana === v.valor ? 'true' : 'false'"
+                                :class="ventana === v.valor ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400'"
+                                class="min-h-[44px] px-4 text-sm font-medium rounded-md inline-flex items-center gap-2 transition">
+                            <span x-html="v.svg" class="inline-flex"></span>
+                            <span x-text="v.label"></span>
+                            <span class="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full"
+                                  :title="'Sin asignar en ' + v.label" x-text="contarVentana(v.valor)"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
             <!-- Buscador de "Equipo del día" (compartido por Tablero y Clásico) -->
             <div class="px-3 md:px-4 pt-3 max-w-7xl mx-auto">
                 <label class="sr-only" for="asig-buscar-trabajador">Buscar persona</label>
@@ -342,23 +363,23 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                 <div class="flex-1 min-w-0">
                                                     <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></p>
                                                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        <span x-text="tr.progreso.completadas"></span>/<span x-text="tr.progreso.total"></span> completadas ·
-                                                        <span x-text="tr.progreso.en_progreso + tr.progreso.pendientes"></span> pendientes
-                                                        <template x-if="tr.progreso.rechazadas > 0">
-                                                            <span class="text-red-600 dark:text-red-400"> · <span x-text="tr.progreso.rechazadas"></span> rechazadas</span>
+                                                        <span x-text="progresoDe(tr).completadas"></span>/<span x-text="progresoDe(tr).total"></span> completadas ·
+                                                        <span x-text="progresoDe(tr).en_progreso + progresoDe(tr).pendientes"></span> pendientes
+                                                        <template x-if="progresoDe(tr).rechazadas > 0">
+                                                            <span class="text-red-600 dark:text-red-400"> · <span x-text="progresoDe(tr).rechazadas"></span> rechazadas</span>
                                                         </template>
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            <template x-if="tr.cola.length === 0">
+                                            <template x-if="colaVentana(tr).length === 0">
                                                 <p class="text-xs text-gray-500 dark:text-gray-400 italic border border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-3 text-center">
                                                     Arrastra piezas acá.
                                                 </p>
                                             </template>
 
-                                            <ul data-cola class="space-y-1.5" x-show="tr.cola.length > 0">
-                                                <template x-for="hab in tr.cola" :key="hab.habitacion_id">
+                                            <ul data-cola class="space-y-1.5" x-show="colaVentana(tr).length > 0">
+                                                <template x-for="hab in colaVentana(tr)" :key="hab.habitacion_id">
                                                     <li data-room-slot class="flex items-center gap-1.5">
                                                         <div class="flex-1 flex items-center gap-2 min-w-0 px-2.5 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg select-none"
                                                              :class="esReasignable(hab.estado) || esBloqueadaEnProgreso(hab.estado) ? '' : 'opacity-60'"
@@ -426,9 +447,10 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                     <i data-lucide="clipboard-list" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i>
                                     Sin asignar
                                     <span class="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full"
-                                          x-text="data.sin_asignar.length + ((data.re_limpiar && data.re_limpiar.length) ? data.re_limpiar.length : 0)"></span>
+                                          x-text="contarPool()"></span>
                                 </h2>
-                                <template x-if="puedeAutoAsignar && data.sin_asignar.length > 0 && data.trabajadores.length > 0">
+                                <!-- v7.25: «Auto» solo en Día (nunca reparte piezas Noche: se asignan a mano en Noche). -->
+                                <template x-if="puedeAutoAsignar && ventana === 'dia' && poolVentana().length > 0 && data.trabajadores.length > 0">
                                     <button @click="autoAsignar()" :disabled="autoEjecutando" data-tour="asig.auto"
                                             class="min-h-[36px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center gap-1.5 disabled:opacity-50 flex-shrink-0">
                                         <i data-lucide="shuffle" class="w-4 h-4"></i>
@@ -441,8 +463,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                  class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3 min-h-[80px] md:max-h-[calc(100vh-8rem)] md:overflow-y-auto scrollbar-thin">
 
                                 <?php include __DIR__ . '/componentes/filtro-dia-pool.php'; ?>
+                                <?php include __DIR__ . '/componentes/noche-en-espera.php'; ?>
 
-                                <template x-if="data.sin_asignar.length === 0 && (!data.re_limpiar || data.re_limpiar.length === 0)">
+                                <template x-if="!nocheEnEspera && contarPool() === 0">
                                     <div class="text-center py-4">
                                         <i data-lucide="check-circle-2" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
                                         <p class="text-sm text-gray-600 dark:text-gray-400">Todo asignado. Arrastra acá para quitar.</p>
@@ -480,8 +503,39 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                     </div>
                                 </template>
 
+                                <!-- v7.25: Día/Noche barridas que siguen con la tarjeta de la mañana (solo en Noche, hoy). -->
+                                <template x-if="barridasVentana().length > 0">
+                                    <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                        <p class="text-xs font-semibold text-amber-800 dark:text-amber-300 inline-flex items-center gap-1 mb-1">
+                                            <i data-lucide="sunset" class="w-3.5 h-3.5"></i> Día/Noche de la mañana
+                                        </p>
+                                        <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">Volvieron a sucia en la tarde. Al asignarlas pasan de la cola de la mañana a la de noche; la limpieza de la mañana sigue contando.</p>
+                                        <template x-for="grupo in agruparPorUbicacion(barridasVentana())" :key="grupo.key">
+                                            <div class="mb-2">
+                                                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
+                                                   x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <template x-for="hab in grupo.habitaciones" :key="hab.id">
+                                                        <div class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border inline-flex items-center gap-1.5 select-none transition"
+                                                             :class="seleccionadas.includes(hab.id) ? 'bg-green-600 text-white border-green-600 ring-2 ring-green-300 dark:ring-green-500 ring-offset-1 dark:ring-offset-gray-800 shadow-md' : colorEstadoPool(hab.estado)"
+                                                             :title="'En la cola de ' + hab.asignada_a"
+                                                             data-drag-room :data-room-id="hab.id" data-room-estado="sucia" data-room-origin="pool"
+                                                             @pointerdown="iniciarDrag($event)">
+                                                            <span x-text="hab.numero"></span>
+                                                            <template x-if="chapaCorta(hab.chapa)">
+                                                                <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                            </template>
+                                                            <span class="text-[10px] font-normal opacity-75 max-w-[9rem] truncate" x-text="'de ' + hab.asignada_a"></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
                                 <!-- Volver a limpiar (2ª limpieza del día) -->
-                                <template x-if="data.re_limpiar && data.re_limpiar.length > 0">
+                                <template x-if="reLimpiarVentana().length > 0">
                                     <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                                         <p class="text-xs font-semibold text-teal-700 dark:text-teal-300 inline-flex items-center gap-1 mb-1">
                                             <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Volver a limpiar
@@ -533,12 +587,13 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                         <i data-lucide="clipboard-list" class="w-4 h-4 text-rose-600 dark:text-rose-400"></i>
                                         Sin asignar
                                         <span class="text-xs bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 px-2 py-0.5 rounded-full"
-                                              x-text="data.sin_asignar.length"></span>
+                                              x-text="poolVentana().length"></span>
                                     </h2>
                                     <i data-lucide="chevron-down" class="sm:hidden w-4 h-4 text-gray-400 flex-shrink-0 transition-transform"
                                        :class="abierta ? 'rotate-180' : ''"></i>
                                 </button>
-                                <template x-if="puedeAutoAsignar && data.sin_asignar.length > 0 && data.trabajadores.length > 0">
+                                <!-- v7.25: «Auto» solo en Día (nunca reparte piezas Noche: se asignan a mano en Noche). -->
+                                <template x-if="puedeAutoAsignar && ventana === 'dia' && poolVentana().length > 0 && data.trabajadores.length > 0">
                                     <button @click="autoAsignar()" :disabled="autoEjecutando"
                                             class="min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center gap-1.5 disabled:opacity-50 flex-shrink-0">
                                         <i data-lucide="shuffle" class="w-4 h-4"></i>
@@ -548,15 +603,19 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             </div>
 
                             <div :class="abierta ? '' : 'hidden sm:block'">
-                            <template x-if="data.sin_asignar.length === 0">
+                            <template x-if="nocheEnEspera">
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                                    <?php include __DIR__ . '/componentes/noche-en-espera.php'; ?>
+                                </div>
+                            </template>
+                            <template x-if="!nocheEnEspera && poolVentana().length === 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 text-center">
                                     <i data-lucide="check-circle-2" class="w-8 h-8 text-green-500 mx-auto mb-2"></i>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400"
-                                       x-text="esFuturo ? 'Todo lo que necesita limpieza ese día ya está asignado.' : 'Todas las habitaciones sucias están asignadas.'"></p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400" x-text="textoPoolVacio()"></p>
                                 </div>
                             </template>
 
-                            <template x-if="data.sin_asignar.length > 0">
+                            <template x-if="poolVentana().length > 0">
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
                                     <?php include __DIR__ . '/componentes/filtro-dia-pool.php'; ?>
                                     <template x-if="filtroDiaSinPiezas()">
@@ -592,10 +651,45 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             </div>
                         </section>
 
+                        <!-- v7.25: Día/Noche barridas que siguen con la tarjeta de la mañana (solo en Noche, hoy).
+                             Abierta también en celular: son pocas y es lo que se viene a repartir en la tarde. -->
+                        <template x-if="barridasVentana().length > 0">
+                            <section>
+                                <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 mb-1">
+                                    <i data-lucide="sunset" class="w-4 h-4 text-amber-700 dark:text-amber-400"></i>
+                                    Día/Noche de la mañana
+                                    <span class="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full"
+                                          x-text="barridasVentana().length"></span>
+                                </h2>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Volvieron a sucia en la tarde. Al asignarlas pasan de la cola de la mañana a la de noche; la limpieza de la mañana sigue contando.</p>
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                                    <template x-for="grupo in agruparPorUbicacion(barridasVentana())" :key="grupo.key">
+                                        <div>
+                                            <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
+                                               x-text="grupo.titulo + ' · ' + grupo.habitaciones.length"></p>
+                                            <div class="flex flex-wrap gap-2">
+                                                <template x-for="hab in grupo.habitaciones" :key="hab.id">
+                                                    <button @click="toggleSeleccion(hab.id)" :title="'En la cola de ' + hab.asignada_a"
+                                                            :class="seleccionadas.includes(hab.id) ? 'bg-blue-600 text-white border-blue-600' : colorEstadoPool(hab.estado)"
+                                                            class="min-h-[40px] px-3 py-1.5 text-sm font-semibold rounded-lg border transition inline-flex items-center gap-1.5">
+                                                        <span x-text="hab.numero"></span>
+                                                        <template x-if="chapaCorta(hab.chapa)">
+                                                            <span class="px-1 py-0.5 rounded text-[10px] font-bold leading-none flex-shrink-0" :class="seleccionadas.includes(hab.id) ? 'bg-white/90 text-blue-700' : chapaCorta(hab.chapa).c" :title="chapaCorta(hab.chapa).title" x-text="chapaCorta(hab.chapa).t"></span>
+                                                        </template>
+                                                        <span class="text-[10px] font-normal opacity-75 max-w-[9rem] truncate" x-text="'de ' + hab.asignada_a"></span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </section>
+                        </template>
+
                         <!-- Sección: Volver a limpiar (2ª limpieza del día — ocupación día/noche).
                              Acordeón solo en celular (mismo patrón que las fichas de "Equipo"): puede
                              traer decenas de piezas y empujar todo el resto de la pantalla. -->
-                        <template x-if="data.re_limpiar && data.re_limpiar.length > 0">
+                        <template x-if="reLimpiarVentana().length > 0">
                             <section x-data="{ abierta: false }">
                                 <button type="button" @click="abierta = !abierta" :aria-expanded="abierta"
                                         class="w-full flex items-center justify-between gap-2 mb-1 text-left cursor-pointer sm:cursor-default">
@@ -603,7 +697,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                         <i data-lucide="rotate-cw" class="w-4 h-4 text-teal-600 dark:text-teal-400"></i>
                                         Volver a limpiar
                                         <span class="text-xs bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 px-2 py-0.5 rounded-full"
-                                              x-text="data.re_limpiar.length"></span>
+                                              x-text="reLimpiarVentana().length"></span>
                                     </h2>
                                     <i data-lucide="chevron-down" class="sm:hidden w-4 h-4 text-gray-400 flex-shrink-0 transition-transform"
                                        :class="abierta ? 'rotate-180' : ''"></i>
@@ -667,10 +761,10 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                 <div class="flex-1 min-w-0">
                                                     <p class="font-semibold text-gray-900 dark:text-gray-100 truncate" x-text="tr.usuario.nombre"></p>
                                                     <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                                        <span x-text="tr.progreso.completadas"></span>/<span x-text="tr.progreso.total"></span> completadas ·
-                                                        <span x-text="tr.progreso.en_progreso + tr.progreso.pendientes"></span> pendientes
-                                                        <template x-if="tr.progreso.rechazadas > 0">
-                                                            <span class="text-red-600 dark:text-red-400"> · <span x-text="tr.progreso.rechazadas"></span> rechazadas</span>
+                                                        <span x-text="progresoDe(tr).completadas"></span>/<span x-text="progresoDe(tr).total"></span> completadas ·
+                                                        <span x-text="progresoDe(tr).en_progreso + progresoDe(tr).pendientes"></span> pendientes
+                                                        <template x-if="progresoDe(tr).rechazadas > 0">
+                                                            <span class="text-red-600 dark:text-red-400"> · <span x-text="progresoDe(tr).rechazadas"></span> rechazadas</span>
                                                         </template>
                                                     </p>
                                                 </div>
@@ -681,13 +775,14 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                             </button>
 
                                             <div :class="abierta ? '' : 'hidden sm:block'">
-                                            <template x-if="tr.cola.length === 0">
-                                                <p class="text-xs text-gray-500 dark:text-gray-400 italic">Sin habitaciones asignadas.</p>
+                                            <template x-if="colaVentana(tr).length === 0">
+                                                <p class="text-xs text-gray-500 dark:text-gray-400 italic"
+                                                   x-text="ventana === 'noche' ? 'Sin piezas de noche asignadas.' : 'Sin habitaciones asignadas.'"></p>
                                             </template>
 
-                                            <template x-if="tr.cola.length > 0">
+                                            <template x-if="colaVentana(tr).length > 0">
                                                 <ul class="space-y-1.5">
-                                                    <template x-for="(hab, idx) in tr.cola" :key="hab.habitacion_id">
+                                                    <template x-for="(hab, idx) in colaVentana(tr)" :key="hab.habitacion_id">
                                                         <li class="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                                             <div class="flex items-center gap-2 min-w-0 flex-1">
                                                                 <span class="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate" x-text="hab.numero"></span>
@@ -727,7 +822,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                                             <i data-lucide="chevron-up" class="w-3 h-3"></i>
                                                                         </button>
                                                                         <div class="border-t border-gray-300 dark:border-gray-600"></div>
-                                                                        <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === tr.cola.length - 1"
+                                                                        <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === colaVentana(tr).length - 1"
                                                                                 title="Bajar" aria-label="Bajar en la cola"
                                                                                 class="flex-1 flex items-center justify-center text-gray-600 dark:text-gray-300
                                                                                        hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
@@ -741,7 +836,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                                                    hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition">
                                                                         <i data-lucide="chevron-up" class="w-4 h-4"></i>
                                                                     </button>
-                                                                    <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === tr.cola.length - 1"
+                                                                    <button @click="moverEnCola(tr, hab, 1)" :disabled="idx === colaVentana(tr).length - 1"
                                                                             title="Bajar" aria-label="Bajar en la cola"
                                                                             class="hidden sm:flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg
                                                                                    border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300
@@ -829,10 +924,14 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             </template>
                             <template x-if="data && data.trabajadores.length > 0">
                                 <div>
-                                    <div class="mb-3">
+                                    <!-- v7.25: en Noche la franja es siempre «noche»; en Día se elige mañana o tarde. -->
+                                    <p x-show="ventana === 'noche'" class="mb-3 text-xs text-indigo-700 dark:text-indigo-300 inline-flex items-center gap-1.5">
+                                        <i data-lucide="moon" class="w-3.5 h-3.5"></i> Quedan como limpieza de noche.
+                                    </p>
+                                    <div class="mb-3" x-show="ventana === 'dia'">
                                         <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1.5">Franja (opcional)</p>
                                         <div class="flex gap-2">
-                                            <template x-for="f in ['mañana','tarde','noche']" :key="f">
+                                            <template x-for="f in ['mañana','tarde']" :key="f">
                                                 <button @click="modalAsignar.franja = (modalAsignar.franja === f ? null : f)"
                                                         :class="modalAsignar.franja === f ? 'bg-teal-600 text-white border-teal-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'"
                                                         class="flex-1 min-h-[40px] px-2 py-1.5 text-sm font-medium rounded-lg border capitalize transition"
@@ -860,7 +959,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                         </template>
                                                     </span>
                                                     <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                                        <span x-text="tr.progreso.pendientes + tr.progreso.en_progreso"></span> pendientes
+                                                        <span x-text="progresoDe(tr).pendientes + progresoDe(tr).en_progreso"></span> pendientes
                                                     </span>
                                                 </button>
                                             </li>
@@ -931,7 +1030,7 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                                         </template>
                                                     </span>
                                                     <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                                                        <span x-text="dest.progreso.pendientes + dest.progreso.en_progreso"></span> pendientes
+                                                        <span x-text="progresoDe(dest).pendientes + progresoDe(dest).en_progreso"></span> pendientes
                                                     </span>
                                                 </button>
                                             </li>
@@ -1021,6 +1120,13 @@ function asignacionesApp() {
         gruposEquipo: [
             { valor: 'aseo', label: 'Aseo' },
             { valor: 'otros', label: 'Otros' },
+        ],
+        // v7.25: pestaña de la ventana, 'dia' o 'noche' (se recuerda, como «Aseo / Otros»). Íconos en línea
+        // (sol y luna de Lucide): dentro de x-for, data-lucide no siempre alcanza a dibujarse.
+        ventana: localStorage.getItem('asignaciones_ventana') === 'noche' ? 'noche' : 'dia',
+        ventanas: [
+            { valor: 'dia', label: 'Día', svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>' },
+            { valor: 'noche', label: 'Noche', svg: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>' },
         ],
         seleccionadas: [],
         // v7.15: filtro del pool de un día futuro ('todas' o un valor de tiposDia). No se recuerda:
@@ -1160,11 +1266,9 @@ function asignacionesApp() {
                     return;
                 }
                 this.data = r.data;
-                // Limpiar seleccionadas que ya no existan en sin_asignar (o que el filtro del día
-                // futuro oculta, v7.15) o en volver-a-limpiar
-                var idsDisponibles = this.sinAsignarVisibles().map(function (h) { return h.id; })
-                    .concat((this.data.re_limpiar || []).map(function (h) { return h.id; }));
-                this.seleccionadas = this.seleccionadas.filter(function (id) { return idsDisponibles.includes(id); });
+                // Limpiar seleccionadas que ya no estén a la vista: en sin_asignar de la pestaña (o que el
+                // filtro del día futuro oculta, v7.15), en volver-a-limpiar o en las Día/Noche barridas (v7.25).
+                this.soltarSeleccionOculta();
             } catch (e) {
                 this.error = 'No pudimos conectar con el servidor.';
             } finally {
@@ -1227,6 +1331,112 @@ function asignacionesApp() {
             return op ? op.etiqueta : 'Ambos hoteles';
         },
 
+        // --- Pestañas Día | Noche (v7.25, docs/asignacion.md §3.4) ---
+
+        setVentana(v) {
+            this.ventana = v;
+            localStorage.setItem('asignaciones_ventana', v);
+            this.seleccionadas = [];
+            this.filtroDia = 'todas';
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        // Hoy, antes de la hora de la tarde, las piezas Noche todavía no se asignan (el backend también las
+        // frena): la pestaña Noche muestra «Disponibles desde las HH:MM» en vez del pool.
+        get nocheEnEspera() {
+            return this.ventana === 'noche' && this.esHoy && !!this.data && !!this.data.ventana_noche
+                && !this.data.ventana_noche.disponible;
+        },
+
+        // ¿La pieza del pool va en la pestaña v? Día: Día y Día/Noche. Noche: Noche y, hoy, Día/Noche. Para un
+        // día futuro, Noche trae solo las Noche: con una tarjeta por pieza y día, preasignar la de noche de una
+        // Día/Noche dejaría sin nadie su limpieza de la mañana (las dos tarjetas llegan con la v7.26).
+        chapaEnVentana(chapa, v) {
+            if (v === 'dia') return chapa !== 'noche';
+            return chapa === 'noche' || (chapa === 'dia_noche' && this.esHoy);
+        },
+
+        // Las piezas sin asignar de la pestaña elegida (antes del filtro «Se va / Cambio / …» de un día futuro).
+        poolVentana() {
+            if (!this.data || this.nocheEnEspera) return [];
+            var self = this;
+            var v = this.ventana;
+            return this.data.sin_asignar.filter(function (h) { return self.chapaEnVentana(h.chapa, v); });
+        },
+
+        // Día/Noche barridas hoy que siguen con la tarjeta de la mañana: solo en Noche (el backend ya las manda
+        // solo hoy, desde la hora de la tarde).
+        barridasVentana() {
+            if (!this.data || this.ventana !== 'noche' || this.nocheEnEspera) return [];
+            return this.data.dia_noche_barridas || [];
+        },
+
+        // «Volver a limpiar» sale en las dos pestañas; lo que se asigna desde Noche queda como tarjeta de noche.
+        reLimpiarVentana() {
+            if (!this.data || this.nocheEnEspera) return [];
+            return this.data.re_limpiar || [];
+        },
+
+        // Total de «Sin asignar» de la pestaña (pool + barridas + volver a limpiar).
+        contarPool() {
+            return this.poolVentana().length + this.barridasVentana().length + this.reLimpiarVentana().length;
+        },
+
+        // Número de cada pestaña: lo que queda por repartir en esa ventana. Antes de la hora, Noche cuenta las
+        // piezas Noche que esperan.
+        contarVentana(v) {
+            if (!this.data) return 0;
+            var self = this;
+            var n = this.data.sin_asignar.filter(function (h) {
+                return v === 'noche' && self.esHoy && self.data.ventana_noche && !self.data.ventana_noche.disponible
+                    ? h.chapa === 'noche'
+                    : self.chapaEnVentana(h.chapa, v);
+            }).length;
+            return n + (v === 'noche' ? (this.data.dia_noche_barridas || []).length : 0);
+        },
+
+        textoNocheEnEspera() {
+            var n = this.contarVentana('noche');
+            var antes = n === 0 ? 'Hoy no hay piezas Noche esperando.'
+                : (n === 1 ? 'Hay 1 pieza Noche esperando.' : 'Hay ' + n + ' piezas Noche esperando.');
+            return antes + ' Lo que ya está en una cola se queda.';
+        },
+
+        textoPoolVacio() {
+            if (this.ventana === 'noche') return 'No quedan piezas de noche sin asignar.';
+            return this.esFuturo ? 'Todo lo que necesita limpieza ese día ya está asignado.' : 'Todas las habitaciones sucias están asignadas.';
+        },
+
+        // ¿La tarjeta de la cola es de la pestaña elegida? franja 'noche' = Noche; el resto (sin franja,
+        // mañana, tarde) = Día.
+        enVentana(h) {
+            return (h.franja === 'noche') === (this.ventana === 'noche');
+        },
+
+        colaVentana(tr) {
+            var self = this;
+            return tr.cola.filter(function (h) { return self.enVentana(h); });
+        },
+
+        progresoDe(tr) {
+            return (tr.progreso_ventana && tr.progreso_ventana[this.ventana]) || tr.progreso;
+        },
+
+        // La cola completa con las tarjetas de la pestaña en su orden nuevo: las de la otra ventana no se
+        // mueven de su lugar. Así reordenar en una pestaña no desordena la otra.
+        mezclarOrdenVisible(tr, nuevaVisible) {
+            var self = this;
+            var i = 0;
+            return tr.cola.map(function (h) { return self.enVentana(h) ? nuevaVisible[i++] : h; });
+        },
+
+        // Suelta de la selección lo que ya no se ve (otra pestaña, otro filtro o ya asignado).
+        soltarSeleccionOculta() {
+            var ids = this.sinAsignarVisibles().concat(this.barridasVentana(), this.reLimpiarVentana())
+                .map(function (h) { return h.id; });
+            this.seleccionadas = this.seleccionadas.filter(function (id) { return ids.includes(id); });
+        },
+
         setGrupoEquipo(g) {
             this.grupoEquipo = g;
             localStorage.setItem('asignaciones_grupo', g);
@@ -1275,18 +1485,17 @@ function asignacionesApp() {
 
         // Hay algo que filtrar solo si alguna pieza trae su etiqueta del día.
         hayTiposDia() {
-            return !!(this.data && this.data.sin_asignar.some(function (h) { return !!h.tipo_dia; }));
+            return this.poolVentana().some(function (h) { return !!h.tipo_dia; });
         },
 
         contarTipoDia(valor) {
-            if (!this.data) return 0;
-            return this.data.sin_asignar.filter(function (h) { return h.tipo_dia === valor; }).length;
+            return this.poolVentana().filter(function (h) { return h.tipo_dia === valor; }).length;
         },
 
         opcionesFiltroDia() {
             var self = this;
             var lista = [{
-                valor: 'todas', label: 'Todas', n: this.data ? this.data.sin_asignar.length : 0,
+                valor: 'todas', label: 'Todas', n: this.poolVentana().length,
                 c: 'bg-white text-gray-800 border-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600'
             }];
             this.tiposDia.forEach(function (t) {
@@ -1327,25 +1536,21 @@ function asignacionesApp() {
         // Al filtrar se sueltan las elegidas que quedan ocultas: no se asigna nada que no se ve.
         setFiltroDia(valor) {
             this.filtroDia = valor;
-            var visibles = this.sinAsignarVisibles().map(function (h) { return h.id; });
-            var reLimpiar = ((this.data && this.data.re_limpiar) || []).map(function (h) { return h.id; });
-            this.seleccionadas = this.seleccionadas.filter(function (id) {
-                return visibles.includes(id) || reLimpiar.includes(id);
-            });
+            this.soltarSeleccionOculta();
         },
 
         // Sin etiquetas no hay fila de filtros (hayTiposDia): un filtro que quedó puesto no puede
-        // esconder lo que queda sin ofrecer cómo volver a «Todas».
+        // esconder lo que queda sin ofrecer cómo volver a «Todas». Parte del pool de la pestaña (v7.25).
         sinAsignarVisibles() {
-            if (!this.data) return [];
-            if (!this.esFuturo || this.filtroDia === 'todas' || !this.hayTiposDia()) return this.data.sin_asignar;
+            var pool = this.poolVentana();
+            if (!this.esFuturo || this.filtroDia === 'todas' || !this.hayTiposDia()) return pool;
             var f = this.filtroDia;
-            return this.data.sin_asignar.filter(function (h) { return h.tipo_dia === f; });
+            return pool.filter(function (h) { return h.tipo_dia === f; });
         },
 
         filtroDiaSinPiezas() {
             return !!(this.data && this.esFuturo && this.filtroDia !== 'todas'
-                && this.data.sin_asignar.length > 0 && this.sinAsignarVisibles().length === 0);
+                && this.poolVentana().length > 0 && this.sinAsignarVisibles().length === 0);
         },
 
         textoFiltroDiaVacio() {
@@ -1355,25 +1560,17 @@ function asignacionesApp() {
         },
 
         sinAsignarAgrupado() {
-            if (!this.data) return [];
-            var grupos = {};
-            this.sinAsignarVisibles().forEach(function (h) {
-                var edificioStr = h.edificio ? h.edificio.toUpperCase() : 'SIN EDIFICIO';
-                var pisoStr = h.piso ? ('PISO ' + h.piso) : '';
-                var key = h.hotel_codigo + '_' + (h.edificio || '') + '_' + (h.piso || '');
-                if (!grupos[key]) {
-                    var titulo = (h.hotel_nombre + ' · ' + edificioStr + (pisoStr ? ' · ' + pisoStr : '')).toUpperCase();
-                    grupos[key] = { key: key, titulo: titulo, habitaciones: [] };
-                }
-                grupos[key].habitaciones.push(h);
-            });
-            return Object.values(grupos);
+            return this.agruparPorUbicacion(this.sinAsignarVisibles());
         },
 
         reLimpiarAgrupado() {
-            if (!this.data || !this.data.re_limpiar) return [];
+            return this.agruparPorUbicacion(this.reLimpiarVentana());
+        },
+
+        // Agrupa piezas por hotel → edificio → piso (pool, volver a limpiar y Día/Noche barridas).
+        agruparPorUbicacion(lista) {
             var grupos = {};
-            this.data.re_limpiar.forEach(function (h) {
+            (lista || []).forEach(function (h) {
                 var edificioStr = h.edificio ? h.edificio.toUpperCase() : 'SIN EDIFICIO';
                 var pisoStr = h.piso ? ('PISO ' + h.piso) : '';
                 var key = h.hotel_codigo + '_' + (h.edificio || '') + '_' + (h.piso || '');
@@ -1421,24 +1618,31 @@ function asignacionesApp() {
                 return;
             }
 
-            // origen === 'pool' : asignar en lote.
+            // origen === 'pool' : asignar en lote. Desde Noche, la tarjeta es de noche (v7.25).
+            var franja = this.ventana === 'noche' ? 'noche' : null;
             var movidas = [];
             ids.forEach(function (id) {
-                var idxS = self.data.sin_asignar.findIndex(function (h) { return h.id === id; });
-                if (idxS !== -1) { movidas.push(self.data.sin_asignar[idxS]); self.data.sin_asignar.splice(idxS, 1); return; }
-                if (self.data.re_limpiar) {
-                    var idxR = self.data.re_limpiar.findIndex(function (h) { return h.id === id; });
-                    if (idxR !== -1) { movidas.push(self.data.re_limpiar[idxR]); self.data.re_limpiar.splice(idxR, 1); }
-                }
+                ['sin_asignar', 're_limpiar', 'dia_noche_barridas'].some(function (lista) {
+                    var l = self.data[lista] || [];
+                    var idx = l.findIndex(function (h) { return h.id === id; });
+                    if (idx === -1) return false;
+                    movidas.push(l[idx]);
+                    l.splice(idx, 1);
+                    return true;
+                });
+            });
+            // Una Día/Noche barrida sale de la cola de la mañana (asignarManual apaga esa tarjeta).
+            this.data.trabajadores.forEach(function (t) {
+                t.cola = t.cola.filter(function (h) { return !ids.includes(h.habitacion_id); });
             });
             movidas.forEach(function (h) {
-                destino.cola.push({ habitacion_id: h.id, numero: h.numero, tipo_nombre: h.tipo_nombre, estado: 'sucia', franja: null, chapa: h.chapa });
+                destino.cola.push({ habitacion_id: h.id, numero: h.numero, tipo_nombre: h.tipo_nombre, estado: 'sucia', franja: franja, chapa: h.chapa });
             });
             this.seleccionadas = [];
             this.$nextTick(function () { lucide.createIcons(); });
             try {
                 var r2 = await apiPost('/api/asignaciones', {
-                    habitacion_ids: ids, usuario_id: workerId, fecha: this.fecha
+                    habitacion_ids: ids, usuario_id: workerId, fecha: this.fecha, franja: franja
                 });
                 if (r2 && r2.ok) this.mostrarToast('exito', 'Asignadas ' + ((r2.data && r2.data.total) || ids.length) + ' a ' + destino.usuario.nombre + '.');
                 else this.mostrarToast('error', (r2 && r2.error && r2.error.mensaje) || 'No pudimos asignar.');
@@ -1478,28 +1682,33 @@ function asignacionesApp() {
             this.cargar();
         },
 
-        // Reordenar la cola de un trabajador (arrastre dentro de su cuadro, modo Tablero).
+        // Reordenar la cola de un trabajador (arrastre dentro de su cuadro, modo Tablero). El índice del
+        // motor de arrastre es el de lo que se ve: las tarjetas de la pestaña (v7.25).
         async _reordenarEnWorker(workerId, roomId, indice) {
             var tr = this.data.trabajadores.find(function (t) { return t.usuario.id === workerId; });
             if (!tr) return;
-            var from = tr.cola.findIndex(function (h) { return h.habitacion_id === roomId; });
+            var visible = this.colaVentana(tr);
+            var from = visible.findIndex(function (h) { return h.habitacion_id === roomId; });
             if (from === -1) return;
             var to = indice > from ? indice - 1 : indice;
             if (to === from) return; // sin cambio
-            var item = tr.cola.splice(from, 1)[0];
-            tr.cola.splice(to, 0, item);
+            var item = visible.splice(from, 1)[0];
+            visible.splice(to, 0, item);
+            tr.cola = this.mezclarOrdenVisible(tr, visible);
             await this._persistirOrdenCola(workerId, tr.cola);
         },
 
         // Subir/bajar una posición en la cola (botones ▲▼, modo Clásico — acá no hay
-        // arrastre, mismo endpoint que ya usa el Tablero).
+        // arrastre, mismo endpoint que ya usa el Tablero). Entre las tarjetas de la pestaña (v7.25).
         async moverEnCola(tr, hab, delta) {
-            var from = tr.cola.indexOf(hab);
+            var visible = this.colaVentana(tr);
+            var from = visible.indexOf(hab);
             if (from === -1) return;
             var to = from + delta;
-            if (to < 0 || to >= tr.cola.length) return;
-            var item = tr.cola.splice(from, 1)[0];
-            tr.cola.splice(to, 0, item);
+            if (to < 0 || to >= visible.length) return;
+            var item = visible.splice(from, 1)[0];
+            visible.splice(to, 0, item);
+            tr.cola = this.mezclarOrdenVisible(tr, visible);
             await this._persistirOrdenCola(tr.usuario.id, tr.cola);
         },
 
@@ -1531,12 +1740,14 @@ function asignacionesApp() {
             this.modalAsignar = { abierto: false, enviando: false, busqueda: '', franja: null };
         },
 
+        // Por menor carga en la pestaña (v7.25: en Noche cuenta lo de noche).
         trabajadoresOrdenados() {
             if (!this.data) return [];
+            var self = this;
             return this.data.trabajadores.slice().sort(function (a, b) {
-                var cA = a.progreso.pendientes + a.progreso.en_progreso;
-                var cB = b.progreso.pendientes + b.progreso.en_progreso;
-                return cA - cB;
+                var pA = self.progresoDe(a);
+                var pB = self.progresoDe(b);
+                return (pA.pendientes + pA.en_progreso) - (pB.pendientes + pB.en_progreso);
             });
         },
 
@@ -1558,7 +1769,8 @@ function asignacionesApp() {
                     habitacion_ids: this.seleccionadas,
                     usuario_id: tr.usuario.id,
                     fecha: this.fecha,
-                    franja: this.modalAsignar.franja
+                    // v7.25: desde Noche, siempre tarjeta de noche; en Día, la franja opcional (mañana/tarde).
+                    franja: this.ventana === 'noche' ? 'noche' : this.modalAsignar.franja
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Asignadas ' + r.data.total + ' habitaciones a ' + tr.usuario.nombre + '.');
@@ -1618,7 +1830,7 @@ function asignacionesApp() {
 
         tieneBloqueadaEnProgreso(tr) {
             var self = this;
-            return tr.cola.some(function (h) { return self.esBloqueadaEnProgreso(h.estado); });
+            return this.colaVentana(tr).some(function (h) { return self.esBloqueadaEnProgreso(h.estado); });
         },
 
         abrirReasignar(tr, hab) {
@@ -1683,14 +1895,15 @@ function asignacionesApp() {
 
         destinosReasignar() {
             if (!this.data) return [];
+            var self = this;
             var origenId = this.modalReasignar.origen ? this.modalReasignar.origen.usuario.id : null;
             return this.data.trabajadores
                 .filter(function (t) { return t.usuario.id !== origenId; })
                 .slice()
                 .sort(function (a, b) {
-                    var cA = a.progreso.pendientes + a.progreso.en_progreso;
-                    var cB = b.progreso.pendientes + b.progreso.en_progreso;
-                    return cA - cB;
+                    var pA = self.progresoDe(a);
+                    var pB = self.progresoDe(b);
+                    return (pA.pendientes + pA.en_progreso) - (pB.pendientes + pB.en_progreso);
                 });
         },
 

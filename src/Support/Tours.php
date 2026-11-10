@@ -123,11 +123,17 @@ final class Tours
                     // ── 1. El trabajo diario. Va primero SIEMPRE. ──
                     [
                         'id'       => 'repartir',
-                        'v'        => 4,
+                        'v'        => 5,
                         'titulo'   => 'Repartir las piezas',
                         'pregunta' => '¿Cómo asigno las habitaciones de hoy?',
                         'requiere' => [],
                         'pasos' => [
+                            // v7.25 (reunión del 08/11/2026): pestañas Día | Noche.
+                            [
+                                'sel'    => '[data-tour="asig.ventana"]',
+                                'titulo' => 'Día y Noche',
+                                'texto'  => 'Día trae las piezas de la mañana; Noche, las de la tarde, que hoy se asignan desde la hora de la tarde. Lo que asignas en Noche queda como limpieza de noche y cada persona muestra solo lo de esa ventana.',
+                            ],
                             [
                                 'sel'    => '[data-tour="asig.sin-asignar"]',
                                 'titulo' => 'Las piezas que faltan repartir',
@@ -144,15 +150,12 @@ final class Tours
                                 'texto'  => 'Con la fecha de aquí arriba adelantas el trabajo de otro día y asignas igual. Ese día solo salen las piezas que necesitan limpieza según las reservas de Cloudbeds; lo de hoy no se toca.',
                             ],
                             // v7.15: etiquetas y filtros del pool de un día futuro (views/componentes/filtro-dia-pool.php).
+                            // v7.25: un solo paso para pool y cola (eran dos), para dejar lugar al de Día | Noche
+                            // sin pasar el máximo de 5 pasos por recorrido.
                             [
                                 'sel'    => '[data-tour="asig.sin-asignar"]',
                                 'titulo' => 'Qué toca en cada pieza',
-                                'texto'  => 'En otro día, cada tarjeta dice «Se va», «Cambio» o «Sábanas» (sigue y le toca cambio); sin etiqueta, solo sigue. Los botones con su número filtran la lista por tipo.',
-                            ],
-                            [
-                                'sel'    => '[data-tour="asig.equipo"]',
-                                'titulo' => 'La cola de ese día',
-                                'texto'  => 'La cola de cada persona muestra la misma etiqueta. Si una pieza preasignada dice «Sin limpieza», ese día no necesita aseo y puedes quitarla.',
+                                'texto'  => 'En otro día, cada tarjeta dice «Se va», «Cambio» o «Sábanas»; sin etiqueta, solo sigue. Los botones con su número filtran la lista. Una preasignada que en la cola dice «Sin limpieza» no necesita aseo: puedes quitarla.',
                             ],
                         ],
                     ],
@@ -186,7 +189,7 @@ final class Tours
                     // ── 3. El atajo para repartir todo. Solo con permiso. ──
                     [
                         'id'        => 'auto',
-                        'v'         => 3,
+                        'v'         => 4,
                         'titulo'    => 'Auto-asignar todo',
                         'pregunta'  => '¿Puedo repartir todo de una vez?',
                         'capacidad' => 'asignaciones.auto_asignar',
@@ -195,7 +198,7 @@ final class Tours
                             [
                                 'sel'    => '[data-tour="asig.auto"]',
                                 'titulo' => 'Reparte parejo, tú ajustas',
-                                'texto'  => 'El botón de auto-asignar reparte las piezas sucias en partes parejas entre el personal de Aseo con turno; la pestaña «Otros» no recibe. Después arrastra a mano lo que quieras ajustar.',
+                                'texto'  => 'En Día, reparte las piezas sucias en partes parejas entre el personal de Aseo con turno; «Otros» no recibe y las piezas Noche se asignan a mano en Noche. Después arrastra lo que quieras ajustar.',
                             ],
                         ],
                     ],

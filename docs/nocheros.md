@@ -11,7 +11,7 @@ en la tarde (el huésped duerme de día) o dos (dos huéspedes, uno de cada turn
 | Chapa | En la base | Qué significa | Qué hace la app |
 |---|---|---|---|
 | **Día** | `es_nochero = 0` | Hotel normal: un aseo en la mañana. Es lo de siempre, sin marca. | Nada especial. |
-| **Noche** | `es_nochero = 1`, `nochero_modo = 'noche'` | Huésped de turno noche: un aseo, en la tarde. | Se ve la chapa. **No** entra al barrido: queda sucia por el «sucio» diario de Cloudbeds, como una pieza normal. Desde la v7.25 no se podrá asignar antes de la hora de la tarde. |
+| **Noche** | `es_nochero = 1`, `nochero_modo = 'noche'` | Huésped de turno noche: un aseo, en la tarde. | Se ve la chapa. **No** entra al barrido: queda sucia por el «sucio» diario de Cloudbeds, como una pieza normal. Desde la v7.25 no se asigna hoy antes de la hora de la tarde y no entra a «Auto». |
 | **Día/Noche** | `es_nochero = 1`, `nochero_modo = 'dia_noche'` | Huéspedes de turno día y noche: dos aseos. | El barrido de la hora de la tarde la vuelve a sucia (una vez al día) si ya quedó aprobada, y le avisa `dirty` a Cloudbeds. Es lo que era «nochero» hasta la v7.22. |
 
 Toda chapa Noche o Día/Noche tiene vigencia (`nochero_hasta`, último día, desde hoy en adelante, sin mínimo). Al
@@ -27,7 +27,8 @@ vencer vuelve a **Día**. Las marcas de antes de la v7.23 quedaron como Día/Noc
 - **La chapa se ve siempre, también la de Día** (pedido de Nicolás, 10/11/2026): Día en celeste, Noche en índigo,
   Día/Noche en ámbar. Las áreas comunes no llevan chapa.
 - **Asignaciones:** «D», «N» o «D/N» junto al número, en el pool y en las colas. Para un día futuro, una marca que
-  vence antes cuenta como Día. Reemplaza el punto amarillo.
+  vence antes cuenta como Día. Reemplaza el punto amarillo. Desde la v7.25, la chapa reparte el pool en las pestañas
+  Día | Noche ([asignacion.md](asignacion.md) §3.4).
 - **Inspección:** etiqueta «Día», «Noche» o «Día/Noche» (antes solo «Nochero»). Las piezas Noche y Día/Noche siguen
   saliendo primero en el orden por prioridad.
 - **Reportes y el correo de inspecciones pendientes:** la columna «Nochero» sigue diciendo «Sí» para cualquier chapa
@@ -46,7 +47,8 @@ La usan:
 - el barrido del cron (`scripts/sync-cloudbeds.php`, cada 10 min) desde esa hora;
 - el barrido inmediato al marcar una pieza Día/Noche ya aprobada después de esa hora (v6.17);
 - el checklist premarcado (v7.24, §3.1);
-- desde la v7.25: desde cuándo se pueden asignar las piezas Noche.
+- desde la v7.25: desde cuándo se pueden asignar hoy las piezas Noche (pestaña Noche de Asignaciones) y desde cuándo se
+  retira una tarjeta de noche que no necesitó limpieza.
 
 ### 3.1 Checklist premarcado (v7.24)
 
@@ -88,5 +90,6 @@ cortes): así, mover la hora no cambia cómo se ve el pasado. El cierre de día 
 ## 6. Lo que viene
 
 - **v7.24:** checklist premarcado en piezas con chapa, desde la hora de la tarde (hecho: §3.1).
-- **v7.25:** pestañas Día | Noche en Asignaciones; las Noche no se asignan antes de la hora.
-- **v7.26:** dos tarjetas por pieza y día en las Día/Noche (una persona en cada ventana).
+- **v7.25:** pestañas Día | Noche en Asignaciones; las Noche no se asignan antes de la hora (hecho: [asignacion.md](asignacion.md) §3.4).
+- **v7.26:** dos tarjetas por pieza y día en las Día/Noche (una persona en cada ventana). Con ellas, las Día/Noche también
+  se podrán planificar en la pestaña Noche de un día futuro (en la v7.25 Noche trae solo las Noche).

@@ -148,6 +148,47 @@ Cada persona es una ficha que se abre al tocarla:
 No entran las piezas que Cloudbeds dio por limpias sin que nadie las limpiara en la app, ni el atajo «Marcar limpia»: no son una
 limpieza de esa persona. Es la misma regla de Reportes. El tablero de hoy no cambia.
 
+### 3.4 Pestañas «Día» y «Noche» (v7.25, reunión del 08/11/2026)
+
+Plan aprobado el 09/11; detalles con Nicolás el 10/11/2026. Pestañas **Día (n) · Noche (n)** arriba del buscador, compartidas
+por Tablero y Clásico (se recuerda en `localStorage["asignaciones_ventana"]`). El número es lo que queda por repartir en esa
+ventana. Depende de la chapa de la v7.23 ([nocheros.md](nocheros.md)) y de la hora de la tarde de Ajustes.
+
+**Qué cambia entre pestañas: el pool y las colas.**
+- **Pool «Sin asignar»:** Día trae las piezas Día y Día/Noche. Noche trae las Noche y, **hoy**, también las Día/Noche. Para un
+  **día futuro**, Noche trae **solo las Noche**: con una tarjeta por pieza y día, preasignar la de noche de una Día/Noche dejaría
+  sin nadie su limpieza de la mañana (las dos tarjetas llegan con la v7.26). El pool viaja entero desde el backend, cada pieza con
+  su `chapa`, y la pantalla lo reparte.
+- **Colas:** cada persona muestra solo sus tarjetas de esa ventana. Una tarjeta es de **noche** si su `franja` es `noche`; sin
+  franja, `mañana` o `tarde` es de **día**. La línea «N/M completadas · P pendientes» y el «menor carga» de los modales usan
+  `progreso_ventana[dia|noche]`. Reordenar (arrastre o ▲▼) mueve solo entre las tarjetas de la pestaña: las de la otra ventana
+  quedan en su lugar en la cola completa.
+- Lo que se asigna desde **Noche** queda con `franja = 'noche'` (en el modal no se elige franja: dice «Quedan como limpieza de
+  noche»). En Día la franja opcional es mañana o tarde.
+- **«Volver a limpiar»** sale en las dos pestañas; desde Noche, la tarjeta nueva es de noche.
+
+**Antes de la hora de la tarde (hoy):** la pestaña Noche muestra «Disponibles desde las HH:MM» y cuántas piezas Noche esperan,
+en vez del pool. Las piezas Noche no se pueden asignar: `asignarManual` y `asignarMultiple` responden 409 `NOCHE_ANTES_DE_HORA`
+(el lote completo, sin dejar nada a medias). Solo frena la asignación **nueva**: una Noche que ya está en una cola se queda y se
+puede mover entre personas. Las colas de noche se ven igual. Un día futuro se planifica a cualquier hora.
+
+**Día/Noche barridas (hoy, desde la hora):** el barrido devuelve a sucia la Día/Noche ya aprobada, pero su tarjeta sigue siendo
+la de la mañana. Salen aparte en el pool de Noche, «Día/Noche de la mañana», con el nombre de quien la tiene
+(`dia_noche_barridas`: sucias, barridas hoy, con tarjeta activa que no es de noche, sin bloqueo). Al asignarlas, `asignarManual`
+apaga la tarjeta de la mañana y crea la de noche. **La limpieza de la mañana no se pierde:** el Registro (§3.3) y Reportes leen
+las limpiezas, no las tarjetas, y son dos ciclos distintos (franja distinta). A quien la limpió en la mañana no le queda como
+«sin limpiar».
+
+**«Auto»** sale solo en la pestaña Día y nunca reparte piezas Noche, ni antes ni después de la hora: se asignan a mano desde Noche
+(§6). El plan las sacaba solo antes de la hora; se dejó así para que «Auto» no reparta piezas que no se ven en la pestaña Día.
+
+**Preasignaciones:** una tarjeta de noche no se retira en la mañana aunque su pieza siga aprobada (`reconciliarPreasignaciones`):
+recién desde la hora de la tarde se sabe si de verdad no la necesitó.
+
+`GET /api/asignaciones/vista` suma `ventana_noche: {hora, disponible}`, `dia_noche_barridas[]` y, en cada persona,
+`progreso_ventana: {dia, noche}`. Reloj inyectable en `AsignacionService` (`reloj:`) para los tests; `EscenarioCicloLimpieza`
+fija las 17:00.
+
 ## 4. Modo Tablero (arrastrar-y-soltar)
 
 ### 4.1 Layout
@@ -245,15 +286,17 @@ Botón **Auto** (gate `asignaciones.auto_asignar`) → `POST /api/asignaciones/a
 asignar entre los trabajadores con turno con un **round-robin simple** (`$i % $n`):
 parejo por cantidad, sin mirar carga/tiempo/tipo. Después se afina a mano (arrastrando
 en el tablero). *Mejora pendiente de este reparto: repartir por carga/tiempo real,
-créditos por tipo, franjas y cercanía.*
+créditos por tipo, franjas y cercanía.* Desde la v7.25 el botón está solo en la pestaña
+Día y las piezas con chapa Noche vigente no entran al reparto (§3.4).
 
 ## 7. Vista Guiada (botón «?»)
 
 El catálogo de recorridos de esta pantalla vive en `src/Support/Tours.php`
 (clave `'asignaciones'`), con 4 recorridos: **Repartir**, **Mover** (reasignar /
-quitar / reordenar), **Auto-asignar** y **Cambiar de hotel**. Las 4 anclas
-(`asig.hotel`, `asig.auto`, `asig.sin-asignar`, `asig.equipo`) viven en el markup del
-**tablero**. `ToursAnchorTest` verifica que existan y no queden huérfanas.
+quitar / reordenar), **Auto-asignar** y **Cambiar de hotel**. Las anclas
+(`asig.hotel`, `asig.auto`, `asig.sin-asignar`, `asig.equipo`; y desde la v7.25
+`asig.ventana`, en las pestañas Día | Noche, que valen para los dos modos) viven en el
+markup. `ToursAnchorTest` verifica que existan y no queden huérfanas.
 
 > En **modo clásico** el «?» degrada con el fallback honesto del motor ("este paso no
 > está en pantalla ahora") para los recorridos que apuntan a zonas del tablero — es a

@@ -4169,6 +4169,8 @@ inventado).
 5. **Como Admin, Ajustes → Hora de la tarde:** muestra 16:00. Dejarla así salvo que se quiera cambiar.
 6. **En la tarde:** después de la hora, las Día/Noche aprobadas vuelven a sucia como siempre.
 
+**Desplegada** (Nicolás lo confirmó el 10/11/2026, ~11:20). Smoke: sin confirmar al registrar.
+
 ### 11.57 Release "checklist premarcado" → v7.24
 
 Origen: reunión del 08/11/2026; plan aprobado el 09/11 (premarcado solo en piezas con chapa, desde la hora de la tarde,
@@ -4253,5 +4255,60 @@ SELECT ec.id, ho.nombre AS hotel, h.numero, u.nombre AS limpio, ec.timestamp_ini
   LEFT JOIN cat6852_australia.limpieza_usuarios au ON au.id = a.auditor_id
  WHERE ec.premarcada = 1
  ORDER BY ec.id DESC
+ LIMIT 50;
+```
+
+**Desplegada el 10/11/2026** (Nicolás: SQL y después ZIP). `/api/health` 200 con `esquema.ok: true` (11:20:42). Smoke: el
+premarcado se ve recién desde la hora de la tarde; sin confirmar al registrar.
+
+### 11.58 Release "pestañas Día | Noche en Asignaciones" → v7.25
+
+Origen: reunión del 08/11/2026; plan aprobado el 09/11; detalles con Nicolás el 10/11 (pool y colas por pestaña, las Día/Noche
+barridas en el pool de Noche, día futuro con solo las Noche). Detalle en [asignacion.md](asignacion.md) §3.4. **Requiere la
+v7.23 arriba** (chapa y hora de la tarde).
+
+**Qué cambia:**
+- Asignaciones con pestañas **Día | Noche** (Tablero y Clásico). Cada una trae sus piezas sin asignar según la chapa y, de cada
+  persona, solo sus tarjetas de esa ventana. Lo que se asigna en Noche queda como tarjeta de noche (`franja = 'noche'`).
+- Hoy, **antes de la hora de la tarde**, Noche dice «Disponibles desde las HH:MM» y las piezas Noche no se asignan (409
+  `NOCHE_ANTES_DE_HORA`, también por API). Las que ya están en una cola se quedan.
+- Desde la hora, las **Día/Noche barridas** salen en Noche («Día/Noche de la mañana», con quién las tiene): al asignarlas pasan
+  de la cola de la mañana a la de noche. La limpieza de la mañana sigue en el Registro y en Reportes.
+- **«Auto»** solo en Día; nunca reparte piezas Noche. Una tarjeta de noche no se retira en la mañana.
+- Para un día futuro, Noche trae solo las piezas Noche (las Día/Noche, en la v7.26).
+
+**Sin SQL.** Sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+#### ZIP
+
+`build/limpieza-v725-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.25 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `src/Models/Asignacion.php`, `src/Services/AsignacionService.php` y `src/Support/Tours.php`;
+- `views/asignaciones.php` y `views/componentes/noche-en-espera.php` (nuevo).
+
+**Vuelta atrás:** `build/limpieza-v725-vuelta-atras.zip`, con los archivos que ya existían en la v7.24. El componente nuevo puede
+quedar (nadie lo incluye). Las tarjetas de noche que se hayan creado quedan como están: la v7.24 las muestra como cualquier otra.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.25** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Asignaciones, pestaña Día:** el pool no trae piezas «N»; «Auto» está solo acá.
+3. **Antes de la hora, pestaña Noche:** «Disponibles desde las 16:00» y cuántas piezas Noche esperan.
+4. **Después de la hora, pestaña Noche:** las «N» y las «D/N»; si hay Día/Noche barridas, salen en «Día/Noche de la mañana».
+   Asignar una a alguien de la tarde: sale de la cola de la mañana y aparece en la pestaña Noche de esa persona.
+5. Al día siguiente, en el Registro de ese día: quien la limpió en la mañana sigue con su limpieza.
+
+**Consulta de tarjetas de noche** (para revisarlas):
+
+```sql
+SELECT a.id, a.fecha, ho.nombre AS hotel, h.numero, h.nochero_modo, u.nombre AS asignada_a, a.activa, h.estado
+  FROM cat6852_australia.limpieza_asignaciones a
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = a.habitacion_id
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = a.usuario_id
+ WHERE a.franja = 'noche'
+ ORDER BY a.id DESC
  LIMIT 50;
 ```

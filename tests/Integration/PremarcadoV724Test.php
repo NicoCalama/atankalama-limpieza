@@ -101,9 +101,10 @@ final class PremarcadoV724Test extends TestCase
 
     public function testRespetaLaHoraDeAjustes(): void
     {
-        (new HoraTardeService())->guardar('18:00', $this->sofia);
         $this->habs->marcarNochero($this->hab['101'], $this->hoy, $this->sofia, null, '09:00', Habitacion::NOCHERO_NOCHE);
+        // Asignada antes de mover la hora: desde la v7.25 una pieza Noche no se asigna antes de la hora de la tarde.
         $this->asig->asignarManual($this->hab['101'], $this->ana, $this->hoy);
+        (new HoraTardeService())->guardar('18:00', $this->sofia);
 
         $e = $this->chkALas('17:30')->iniciarEjecucion($this->hab['101'], $this->ana, $this->hoy);
         $this->assertSame(0, $this->resumen($e->id)['premarcada'], 'a las 17:30 todavía no es la tarde si la hora es 18:00');

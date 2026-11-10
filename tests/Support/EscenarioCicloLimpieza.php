@@ -74,7 +74,9 @@ trait EscenarioCicloLimpieza
             dryRun: false,
         ));
         $this->habs   = new HabitacionService();
-        $this->asig   = new AsignacionService(cloudbeds: $this->sync);
+        // v7.25: la tarde fija, para que las piezas Noche se puedan asignar hoy sin depender de a qué hora
+        // corre la suite (desde la hora de la tarde). Los tests de las pestañas arman su propio servicio.
+        $this->asig   = new AsignacionService(cloudbeds: $this->sync, reloj: static fn(): string => '17:00');
         // v7.24: la mañana fija, para que el premarcado (desde la hora de la tarde) no dependa de a qué
         // hora corre la suite. Los tests del premarcado arman su propio ChecklistService con otra hora.
         $this->chk    = new ChecklistService(reloj: static fn(): string => '10:00');

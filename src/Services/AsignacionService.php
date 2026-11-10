@@ -27,7 +27,58 @@ final class AsignacionService
         // Reservas de un día futuro (v7.15), para el pool de la planificación. null = el de siempre,
         // que lee el .env; los tests le pasan un Cloudbeds simulado.
         private readonly ?OcupacionFuturaService $ocupacionFutura = null,
+        // v7.25: la hora local («HH:MM») con que se decide si ya se pueden asignar las piezas Noche. null =
+        // la de $horaActual en punto, si la fijaron; si no, la del reloj.
+        private readonly ?\Closure $reloj = null,
     ) {
+    }
+
+    private function horaMinuto(): string
+    {
+        if ($this->reloj !== null) {
+            return (string) ($this->reloj)();
+        }
+        return $this->horaActual !== null ? sprintf('%02d:00', $this->horaActual) : date('H:i');
+    }
+
+    /**
+     * v7.25 (reunión del 08/11/2026): ¿ya se pueden asignar las piezas Noche de $fecha? Hoy, desde la hora
+     * de la tarde (Ajustes → Hora de la tarde); un día futuro, siempre (se está planificando). Un día pasado
+     * no se asigna.
+     */
+    public function nocheDisponible(string $fecha): bool
+    {
+        $hoy = date('Y-m-d');
+        if ($fecha !== $hoy) {
+            return $fecha > $hoy;
+        }
+        return $this->horaMinuto() >= (new HoraTardeService())->hora();
+    }
+
+    /**
+     * v7.25: una pieza Noche se asigna hoy recién desde la hora de la tarde (antes, su huésped duerme). Solo
+     * frena la asignación NUEVA: una que ya está en una cola se queda y se puede mover entre personas.
+     */
+    private function exigirNocheDisponible(int $habitacionId, string $fecha): void
+    {
+        if ($fecha !== date('Y-m-d') || $this->nocheDisponible($fecha)) {
+            return;
+        }
+        $fila = Database::fetchOne(
+            'SELECT numero, es_nochero, nochero_modo, nochero_hasta, es_espacio_comun FROM #__habitaciones WHERE id = ?',
+            [$habitacionId]
+        );
+        if ($fila === null || (int) $fila['es_espacio_comun'] === 1
+            || HabitacionService::chapaDeFila($fila, $fecha) !== Habitacion::NOCHERO_NOCHE
+            || $this->obtenerActivaDeHabitacion($habitacionId, $fecha) !== null) {
+            return;
+        }
+        $hora = (new HoraTardeService())->hora();
+        throw new AsignacionException(
+            'NOCHE_ANTES_DE_HORA',
+            "La habitación {$fila['numero']} es de noche: se puede asignar desde las {$hora}.",
+            409
+        );
     }
 
     /**
@@ -82,6 +133,7 @@ final class AsignacionService
                 409
             );
         }
+        $this->exigirNocheDisponible($habitacionId, $fecha);
         $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
         $this->desactivarAsignacionesActivas($habitacionId, $fecha);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
@@ -180,6 +232,7 @@ final class AsignacionService
         // Todo el lote se valida antes de asignar nada: una pieza en progreso a mitad del lote
         // no debe dejar asignadas las anteriores y el resto no.
         foreach ($habitacionIds as $habitacionId) {
+            $this->exigirNocheDisponible($habitacionId, $fecha);
             $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
         }
         $creadas = [];
@@ -210,8 +263,11 @@ final class AsignacionService
                       AND h.es_espacio_comun = 0
                       AND ' . HabitacionesPrueba::sqlSinPrueba() . '
                       AND ' . BloqueosService::sqlSinBloqueo() . '
-                      AND a.id IS NULL';
-        $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA];
+                      AND a.id IS NULL
+                      AND NOT (h.es_nochero = 1 AND h.nochero_modo = ? AND (h.nochero_hasta IS NULL OR h.nochero_hasta >= ?))';
+        // v7.25: las piezas Noche no entran al reparto (ni antes ni después de la hora de la tarde): se
+        // asignan a mano desde la pestaña Noche. «Auto» vive en la pestaña Día, que no las muestra.
+        $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA, Habitacion::NOCHERO_NOCHE, $fecha];
         if ($filtroHotel !== null) {
             $sqlHab .= ' AND ho.codigo = ?';
             $paramsHab[] = $filtroHotel;
@@ -512,6 +568,10 @@ final class AsignacionService
      *     `tipo_dia` (v7.15, ver filtrarPorReservas); "re_limpiar" queda vacío
      *   - si $fecha ya pasó: todo el inventario activo sin asignación activa esa fecha
      *   - trabajadores con turno esa fecha, con su cola (habitaciones + estados)
+     *   - v7.25 (pestañas Día | Noche): `ventana_noche` {hora, disponible}; `dia_noche_barridas` (hoy, desde
+     *     la hora de la tarde: Día/Noche barridas que siguen con la tarjeta de la mañana, para darles la de
+     *     noche); y `progreso_ventana` {dia, noche} de cada persona. El pool viaja entero, cada pieza con su
+     *     `chapa`: la pantalla lo reparte en las pestañas. Ver docs/asignacion.md §3.4.
      *
      * @param string $hotel código del hotel ('ambos', '1_sur', 'inn', etc.)
      * @param string $fecha YYYY-MM-DD
@@ -520,6 +580,8 @@ final class AsignacionService
      *     hotel: string,
      *     sin_asignar: array<int, array<string, mixed>>,
      *     re_limpiar: array<int, array<string, mixed>>,
+     *     dia_noche_barridas: list<array<string, mixed>>,
+     *     ventana_noche: array{hora: string, disponible: bool},
      *     trabajadores: list<array<string, mixed>>,
      *     reservas: array{hoteles_sin_dato: list<string>}|null
      * }
@@ -634,6 +696,43 @@ final class AsignacionService
             $reLimpiar = [];
         }
 
+        // v7.25: Día/Noche que el barrido de hoy devolvió a sucia y siguen con la tarjeta de la mañana (la de
+        // quien la limpió temprano). Salen en el pool de Noche: al asignarlas, asignarManual apaga esa tarjeta
+        // y crea la de noche. La limpieza de la mañana no se pierde: el Registro y Reportes leen las limpiezas,
+        // no las tarjetas. Una rechazada, en curso o por inspeccionar no está acá (estado 'sucia').
+        $horaTarde = (new HoraTardeService())->hora();
+        $nocheDisponible = $this->nocheDisponible($fecha);
+        $diaNocheBarridas = [];
+        if ($esHoy && $nocheDisponible) {
+            $sqlBarr = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta,
+                               h.cb_frontdesk_status, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+                               th.nombre AS tipo_nombre, u.nombre AS asignada_a
+                          FROM #__habitaciones h
+                          JOIN #__hoteles ho ON ho.id = h.hotel_id
+                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                          JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                          JOIN #__usuarios u ON u.id = a.usuario_id
+                         WHERE h.activa = 1
+                           AND h.es_espacio_comun = 0
+                           AND h.estado = ?
+                           AND h.es_nochero = 1 AND h.nochero_modo = ?
+                           AND (h.nochero_hasta IS NULL OR h.nochero_hasta >= ?)
+                           AND h.nochero_ultima_reversion = ?
+                           AND (a.franja IS NULL OR a.franja <> ?)
+                           AND ' . BloqueosService::sqlSinBloqueo() . $sinPrueba;
+            $paramsBarr = [$fecha, Habitacion::ESTADO_SUCIA, Habitacion::NOCHERO_DIA_NOCHE, $fecha, $fecha, Asignacion::FRANJA_NOCHE];
+            if ($filtroHotel !== null) {
+                $sqlBarr .= ' AND ho.codigo = ?';
+                $paramsBarr[] = $filtroHotel;
+            }
+            $sqlBarr .= ' ORDER BY ho.codigo, h.numero';
+            foreach (Database::fetchAll($sqlBarr, $paramsBarr) as $fila) {
+                $fila['chapa'] = HabitacionService::chapaDeFila($fila, $fecha);
+                $fila['es_nochero'] = true;
+                $diaNocheBarridas[] = $fila;
+            }
+        }
+
         // A quién se le puede asignar ese día (v7.14): aseo con turno + «otros» que limpian, con o sin
         // turno. Cada uno trae su grupo para las pestañas «Aseo / Otros». Ver PersonalAsignableService.
         $trabajadores = (new PersonalAsignableService())->listar($fecha, $filtroHotel);
@@ -650,23 +749,9 @@ final class AsignacionService
             if ($esFutura) {
                 $cola = $this->anotarColaFutura($cola, $fecha, $reservasPorHotel);
             }
-            $pendientes = 0;
-            $enProgreso = 0;
-            $completadas = 0;
-            $rechazadas = 0;
-            foreach ($cola as $h) {
-                $estado = $h['estado'] ?? '';
-                // Un día futuro todavía no se limpió nada: el estado de hoy es solo referencia (v7.14).
-                if ($esFutura || $estado === 'sucia') {
-                    $pendientes++;
-                } elseif ($estado === 'en_progreso') {
-                    $enProgreso++;
-                } elseif (in_array($estado, ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'], true)) {
-                    $completadas++;
-                } elseif ($estado === 'rechazada') {
-                    $rechazadas++;
-                }
-            }
+            // v7.25: la ventana de cada tarjeta (franja 'noche' = Noche; sin franja, mañana o tarde = Día),
+            // para que cada pestaña cuente solo lo suyo.
+            $deNoche = static fn(array $h): bool => ($h['franja'] ?? null) === Asignacion::FRANJA_NOCHE;
             $trabajadoresVista[] = [
                 'usuario' => [
                     'id' => $tr['id'],
@@ -677,12 +762,10 @@ final class AsignacionService
                     'con_turno' => $tr['con_turno'],
                 ],
                 'cola' => $cola,
-                'progreso' => [
-                    'pendientes' => $pendientes,
-                    'en_progreso' => $enProgreso,
-                    'completadas' => $completadas,
-                    'rechazadas' => $rechazadas,
-                    'total' => count($cola),
+                'progreso' => self::progresoDeCola($cola, $esFutura),
+                'progreso_ventana' => [
+                    'dia' => self::progresoDeCola(array_filter($cola, static fn(array $h): bool => !$deNoche($h)), $esFutura),
+                    'noche' => self::progresoDeCola(array_filter($cola, $deNoche), $esFutura),
                 ],
             ];
         }
@@ -692,12 +775,40 @@ final class AsignacionService
             'hotel' => $hotel,
             'sin_asignar' => $sinAsignar,
             're_limpiar' => $reLimpiar,
+            'dia_noche_barridas' => $diaNocheBarridas,
+            'ventana_noche' => ['hora' => $horaTarde, 'disponible' => $nocheDisponible],
             'trabajadores' => $trabajadoresVista,
             'reservas' => $esFutura ? ['hoteles_sin_dato' => array_values(array_map(
                 static fn(array $h): string => $h['nombre'],
                 array_filter($reservasPorHotel, static fn(array $h): bool => $h['piezas'] === null)
             ))] : null,
         ];
+    }
+
+    /**
+     * Cuántas tarjetas de una cola van en cada estado (la línea «N/M completadas · P pendientes» de cada
+     * persona en Asignaciones). Un día futuro todavía no se limpió nada: el estado de hoy es solo referencia
+     * y todo cuenta como pendiente (v7.14).
+     *
+     * @param array<array-key, array<string, mixed>> $cola
+     * @return array{pendientes: int, en_progreso: int, completadas: int, rechazadas: int, total: int}
+     */
+    private static function progresoDeCola(array $cola, bool $esFutura): array
+    {
+        $p = ['pendientes' => 0, 'en_progreso' => 0, 'completadas' => 0, 'rechazadas' => 0, 'total' => count($cola)];
+        foreach ($cola as $h) {
+            $estado = $h['estado'] ?? '';
+            if ($esFutura || $estado === 'sucia') {
+                $p['pendientes']++;
+            } elseif ($estado === 'en_progreso') {
+                $p['en_progreso']++;
+            } elseif (in_array($estado, ['completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica'], true)) {
+                $p['completadas']++;
+            } elseif ($estado === 'rechazada') {
+                $p['rechazadas']++;
+            }
+        }
+        return $p;
     }
 
     /**
@@ -955,6 +1066,11 @@ final class AsignacionService
         $soloAreas = ($this->horaActual ?? (int) date('G')) < self::HORA_RETIRO_PREASIGNACIONES
             ? ' AND h.es_espacio_comun = 1'
             : '';
+        // v7.25: una tarjeta de noche no se retira en la mañana: su pieza se limpia en la tarde y recién
+        // desde la hora de la tarde se sabe si de verdad no la necesitó (sigue aprobada, nadie la ocupó).
+        if ($this->horaMinuto() < (new HoraTardeService())->hora()) {
+            $soloAreas .= " AND (h.es_espacio_comun = 1 OR a.franja IS NULL OR a.franja <> 'noche')";
+        }
         $huerfanas = Database::fetchAll(
             "SELECT a.id, a.usuario_id, a.habitacion_id, h.numero, h.es_espacio_comun
                FROM #__asignaciones a

@@ -9,6 +9,12 @@ final class Asignacion
     /** Ventanas de limpieza para varias limpiezas por día. Ver docs/limpiezas-multiples-dia.md */
     public const FRANJAS = ['mañana', 'tarde', 'noche'];
 
+    /**
+     * La tarjeta de la ventana de noche (v7.25): lo que se asigna desde la pestaña Noche de Asignaciones. Las
+     * demás (sin franja, mañana o tarde) son de la ventana de día.
+     */
+    public const FRANJA_NOCHE = 'noche';
+
     public function __construct(
         public readonly int $id,
         public readonly int $habitacionId,
