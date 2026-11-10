@@ -3847,3 +3847,21 @@ por día del mes ÷ 7,5 (18 → 2,40).
 
 **Desplegada el 08/11/2026.** ZIP `build/limpieza-v718-delta.zip` desde `7c4b80f` con la fila del `CHANGELOG.md` fechada, sin
 SQL. `/api/health` 200 con `esquema.ok: true` (07:03:33). Smoke OK (Nicolás).
+
+### 11.51 Release "comentarios en tickets y orden en Inspección" → v7.19 (junto con la v7.18.1)
+
+Origen: reunión del 08/11/2026 (v7.19) y Nicolás, 09/11/2026 (v7.18.1, el turno parcial es de 4 h). Plan del lote: v7.19 a v7.26.
+
+**Qué cambia:**
+- **v7.18.1:** un día trabajado sin turno cargado en jornada parcial vale 4 h, ya no 3,75 h. Solo desde noviembre de 2026.
+- **v7.19, Tickets:** comentario escrito opcional en el detalle y al cerrar. Alcanza con la respuesta de la lista, con el texto o con ambos.
+- **v7.19, Inspección:** botón «Ordenar» con Prioridad, Número ascendente y Por piso. Solo reordena la pantalla y no toca `auditoria_orden`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+**ZIP:** `build/limpieza-v719-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` desde `ef0ec82` y las filas del
+`CHANGELOG.md` fechadas (se extrae en `public_html/`). 8 archivos: `CHANGELOG.md`, `src/Controllers/TicketsController.php`,
+`src/Services/{AuditoriaService,HorasAseoService}.php`, `views/{auditoria-bandeja,reportes,tickets}.php` y `views/recursos/tickets/tickets.js`.
+**Vuelta atrás:** `build/limpieza-v719-vuelta-atras.zip`, con los mismos archivos en la v7.18.1 (`7ad3d67`).
+
+**Desplegada el 09/11/2026** (Nicolás). `/api/health` 200 con `esquema.ok: true` (21:12:35). Smoke: sin confirmar al registrar.
