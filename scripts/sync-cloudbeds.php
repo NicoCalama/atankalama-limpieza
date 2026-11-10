@@ -27,6 +27,7 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['REQUEST_METHOD'])) {
 require __DIR__ . '/../vendor/autoload.php';
 
 use Atankalama\Limpieza\Core\Config;
+use Atankalama\Limpieza\Services\AvisoMantencionService;
 use Atankalama\Limpieza\Services\CloudbedsClient;
 use Atankalama\Limpieza\Services\CloudbedsSyncService;
 use Atankalama\Limpieza\Services\HabitacionService;
@@ -81,6 +82,20 @@ try {
     }
 } catch (\Throwable $e) {
     fwrite(STDERR, "Aviso de nocheros por vencer falló (no crítico): {$e->getMessage()}\n");
+}
+
+// Recordatorio de tickets pendientes a mantención (v7.22): en la mañana, una notificación por persona
+// y por día a quien tiene algo abierto o hay tickets sin responsable; las pasadas siguientes no repiten.
+try {
+    if ($horaActual >= AvisoMantencionService::HORA_RECORDATORIO_DESDE
+        && $horaActual < AvisoMantencionService::HORA_RECORDATORIO_HASTA) {
+        $avisadas = (new AvisoMantencionService())->enviarRecordatorioDiario($hoy);
+        if ($avisadas > 0) {
+            echo "Tickets pendientes: recordatorio a {$avisadas} persona(s).\n";
+        }
+    }
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Recordatorio de tickets pendientes falló (no crítico): {$e->getMessage()}\n");
 }
 
 // Throttle: el cron tickea seguido; solo se sincroniza si pasó el intervalo configurado.

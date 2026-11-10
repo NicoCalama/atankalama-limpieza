@@ -27,6 +27,7 @@ medios**.
 
 | Versión | Qué cambió |
 |---|---|
+| **v7.22** · 10/11/2026 | Usuarios: en la ficha de cada persona se eligen sus supervisores · Al asignar un ticket, también les llega el aviso a los supervisores de la persona asignada · Mantención ve arriba de cada pantalla sus trabajos abiertos y los tickets sin responsable · Un ticket nuevo sin responsable le avisa a toda mantención, y en la mañana llega un recordatorio de lo pendiente |
 | **v7.21** · 10/11/2026 | Tickets: «Tomar fotos» abre una cámara que queda abierta y saca hasta 3 fotos seguidas, al crear y al cerrar un ticket · Si no hay permiso o cámara, se puede usar la cámara del teléfono como antes |
 | **v7.20.1** · 10/11/2026 | Reportes: las tablas muestran el nombre completo de cada persona, no solo el primer nombre · En las tablas de personas, el encabezado y la columna del nombre quedan fijos al desplazarse |
 | **v7.20** · 09/11/2026 | Asignaciones: un día pasado ahora es un registro de lo que limpió cada persona, con la hora y el estado de cada limpieza y lo que le quedó sin limpiar · La limpieza de la mañana ya no desaparece si esa pieza se reasigna en la tarde · Los días pasados quedan solo para ver: no se pueden asignar ni mover piezas |

@@ -189,6 +189,53 @@ $usuarioActualId = $usuario->id;
                         </template>
                     </div>
 
+                    <!-- Supervisores (v7.22, reunión del 08/11/2026): les llega un aviso cuando a esta persona
+                         le asignan un ticket. Solo se elige a quien ve todos los tickets. -->
+                    <div class="mb-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <label class="block text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Supervisores</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Les llega un aviso cuando a esta persona le asignan un ticket.</p>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            <template x-for="s in supervisores" :key="s.id">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                                    <span x-text="s.nombre + (s.activo ? '' : ' (inactivo)')"></span>
+                                    <template x-if="puedeEditar">
+                                        <button type="button" @click="quitarSupervisor(s)"
+                                                class="hover:bg-violet-100 dark:hover:bg-violet-900/50 rounded-full p-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                :disabled="procesandoSupervisor"
+                                                :aria-label="'Quitar a ' + s.nombre + ' como supervisor'">
+                                            <i data-lucide="x" class="w-3 h-3"></i>
+                                        </button>
+                                    </template>
+                                </span>
+                            </template>
+                            <template x-if="supervisoresCargando">
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Cargando...</p>
+                            </template>
+                            <template x-if="!supervisoresCargando && supervisoresError">
+                                <p class="text-xs text-red-600 dark:text-red-400" x-text="supervisoresError"></p>
+                            </template>
+                            <template x-if="!supervisoresCargando && !supervisoresError && supervisores.length === 0">
+                                <p class="text-xs text-gray-500 dark:text-gray-400 italic">Sin supervisores.</p>
+                            </template>
+                        </div>
+                        <template x-if="puedeEditar && candidatosSupervisorParaAgregar().length > 0">
+                            <div class="flex items-center gap-2">
+                                <select x-model="supervisorAAgregar" aria-label="Agregar supervisor"
+                                        class="flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                                    <option value="">Agregar supervisor...</option>
+                                    <template x-for="c in candidatosSupervisorParaAgregar()" :key="c.id">
+                                        <option :value="c.id" x-text="c.nombre"></option>
+                                    </template>
+                                </select>
+                                <button type="button" @click="agregarSupervisor()"
+                                        :disabled="!supervisorAAgregar || procesandoSupervisor"
+                                        class="min-h-[44px] px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition">
+                                    Agregar
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+
                     <!-- Acciones administrativas -->
                     <div class="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <template x-if="puedeEspiar && usuario.id !== usuarioActualId">
@@ -250,6 +297,13 @@ function modalUsuarioDetalle() {
         rolesDisponibles: [],
         _rolesCargados: false,
         rolAAgregar: '',
+        // v7.22: supervisores de la persona (avisos de tickets asignados)
+        supervisores: [],
+        candidatosSupervisor: [],
+        supervisorAAgregar: '',
+        supervisoresCargando: false,
+        supervisoresError: '',
+        procesandoSupervisor: false,
         form: { rut: '', nombre: '', email: '', hotel_default: '', jornada: null },
         errorRut: '',
         mensaje: '',
@@ -291,9 +345,80 @@ function modalUsuarioDetalle() {
             this.passwordReseteada = null;
             this.copiado = false;
             this.rolAAgregar = '';
+            this.supervisores = [];
+            this.candidatosSupervisor = [];
+            this.supervisorAAgregar = '';
+            this.supervisoresError = '';
             this.abierto = true;
+            this.cargarSupervisores();
             if (this.puedeAsignarRoles) await this.cargarRoles();
             this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        async cargarSupervisores() {
+            var id = this.usuario.id;
+            this.supervisoresCargando = true;
+            try {
+                var r = await apiFetch('/api/usuarios/' + id + '/supervisores');
+                if (!this.usuario || this.usuario.id !== id) return; // se abrió otra ficha mientras tanto
+                if (r && r.ok) {
+                    this.supervisores = r.data.supervisores || [];
+                    this.candidatosSupervisor = r.data.candidatos || [];
+                } else {
+                    this.supervisoresError = (r && r.error && r.error.mensaje) || 'No pudimos cargar los supervisores.';
+                }
+            } catch (e) {
+                this.supervisoresError = 'No pudimos cargar los supervisores. Revisa tu señal.';
+            } finally {
+                this.supervisoresCargando = false;
+                this.$nextTick(function () { lucide.createIcons(); });
+            }
+        },
+
+        candidatosSupervisorParaAgregar() {
+            var actuales = this.supervisores.map(function (s) { return s.id; });
+            return this.candidatosSupervisor.filter(function (c) { return actuales.indexOf(c.id) === -1; });
+        },
+
+        async agregarSupervisor() {
+            if (!this.supervisorAAgregar || this.procesandoSupervisor) return;
+            this.procesandoSupervisor = true;
+            this.mensaje = '';
+            try {
+                var r = await apiPost('/api/usuarios/' + this.usuario.id + '/supervisores', { supervisor_id: parseInt(this.supervisorAAgregar, 10) });
+                if (r && r.ok) {
+                    this.supervisores = r.data.supervisores || [];
+                    this.supervisorAAgregar = '';
+                    this.mostrarMensaje('Supervisor agregado.', 'exito');
+                    this.$nextTick(function () { lucide.createIcons(); });
+                } else {
+                    this.mostrarMensaje((r && r.error && r.error.mensaje) || 'No pudimos agregar el supervisor.', 'error');
+                }
+            } catch (e) {
+                this.mostrarMensaje('No pudimos conectar con el servidor.', 'error');
+            } finally {
+                this.procesandoSupervisor = false;
+            }
+        },
+
+        async quitarSupervisor(s) {
+            if (this.procesandoSupervisor) return;
+            this.procesandoSupervisor = true;
+            this.mensaje = '';
+            try {
+                var r = await apiFetch('/api/usuarios/' + this.usuario.id + '/supervisores/' + s.id, { method: 'DELETE' });
+                if (r && r.ok) {
+                    this.supervisores = r.data.supervisores || [];
+                    this.mostrarMensaje('Supervisor quitado.', 'exito');
+                    this.$nextTick(function () { lucide.createIcons(); });
+                } else {
+                    this.mostrarMensaje((r && r.error && r.error.mensaje) || 'No pudimos quitar el supervisor.', 'error');
+                }
+            } catch (e) {
+                this.mostrarMensaje('No pudimos conectar con el servidor.', 'error');
+            } finally {
+                this.procesandoSupervisor = false;
+            }
         },
 
         cerrar() {

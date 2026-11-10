@@ -80,6 +80,18 @@ CREATE TABLE #__usuarios_roles (
     FOREIGN KEY (rol_id) REFERENCES #__roles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- v7.22 (reunión del 08/11/2026): supervisores de cada persona, uno o varios, desde su ficha en
+-- Usuarios. Al asignarle un ticket, el aviso llega también a ellos. Ver docs/tickets.md §6.2.
+CREATE TABLE #__usuarios_supervisores (
+    usuario_id      INT NOT NULL,
+    supervisor_id   INT NOT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    PRIMARY KEY (usuario_id, supervisor_id),               -- nadie es su propio supervisor: lo valida SupervisoresService
+    KEY idx_usuarios_supervisores_supervisor (supervisor_id),
+    FOREIGN KEY (usuario_id) REFERENCES #__usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (supervisor_id) REFERENCES #__usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE #__sesiones (
     token               VARCHAR(128) PRIMARY KEY,
     usuario_id          INT NOT NULL,

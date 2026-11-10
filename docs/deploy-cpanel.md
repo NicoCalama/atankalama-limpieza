@@ -3918,3 +3918,153 @@ archivos nuevos (`camara-fotos.*`) pueden quedar en el servidor: la versión ant
 **Smoke:** badge v7.21 en incógnito y `/api/health` 200. En un Android y en un iPhone reales (también con la app instalada en
 la pantalla de inicio): crear un ticket de prueba con «Tomar fotos», aceptar el permiso, sacar 3 seguidas, enviarlo y ver las 3
 en el detalle; después cerrarlo con fotos (la app no borra tickets: queda cerrado, con «prueba» en el comentario).
+
+**Desplegada el 10/11/2026** (Nicolás). Smoke OK en celulares reales (Nicolás). Para borrar el ticket de prueba (#396)
+quedó `build/consultas/borrar-ticket-prueba-396.sql` (sin confirmar si se corrió).
+
+### 11.55 Release "supervisores y aviso a mantención" → v7.22
+
+Origen: reunión del 08/11/2026; decisiones de Nicolás del 10/11/2026. La idea de los supervisores en la ficha de cada
+persona es de Nicolás, y reemplaza a las «áreas» del plan. Detalle en [tickets.md](tickets.md) §6.2.
+
+**Qué cambia:**
+- **Supervisores en la ficha de cada persona** (Usuarios): uno o varios. Solo se elige a quien está activo y tiene el
+  permiso nuevo `usuarios.ser_supervisor` (Admin y Supervisora; otra jefatura se agrega dándole el permiso en Ajustes,
+  Nicolás 10/11/2026). Editar pide `usuarios.editar`.
+- **Al asignar un ticket**, el aviso le llega también a los supervisores de cada persona asignada.
+- **Mantención** (permiso nuevo `tickets.aviso_mantencion`, para el rol Mantenimiento):
+  - barra arriba de cada pantalla con sus trabajos abiertos y los tickets sin responsable;
+  - aviso de cada ticket nuevo sin responsable;
+  - recordatorio de la mañana (de 08:00 a 12:00, una vez por persona y día);
+  - «+ Todo Mantenimiento» elige por el permiso.
+- **Permisos para asignar:** sin cambios (decisión de Nicolás).
+
+**Lleva SQL:** la tabla nueva, los dos permisos (`tickets.aviso_mantencion` al rol Mantenimiento y
+`usuarios.ser_supervisor` a Admin y Supervisora) y las supervisoras de Aseo precargadas. Sin
+`.env`, sin `vendor/` y sin estáticos de `public/`. **La línea del cron no cambia**, pero `scripts/sync-cloudbeds.php`
+(el script que corre) suma el recordatorio.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) La tabla nueva no existe todavía y el id al que apunta es INT. Esperado: 0, y una fila int(11).
+SELECT COUNT(*) FROM information_schema.tables
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_usuarios_supervisores';
+SELECT COLUMN_TYPE FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_usuarios' AND column_name = 'id';
+
+-- 2) Los permisos no existen. Esperado: 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos
+ WHERE codigo IN ('tickets.aviso_mantencion', 'usuarios.ser_supervisor');
+
+-- 3) Los roles que los reciben existen. Esperado: tres filas (el 10/11: Admin 4, Mantenimiento 5, Supervisora 2).
+SELECT id, nombre FROM cat6852_australia.limpieza_roles
+ WHERE nombre IN ('Mantenimiento', 'Admin', 'Supervisora')
+ ORDER BY nombre;
+
+-- 4) Cuántos pares de supervisión se van a precargar: personas activas de Aseo × supervisoras activas.
+--    El 10/11 eran 16 × 2 = 32.
+SELECT COUNT(*) AS pares, COUNT(DISTINCT a.id) AS personas_aseo, COUNT(DISTINCT s.id) AS supervisoras
+  FROM cat6852_australia.limpieza_usuarios a
+  JOIN cat6852_australia.limpieza_usuarios_roles ura ON ura.usuario_id = a.id
+  JOIN cat6852_australia.limpieza_roles ra ON ra.id = ura.rol_id AND ra.nombre = 'Aseo'
+  JOIN cat6852_australia.limpieza_usuarios s ON s.activo = 1 AND s.id <> a.id
+  JOIN cat6852_australia.limpieza_usuarios_roles urs ON urs.usuario_id = s.id
+  JOIN cat6852_australia.limpieza_roles rs ON rs.id = urs.rol_id AND rs.nombre = 'Supervisora'
+ WHERE a.activo = 1;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+CREATE TABLE cat6852_australia.limpieza_usuarios_supervisores (
+    usuario_id      INT NOT NULL,
+    supervisor_id   INT NOT NULL,
+    created_at      VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    PRIMARY KEY (usuario_id, supervisor_id),
+    KEY idx_usuarios_supervisores_supervisor (supervisor_id),
+    FOREIGN KEY (usuario_id) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (supervisor_id) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('tickets.aviso_mantencion', 'Atender tickets: ver arriba de cada pantalla los trabajos abiertos, recibir el aviso de cada ticket nuevo sin responsable y el recordatorio diario', 'Tickets', 'global'),
+  ('usuarios.ser_supervisor', 'Poder ser elegido como supervisor de otras personas (recibe el aviso cuando les asignan un ticket)', 'Usuarios', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'tickets.aviso_mantencion'
+  FROM cat6852_australia.limpieza_roles
+ WHERE nombre = 'Mantenimiento';
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'usuarios.ser_supervisor'
+  FROM cat6852_australia.limpieza_roles
+ WHERE nombre IN ('Admin', 'Supervisora');
+
+INSERT INTO cat6852_australia.limpieza_usuarios_supervisores (usuario_id, supervisor_id)
+SELECT DISTINCT a.id, s.id
+  FROM cat6852_australia.limpieza_usuarios a
+  JOIN cat6852_australia.limpieza_usuarios_roles ura ON ura.usuario_id = a.id
+  JOIN cat6852_australia.limpieza_roles ra ON ra.id = ura.rol_id AND ra.nombre = 'Aseo'
+  JOIN cat6852_australia.limpieza_usuarios s ON s.activo = 1 AND s.id <> a.id
+  JOIN cat6852_australia.limpieza_usuarios_roles urs ON urs.usuario_id = s.id
+  JOIN cat6852_australia.limpieza_roles rs ON rs.id = urs.rol_id AND rs.nombre = 'Supervisora'
+ WHERE a.activo = 1;
+```
+
+La base va escrita en cada tabla, también en las FK (§11.34). Sin `CHECK` que impida ser su propio supervisor: MySQL no
+deja un `CHECK` sobre columnas con `ON DELETE CASCADE`, así que lo valida `SupervisoresService`. Nombrar roles en el SQL es
+solo para estos datos iniciales: el código no mira nombres de rol. `scripts/migrate-add-supervisores-aviso-mantencion.php`
+hace lo mismo (y precarga solo si la tabla está vacía). Se probó en los tests sobre una base SQLite como la de antes de la
+v7.22.
+
+**Comprobación:**
+- el precheck (1) da 1 y el (2) da 2;
+- `SELECT permiso_codigo, COUNT(*) FROM cat6852_australia.limpieza_rol_permisos WHERE permiso_codigo IN
+  ('tickets.aviso_mantencion', 'usuarios.ser_supervisor') GROUP BY permiso_codigo` da 1 y 2;
+- `SELECT COUNT(*) FROM cat6852_australia.limpieza_usuarios_supervisores` da los `pares` del precheck (4);
+- después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL.** El verificador vería la tabla y el permiso faltantes (health 503) y la ficha de Usuarios
+daría error al cargar los supervisores.
+
+#### ZIP
+
+`build/limpieza-v722-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.22 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `database/seeds/{permisos,roles}.php` (roles: solo para una base nueva);
+- `scripts/{migrate-add-supervisores-aviso-mantencion,sync-cloudbeds}.php`;
+- en `src/`: `src/Controllers/UsuariosController.php`, `src/Core/Kernel.php` y
+  `src/Services/{AvisoMantencionService,SupervisoresService,TicketService}.php`;
+- en `views/`: `views/layout.php`, `views/componentes/{banner-mantencion,modal-usuario-detalle}.php`,
+  `views/recursos/componentes/modal-ticket-nuevo.js` y `views/recursos/tickets/tickets.js`.
+
+**Vuelta atrás:** `build/limpieza-v722-vuelta-atras.zip`, con los archivos que ya existían en la v7.21 (`2d5d2c7`).
+- Los archivos nuevos pueden quedar, porque nada los llama.
+- El SQL también puede quedar: la v7.21 no lee la tabla ni el permiso.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00 (va `sync-cloudbeds.php`).
+
+**Smoke:**
+1. Badge **v7.22** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Como Admin**, en Usuarios:
+   - la ficha de alguien de Aseo muestra «Supervisores» con las dos supervisoras;
+   - en la ficha de cada persona de mantención, agregar a quien la supervisa.
+3. **Barra de mantención:** con «Ver como este usuario» sobre alguien de mantención, arriba de Inicio sale «Tienes N
+   trabajos abiertos · M tickets sin responsable» (si tiene algo) y lleva a Tickets. El Admin no la ve.
+4. **Avisos:** no se prueba con un ticket inventado, porque uno sin responsable les avisa a las 7 personas de mantención (los
+   de la habitación PRUEBA no avisan). Se mira con los tickets reales y con la consulta de abajo; mañana después de las
+   08:00 tiene que aparecer el recordatorio (`tickets_pendientes`).
+
+**Consulta de avisos** (los de la v7.22, más nuevos primero):
+
+```sql
+SELECT n.created_at, n.tipo, u.nombre AS para, n.titulo, n.cuerpo
+  FROM cat6852_australia.limpieza_notificaciones n
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = n.usuario_id
+ WHERE n.tipo IN ('ticket_nuevo', 'ticket_supervisado', 'tickets_pendientes')
+ ORDER BY n.id DESC
+ LIMIT 40;
+```

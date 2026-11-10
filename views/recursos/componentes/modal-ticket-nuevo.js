@@ -271,8 +271,19 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
             return this.form.asignadoIds.indexOf(Number(id)) >= 0;
         },
 
+        // v7.22: «Mantenimiento» son quienes atienden tickets (permiso tickets.aviso_mantencion, que marca
+        // el servidor en usuarios-asignables), no un nombre de rol. Los otros atajos siguen por perfil.
+        idsDelGrupo(nombreRol) {
+            if (nombreRol === 'Mantenimiento') {
+                return this.usuariosAsignables
+                    .filter(function (u) { return u.aviso_mantencion; })
+                    .map(function (u) { return Number(u.id); });
+            }
+            return filtrarIdsPorRol(this.usuariosAsignables, nombreRol);
+        },
+
         asignarGrupo(nombreRol) {
-            var ids = filtrarIdsPorRol(this.usuariosAsignables, nombreRol);
+            var ids = this.idsDelGrupo(nombreRol);
             if (ids.length === 0) {
                 this.mostrarErrorGrupo(nombreRol);
                 return;
@@ -294,7 +305,7 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
         },
 
         estaGrupoSeleccionado(nombreRol) {
-            var ids = filtrarIdsPorRol(this.usuariosAsignables, nombreRol);
+            var ids = this.idsDelGrupo(nombreRol);
             if (ids.length === 0) return false;
             var self = this;
             return ids.every(function (id) {

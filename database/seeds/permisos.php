@@ -54,6 +54,10 @@ return [
     ['tickets.ver_todos', 'Ver todos los tickets', 'Tickets', 'global'],
     ['tickets.asignar_a_cualquier_perfil', 'Asignar tickets a usuarios de cualquier perfil (sin este permiso, solo a Trabajadores)', 'Tickets', 'global'],
     ['tickets.editar_prioridad', 'Fijar o cambiar la prioridad de un ticket', 'Tickets', 'global'],
+    // v7.22 (reunión del 08/11/2026): quien atiende los tickets. Ve arriba de cada pantalla sus trabajos
+    // abiertos y los sin responsable, recibe el aviso de un ticket nuevo sin responsable y el recordatorio
+    // de las 08:00. Es lo que elige el atajo «+ Todo Mantenimiento» al asignar.
+    ['tickets.aviso_mantencion', 'Atender tickets: ver arriba de cada pantalla los trabajos abiertos, recibir el aviso de cada ticket nuevo sin responsable y el recordatorio diario', 'Tickets', 'global'],
 
     ['usuarios.ver', 'Ver la lista de usuarios', 'Usuarios', 'global'],
     ['usuarios.crear', 'Crear usuarios nuevos', 'Usuarios', 'global'],
@@ -63,6 +67,9 @@ return [
     ['usuarios.eliminar', 'Eliminar usuarios definitivamente (derecho de cancelación)', 'Usuarios', 'global'],
     ['usuarios.asignar_rol', 'Asignar/remover roles a un usuario', 'Usuarios', 'global'],
     ['usuarios.modo_espia', 'Ver la aplicación como otro usuario (modo espía, solo lectura)', 'Usuarios', 'global'],
+    // v7.22 (Nicolás, 10/11/2026): hoy solo Admin y Supervisora son jefaturas; si aparece otra, se le da
+    // este permiso en Ajustes sin tocar código. Para abrir el ticket del aviso, el rol necesita además ver los tickets.
+    ['usuarios.ser_supervisor', 'Poder ser elegido como supervisor de otras personas (recibe el aviso cuando les asignan un ticket)', 'Usuarios', 'global'],
     ['usuarios.cambiar_propia_contrasena', 'Cambiar la propia contraseña', 'Usuarios', 'propio'],
 
     ['roles.ver', 'Ver los roles del sistema', 'Roles', 'global'],

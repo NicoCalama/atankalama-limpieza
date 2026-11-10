@@ -137,6 +137,33 @@ Acciones:
 - Al cambiar estado → sin alerta nueva (solo refleja en bandejas).
 - Al cerrar ticket → resuelve la alerta P2 original (si aún activa).
 
+**v7.22 (reunión del 08/11/2026; decisiones de Nicolás, 10/11/2026).** Push + campanita, salvo para los
+tickets de la habitación de prueba. Si un aviso falla, se registra y el ticket sigue igual.
+
+- **Supervisores de cada persona.** En la ficha de cada persona (Usuarios → «Supervisores») se eligen uno
+  o varios (tabla `usuarios_supervisores`; editar pide `usuarios.editar`). Solo se puede elegir a alguien
+  activo con `usuarios.ser_supervisor`: hoy Admin y Supervisora; si aparece otra jefatura, se le da el
+  permiso en Ajustes sin tocar código (Nicolás, 10/11/2026). Para abrir el ticket del aviso, ese rol necesita
+  además `tickets.ver_todos`. El permiso se vuelve a mirar al avisar, por si lo perdió. Nadie es su propio
+  supervisor. Al subir la v7.22, las supervisoras quedaron como supervisoras de cada persona activa de Aseo
+  (pedido de Nicolás).
+- **Al asignar** (al crear o después): le llega a cada persona recién asignada (`ticket_asignado`, como
+  antes) y a sus supervisores (`ticket_supervisado`: «Ticket asignado a Ana y Berta», uno por supervisor).
+  No le llega a quien asignó ni a un supervisor que también quedó como responsable. Tomar un ticket uno
+  mismo («Tomar») no avisa a nadie. Volver a guardar la misma lista no repite avisos.
+- **Mantención** es quien tiene `tickets.aviso_mantencion` (en producción, el rol Mantenimiento), sin
+  mirar nombres de rol:
+  - **Ticket nuevo sin responsable** → aviso a toda mantención, salvo a quien lo levantó (`ticket_nuevo`).
+    Si se creó con responsables, no: avisa la asignación.
+  - **Barra arriba de cada pantalla** con «Tienes N trabajos abiertos · M tickets sin responsable»
+    (abiertos y en progreso; los suyos son los que tiene asignados). Lleva a Tickets y desaparece sola
+    cuando los dos llegan a 0. Va dentro del contenido, no fija sobre la pantalla: así no tapa el
+    encabezado de cada página.
+  - **Recordatorio de la mañana** (cron `sync-cloudbeds.php`, de 08:00 a 12:00): una vez por persona y
+    día, solo si tiene algo pendiente (`tickets_pendientes`).
+  - El atajo **«+ Todo Mantenimiento»** al asignar elige a quienes tienen el permiso (el servidor los marca
+    con `aviso_mantencion` en `usuarios-asignables`).
+
 ---
 
 ## 7. Endpoints

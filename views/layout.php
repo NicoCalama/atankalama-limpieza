@@ -85,6 +85,10 @@
     <?php endif; ?>
 
     <div id="app-content" class="<?= isset($usuario) ? 'md:ml-64' : '' ?>">
+        <?php if (isset($usuario) && $usuario->tienePermiso('tickets.aviso_mantencion')): ?>
+            <!-- Barra de mantención: trabajos abiertos y tickets sin responsable (v7.22) -->
+            <?php include __DIR__ . '/componentes/banner-mantencion.php'; ?>
+        <?php endif; ?>
         <!-- Contenido de la página -->
         <?= $__contenido ?>
     </div>

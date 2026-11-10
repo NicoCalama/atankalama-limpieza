@@ -447,6 +447,19 @@ final class Kernel
             $authCheck,
             new PermissionCheck('usuarios.editar'),
         ]);
+        // v7.22: supervisores de cada persona (avisos de tickets asignados). Ver docs/tickets.md §6.2.
+        $router->get('/api/usuarios/{id}/supervisores', [$usuarios, 'supervisores'], [
+            $authCheck,
+            new PermissionCheck('usuarios.ver'),
+        ]);
+        $router->post('/api/usuarios/{id}/supervisores', [$usuarios, 'agregarSupervisor'], [
+            $authCheck,
+            new PermissionCheck('usuarios.editar'),
+        ]);
+        $router->delete('/api/usuarios/{id}/supervisores/{supervisorId}', [$usuarios, 'quitarSupervisor'], [
+            $authCheck,
+            new PermissionCheck('usuarios.editar'),
+        ]);
         $router->post('/api/usuarios/{id}/activar', [$usuarios, 'activar'], [
             $authCheck,
             new PermissionCheck('usuarios.activar_desactivar'),

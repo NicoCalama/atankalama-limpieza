@@ -15,6 +15,12 @@ Un usuario representa a una persona real con acceso a la app. Campos principales
 
 Un usuario puede tener **múltiples roles** (tabla `usuarios_roles`). Permisos efectivos = unión.
 
+**Supervisores (v7.22).** Cada persona puede tener uno o varios supervisores (tabla `usuarios_supervisores`), que se
+eligen en su ficha: sección «Supervisores», debajo de Roles. Solo se puede elegir a alguien activo con
+`usuarios.ser_supervisor` (hoy Admin y Supervisora; otra jefatura se agrega dándole el permiso en Ajustes), y nadie es su
+propio supervisor. Editarlos pide `usuarios.editar`. Por ahora sirven para un aviso: cuando a la persona le
+asignan un ticket, les llega también a ellos. Ver [tickets.md](tickets.md) §6.2.
+
 ---
 
 ## 2. Trabajadores (no es entidad separada)

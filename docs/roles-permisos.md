@@ -104,6 +104,7 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 | `tickets.crear` | Crear un ticket de mantenimiento | Tickets | global |
 | `tickets.ver_propios` | Ver solo los tickets levantados por el propio usuario | Tickets | propio |
 | `tickets.ver_todos` | Ver todos los tickets del sistema | Tickets | global |
+| `tickets.aviso_mantencion` | v7.22: atender tickets. Barra con los trabajos abiertos y los sin responsable, aviso de cada ticket nuevo sin responsable, recordatorio de la mañana y el atajo «+ Todo Mantenimiento». En producción lo tiene el rol Mantenimiento (no el Admin). Ver [tickets.md](tickets.md) §6.2 | Tickets | global |
 
 ### 2.6 Usuarios
 
@@ -115,6 +116,7 @@ Migración `scripts/migrate-add-revision-entrega.php` (o el SQL de `deploy-cpane
 | `usuarios.resetear_password` | Resetear contraseña de otro usuario (genera temporal) | Usuarios | global |
 | `usuarios.activar_desactivar` | Dar de baja o reactivar a un usuario | Usuarios | global |
 | `usuarios.asignar_rol` | Asignar/remover roles a un usuario | Usuarios | global |
+| `usuarios.ser_supervisor` | v7.22: poder ser elegido como supervisor de otras personas (recibe el aviso cuando les asignan un ticket). Hoy Admin y Supervisora; otra jefatura se agrega dándole el permiso. Para abrir el ticket del aviso, el rol necesita además `tickets.ver_todos`. Ver [usuarios.md](usuarios.md) | Usuarios | global |
 | `usuarios.cambiar_propia_contrasena` | Cambiar la propia contraseña desde "Mi cuenta" | Usuarios | propio |
 
 ### 2.7 Roles y permisos (matriz RBAC)
@@ -254,6 +256,7 @@ Permisos por defecto (incluye todo lo de Aseo excepto los `_propios` reemplazado
 - `auditoria.editar_checklist_durante_auditoria`
 - `tickets.crear`
 - `tickets.ver_todos`
+- `usuarios.ser_supervisor` (v7.22: se puede elegir como supervisora de otras personas)
 - `turnos.ver`
 - `copilot.usar_nivel_1_consultas`
 - `copilot.usar_nivel_2_acciones`
@@ -335,12 +338,14 @@ Leyenda: ✅ por defecto · ⚪ disponible (activable desde Ajustes) · — no a
 | `tickets.crear` | ✅ | ✅ | ⚪ | ✅ |
 | `tickets.ver_propios` | ✅ | ⚪ | ⚪ | ✅ |
 | `tickets.ver_todos` | ⚪ | ✅ | ⚪ | ✅ |
+| `tickets.aviso_mantencion` (v7.22; en producción solo el rol Mantenimiento, no el Admin) | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.ver` | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.crear` | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.editar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.resetear_password` | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.activar_desactivar` | ⚪ | ⚪ | ⚪ | ✅ |
 | `usuarios.asignar_rol` | ⚪ | ⚪ | ⚪ | ✅ |
+| `usuarios.ser_supervisor` (v7.22) | ⚪ | ✅ | ⚪ | ✅ |
 | `usuarios.cambiar_propia_contrasena` | ✅ | ✅ | ✅ | ✅ |
 | `roles.ver` | ⚪ | ⚪ | ⚪ | ✅ |
 | `roles.crear` | ⚪ | ⚪ | ⚪ | ✅ |

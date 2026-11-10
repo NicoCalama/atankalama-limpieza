@@ -20,7 +20,15 @@ final class TicketService
         private readonly AlertasService $alertas = new AlertasService(),
         private readonly NovedadesSyncService $novedadesSync = new NovedadesSyncService(),
         private readonly PushService $push = new PushService(),
+        private readonly SupervisoresService $supervisores = new SupervisoresService(),
+        private readonly ?AvisoMantencionService $avisoMantencion = null,
     ) {
+    }
+
+    /** El de mantención usa el mismo PushService que este servicio (en los tests, el mismo doble). */
+    private function avisoMantencion(): AvisoMantencionService
+    {
+        return $this->avisoMantencion ?? new AvisoMantencionService($this->push);
     }
 
     public function crear(
@@ -123,6 +131,22 @@ final class TicketService
         // así que no pisa el chequeo TICKET_CERRADO de arriba.
         if ($asignadoA !== null) {
             $this->asignar($id, $asignadoA, $levantadoPor);
+        }
+
+        // v7.22: si quedó sin responsable, aviso a toda mantención (si se creó con responsables, ya
+        // avisó asignar() a ellos y a sus supervisores). El ticket ya quedó creado: si el aviso falla,
+        // se registra y se sigue (un 500 acá haría reintentar y duplicar el ticket).
+        $sinResponsable = $asignadoA === null || $this->normalizarIds($asignadoA) === [];
+        if ($sinResponsable && ($habitacionId === null || !HabitacionesPrueba::esPrueba($habitacionId))) {
+            try {
+                $hotelNombre = (string) Database::fetchColumn('SELECT nombre FROM #__hoteles WHERE id = ?', [$hotelId]);
+                $donde = $habFila !== null ? "la habitación {$habFila['numero']} ({$hotelNombre})" : $hotelNombre;
+                $this->avisoMantencion()->avisarTicketNuevo($this->obtenerOFallar($id), $levantadoPor, $donde);
+            } catch (\Throwable $e) {
+                Logger::warning('tickets', 'No se pudo avisar a mantención el ticket nuevo', [
+                    'ticket_id' => $id, 'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         // La sincronización con Novedades se dispara desde el controller, DESPUÉS de
@@ -434,9 +458,66 @@ final class TicketService
                     'ticket_id' => $ticketId, 'error' => $e->getMessage(),
                 ]);
             }
+            try {
+                $this->avisarSupervisores($ticket, array_values(array_map('intval', $nuevosParaNotificar)), $asignadoPor);
+            } catch (\Throwable $e) {
+                Logger::warning('tickets', 'No se pudo avisar a los supervisores la asignación del ticket', [
+                    'ticket_id' => $ticketId, 'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $this->obtenerOFallar($ticketId);
+    }
+
+    /**
+     * v7.22 (reunión del 08/11/2026): a los supervisores de cada persona recién asignada les llega
+     * el aviso (push + campanita), uno por supervisor aunque supervise a varias. No a quien asignó
+     * (ya lo sabe) ni a quien es también responsable (recibió el aviso de asignación).
+     *
+     * @param list<int> $nuevos responsables recién agregados, sin quien asignó
+     */
+    private function avisarSupervisores(Ticket $ticket, array $nuevos, int $asignadoPor): void
+    {
+        $porSupervisor = $this->supervisores->supervisoresParaAvisar($nuevos);
+        unset($porSupervisor[$asignadoPor]);
+        foreach ($nuevos as $responsable) {
+            unset($porSupervisor[$responsable]);
+        }
+        if ($porSupervisor === []) {
+            return;
+        }
+
+        $ids = array_values(array_unique(array_merge([$asignadoPor], ...array_values($porSupervisor))));
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $nombres = [];
+        foreach (Database::fetchAll("SELECT id, nombre FROM #__usuarios WHERE id IN ({$placeholders})", $ids) as $f) {
+            $nombres[(int) $f['id']] = (string) $f['nombre'];
+        }
+        $quienAsigno = $nombres[$asignadoPor] ?? 'Alguien';
+
+        foreach ($porSupervisor as $supervisorId => $supervisados) {
+            $lista = array_map(static fn(int $id): string => $nombres[$id] ?? 'una persona', $supervisados);
+            $this->push->notificar(
+                [$supervisorId],
+                'Ticket asignado a ' . self::enumerar($lista),
+                "{$ticket->titulo}. Lo asignó {$quienAsigno}.",
+                '/tickets?ticket=' . $ticket->id,
+                [],
+                false,
+                'ticket_supervisado'
+            );
+        }
+    }
+
+    /** «Ana», «Ana y Berta», «Ana, Berta y Carla». @param list<string> $nombres */
+    private static function enumerar(array $nombres): string
+    {
+        if (count($nombres) <= 1) {
+            return $nombres[0] ?? '';
+        }
+        $ultimo = array_pop($nombres);
+        return implode(', ', $nombres) . ' y ' . $ultimo;
     }
 
 
@@ -597,7 +678,7 @@ final class TicketService
      * $soloTrabajadores refleja la regla de TicketsController::asignar(): quien no tiene
      * tickets.asignar_a_cualquier_perfil no debe siquiera ver a los demás perfiles.
      *
-     * @return list<array{id: int, nombre: string, perfil: string}>
+     * @return list<array{id: int, nombre: string, perfil: string, roles: list<string>, aviso_mantencion: bool}>
      */
     public function usuariosActivos(bool $soloTrabajadores = false): array
     {
@@ -622,6 +703,9 @@ final class TicketService
             }
         }
 
+        // v7.22: quién atiende tickets (permiso, no nombre de rol), para el atajo «+ Todo Mantenimiento».
+        $mantencion = array_flip($this->avisoMantencion()->destinatarios());
+
         $resultado = [];
         foreach ($porUsuario as $u) {
             if ($soloTrabajadores && !in_array(self::ROL_ASEO, $u['roles'], true)) {
@@ -643,6 +727,7 @@ final class TicketService
                 'nombre' => $u['nombre'],
                 'perfil' => $perfil,
                 'roles' => $u['roles'],
+                'aviso_mantencion' => isset($mantencion[$u['id']]),
             ];
         }
         return $resultado;

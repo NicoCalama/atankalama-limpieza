@@ -76,6 +76,9 @@ Ver [usuarios.md](usuarios.md).
 | PUT | `/api/usuarios/{id}` | `usuarios.editar` | Editar datos base (RUT, nombre, email, hotel, jornada; ver [usuarios.md](usuarios.md) §3.4) |
 | PUT | `/api/usuarios/{id}/activo` | `usuarios.activar_desactivar` | Toggle activo |
 | PUT | `/api/usuarios/{id}/roles` | `usuarios.asignar_rol` | Asignar roles |
+| GET | `/api/usuarios/{id}/supervisores` | `usuarios.ver` | v7.22: `{ supervisores: [{id, nombre, activo}], candidatos: [{id, nombre}] }`. Candidatos = activos con `usuarios.ser_supervisor`, sin la persona. Ver `docs/tickets.md` §6.2 |
+| POST | `/api/usuarios/{id}/supervisores` | `usuarios.editar` | v7.22: `{ supervisor_id }` agrega un supervisor (repetirlo no duplica). 400 `SUPERVISOR_INVALIDO` si es la misma persona o no está activo con `usuarios.ser_supervisor`. Devuelve `supervisores` |
+| DELETE | `/api/usuarios/{id}/supervisores/{supervisorId}` | `usuarios.editar` | v7.22: quita un supervisor (si no lo era, no pasa nada). Devuelve `supervisores` |
 | PUT | `/api/usuarios/me` | sesión | Editar mis datos |
 
 ---

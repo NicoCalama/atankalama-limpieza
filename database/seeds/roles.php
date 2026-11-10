@@ -66,6 +66,8 @@ return [
             // interruptor de la inspección pre-entrega los maneja supervisión, no Recepción (que cubre lo
             // imprevisto con «Otro» + observaciones). Se cambia desde Ajustes → Roles sin tocar código.
             'revision_entrega.configurar',
+            // v7.22: jefatura, se puede elegir como supervisora de otras personas (aviso de tickets asignados).
+            'usuarios.ser_supervisor',
             'usuarios.cambiar_propia_contrasena',
             'usuarios.exportar_datos_propios',
             'notificaciones.ver',

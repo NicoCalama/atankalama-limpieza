@@ -8,6 +8,7 @@ use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Request;
 use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\PasswordService;
+use Atankalama\Limpieza\Services\SupervisoresService;
 use Atankalama\Limpieza\Services\UsuarioException;
 use Atankalama\Limpieza\Services\UsuarioService;
 
@@ -16,7 +17,61 @@ final class UsuariosController
     public function __construct(
         private readonly UsuarioService $svc = new UsuarioService(),
         private readonly PasswordService $passwords = new PasswordService(),
+        private readonly SupervisoresService $supervisores = new SupervisoresService(),
     ) {
+    }
+
+    /**
+     * v7.22: supervisores de la persona y a quiénes se puede elegir (los que ven todos los tickets).
+     * GET /api/usuarios/{id}/supervisores — usuarios.ver.
+     */
+    public function supervisores(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
+        }
+        if ($this->svc->buscarPorId($id) === null) {
+            return Response::error('USUARIO_NO_ENCONTRADO', 'Usuario no encontrado.', 404);
+        }
+        return Response::ok([
+            'supervisores' => $this->supervisores->supervisoresDe($id),
+            'candidatos' => $this->supervisores->candidatos($id),
+        ]);
+    }
+
+    /** POST /api/usuarios/{id}/supervisores { supervisor_id } — usuarios.editar. */
+    public function agregarSupervisor(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $id = $request->rutaInt('id');
+        $supervisorId = $request->inputInt('supervisor_id');
+        if ($id === null || $supervisorId === null || $supervisorId <= 0) {
+            return Response::error('DATOS_INVALIDOS', 'Elige a quién agregar como supervisor.', 400);
+        }
+        try {
+            $this->supervisores->agregar($id, $supervisorId, $request->usuario->id);
+        } catch (UsuarioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['supervisores' => $this->supervisores->supervisoresDe($id)]);
+    }
+
+    /** DELETE /api/usuarios/{id}/supervisores/{supervisorId} — usuarios.editar. */
+    public function quitarSupervisor(Request $request): Response
+    {
+        if ($request->usuario === null) {
+            return Response::error('NO_AUTENTICADO', 'No autenticado.', 401);
+        }
+        $id = $request->rutaInt('id');
+        $supervisorId = $request->rutaInt('supervisorId');
+        if ($id === null || $supervisorId === null) {
+            return Response::error('ID_INVALIDO', 'usuario_id inválido.', 400);
+        }
+        $this->supervisores->quitar($id, $supervisorId, $request->usuario->id);
+        return Response::ok(['supervisores' => $this->supervisores->supervisoresDe($id)]);
     }
 
     public function listar(Request $request): Response

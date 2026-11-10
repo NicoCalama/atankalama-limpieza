@@ -86,6 +86,19 @@ CREATE TABLE usuarios_roles (
     FOREIGN KEY (rol_id) REFERENCES roles(id) ON DELETE CASCADE
 );
 
+-- v7.22 (reunión del 08/11/2026): supervisores de cada persona, uno o varios, desde su ficha en
+-- Usuarios. Al asignarle un ticket, el aviso llega también a ellos. Ver docs/tickets.md §6.2.
+CREATE TABLE usuarios_supervisores (
+    usuario_id      INTEGER NOT NULL,
+    supervisor_id   INTEGER NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (usuario_id, supervisor_id),               -- nadie es su propio supervisor: lo valida SupervisoresService
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (supervisor_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_usuarios_supervisores_supervisor ON usuarios_supervisores(supervisor_id);
+
 -- Sesiones activas (cookie HTTPOnly)
 CREATE TABLE sesiones (
     token               TEXT PRIMARY KEY,                  -- token opaco generado con random_bytes
