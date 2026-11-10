@@ -172,6 +172,20 @@ if ($hora < 12) {
                         saltarla), el backend promueve la siguiente. Ver
                         docs/home-trabajador.md §7.
                     -->
+                    <!-- v7.26 (dos tarjetas por pieza Día/Noche): nada que hacer ahora, pero tiene una limpieza de noche
+                         que viene. Dice cuál y desde cuándo (o que espera la limpieza de la mañana de esa pieza). -->
+                    <template x-if="!data.habitacion_actual && data.proxima_noche">
+                        <div class="px-4 mt-4">
+                            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-800 p-5">
+                                <p class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1 inline-flex items-center gap-2">
+                                    <i data-lucide="moon" class="w-4 h-4 text-indigo-500"></i> Tu limpieza de noche
+                                </p>
+                                <p class="text-4xl font-bold text-gray-900 dark:text-gray-100" x-text="data.proxima_noche.numero"></p>
+                                <p class="text-sm text-indigo-700 dark:text-indigo-300 mt-1" x-text="data.proxima_noche.cuando"></p>
+                            </div>
+                        </div>
+                    </template>
+
                     <!-- Sección 3: Habitación actual (única que ve el trabajador) -->
                     <template x-if="data.habitacion_actual">
                         <div class="px-4 mt-4">

@@ -507,9 +507,9 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                                 <template x-if="barridasVentana().length > 0">
                                     <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
                                         <p class="text-xs font-semibold text-amber-800 dark:text-amber-300 inline-flex items-center gap-1 mb-1">
-                                            <i data-lucide="sunset" class="w-3.5 h-3.5"></i> Día/Noche de la mañana
+                                            <i data-lucide="sunset" class="w-3.5 h-3.5"></i> <span x-text="tituloBarridas()"></span>
                                         </p>
-                                        <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2">Volvieron a sucia en la tarde. Al asignarlas pasan de la cola de la mañana a la de noche; la limpieza de la mañana sigue contando.</p>
+                                        <p class="text-[11px] text-gray-500 dark:text-gray-400 mb-2" x-text="textoBarridas()"></p>
                                         <template x-for="grupo in agruparPorUbicacion(barridasVentana())" :key="grupo.key">
                                             <div class="mb-2">
                                                 <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2"
@@ -603,8 +603,8 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             </div>
 
                             <div :class="abierta ? '' : 'hidden sm:block'">
-                            <template x-if="nocheEnEspera">
-                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                            <template x-if="nocheEnEspera || nocheSoloEsperan">
+                                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-3">
                                     <?php include __DIR__ . '/componentes/noche-en-espera.php'; ?>
                                 </div>
                             </template>
@@ -657,11 +657,11 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
                             <section>
                                 <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 mb-1">
                                     <i data-lucide="sunset" class="w-4 h-4 text-amber-700 dark:text-amber-400"></i>
-                                    Día/Noche de la mañana
+                                    <span x-text="tituloBarridas()"></span>
                                     <span class="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 px-2 py-0.5 rounded-full"
                                           x-text="barridasVentana().length"></span>
                                 </h2>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">Volvieron a sucia en la tarde. Al asignarlas pasan de la cola de la mañana a la de noche; la limpieza de la mañana sigue contando.</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2" x-text="textoBarridas()"></p>
                                 <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
                                     <template x-for="grupo in agruparPorUbicacion(barridasVentana())" :key="grupo.key">
                                         <div>
@@ -1341,18 +1341,38 @@ function asignacionesApp() {
             this.$nextTick(function () { lucide.createIcons(); });
         },
 
-        // Hoy, antes de la hora de la tarde, las piezas Noche todavía no se asignan (el backend también las
-        // frena): la pestaña Noche muestra «Disponibles desde las HH:MM» en vez del pool.
+        // v7.26: dos tarjetas por pieza Día/Noche (interruptor TARJETA_NOCHE_DOBLE del .env).
+        get dosTarjetas() {
+            return !!(this.data && this.data.tarjeta_noche_doble);
+        },
+
+        // Hoy, antes de la hora de la tarde, ¿las piezas Noche todavía no se asignan? (el backend también las frena)
+        get nocheAntesDeHora() {
+            return this.esHoy && !!this.data && !!this.data.ventana_noche && !this.data.ventana_noche.disponible;
+        },
+
+        // Hoy, antes de la hora, la pestaña Noche muestra «Disponibles desde las HH:MM» en vez del pool. v7.26: con
+        // dos tarjetas el pool se ve igual (la de noche de una Día/Noche se puede dejar asignada desde la mañana,
+        // decisión de Nicolás del 10/11/2026) y el aviso queda solo para las piezas Noche (nocheSoloEsperan).
         get nocheEnEspera() {
-            return this.ventana === 'noche' && this.esHoy && !!this.data && !!this.data.ventana_noche
-                && !this.data.ventana_noche.disponible;
+            return this.ventana === 'noche' && this.nocheAntesDeHora && !this.dosTarjetas;
+        },
+
+        get nocheSoloEsperan() {
+            return this.ventana === 'noche' && this.nocheAntesDeHora && this.dosTarjetas;
         },
 
         // ¿La pieza del pool va en la pestaña v? Día: Día y Día/Noche. Noche: Noche y, hoy, Día/Noche. Para un
         // día futuro, Noche trae solo las Noche: con una tarjeta por pieza y día, preasignar la de noche de una
-        // Día/Noche dejaría sin nadie su limpieza de la mañana (las dos tarjetas llegan con la v7.26).
-        chapaEnVentana(chapa, v) {
+        // Día/Noche dejaría sin nadie su limpieza de la mañana. v7.26 (dos tarjetas): Noche trae también las
+        // Día/Noche que todavía no tienen tarjeta de noche, hoy y al planificar.
+        chapaEnVentana(h, v) {
+            var chapa = h.chapa;
             if (v === 'dia') return chapa !== 'noche';
+            if (this.dosTarjetas) {
+                if (chapa === 'noche') return !this.nocheAntesDeHora;
+                return chapa === 'dia_noche' && !h.tiene_tarjeta_noche;
+            }
             return chapa === 'noche' || (chapa === 'dia_noche' && this.esHoy);
         },
 
@@ -1361,14 +1381,32 @@ function asignacionesApp() {
             if (!this.data || this.nocheEnEspera) return [];
             var self = this;
             var v = this.ventana;
-            return this.data.sin_asignar.filter(function (h) { return self.chapaEnVentana(h.chapa, v); });
+            return this.data.sin_asignar.filter(function (h) { return self.chapaEnVentana(h, v); });
         },
 
-        // Día/Noche barridas hoy que siguen con la tarjeta de la mañana: solo en Noche (el backend ya las manda
-        // solo hoy, desde la hora de la tarde).
+        // Solo en Noche. v7.25: Día/Noche barridas hoy que siguen con la tarjeta de la mañana (el backend las manda
+        // solo hoy, desde la hora). v7.26: Día/Noche con tarjeta de día y sin la de noche (hoy y al planificar).
         barridasVentana() {
             if (!this.data || this.ventana !== 'noche' || this.nocheEnEspera) return [];
             return this.data.dia_noche_barridas || [];
+        },
+
+        textoBarridas() {
+            return this.dosTarjetas
+                ? 'Ya tienen tarjeta de día. Al asignarlas se suma la de noche, que se empieza cuando termine la de la mañana.'
+                : 'Volvieron a sucia en la tarde. Al asignarlas pasan de la cola de la mañana a la de noche; la limpieza de la mañana sigue contando.';
+        },
+
+        tituloBarridas() {
+            return this.dosTarjetas ? 'Día/Noche con tarjeta de día' : 'Día/Noche de la mañana';
+        },
+
+        // v7.26: hoy, antes de la hora, cuántas piezas Noche esperan (el pool de Noche muestra el resto).
+        textoNocheSoloEsperan() {
+            var n = this.data ? this.data.sin_asignar.filter(function (h) { return h.chapa === 'noche'; }).length : 0;
+            var hora = this.data && this.data.ventana_noche ? this.data.ventana_noche.hora : '';
+            if (n === 0) return 'Las piezas Noche se asignan desde las ' + hora + '.';
+            return (n === 1 ? '1 pieza Noche espera' : n + ' piezas Noche esperan') + ': se asignan desde las ' + hora + '.';
         },
 
         // «Volver a limpiar» sale en las dos pestañas; lo que se asigna desde Noche queda como tarjeta de noche.
@@ -1388,9 +1426,10 @@ function asignacionesApp() {
             if (!this.data) return 0;
             var self = this;
             var n = this.data.sin_asignar.filter(function (h) {
-                return v === 'noche' && self.esHoy && self.data.ventana_noche && !self.data.ventana_noche.disponible
+                if (v === 'noche' && self.dosTarjetas && h.chapa === 'noche') return true; // también las que esperan
+                return v === 'noche' && self.nocheAntesDeHora && !self.dosTarjetas
                     ? h.chapa === 'noche'
-                    : self.chapaEnVentana(h.chapa, v);
+                    : self.chapaEnVentana(h, v);
             }).length;
             return n + (v === 'noche' ? (this.data.dia_noche_barridas || []).length : 0);
         },
@@ -1606,11 +1645,12 @@ function asignacionesApp() {
 
             if (origen === 'worker') {
                 var rid = ids[0];
+                // v7.26: se busca entre las tarjetas de la pestaña (una Día/Noche puede estar en dos colas).
                 var origenTr = this.data.trabajadores.find(function (t) {
-                    return t.cola.some(function (h) { return h.habitacion_id === rid; });
+                    return self.colaVentana(t).some(function (h) { return h.habitacion_id === rid; });
                 });
                 if (!origenTr || origenTr.usuario.id === workerId) return;
-                var hab = origenTr.cola.find(function (h) { return h.habitacion_id === rid; });
+                var hab = self.colaVentana(origenTr).find(function (h) { return h.habitacion_id === rid; });
                 // v7.3 (gerencia, 10/10/2026): el motivo es obligatorio también al arrastrar. La ventana
                 // avisa si está en progreso (antes era un confirm aparte) y la pieza se mueve al confirmar.
                 this.modalArrastre = { abierto: true, origenTr: origenTr, destino: destino, hab: hab || null, rid: rid, opcionId: null, enviando: false };
@@ -1631,9 +1671,12 @@ function asignacionesApp() {
                     return true;
                 });
             });
-            // Una Día/Noche barrida sale de la cola de la mañana (asignarManual apaga esa tarjeta).
+            // v7.25: una Día/Noche barrida sale de la cola de la mañana (asignarManual apaga esa tarjeta). v7.26: con
+            // dos tarjetas la de día se queda; solo se reemplaza una tarjeta de la MISMA ventana.
             this.data.trabajadores.forEach(function (t) {
-                t.cola = t.cola.filter(function (h) { return !ids.includes(h.habitacion_id); });
+                t.cola = t.cola.filter(function (h) {
+                    return !ids.includes(h.habitacion_id) || (self.dosTarjetas && (h.franja === 'noche') !== (franja === 'noche'));
+                });
             });
             movidas.forEach(function (h) {
                 destino.cola.push({ habitacion_id: h.id, numero: h.numero, tipo_nombre: h.tipo_nombre, estado: 'sucia', franja: franja, chapa: h.chapa });
@@ -1655,20 +1698,22 @@ function asignacionesApp() {
         // Soltar en el pool, o click en la X de una tarjeta: quitar la asignación.
         async _dropEnPool(ids, origen) {
             if (origen !== 'worker') return;
+            var self = this;
             var rid = ids[0];
+            // v7.26: entre las tarjetas de la pestaña, y se quita ESA tarjeta (asignacion_id).
             var origenTr = this.data.trabajadores.find(function (t) {
-                return t.cola.some(function (h) { return h.habitacion_id === rid; });
+                return self.colaVentana(t).some(function (h) { return h.habitacion_id === rid; });
             });
             if (!origenTr) return;
-            var hab = origenTr.cola.find(function (h) { return h.habitacion_id === rid; });
+            var hab = this.colaVentana(origenTr).find(function (h) { return h.habitacion_id === rid; });
             if (!this.esFuturo && hab && hab.estado === 'en_progreso') {
                 if (!confirm('La habitación ' + hab.numero + ' está en progreso. Si la quitas, se reinicia y el trabajador pierde lo avanzado. ¿Continuar?')) return;
             }
             // Optimista: sacar de la cola del trabajador (cargar() la re-ubica en el pool).
-            origenTr.cola = origenTr.cola.filter(function (h) { return h.habitacion_id !== rid; });
+            origenTr.cola = origenTr.cola.filter(function (h) { return h !== hab; });
             this.$nextTick(function () { lucide.createIcons(); });
             try {
-                var r = await apiPost('/api/asignaciones/desasignar', { habitacion_id: rid, fecha: this.fecha });
+                var r = await apiPost('/api/asignaciones/desasignar', { habitacion_id: rid, fecha: this.fecha, asignacion_id: hab && hab.id ? hab.id : null });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación ' + (hab ? hab.numero : '') + ' sin asignar.');
                 } else if (r && r.error && r.error.codigo === 'ESTADO_NO_DESASIGNABLE') {
@@ -1820,7 +1865,8 @@ function asignacionesApp() {
         esReasignable(estado) {
             if (this.esFuturo) return true;
             if (estado === 'en_progreso') return this.puedeMoverEnProgreso;
-            return estado === 'sucia' || estado === 'rechazada';
+            // v7.26: una tarjeta de noche «programada» todavía no empieza: se puede mover o quitar.
+            return estado === 'sucia' || estado === 'rechazada' || estado === 'programada';
         },
 
         // En progreso y sin permiso para moverla: candado, sin arrastre ni botones.
@@ -1877,12 +1923,13 @@ function asignacionesApp() {
             if (m.enviando || m.opcionId === null) return;
             m.enviando = true;
             // Optimista: mover de una cola a la otra.
-            m.origenTr.cola = m.origenTr.cola.filter(function (h) { return h.habitacion_id !== m.rid; });
+            m.origenTr.cola = m.origenTr.cola.filter(function (h) { return h !== m.hab; });
             if (m.hab) m.destino.cola.push(m.hab);
             this.$nextTick(function () { lucide.createIcons(); });
             try {
                 var r = await apiPost('/api/asignaciones/reasignar', {
-                    habitacion_id: m.rid, usuario_id: m.destino.usuario.id, fecha: this.fecha, opcion_id: m.opcionId
+                    habitacion_id: m.rid, usuario_id: m.destino.usuario.id, fecha: this.fecha, opcion_id: m.opcionId,
+                    asignacion_id: m.hab && m.hab.id ? m.hab.id : null // v7.26: la tarjeta exacta
                 });
                 if (r && r.ok) this.mostrarToast('exito', 'Habitación ' + (m.hab ? m.hab.numero : '') + ' movida a ' + m.destino.usuario.nombre + '.');
                 else this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos mover la habitación.');
@@ -1920,7 +1967,8 @@ function asignacionesApp() {
                     habitacion_id: this.modalReasignar.habitacion.habitacion_id,
                     usuario_id: dest.usuario.id,
                     fecha: this.fecha,
-                    opcion_id: this.modalReasignar.opcionId
+                    opcion_id: this.modalReasignar.opcionId,
+                    asignacion_id: hab.id || null // v7.26: la tarjeta exacta (una Día/Noche puede tener dos)
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación reasignada a ' + dest.usuario.nombre + '.');
@@ -1948,7 +1996,8 @@ function asignacionesApp() {
             try {
                 var r = await apiPost('/api/asignaciones/desasignar', {
                     habitacion_id: hab.habitacion_id,
-                    fecha: this.fecha
+                    fecha: this.fecha,
+                    asignacion_id: hab.id || null // v7.26: la tarjeta exacta (una Día/Noche puede tener dos)
                 });
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Habitación ' + hab.numero + ' desasignada.');
@@ -1963,6 +2012,16 @@ function asignacionesApp() {
 
         // --- Helpers de UI ---
 
+        // v7.26: la tarjeta de noche que todavía no se puede empezar. Antes de la hora, desde cuándo; después,
+        // espera que termine la limpieza de la mañana de esa pieza.
+        etiquetaProgramada(corta) {
+            if (this.nocheAntesDeHora) {
+                var hora = this.data.ventana_noche.hora;
+                return corta ? hora : 'Desde las ' + hora;
+            }
+            return corta ? 'Espera' : 'Espera la mañana';
+        },
+
         etiquetaEstadoHab(estado) {
             var map = {
                 'sucia': 'Pendiente',
@@ -1973,7 +2032,9 @@ function asignacionesApp() {
                 'aprobada_automatica': 'Aprobada auto.',
                 'rechazada': 'Rechazada',
                 'sin_inspeccion': 'Sin inspección',
-                'sin_inspeccionar': 'Sin inspeccionar'
+                'sin_inspeccionar': 'Sin inspeccionar',
+                'programada': this.etiquetaProgramada(false), // v7.26: tarjeta de noche que todavía no se empieza
+                'no_limpiada': 'No limpiada' // v7.26: la mañana no la limpió; la tomó la noche
             };
             return map[estado] || estado;
         },
@@ -1989,7 +2050,9 @@ function asignacionesApp() {
                 'aprobada': 'Aprob.',
                 'aprobada_con_observacion': 'Aprob. c/obs.',
                 'aprobada_automatica': 'Aprob. auto.',
-                'rechazada': 'Rech.'
+                'rechazada': 'Rech.',
+                'programada': this.etiquetaProgramada(true),
+                'no_limpiada': 'No limp.'
             };
             return map[estado] || estado;
         },
@@ -2037,7 +2100,9 @@ function asignacionesApp() {
                 'aprobada': 'chip-estado-aprobada',
                 'aprobada_con_observacion': 'chip-estado-aprobada_con_observacion',
                 'aprobada_automatica': 'chip-estado-aprobada_automatica',
-                'rechazada': 'chip-estado-rechazada'
+                'rechazada': 'chip-estado-rechazada',
+                'programada': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
+                'no_limpiada': 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-100'
             };
             return map[estado] || 'bg-gray-200 text-gray-800';
         },

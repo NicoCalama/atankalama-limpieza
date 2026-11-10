@@ -4312,3 +4312,86 @@ SELECT a.id, a.fecha, ho.nombre AS hotel, h.numero, h.nochero_modo, u.nombre AS 
  ORDER BY a.id DESC
  LIMIT 50;
 ```
+
+**Desplegada el 10/11/2026** (Nicolás, ZIP sin SQL). `/api/health` 200 con `esquema.ok: true` (11:55:34). Smoke: sin
+confirmar al registrar.
+
+### 11.59 Release "dos tarjetas por pieza Día/Noche" → v7.26
+
+Origen: reunión del 08/11/2026; plan aprobado el 09/11; decisiones de Nicolás del 10/11 (la de noche se asigna desde la mañana;
+si nadie limpió en la mañana la toma la noche; una persona puede tener las dos; se sube apagado). Detalle en
+[asignacion.md](asignacion.md) §3.5. **Requiere la v7.25 arriba.**
+
+**Qué cambia:** con el interruptor **apagado** (como sube), nada para el usuario salvo dos detalles: el aviso de una asignación
+de noche dice «(limpieza de noche, desde las HH:MM)», y la lista de Habitaciones de la trabajadora identifica cada tarjeta.
+Con `TARJETA_NOCHE_DOBLE=true`:
+- Una pieza **Día/Noche** puede tener a la vez una tarjeta de día y una de noche (una persona en cada ventana, o la misma).
+- La de noche se puede asignar desde la mañana: queda «Desde las 16:00» y espera también a que termine la limpieza de la
+  mañana (en curso, por inspeccionar o rechazada). Al empezarla, si el cron todavía no barrió la pieza, se barre en ese momento.
+- Si nadie limpió en la mañana, la limpia la de noche; la tarjeta de día queda «No limpiada» (cuenta como asignada sin hacer).
+- En Noche salen las Día/Noche sin tarjeta de noche, también al planificar un día futuro.
+
+**Sin SQL.** Sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- Tarjetas de noche de hoy en adelante (con el interruptor apagado deberían ser solo de piezas Noche o Día/Noche barridas).
+SELECT a.fecha, h.numero, h.nochero_modo, u.nombre AS asignada_a, a.activa
+  FROM cat6852_australia.limpieza_asignaciones a
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = a.habitacion_id
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = a.usuario_id
+ WHERE a.franja = 'noche' AND a.fecha >= CURDATE() AND a.activa = 1
+ ORDER BY a.fecha, h.numero;
+
+-- Piezas con más de una tarjeta activa el mismo día. Esperado: 0 filas (antes de prender el interruptor).
+SELECT habitacion_id, fecha, COUNT(*) AS tarjetas
+  FROM cat6852_australia.limpieza_asignaciones
+ WHERE activa = 1 AND fecha >= CURDATE()
+ GROUP BY habitacion_id, fecha
+HAVING COUNT(*) > 1;
+```
+
+#### ZIP
+
+`build/limpieza-v726-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.26 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `src/Controllers/{AsignacionesController,HomeController}.php`;
+- `src/Services/{AlertasPredictivasService,AsignacionService,ChecklistService,HabitacionService,HomeService}.php`;
+- `views/{asignaciones,habitaciones,home-trabajador}.php` y `views/componentes/noche-en-espera.php`.
+
+**Vuelta atrás:** primero el interruptor (abajo). Para volver además el código: `build/limpieza-v726-vuelta-atras.zip` (los
+mismos archivos de la v7.25) y, **antes**, apagar las tarjetas de noche de hoy de piezas Día/Noche que todavía no se empezaron
+(con dos tarjetas activas, la v7.25 tomaría solo una):
+
+```sql
+UPDATE cat6852_australia.limpieza_asignaciones a
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = a.habitacion_id
+   SET a.activa = 0
+ WHERE a.fecha = CURDATE() AND a.activa = 1 AND a.franja = 'noche' AND h.nochero_modo = 'dia_noche' AND h.es_nochero = 1
+   AND NOT EXISTS (SELECT 1 FROM cat6852_australia.limpieza_ejecuciones_checklist ec WHERE ec.asignacion_id = a.id)
+   AND a.habitacion_id IN (SELECT d.habitacion_id FROM (
+         SELECT habitacion_id FROM cat6852_australia.limpieza_asignaciones
+          WHERE fecha = CURDATE() AND activa = 1 GROUP BY habitacion_id HAVING COUNT(*) > 1) d);
+```
+
+(La tabla derivada `d` evita el error #1093 de MariaDB al leer la misma tabla que se actualiza.)
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke (interruptor apagado):**
+1. Badge **v7.26** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. Asignaciones funciona como en la v7.25 (pestañas Día | Noche; en Noche, «Día/Noche de la mañana» desde la hora).
+
+#### Prender el interruptor (cuando Nicolás quiera probarlo)
+
+En `app_core/.env` agregar `TARJETA_NOCHE_DOBLE=true` (tarda 1–2 minutos en tomarse). Para apagarlo, `false` o borrar la línea.
+
+**Prueba con la habitación PRUEBA (Admin):**
+1. Chapa «Día/Noche» con «hasta» mañana o después.
+2. En la mañana: asignártela en la pestaña Día y también en Noche (a ti mismo sirve). En tu cola: la de día «Pendiente» y la de
+   noche «Desde las 16:00». La de noche no se puede empezar.
+3. Limpiar la de día e inspeccionarla. Después de la hora: la de día queda «Aprobada» y la de noche «Pendiente»; empezarla (la
+   pieza queda barrida) y terminarla.
+4. Al día siguiente, en el Registro de ese día: dos limpiezas de la PRUEBA, una «Mañana» y una «Noche».

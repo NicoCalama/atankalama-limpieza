@@ -73,8 +73,9 @@ final class HabitacionService
         // patrón que AsignacionService::vistaConsolidada). Puede haber varias asignaciones
         // activas de una habitación en fechas distintas (planificación a futuro), pero como
         // este JOIN fija fecha = hoy, sigue habiendo como máximo una por habitación y el
-        // LEFT JOIN no duplica filas.
-        $params = [date('Y-m-d')];
+        // LEFT JOIN no duplica filas. v7.26: una Día/Noche puede tener dos hoy (día y noche): el
+        // JOIN toma una sola, la operativa (sqlTarjetaOperativa).
+        $params = self::paramsTarjetaOperativa();
 
         if ($hotel !== null && $hotel !== 'ambos') {
             $where[] = 'ho.codigo = ?';
@@ -94,7 +95,7 @@ final class HabitacionService
                   FROM #__habitaciones h
                   JOIN #__hoteles ho ON ho.id = h.hotel_id
                   JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-             LEFT JOIN #__asignaciones asig ON asig.habitacion_id = h.id AND asig.fecha = ? AND asig.activa = 1
+             LEFT JOIN #__asignaciones asig ON asig.id = ' . self::sqlTarjetaOperativa() . '
              LEFT JOIN #__usuarios ua ON ua.id = asig.usuario_id
                  WHERE ' . implode(' AND ', $where) . '
               ORDER BY ho.codigo, h.numero';
@@ -120,6 +121,25 @@ final class HabitacionService
         }, $filas);
     }
 
+    /**
+     * v7.26: subconsulta con la tarjeta de HOY que se muestra de una pieza (alias `h`): con dos (Día/Noche), la de
+     * la ventana que corresponde a esta hora (la de noche desde la hora de la tarde); si no, la más nueva.
+     * Parámetros: paramsTarjetaOperativa().
+     */
+    private static function sqlTarjetaOperativa(): string
+    {
+        return "(SELECT a2.id FROM #__asignaciones a2
+                  WHERE a2.habitacion_id = h.id AND a2.fecha = ? AND a2.activa = 1
+                  ORDER BY (CASE WHEN a2.franja = 'noche' THEN ? ELSE ? END), a2.id DESC LIMIT 1)";
+    }
+
+    /** @return list<string|int> */
+    private static function paramsTarjetaOperativa(): array
+    {
+        $deNoche = date('H:i') >= (new HoraTardeService())->hora();
+        return [date('Y-m-d'), $deNoche ? 0 : 1, $deNoche ? 1 : 0];
+    }
+
     public function obtener(int $id): ?Habitacion
     {
         $fila = Database::fetchOne('SELECT * FROM #__habitaciones WHERE id = ?', [$id]);
@@ -141,10 +161,10 @@ final class HabitacionService
                FROM #__habitaciones h
                JOIN #__hoteles ho ON ho.id = h.hotel_id
                JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-          LEFT JOIN #__asignaciones asig ON asig.habitacion_id = h.id AND asig.fecha = ? AND asig.activa = 1
+          LEFT JOIN #__asignaciones asig ON asig.id = ' . self::sqlTarjetaOperativa() . '
           LEFT JOIN #__usuarios ua ON ua.id = asig.usuario_id
               WHERE h.id = ?',
-            [date('Y-m-d'), $id]
+            [...self::paramsTarjetaOperativa(), $id]
         );
         if ($fila === null) {
             return null;
@@ -554,6 +574,26 @@ final class HabitacionService
      * Registra que HOY ya se disparó el barrido de nochero para esta habitación (revertida a
      * 'sucia' por el barrido de la hora de la tarde). Ver listarNocherosVigentesEnEstadoTerminal().
      */
+    /**
+     * v7.26 (dos tarjetas por pieza): la limpieza de noche de una Día/Noche empieza. Si el barrido de hoy todavía
+     * no pasó (el cron corre cada 10 minutos desde la hora de la tarde), se hace ahora: aprobada → sucia, anotada
+     * como barrida y avisada `dirty` a Cloudbeds. Si la pieza estaba sucia (nadie la limpió en la mañana), solo se
+     * anota como barrida. Sin la marca, al aprobarse la limpieza de noche el cron la volvería a barrer.
+     */
+    public function prepararLimpiezaDeNoche(int $id, string $hoy, ?CloudbedsSyncService $sync, ?int $usuarioId): void
+    {
+        $fila = Database::fetchOne('SELECT * FROM #__habitaciones WHERE id = ?', [$id]);
+        if ($fila === null || ($fila['nochero_ultima_reversion'] ?? null) === $hoy) {
+            return;
+        }
+        $hab = Habitacion::desdeFila($fila);
+        if (in_array($hab->estado, Habitacion::ESTADOS_APROBADOS, true)) {
+            $this->barrerNochero($hab, $hoy, $sync, $usuarioId, 'ui');
+            return;
+        }
+        $this->marcarBarridoNocheroHoy($id, $hoy);
+    }
+
     public function marcarBarridoNocheroHoy(int $id, string $hoy): void
     {
         Database::execute(

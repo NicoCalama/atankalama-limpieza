@@ -106,6 +106,8 @@ final class AsignacionesController
                 $habitacionId, $usuarioId, $fecha, $motivo, $request->usuario?->id,
                 puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
                 opcionId: $opcionId,
+                // v7.26: la tarjeta que se mueve, en una pieza con dos (día y noche). Opcional.
+                asignacionId: $request->inputInt('asignacion_id'),
             );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
@@ -129,6 +131,8 @@ final class AsignacionesController
             $this->svc->desasignar(
                 $habitacionId, $fecha, $request->usuario?->id,
                 puedeMoverEnProgreso: $this->puedeMoverEnProgreso($request),
+                // v7.26: la tarjeta que se quita, en una pieza con dos (día y noche). Opcional.
+                asignacionId: $request->inputInt('asignacion_id'),
             );
         } catch (AsignacionException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);

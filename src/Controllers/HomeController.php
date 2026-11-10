@@ -10,6 +10,7 @@ use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\AuditoriaService;
 use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\HomeService;
+use Atankalama\Limpieza\Services\HoraTardeService;
 
 final class HomeController
 {
@@ -43,10 +44,19 @@ final class HomeController
         $enProgreso = 0;
         $pendientes = 0;
 
+        // v7.26 (dos tarjetas por pieza Día/Noche): una tarjeta de noche «programada» es trabajo que viene (cuenta
+        // como pendiente, y si no hay otra, Inicio dice cuál y desde cuándo); una de día «No limpiada» ya no es suya.
+        $proximaNoche = null;
         foreach ($cola as $item) {
             $estado = $item['estado'];
 
-            if ($estado === 'en_progreso') {
+            if ($estado === AsignacionService::ESTADO_TARJETA_NO_LIMPIADA) {
+                continue;
+            }
+            if ($estado === AsignacionService::ESTADO_TARJETA_PROGRAMADA) {
+                $pendientes++;
+                $proximaNoche ??= $item;
+            } elseif ($estado === 'en_progreso') {
                 $enProgreso++;
             } elseif ($estado === 'sucia' || $estado === 'rechazada') {
                 $pendientes++;
@@ -59,6 +69,7 @@ final class HomeController
         // Misma regla que el candado de orden: primero la que tiene en curso.
         $actual = AsignacionService::elegirHabitacionActual($cola);
         $habitacionActual = $actual === null ? null : $this->formatearHabitacion($actual);
+        $nocheDisponible = (new AsignacionService())->nocheDisponible($hoy);
 
         $total = $completadas + $enProgreso + $pendientes;
 
@@ -95,6 +106,15 @@ final class HomeController
                 'todas_completadas' => $total > 0 && $pendientes === 0 && $enProgreso === 0,
             ],
             'habitacion_actual' => $habitacionActual,
+            // v7.26: la próxima limpieza de noche, si no hay nada que hacer ahora («Desde las HH:MM» o «cuando
+            // termine la limpieza de la mañana»).
+            'proxima_noche' => $proximaNoche === null ? null : [
+                'numero' => $proximaNoche['numero'],
+                'hotel_codigo' => $proximaNoche['hotel_codigo'],
+                'cuando' => $nocheDisponible
+                    ? 'Cuando termine la limpieza de la mañana'
+                    : 'Desde las ' . (new HoraTardeService())->hora(),
+            ],
             'tiene_asignaciones_hoy' => $total > 0,
             'aviso_disponibilidad_enviado_hoy' => $avisoEnviado,
             'puede_avisar_disponibilidad' => $usuario->tienePermiso('disponibilidad.notificar_supervisora'),

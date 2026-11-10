@@ -247,14 +247,16 @@ final class HomeService
         $pendientes = $porEstado['sucia'] + $porEstado['rechazada'];
         $porAuditar = $porEstado['completada_pendiente_auditoria'];
 
-        // Habitaciones sucias del hotel sin asignación activa para hoy
+        // Habitaciones sucias del hotel sin asignación activa para hoy. v7.26: la tarjeta de noche de una
+        // Día/Noche no cubre su limpieza de la mañana (mismo criterio que el pool de Asignaciones).
+        [$sinNoche, $paramsSinNoche] = AsignacionService::sqlSinTarjetaNocheDeDiaNoche('a', 'h', $fecha);
         $noAsignadas = (int) (Database::fetchOne(
             "SELECT COUNT(*) AS c
                FROM #__habitaciones h
-          LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+          LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1{$sinNoche}
               WHERE h.activa = 1 AND h.es_espacio_comun = 0 AND h.es_prueba = 0 AND h.hotel_id = ? AND h.estado = 'sucia' AND a.id IS NULL
                 AND " . BloqueosService::sqlSinBloqueo(),  // v7.8: la bloqueada en Cloudbeds hoy no se asigna
-            [$fecha, $hotelId]
+            [$fecha, ...$paramsSinNoche, $hotelId]
         )['c'] ?? 0);
 
         // Auditorías del día agrupadas por veredicto

@@ -245,7 +245,7 @@ $horaTarde = (new \Atankalama\Limpieza\Services\HoraTardeService())->hora();
         <!-- Grid de tarjetas -->
         <template x-if="habitacionesFiltradas.length > 0">
             <div data-tour="hb.grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                <template x-for="hab in habitacionesFiltradas" :key="hab.id">
+                <template x-for="hab in habitacionesFiltradas" :key="hab.clave || hab.id">
                     <div @click="if (!$event.target.closest('button')) window.location.href = u('/habitaciones/' + hab.id)"
                        class="relative rounded-xl border border-gray-200 dark:border-gray-700 border-l-4 overflow-hidden hover:shadow-md transition shadow-sm flex flex-col cursor-pointer group bg-white dark:bg-gray-800"
                        :class="[colorHotelBorde(hab.hotel_codigo), estadoAuditado(hab.estado) && !puedeInspeccionar && !tieneNoVigente(hab) ? 'opacity-60' : '']">
@@ -1210,6 +1210,9 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
                         var cola = rHab.data.cola || [];
                         this.habitaciones = cola.map(function (a) {
                             return {
+                                // v7.26: una misma persona puede tener las dos tarjetas de una Día/Noche (doble
+                                // turno): la clave de la lista es la tarjeta, no la pieza.
+                                clave: 'a' + a.id,
                                 id: a.habitacion_id,
                                 numero: a.numero,
                                 edificio_id: a.edificio_id,
@@ -1304,6 +1307,8 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
         // Franja de estado al pie de la ficha: clase semántica .banner-estado-*
         // de custom.css, relleno sólido con el color exacto de Ajustes → Colores.
         claseBannerEstado(estado) {
+            // v7.26: la tarjeta de noche que todavía no se empieza.
+            if (estado === 'programada') return 'bg-indigo-500 dark:bg-indigo-700';
             var validos = ['sucia', 'en_progreso', 'completada_pendiente_auditoria', 'aprobada', 'aprobada_con_observacion', 'aprobada_automatica', 'rechazada'];
             return validos.indexOf(estado) !== -1 ? 'banner-estado-' + estado : 'bg-gray-400 dark:bg-gray-600';
         },
@@ -1331,7 +1336,11 @@ function habitacionesApp(puedeVerTodas, usuarioId, puedeGestionarEstado, puedeAg
                 'aprobada': 'Aprobada',
                 'aprobada_con_observacion': this.puedeVerTodas ? 'Aprobada c/obs.' : 'Aprobada',
                 'aprobada_automatica': this.puedeVerTodas ? 'Aprobada auto.' : 'Aprobada',
-                'rechazada': 'Rechazada'
+                'rechazada': 'Rechazada',
+                // v7.26 (dos tarjetas por pieza Día/Noche): la de noche que todavía no se empieza, y la de la
+                // mañana que nadie alcanzó y tomó la noche.
+                'programada': 'Noche · más tarde',
+                'no_limpiada': 'Pasó a la noche'
             };
             return textos[estado] || estado;
         },

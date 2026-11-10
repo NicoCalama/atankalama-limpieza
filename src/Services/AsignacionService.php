@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Atankalama\Limpieza\Services;
 
+use Atankalama\Limpieza\Core\Config;
 use Atankalama\Limpieza\Core\Database;
 use Atankalama\Limpieza\Core\Logger;
 use Atankalama\Limpieza\Core\Url;
 use Atankalama\Limpieza\Models\AlertaActiva;
 use Atankalama\Limpieza\Models\Asignacion;
+use Atankalama\Limpieza\Models\Auditoria;
+use Atankalama\Limpieza\Models\EjecucionChecklist;
 use Atankalama\Limpieza\Models\Habitacion;
 
 final class AsignacionService
@@ -31,6 +34,236 @@ final class AsignacionService
         // la de $horaActual en punto, si la fijaron; si no, la del reloj.
         private readonly ?\Closure $reloj = null,
     ) {
+    }
+
+    // ── v7.26: dos tarjetas por pieza y día (interruptor TARJETA_NOCHE_DOBLE) ──────────────────────────
+    //
+    // Una pieza Día/Noche vigente puede tener a la vez una tarjeta de día y una de noche (una persona en cada
+    // ventana; puede ser la misma). `habitaciones.estado` sigue siendo uno por pieza, así que cada tarjeta deriva
+    // el suyo (estadoDeTarjeta). Nunca hay dos limpiezas vivas a la vez: la de noche espera a que termine el ciclo
+    // de la mañana. Con el interruptor apagado, todo es como la v7.25 (una tarjeta: la de noche reemplaza a la
+    // de día). Ver docs/asignacion.md §3.5.
+
+    /** La tarjeta de noche, antes de su hora o mientras siga viva la limpieza de la mañana: no se puede empezar. */
+    public const ESTADO_TARJETA_PROGRAMADA = 'programada';
+
+    /** La tarjeta de día de una pieza que nadie limpió en la mañana y tomó la de noche (decisión de Nicolás, 10/11/2026). */
+    public const ESTADO_TARJETA_NO_LIMPIADA = 'no_limpiada';
+
+    /** Estado de la limpieza (vivo o su veredicto) en el vocabulario de habitaciones.estado. */
+    private const ESTADO_POR_VEREDICTO = [
+        Auditoria::VEREDICTO_APROBADO => Habitacion::ESTADO_APROBADA,
+        Auditoria::VEREDICTO_APROBADO_CON_OBSERVACION => Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
+        Auditoria::VEREDICTO_APROBADO_AUTOMATICO => Habitacion::ESTADO_APROBADA_AUTOMATICA,
+        Auditoria::VEREDICTO_SIN_INSPECCION => Habitacion::ESTADO_APROBADA_AUTOMATICA,
+        Auditoria::VEREDICTO_RECHAZADO => Habitacion::ESTADO_RECHAZADA,
+    ];
+
+    /** ¿Está prendida la v7.26? (`TARJETA_NOCHE_DOBLE` en el .env; apagada por defecto). */
+    public static function tarjetaNocheDoble(): bool
+    {
+        return Config::getBool('TARJETA_NOCHE_DOBLE', false);
+    }
+
+    /** La ventana de una tarjeta: 'noche' si su franja es noche; el resto (sin franja, mañana, tarde) es 'dia'. */
+    public static function ventanaDe(?string $franja): string
+    {
+        return $franja === Asignacion::FRANJA_NOCHE ? 'noche' : 'dia';
+    }
+
+    /**
+     * ¿Esta pieza lleva dos tarjetas ese día? Interruptor prendido y chapa Día/Noche vigente ese día.
+     *
+     * @param array<string, mixed> $fila es_nochero, nochero_modo, nochero_hasta y es_espacio_comun de la pieza
+     */
+    public static function llevaDosTarjetas(array $fila, string $fecha): bool
+    {
+        return self::tarjetaNocheDoble()
+            && (int) ($fila['es_espacio_comun'] ?? 0) === 0
+            && HabitacionService::chapaDeFila($fila, $fecha) === Habitacion::NOCHERO_DIA_NOCHE;
+    }
+
+    /**
+     * Condición extra para un JOIN a asignaciones que busca «la tarjeta de día» (pool de Día, «Auto»): con el
+     * interruptor prendido, la tarjeta de noche de una Día/Noche vigente no cubre su limpieza de la mañana.
+     * Vacía si está apagado. Los parámetros van justo después de los del ON del JOIN.
+     *
+     * @return array{0: string, 1: list<string>}
+     */
+    public static function sqlSinTarjetaNocheDeDiaNoche(string $a, string $h, string $fecha): array
+    {
+        if (!self::tarjetaNocheDoble()) {
+            return ['', []];
+        }
+        if (preg_match('/^[a-z_]+$/', $a . $h) !== 1) {
+            throw new \InvalidArgumentException('Alias no válido.');
+        }
+        // COALESCE: una tarjeta sin franja (NULL) haría NULL toda la condición y el JOIN no la tomaría.
+        return [
+            " AND NOT (COALESCE({$a}.franja, '') = ? AND {$h}.es_nochero = 1 AND {$h}.nochero_modo = ?"
+                . " AND ({$h}.nochero_hasta IS NULL OR {$h}.nochero_hasta >= ?))",
+            [Asignacion::FRANJA_NOCHE, Habitacion::NOCHERO_DIA_NOCHE, $fecha],
+        ];
+    }
+
+    private function llevaDosTarjetasId(int $habitacionId, string $fecha): bool
+    {
+        if (!self::tarjetaNocheDoble()) {
+            return false;
+        }
+        $fila = Database::fetchOne(
+            'SELECT es_nochero, nochero_modo, nochero_hasta, es_espacio_comun FROM #__habitaciones WHERE id = ?',
+            [$habitacionId]
+        );
+        return $fila !== null && self::llevaDosTarjetas($fila, $fecha);
+    }
+
+    /**
+     * El estado de UNA tarjeta de una pieza con dos tarjetas (función pura; la prueban los tests de la v7.26).
+     *
+     * Noche:
+     *  - antes de la hora de la tarde → programada;
+     *  - pieza ya barrida hoy (o empezada de noche) → el estado de la pieza, que es el de la noche;
+     *  - sin barrer: si la limpieza de la mañana sigue viva (en curso, por inspeccionar o rechazada por rehacer)
+     *    → programada; si no (aprobada que el cron todavía no barre, o sucia que nadie limpió) → sucia: se puede
+     *    empezar, y al empezarla se barre (ChecklistService::iniciarEjecucion).
+     * Día:
+     *  - antes de la hora, o sin tarjeta de noche → el estado de la pieza, como siempre (una Día/Noche barrida sin
+     *    tarjeta de noche sigue con la persona de la mañana, v6.17);
+     *  - desde la hora, con tarjeta de noche: barrida → el resultado de su limpieza o «No limpiada»; sin barrer,
+     *    con su limpieza viva o aprobada → el estado de la pieza; sucia sin limpiar → «No limpiada» (la toma la noche).
+     *
+     * @param string|null $propia estado de la última limpieza de ESTA tarjeta (vivo o por su veredicto), null si no tiene
+     * @param bool $rehacerDia la última limpieza de día de la pieza hoy quedó rechazada (se rehace antes que la noche)
+     */
+    public static function estadoDeTarjeta(
+        string $ventana,
+        string $estadoPieza,
+        bool $desdeHora,
+        bool $barridaHoy,
+        bool $otraActiva,
+        ?string $propia,
+        bool $rehacerDia,
+    ): string {
+        $viva = in_array($estadoPieza, [
+            Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA, Habitacion::ESTADO_RECHAZADA,
+        ], true);
+        $aprobada = in_array($estadoPieza, Habitacion::ESTADOS_APROBADOS, true);
+
+        if ($ventana === 'noche') {
+            if (!$desdeHora) {
+                return self::ESTADO_TARJETA_PROGRAMADA;
+            }
+            if ($barridaHoy) {
+                return $estadoPieza;
+            }
+            return ($viva || $rehacerDia) ? self::ESTADO_TARJETA_PROGRAMADA : Habitacion::ESTADO_SUCIA;
+        }
+
+        if (!$desdeHora || !$otraActiva) {
+            return $estadoPieza;
+        }
+        if ($barridaHoy) {
+            return $propia ?? self::ESTADO_TARJETA_NO_LIMPIADA;
+        }
+        if ($viva || $rehacerDia || $aprobada) {
+            return $estadoPieza;
+        }
+        return self::ESTADO_TARJETA_NO_LIMPIADA;
+    }
+
+    /**
+     * El estado de una tarjeta activa (fila de asignaciones con h.estado y h.nochero_ultima_reversion), con lo que
+     * hace falta leer de la base. Si la pieza no lleva dos tarjetas ese día, es el estado de la pieza.
+     *
+     * @param array<string, mixed> $fila a.id, a.habitacion_id, a.fecha, a.franja, estado, es_nochero, nochero_modo,
+     *                                   nochero_hasta, es_espacio_comun, nochero_ultima_reversion
+     */
+    public function estadoDeFilaTarjeta(array $fila): string
+    {
+        $estadoPieza = (string) $fila['estado'];
+        $fecha = (string) $fila['fecha'];
+        if ($fecha !== date('Y-m-d') || !self::llevaDosTarjetas($fila, $fecha)) {
+            return $estadoPieza;
+        }
+        $id = (int) $fila['id'];
+        $ventana = self::ventanaDe(isset($fila['franja']) ? (string) $fila['franja'] : null);
+        $habitacionId = (int) $fila['habitacion_id'];
+
+        $otra = Database::fetchOne(
+            "SELECT 1 FROM #__asignaciones
+              WHERE habitacion_id = ? AND fecha = ? AND activa = 1 AND id <> ?
+                AND (CASE WHEN franja = 'noche' THEN 'noche' ELSE 'dia' END) <> ?",
+            [$habitacionId, $fecha, $id, $ventana]
+        ) !== null;
+        $ultima = Database::fetchOne(
+            'SELECT ec.estado, au.veredicto FROM #__ejecuciones_checklist ec
+          LEFT JOIN #__auditorias au ON au.ejecucion_id = ec.id
+              WHERE ec.asignacion_id = ? ORDER BY ec.id DESC LIMIT 1',
+            [$id]
+        );
+        $ultimaDia = Database::fetchOne(
+            "SELECT au.veredicto FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+          LEFT JOIN #__auditorias au ON au.ejecucion_id = ec.id
+              WHERE ec.habitacion_id = ? AND asg.fecha = ? AND (asg.franja IS NULL OR asg.franja <> 'noche')
+              ORDER BY ec.id DESC LIMIT 1",
+            [$habitacionId, $fecha]
+        );
+
+        return self::estadoDeTarjeta(
+            $ventana,
+            $estadoPieza,
+            $this->nocheDisponible($fecha),
+            ($fila['nochero_ultima_reversion'] ?? null) === $fecha,
+            $otra,
+            self::estadoDeLimpieza($ultima),
+            ($ultimaDia['veredicto'] ?? null) === Auditoria::VEREDICTO_RECHAZADO,
+        );
+    }
+
+    /** @param array<string, mixed>|null $ejecucion estado y veredicto de una limpieza */
+    private static function estadoDeLimpieza(?array $ejecucion): ?string
+    {
+        if ($ejecucion === null) {
+            return null;
+        }
+        return match ((string) $ejecucion['estado']) {
+            EjecucionChecklist::ESTADO_EN_PROGRESO => Habitacion::ESTADO_EN_PROGRESO,
+            EjecucionChecklist::ESTADO_COMPLETADA => Habitacion::ESTADO_COMPLETADA_PENDIENTE_AUDITORIA,
+            default => self::ESTADO_POR_VEREDICTO[(string) ($ejecucion['veredicto'] ?? '')] ?? null,
+        };
+    }
+
+    /**
+     * La tarjeta activa de una pieza en una ventana, si tiene. Con dos tarjetas, «la activa» a secas no alcanza.
+     */
+    public function activaDeVentana(int $habitacionId, string $fecha, string $ventana): ?Asignacion
+    {
+        $fila = Database::fetchOne(
+            "SELECT * FROM #__asignaciones
+              WHERE habitacion_id = ? AND fecha = ? AND activa = 1
+                AND (CASE WHEN franja = 'noche' THEN 'noche' ELSE 'dia' END) = ?
+              ORDER BY id DESC LIMIT 1",
+            [$habitacionId, $fecha, $ventana]
+        );
+        return $fila === null ? null : Asignacion::desdeFila($fila);
+    }
+
+    /**
+     * Una tarjeta activa por su id, que tiene que ser de esa pieza y esa fecha (la mandan la pantalla de
+     * Asignaciones al quitar o mover una tarjeta de una pieza con dos).
+     */
+    private function activaPorId(int $asignacionId, int $habitacionId, string $fecha): Asignacion
+    {
+        $fila = Database::fetchOne(
+            'SELECT * FROM #__asignaciones WHERE id = ? AND habitacion_id = ? AND fecha = ? AND activa = 1',
+            [$asignacionId, $habitacionId, $fecha]
+        );
+        if ($fila === null) {
+            throw new AsignacionException('ASIGNACION_NO_ENCONTRADA', 'Esa tarjeta ya no está activa. Recarga la pantalla.', 404);
+        }
+        return Asignacion::desdeFila($fila);
     }
 
     private function horaMinuto(): string
@@ -134,8 +367,11 @@ final class AsignacionService
             );
         }
         $this->exigirNocheDisponible($habitacionId, $fecha);
-        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
-        $this->desactivarAsignacionesActivas($habitacionId, $fecha);
+        // v7.26: con dos tarjetas, asignar en una ventana solo reemplaza la tarjeta de esa ventana.
+        $ventana = self::ventanaDe($franja);
+        $soloVentana = $this->llevaDosTarjetasId($habitacionId, $fecha) ? $ventana : null;
+        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso, $soloVentana);
+        $this->desactivarAsignacionesActivas($habitacionId, $fecha, $soloVentana);
         $orden = $this->siguienteOrdenCola($usuarioId, $fecha);
 
         // Si la habitación estaba en un estado terminal (rechazada / aprobada*), al (re)asignarla
@@ -146,8 +382,11 @@ final class AsignacionService
         //
         // Solo aplica si la asignación es para HOY: preasignar a una fecha futura (planificación
         // semanal) no debe ensuciar la pieza ahora — el estado real se decide cuando llegue el día.
+        //
+        // v7.26: la tarjeta de noche de una pieza con dos tarjetas no la reabre: la limpieza de la mañana (aprobada)
+        // es de la tarjeta de día, y la noche la barre recién desde la hora de la tarde (estadoDeTarjeta).
         $estadoActual = Database::fetchOne('SELECT estado FROM #__habitaciones WHERE id = ?', [$habitacionId]);
-        $estadoTerminal = $fecha === date('Y-m-d') && $estadoActual !== null && in_array($estadoActual['estado'], [
+        $estadoTerminal = $fecha === date('Y-m-d') && $estadoActual !== null && $soloVentana !== 'noche' && in_array($estadoActual['estado'], [
             Habitacion::ESTADO_RECHAZADA,
             Habitacion::ESTADO_APROBADA,
             Habitacion::ESTADO_APROBADA_CON_OBSERVACION,
@@ -201,6 +440,9 @@ final class AsignacionService
         $hab = Database::fetchOne('SELECT numero FROM #__habitaciones WHERE id = ?', [$habitacionId]);
         if ($hab !== null) {
             $cuandoTexto = $fecha === date('Y-m-d') ? 'para hoy' : 'para el ' . date('d-m-Y', strtotime($fecha));
+            if ($franja === Asignacion::FRANJA_NOCHE) {
+                $cuandoTexto .= ' (limpieza de noche, desde las ' . (new HoraTardeService())->hora() . ')';
+            }
             $this->notificaciones->crear(
                 $usuarioId,
                 'asignacion',
@@ -233,7 +475,8 @@ final class AsignacionService
         // no debe dejar asignadas las anteriores y el resto no.
         foreach ($habitacionIds as $habitacionId) {
             $this->exigirNocheDisponible($habitacionId, $fecha);
-            $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
+            $soloVentana = $this->llevaDosTarjetasId($habitacionId, $fecha) ? self::ventanaDe($this->validarFranja($franja)) : null;
+            $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso, $soloVentana);
         }
         $creadas = [];
         foreach ($habitacionIds as $habitacionId) {
@@ -253,11 +496,13 @@ final class AsignacionService
 
         $filtroHotel = ($hotelCodigo === 'ambos') ? null : $hotelCodigo;
 
+        // v7.26: una Día/Noche con solo tarjeta de noche igual necesita la de la mañana.
+        [$sinNoche, $paramsSinNoche] = self::sqlSinTarjetaNocheDeDiaNoche('a', 'h', $fecha);
         $sqlHab = 'SELECT h.id
                      FROM #__habitaciones h
                      JOIN #__hoteles ho ON ho.id = h.hotel_id
                 LEFT JOIN #__asignaciones a
-                       ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                       ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1' . $sinNoche . '
                     WHERE h.estado = ?
                       AND h.activa = 1
                       AND h.es_espacio_comun = 0
@@ -267,7 +512,7 @@ final class AsignacionService
                       AND NOT (h.es_nochero = 1 AND h.nochero_modo = ? AND (h.nochero_hasta IS NULL OR h.nochero_hasta >= ?))';
         // v7.25: las piezas Noche no entran al reparto (ni antes ni después de la hora de la tarde): se
         // asignan a mano desde la pestaña Noche. «Auto» vive en la pestaña Día, que no las muestra.
-        $paramsHab = [$fecha, Habitacion::ESTADO_SUCIA, Habitacion::NOCHERO_NOCHE, $fecha];
+        $paramsHab = [$fecha, ...$paramsSinNoche, Habitacion::ESTADO_SUCIA, Habitacion::NOCHERO_NOCHE, $fecha];
         if ($filtroHotel !== null) {
             $sqlHab .= ' AND ho.codigo = ?';
             $paramsHab[] = $filtroHotel;
@@ -325,10 +570,14 @@ final class AsignacionService
         bool $puedeMoverEnProgreso = false,
         ?string $notaAviso = null,
         ?int $opcionId = null,
+        ?int $asignacionId = null,
     ): Asignacion {
         // Hereda la franja de la asignación que reemplaza: rehacer una pieza es el MISMO ciclo
         // (pieza · fecha · franja) para los KPIs de la ficha (docs/kpis-sueldos.md), no una limpieza nueva.
-        $franja = $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
+        // v7.26: en una pieza con dos tarjetas, la pantalla dice cuál se mueve ($asignacionId); sin él, la operativa.
+        $franja = $asignacionId !== null
+            ? $this->activaPorId($asignacionId, $habitacionId, $fecha)->franja
+            : $this->obtenerActivaDeHabitacion($habitacionId, $fecha)?->franja;
         $asignacion = $this->asignarManual($habitacionId, $usuarioId, $fecha, $asignadoPor, $franja, $puedeMoverEnProgreso, $notaAviso);
         // $opcionId (v7.3): la opción de la lista «reasignar» que eligió la supervisora; null cuando
         // reasigna el propio sistema (p. ej. «Re-limpiar» de la inspección pre-entrega).
@@ -355,14 +604,25 @@ final class AsignacionService
      * Nada de lo anterior aplica a un día futuro (preasignación): se quita siempre y no se
      * reinicia nada, porque el estado de la pieza es el de hoy (v7.14).
      */
-    public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false): void
+    public function desasignar(int $habitacionId, string $fecha, ?int $actorId = null, bool $puedeMoverEnProgreso = false, ?int $asignacionId = null): void
     {
         $this->validarFecha($fecha);
 
-        $asignacion = Database::fetchOne(
-            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
-            [$habitacionId, $fecha]
-        );
+        // v7.26: en una pieza con dos tarjetas se quita solo la que dice la pantalla ($asignacionId).
+        $dos = $this->llevaDosTarjetasId($habitacionId, $fecha);
+        $asignacion = $asignacionId !== null
+            ? Database::fetchOne(
+                'SELECT a.*, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun, h.nochero_ultima_reversion
+                   FROM #__asignaciones a JOIN #__habitaciones h ON h.id = a.habitacion_id
+                  WHERE a.id = ? AND a.habitacion_id = ? AND a.fecha = ? AND a.activa = 1',
+                [$asignacionId, $habitacionId, $fecha]
+            )
+            : Database::fetchOne(
+                'SELECT a.*, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun, h.nochero_ultima_reversion
+                   FROM #__asignaciones a JOIN #__habitaciones h ON h.id = a.habitacion_id
+                  WHERE a.habitacion_id = ? AND a.fecha = ? AND a.activa = 1 ORDER BY a.id DESC LIMIT 1',
+                [$habitacionId, $fecha]
+            );
         if ($asignacion === null) {
             throw new AsignacionException(
                 'ASIGNACION_NO_ENCONTRADA',
@@ -378,23 +638,32 @@ final class AsignacionService
         // El estado de la pieza es el de HOY. Una preasignación de un día que todavía no llega no se
         // ejecutó: se quita sin mirarlo y sin tocar la limpieza de hoy (v7.14; antes, quitar la de
         // mañana de una pieza en progreso hoy le reiniciaba la limpieza y avisaba «sucia» a Cloudbeds).
+        // v7.26: con dos tarjetas manda el estado de ESA tarjeta (una de noche «programada» se puede quitar
+        // aunque la pieza ya esté aprobada por la mañana), y solo se reinicia si la limpieza en curso es suya.
         $esFutura = $fecha > date('Y-m-d');
-        $desasignables = [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_RECHAZADA];
-        if (!$esFutura && !in_array($hab['estado'], $desasignables, true)) {
+        $estado = $dos ? $this->estadoDeFilaTarjeta($asignacion) : (string) $hab['estado'];
+        $desasignables = [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_EN_PROGRESO, Habitacion::ESTADO_RECHAZADA, self::ESTADO_TARJETA_PROGRAMADA];
+        if (!$esFutura && !in_array($estado, $desasignables, true)) {
             throw new AsignacionException(
                 'ESTADO_NO_DESASIGNABLE',
                 'La habitación ya fue completada: no se puede desasignar.',
                 409
             );
         }
-        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso);
-        $reiniciar = !$esFutura && $hab['estado'] === Habitacion::ESTADO_EN_PROGRESO;
+        $soloVentana = $dos ? self::ventanaDe(isset($asignacion['franja']) ? (string) $asignacion['franja'] : null) : null;
+        $this->exigirPuedeMoverEnProgreso($habitacionId, $fecha, $puedeMoverEnProgreso, $soloVentana);
+        $reiniciar = !$esFutura && $estado === Habitacion::ESTADO_EN_PROGRESO;
+        $idTarjeta = (int) $asignacion['id'];
 
-        Database::transaction(function () use ($habitacionId, $fecha, $reiniciar, $actorId): void {
-            Database::execute(
-                'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
-                [$habitacionId, $fecha]
-            );
+        Database::transaction(function () use ($habitacionId, $fecha, $reiniciar, $actorId, $dos, $idTarjeta): void {
+            if ($dos) {
+                Database::execute('UPDATE #__asignaciones SET activa = 0 WHERE id = ? AND activa = 1', [$idTarjeta]);
+            } else {
+                Database::execute(
+                    'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
+                    [$habitacionId, $fecha]
+                );
+            }
             if ($reiniciar) {
                 $this->resetearASucia($habitacionId, $actorId); // R6: con historial, ver asignarManual()
             }
@@ -552,11 +821,89 @@ final class AsignacionService
     public function obtenerActivaDeHabitacion(int $habitacionId, ?string $fecha = null): ?Asignacion
     {
         $fecha ??= date('Y-m-d');
-        $fila = Database::fetchOne(
-            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1 ORDER BY id DESC LIMIT 1',
+        $filas = Database::fetchAll(
+            'SELECT * FROM #__asignaciones WHERE habitacion_id = ? AND fecha = ? AND activa = 1 ORDER BY id DESC',
             [$habitacionId, $fecha]
         );
-        return $fila === null ? null : Asignacion::desdeFila($fila);
+        if ($filas === []) {
+            return null;
+        }
+        if (count($filas) === 1) {
+            return Asignacion::desdeFila($filas[0]);
+        }
+        // v7.26: dos tarjetas (día y noche). Manda la que tiene la limpieza viva; si ninguna, la de la ventana
+        // que corresponde a esta hora (la de noche desde la hora de la tarde).
+        foreach ($filas as $f) {
+            if (Database::fetchOne(
+                'SELECT 1 FROM #__ejecuciones_checklist WHERE asignacion_id = ? AND estado IN (?, ?)',
+                [(int) $f['id'], EjecucionChecklist::ESTADO_EN_PROGRESO, EjecucionChecklist::ESTADO_COMPLETADA]
+            ) !== null) {
+                return Asignacion::desdeFila($f);
+            }
+        }
+        $ventana = ($fecha === date('Y-m-d') && $this->nocheDisponible($fecha)) ? 'noche' : 'dia';
+        foreach ($filas as $f) {
+            if (self::ventanaDe(isset($f['franja']) ? (string) $f['franja'] : null) === $ventana) {
+                return Asignacion::desdeFila($f);
+            }
+        }
+        return Asignacion::desdeFila($filas[0]);
+    }
+
+    /**
+     * La tarjeta con que una persona empieza (o retoma) la limpieza de una pieza (ChecklistService::iniciarEjecucion).
+     * Con una sola tarjeta es la activa de siempre. Con dos (v7.26), la de ESTA persona que se puede trabajar ahora:
+     * primero la que tiene su limpieza en curso, después una sucia o rechazada. Si la suya es la de noche y todavía
+     * no le toca, o la de la mañana ya pasó a la noche, lo dice con un error claro.
+     */
+    public function tarjetaParaEmpezar(int $habitacionId, int $usuarioId, string $fecha): ?Asignacion
+    {
+        if (!$this->llevaDosTarjetasId($habitacionId, $fecha)) {
+            return $this->obtenerActivaDeHabitacion($habitacionId, $fecha);
+        }
+        $filas = Database::fetchAll(
+            'SELECT a.*, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun, h.nochero_ultima_reversion
+               FROM #__asignaciones a JOIN #__habitaciones h ON h.id = a.habitacion_id
+              WHERE a.habitacion_id = ? AND a.usuario_id = ? AND a.fecha = ? AND a.activa = 1
+              ORDER BY a.id',
+            [$habitacionId, $usuarioId, $fecha]
+        );
+        $estados = [];
+        foreach ($filas as $f) {
+            $estado = $this->estadoDeFilaTarjeta($f);
+            if ($estado === Habitacion::ESTADO_EN_PROGRESO && Database::fetchOne(
+                "SELECT 1 FROM #__ejecuciones_checklist WHERE asignacion_id = ? AND estado = 'en_progreso'",
+                [(int) $f['id']]
+            ) !== null) {
+                return Asignacion::desdeFila($f);
+            }
+            $estados[] = [$estado, $f];
+        }
+        foreach ($estados as [$estado, $f]) {
+            if (in_array($estado, [Habitacion::ESTADO_SUCIA, Habitacion::ESTADO_RECHAZADA], true)) {
+                return Asignacion::desdeFila($f);
+            }
+        }
+        foreach ($estados as [$estado]) {
+            if ($estado === self::ESTADO_TARJETA_PROGRAMADA) {
+                $hora = (new HoraTardeService())->hora();
+                throw new AsignacionException(
+                    'TARJETA_PROGRAMADA',
+                    $this->nocheDisponible($fecha)
+                        ? 'Todavía está la limpieza de la mañana de esta pieza: la tuya se empieza cuando termine.'
+                        : "Esta es tu limpieza de noche: se empieza desde las {$hora}.",
+                    409
+                );
+            }
+            if ($estado === self::ESTADO_TARJETA_NO_LIMPIADA) {
+                throw new AsignacionException(
+                    'TARJETA_PASO_A_LA_NOCHE',
+                    'La limpieza de la mañana de esta pieza pasó a la noche: ya no te toca.',
+                    409
+                );
+            }
+        }
+        return null;
     }
 
     /**
@@ -599,6 +946,10 @@ final class AsignacionService
             $this->reconciliarPreasignaciones($fecha);
         }
 
+        // v7.26: la tarjeta de noche de una Día/Noche no la saca del pool de la mañana (sigue necesitando la de día).
+        $dosTarjetas = self::tarjetaNocheDoble();
+        [$sinNoche, $paramsSinNoche] = self::sqlSinTarjetaNocheDeDiaNoche('a', 'h', $fecha);
+
         if ($esHoy) {
             // Habitaciones sucias o rechazadas SIN asignación activa hoy
             // (las rechazadas necesitan reasignarse — al hacerlo, asignarManual las pasa a 'sucia')
@@ -611,7 +962,7 @@ final class AsignacionService
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1' . $sinNoche . '
                         WHERE h.activa = 1
                           AND h.es_espacio_comun = 0
                           AND h.estado IN (\'sucia\', \'rechazada\')
@@ -628,13 +979,13 @@ final class AsignacionService
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
-                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                    LEFT JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1' . $sinNoche . '
                         WHERE h.activa = 1
                           AND h.es_espacio_comun = 0
                           AND a.id IS NULL';
         }
         $sqlSin .= $sinPrueba;
-        $paramsSin = [$fecha];
+        $paramsSin = [$fecha, ...$paramsSinNoche];
         if ($filtroHotel !== null) {
             $sqlSin .= ' AND ho.codigo = ?';
             $paramsSin[] = $filtroHotel;
@@ -644,12 +995,30 @@ final class AsignacionService
         // Cast explícito: MariaDB devuelve TINYINT como string ("0"/"1"), y "0" es truthy en JS
         // (mismo problema documentado en HabitacionService::listar). Sin esto el círculo de
         // nochero se pintaría en todas las tarjetas del pool.
-        foreach ($sinAsignar as &$fila) {
+        // v7.26: qué piezas ya tienen tarjeta de noche ese día (una Día/Noche con la de noche no sale en Noche).
+        $conTarjetaNoche = [];
+        if ($dosTarjetas) {
+            foreach (Database::fetchAll(
+                'SELECT DISTINCT habitacion_id FROM #__asignaciones WHERE fecha = ? AND activa = 1 AND franja = ?',
+                [$fecha, Asignacion::FRANJA_NOCHE]
+            ) as $f) {
+                $conTarjetaNoche[(int) $f['habitacion_id']] = true;
+            }
+        }
+        $nocheDisponible = $this->nocheDisponible($fecha);
+        foreach ($sinAsignar as $i => &$fila) {
             // v7.23: la chapa de ese día (una marca que vence antes no cuenta al planificar un día futuro).
             $fila['chapa'] = HabitacionService::chapaDeFila($fila, $fecha);
             $fila['es_nochero'] = ((int) ($fila['es_nochero'] ?? 0)) === 1;
+            $fila['tiene_tarjeta_noche'] = isset($conTarjetaNoche[(int) $fila['id']]);
+            // v7.26: desde la hora de la tarde, una Día/Noche que ya tiene tarjeta de noche es de la noche (si nadie
+            // la limpió en la mañana, la limpia la de noche): ya no se reparte en Día.
+            if ($esHoy && $nocheDisponible && $fila['tiene_tarjeta_noche'] && $fila['chapa'] === Habitacion::NOCHERO_DIA_NOCHE) {
+                unset($sinAsignar[$i]);
+            }
         }
         unset($fila);
+        $sinAsignar = array_values($sinAsignar);
 
         // Reservas de Cloudbeds de un día futuro, una consulta por hotel para toda la vista (pool y
         // colas). Ver tipoDelDia().
@@ -676,7 +1045,8 @@ final class AsignacionService
             // la desactiva y crea la nueva. Excluye aprobadas de días anteriores (sin asignación de hoy).
             // Incluye las que aprobó el cierre automático (R5, v6.17): con el cierre de las 15:50,
             // casi todo lo de la mañana queda así, y sin esto no se les podía pedir otra limpieza.
-            $sqlRe = 'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
+            $sqlRe = 'SELECT h.id, h.numero, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta,
+                             ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre
                          FROM #__habitaciones h
                          JOIN #__hoteles ho ON ho.id = h.hotel_id
                          JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
@@ -691,7 +1061,15 @@ final class AsignacionService
                 $paramsRe[] = $filtroHotel;
             }
             $sqlRe .= ' ORDER BY ho.codigo, h.numero';
-            $reLimpiar = Database::fetchAll($sqlRe, $paramsRe);
+            $reLimpiar = [];
+            foreach (Database::fetchAll($sqlRe, $paramsRe) as $fila) {
+                // v7.26: la segunda limpieza de una Día/Noche es su tarjeta de noche (pool de Noche), no esta.
+                if ($dosTarjetas && HabitacionService::chapaDeFila($fila, $fecha) === Habitacion::NOCHERO_DIA_NOCHE) {
+                    continue;
+                }
+                unset($fila['es_nochero'], $fila['nochero_modo'], $fila['nochero_hasta']);
+                $reLimpiar[] = $fila;
+            }
         } else {
             $reLimpiar = [];
         }
@@ -700,10 +1078,13 @@ final class AsignacionService
         // quien la limpió temprano). Salen en el pool de Noche: al asignarlas, asignarManual apaga esa tarjeta
         // y crea la de noche. La limpieza de la mañana no se pierde: el Registro y Reportes leen las limpiezas,
         // no las tarjetas. Una rechazada, en curso o por inspeccionar no está acá (estado 'sucia').
+        // v7.26 (interruptor prendido): en su lugar, las Día/Noche con tarjeta de día y SIN tarjeta de noche, hoy a
+        // cualquier hora y al planificar un día futuro: al asignarlas se SUMA la de noche (la de día se queda).
         $horaTarde = (new HoraTardeService())->hora();
-        $nocheDisponible = $this->nocheDisponible($fecha);
         $diaNocheBarridas = [];
-        if ($esHoy && $nocheDisponible) {
+        if ($dosTarjetas && ($esHoy || $esFutura)) {
+            $diaNocheBarridas = $this->diaNocheSinTarjetaNoche($fecha, $esHoy, $sinPrueba, $filtroHotel, $reservasPorHotel);
+        } elseif ($esHoy && $nocheDisponible) {
             $sqlBarr = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta,
                                h.cb_frontdesk_status, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
                                th.nombre AS tipo_nombre, u.nombre AS asignada_a
@@ -776,6 +1157,7 @@ final class AsignacionService
             'sin_asignar' => $sinAsignar,
             're_limpiar' => $reLimpiar,
             'dia_noche_barridas' => $diaNocheBarridas,
+            'tarjeta_noche_doble' => $dosTarjetas,
             'ventana_noche' => ['hora' => $horaTarde, 'disponible' => $nocheDisponible],
             'trabajadores' => $trabajadoresVista,
             'reservas' => $esFutura ? ['hoteles_sin_dato' => array_values(array_map(
@@ -798,7 +1180,9 @@ final class AsignacionService
         $p = ['pendientes' => 0, 'en_progreso' => 0, 'completadas' => 0, 'rechazadas' => 0, 'total' => count($cola)];
         foreach ($cola as $h) {
             $estado = $h['estado'] ?? '';
-            if ($esFutura || $estado === 'sucia') {
+            // v7.26: una tarjeta de noche «programada» es trabajo que viene; una de día «No limpiada» ya no es de nadie
+            // (no suma ni como pendiente ni como completada, pero sí en el total: estaba asignada).
+            if ($esFutura || $estado === 'sucia' || $estado === self::ESTADO_TARJETA_PROGRAMADA) {
                 $p['pendientes']++;
             } elseif ($estado === 'en_progreso') {
                 $p['en_progreso']++;
@@ -809,6 +1193,54 @@ final class AsignacionService
             }
         }
         return $p;
+    }
+
+    /**
+     * v7.26: Día/Noche vigentes ese día que tienen tarjeta de día y todavía no la de noche (pool de Noche con el
+     * interruptor prendido), con quién tiene la de día (`asignada_a`). Hoy, sin las bloqueadas; un día futuro,
+     * filtradas por las reservas de Cloudbeds como el resto del pool (filtrarPorReservas).
+     *
+     * @param array<string, array{nombre: string, piezas: array<string, array{tipo: string, llegada: ?string}>|null}> $reservasPorHotel
+     * @return list<array<string, mixed>>
+     */
+    private function diaNocheSinTarjetaNoche(string $fecha, bool $esHoy, string $sinPrueba, ?string $filtroHotel, array &$reservasPorHotel): array
+    {
+        $sql = 'SELECT h.id, h.numero, h.edificio, h.piso, h.estado, h.es_nochero, h.nochero_modo, h.nochero_hasta,
+                       h.cb_frontdesk_status, h.cloudbeds_room_id, ho.cloudbeds_property_id, ho.sabanas_cada_n_dias,
+                       ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, th.nombre AS tipo_nombre, u.nombre AS asignada_a
+                  FROM #__habitaciones h
+                  JOIN #__hoteles ho ON ho.id = h.hotel_id
+                  JOIN #__tipos_habitacion th ON th.id = h.tipo_habitacion_id
+                  JOIN #__asignaciones a ON a.habitacion_id = h.id AND a.fecha = ? AND a.activa = 1
+                                        AND (a.franja IS NULL OR a.franja <> ?)
+                  JOIN #__usuarios u ON u.id = a.usuario_id
+                 WHERE h.activa = 1
+                   AND h.es_espacio_comun = 0
+                   AND h.es_nochero = 1 AND h.nochero_modo = ?
+                   AND (h.nochero_hasta IS NULL OR h.nochero_hasta >= ?)
+                   AND NOT EXISTS (SELECT 1 FROM #__asignaciones an
+                                    WHERE an.habitacion_id = h.id AND an.fecha = ? AND an.activa = 1 AND an.franja = ?)'
+            . ($esHoy ? ' AND ' . BloqueosService::sqlSinBloqueo() : '') . $sinPrueba;
+        $params = [$fecha, Asignacion::FRANJA_NOCHE, Habitacion::NOCHERO_DIA_NOCHE, $fecha, $fecha, Asignacion::FRANJA_NOCHE];
+        if ($filtroHotel !== null) {
+            $sql .= ' AND ho.codigo = ?';
+            $params[] = $filtroHotel;
+        }
+        $sql .= ' ORDER BY ho.codigo, h.numero';
+        $filas = [];
+        foreach (Database::fetchAll($sql, $params) as $fila) {
+            $fila['chapa'] = Habitacion::NOCHERO_DIA_NOCHE;
+            $fila['es_nochero'] = true;
+            $filas[] = $fila;
+        }
+        if (!$esHoy) {
+            return $this->filtrarPorReservas($filas, $fecha, $reservasPorHotel);
+        }
+        foreach ($filas as &$fila) {
+            unset($fila['cloudbeds_room_id'], $fila['cloudbeds_property_id'], $fila['sabanas_cada_n_dias']);
+        }
+        unset($fila);
+        return $filas;
     }
 
     /**
@@ -938,7 +1370,7 @@ final class AsignacionService
         $filas = Database::fetchAll(
             "SELECT a.*, h.numero, h.edificio, h.piso, h.estado, h.es_prueba, h.cb_frontdesk_status, h.cb_arrival_date,
                     h.cb_departure_date, h.cb_huespedes, h.cb_huespedes_llegan, h.limpieza_completa_pendiente,
-                    h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun, h.cb_ocupada,
+                    h.es_nochero, h.nochero_modo, h.nochero_hasta, h.es_espacio_comun, h.cb_ocupada, h.nochero_ultima_reversion,
                     ho.codigo AS hotel_codigo, ho.sabanas_cada_n_dias, th.nombre AS tipo_nombre,
                     (h.estado = 'en_progreso' AND EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
                              WHERE ec.asignacion_id = a.id AND ec.usuario_id = a.usuario_id
@@ -956,7 +1388,15 @@ final class AsignacionService
             // v7.23: la chapa de ese día (Día, Noche o Día/Noche), para la tarjeta de la cola. Las áreas comunes
             // no llevan.
             $f['chapa'] = ((int) ($f['es_espacio_comun'] ?? 0)) === 1 ? null : HabitacionService::chapaDeFila($f, $fecha);
+            // v7.26: en una pieza con dos tarjetas, `estado` es el de ESTA tarjeta (programada, no_limpiada, el
+            // resultado de su limpieza…) y `estado_pieza` el de la pieza. Así lo usan solos el Inicio, el tablero,
+            // el progreso y la habitación actual.
+            $f['estado_pieza'] = $f['estado'];
+            if ($fecha === date('Y-m-d') && self::llevaDosTarjetas($f, $fecha)) {
+                $f['estado'] = $this->estadoDeFilaTarjeta($f);
+            }
             $f['es_nochero'] = ((int) ($f['es_nochero'] ?? 0)) === 1;
+            unset($f['nochero_ultima_reversion']);
             return $this->sabanas->anotarFila($f);
         }, $filas);
     }
@@ -1071,6 +1511,16 @@ final class AsignacionService
         if ($this->horaMinuto() < (new HoraTardeService())->hora()) {
             $soloAreas .= " AND (h.es_espacio_comun = 1 OR a.franja IS NULL OR a.franja <> 'noche')";
         }
+        // v7.26: en una Día/Noche con dos tarjetas, la de noche no se retira nunca (su limpieza viene en la tarde,
+        // y en la mañana la pieza puede estar aprobada por la limpieza de día), y desde que la pieza se barrió
+        // tampoco la de día: si nadie la limpió en la mañana queda «No limpiada» y cuenta como asignada sin hacer.
+        $paramsDos = [];
+        if (self::tarjetaNocheDoble()) {
+            // COALESCE: con franja o reversión NULL la condición quedaría NULL y sacaría filas que sí van.
+            $soloAreas .= " AND NOT (h.es_nochero = 1 AND h.nochero_modo = ? AND (h.nochero_hasta IS NULL OR h.nochero_hasta >= ?)
+                                 AND (COALESCE(a.franja, '') = ? OR COALESCE(h.nochero_ultima_reversion, '') = ?))";
+            $paramsDos = [Habitacion::NOCHERO_DIA_NOCHE, $fecha, Asignacion::FRANJA_NOCHE, $fecha];
+        }
         $huerfanas = Database::fetchAll(
             "SELECT a.id, a.usuario_id, a.habitacion_id, h.numero, h.es_espacio_comun
                FROM #__asignaciones a
@@ -1079,7 +1529,7 @@ final class AsignacionService
                 AND a.activa = 1
                 AND h.estado IN ({$marcas})
                 AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec WHERE ec.asignacion_id = a.id){$soloAreas}",
-            [$fecha, ...$estados]
+            [$fecha, ...$estados, ...$paramsDos]
         );
         foreach ($huerfanas as $fila) {
             $id = (int) $fila['id'];
@@ -1162,7 +1612,7 @@ final class AsignacionService
      * para otra fecha no toca el aseo en curso, y una en_progreso sin asignación activa no es
      * trabajo de nadie que se pierda.
      */
-    private function exigirPuedeMoverEnProgreso(int $habitacionId, string $fecha, bool $puedeMoverEnProgreso): void
+    private function exigirPuedeMoverEnProgreso(int $habitacionId, string $fecha, bool $puedeMoverEnProgreso, ?string $soloVentana = null): void
     {
         if ($puedeMoverEnProgreso || $fecha !== date('Y-m-d')) {
             return;
@@ -1171,7 +1621,17 @@ final class AsignacionService
         if ($hab === null || $hab['estado'] !== Habitacion::ESTADO_EN_PROGRESO) {
             return;
         }
-        if ($this->obtenerActivaDeHabitacion($habitacionId, $fecha) === null) {
+        if ($soloVentana !== null) {
+            // v7.26: con dos tarjetas, solo frena si la limpieza en curso es de la tarjeta de esa ventana (asignar
+            // la de noche mientras la mañana limpia no le borra nada a nadie).
+            $tarjeta = $this->activaDeVentana($habitacionId, $fecha, $soloVentana);
+            if ($tarjeta === null || Database::fetchOne(
+                "SELECT 1 FROM #__ejecuciones_checklist WHERE asignacion_id = ? AND estado = 'en_progreso'",
+                [$tarjeta->id]
+            ) === null) {
+                return;
+            }
+        } elseif ($this->obtenerActivaDeHabitacion($habitacionId, $fecha) === null) {
             return;
         }
         $pieza = (bool) $hab['es_espacio_comun'] ? "El área {$hab['numero']}" : "La habitación {$hab['numero']}";
@@ -1182,8 +1642,17 @@ final class AsignacionService
         );
     }
 
-    private function desactivarAsignacionesActivas(int $habitacionId, string $fecha): void
+    /** v7.26: con $soloVentana, solo la tarjeta de esa ventana (la otra de una pieza con dos tarjetas se queda). */
+    private function desactivarAsignacionesActivas(int $habitacionId, string $fecha, ?string $soloVentana = null): void
     {
+        if ($soloVentana !== null) {
+            Database::execute(
+                "UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1
+                    AND (CASE WHEN franja = 'noche' THEN 'noche' ELSE 'dia' END) = ?",
+                [$habitacionId, $fecha, $soloVentana]
+            );
+            return;
+        }
         Database::execute(
             'UPDATE #__asignaciones SET activa = 0 WHERE habitacion_id = ? AND fecha = ? AND activa = 1',
             [$habitacionId, $fecha]

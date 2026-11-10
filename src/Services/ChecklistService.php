@@ -639,9 +639,23 @@ final class ChecklistService
         // $fecha explícito (no el default "hoy" de obtenerActivaDeHabitacion): con planificación a
         // futuro puede haber una asignación activa de otra fecha con id mayor: sin esto, el
         // "ORDER BY id DESC" interno la elegiría a ella en vez de la de $fecha.
-        $asignacion = $this->asignaciones->obtenerActivaDeHabitacion($habitacionId, $fecha);
+        // v7.26: con dos tarjetas (Día/Noche), la de ESTA persona que se puede trabajar ahora; la de noche antes de
+        // su hora, o la de día que ya pasó a la noche, responden con un error claro.
+        try {
+            $asignacion = $this->asignaciones->tarjetaParaEmpezar($habitacionId, $usuarioId, $fecha);
+        } catch (AsignacionException $e) {
+            throw new ChecklistException($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
         if ($asignacion === null) {
             throw new ChecklistException('ASIGNACION_NO_ACTIVA', 'No hay asignación activa.', 409);
+        }
+        if (AsignacionService::ventanaDe($asignacion->franja) === 'noche' && AsignacionService::tarjetaNocheDoble()
+            && !$habitacion->esEspacioComun && $habitacion->chapa() === Habitacion::NOCHERO_DIA_NOCHE
+            && ($habitacion->nocheroHasta === null || $habitacion->nocheroHasta >= $fecha)) {
+            // La limpieza de noche de una Día/Noche: si el barrido de hoy no pasó, se hace ahora (ver
+            // HabitacionService::prepararLimpiezaDeNoche) y se relee la pieza, que pudo quedar sucia.
+            $this->habitaciones->prepararLimpiezaDeNoche($habitacionId, $fecha, $this->cloudbeds, $usuarioId);
+            $habitacion = $this->habitaciones->obtener($habitacionId) ?? $habitacion;
         }
 
         $existente = Database::fetchOne(

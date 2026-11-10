@@ -189,6 +189,57 @@ recién desde la hora de la tarde se sabe si de verdad no la necesitó.
 `progreso_ventana: {dia, noche}`. Reloj inyectable en `AsignacionService` (`reloj:`) para los tests; `EscenarioCicloLimpieza`
 fija las 17:00.
 
+### 3.5 Dos tarjetas por pieza Día/Noche (v7.26, interruptor `TARJETA_NOCHE_DOBLE`)
+
+Plan aprobado el 09/11; decisiones de Nicolás del 10/11/2026. Con `TARJETA_NOCHE_DOBLE=true` en el `.env`, una pieza con
+chapa **Día/Noche** vigente puede tener a la vez una **tarjeta de día** y una **de noche**: una persona en cada ventana, o la
+misma (doble turno: son dos limpiezas distintas para los KPIs). Con el interruptor apagado (por defecto), todo es como la v7.25.
+Sin SQL. Las piezas Día y Noche no cambian: siguen con una tarjeta.
+
+**Cada tarjeta tiene su estado.** `habitaciones.estado` sigue siendo uno por pieza, así que cada tarjeta lo deriva
+(`AsignacionService::estadoDeTarjeta`, función pura con sus tests, y `estadoDeFilaTarjeta`). `colaDelTrabajador` lo trae en
+`estado` (y el de la pieza en `estado_pieza`), así que el Inicio, el tablero, el progreso y la habitación actual lo usan solos.
+Nunca hay dos limpiezas vivas a la vez:
+
+| Tarjeta | Situación | Estado |
+|---|---|---|
+| Noche | antes de la hora de la tarde | **programada** («Desde las HH:MM») |
+| Noche | después, con la limpieza de la mañana en curso, por inspeccionar o rechazada por rehacer | **programada** («Espera la mañana») |
+| Noche | después, mañana aprobada (aunque el cron todavía no barra) o sin limpiar | sucia: se puede empezar |
+| Noche | pieza ya barrida o empezada de noche | el de la pieza |
+| Día | antes de la hora, o sin tarjeta de noche | el de la pieza (una barrida sin tarjeta de noche sigue con la persona de la mañana, v6.17) |
+| Día | después, con tarjeta de noche, ya barrida | el resultado de su limpieza (Aprobada…) o **No limpiada** |
+| Día | después, con tarjeta de noche, sin barrer | su limpieza viva o aprobada; si nadie la limpió, **No limpiada** |
+
+- **La de noche se asigna desde la mañana** (decisión 1): queda «Desde las 16:00» en la cola. Las piezas Noche (de un solo
+  aseo) siguen esperando la hora, como en la v7.25; con el interruptor prendido, la pestaña Noche muestra igual su pool y solo
+  avisa cuántas piezas Noche esperan.
+- **Si nadie limpió en la mañana, la limpia la de noche** (decisión 2): la tarjeta de día queda «No limpiada», activa, y cuenta
+  como asignada sin hacer (Registro: «Le quedaron sin limpiar»). No la retira la reconciliación de preasignaciones.
+- **El rechazo de la mañana se rehace primero:** la de noche espera mientras la última limpieza de día de la pieza esté rechazada.
+- **Empezar la de noche barre la pieza** si el cron todavía no pasó (`HabitacionService::prepararLimpiezaDeNoche`: aprobada →
+  sucia, anotada como barrida, `dirty` a Cloudbeds). Sin esa marca, al aprobarse la limpieza de noche el cron la volvería a barrer.
+- **Asignar no reabre:** la tarjeta de noche no pasa la pieza a sucia al asignarla (la de la mañana es de la tarjeta de día).
+- **Empezar:** `ChecklistService::iniciarEjecucion` toma la tarjeta de ESA persona que se puede trabajar
+  (`AsignacionService::tarjetaParaEmpezar`). La de noche antes de tiempo → 409 `TARJETA_PROGRAMADA`; la de día que pasó a la
+  noche → 409 `TARJETA_PASO_A_LA_NOCHE`.
+- **Mover y quitar una tarjeta:** `POST /api/asignaciones/reasignar` y `/desasignar` reciben `asignacion_id` (opcional): con dos
+  tarjetas se mueve o quita solo esa. Asignar en una ventana solo reemplaza la tarjeta de esa ventana. `exigirPuedeMoverEnProgreso`
+  frena solo si la limpieza en curso es de la tarjeta que se toca.
+- **La tarjeta «operativa»** (`obtenerActivaDeHabitacion`, el «asignada a» de Habitaciones, la nota de Recepción, la re-limpieza
+  de Recepción): la que tiene la limpieza viva; si ninguna, la de la ventana de esa hora.
+- **Pools:** la tarjeta de noche no saca a una Día/Noche del pool de Día, de «Auto» ni del «sin asignar» del Inicio de la
+  supervisora (sigue necesitando la de la mañana); desde la hora, una Día/Noche con tarjeta de noche ya no se reparte en Día.
+  En Noche salen las Día/Noche sin tarjeta de noche, **hoy y al planificar un día futuro** (`dia_noche_barridas` pasa a ser
+  «Día/Noche con tarjeta de día»: al asignarlas se **suma** la de noche). «Volver a limpiar» no trae Día/Noche (su segunda
+  limpieza es la tarjeta de noche).
+- **Pantalla de la trabajadora:** «programada» cuenta como pendiente; si no tiene nada que hacer ahora, el Inicio muestra «Tu
+  limpieza de noche» con la pieza y desde cuándo (`proxima_noche`). «No limpiada» ya no cuenta. En su pestaña Habitaciones: «Noche
+  · más tarde» y «Pasó a la noche».
+- **Alertas predictivas:** cuentan lo que queda por el estado de cada tarjeta.
+- **Riesgos aceptados en el plan:** una barrida sin tarjeta de noche sigue con la persona de la mañana; «No limpiada» cuenta como
+  asignada sin hacer para esa persona.
+
 ## 4. Modo Tablero (arrastrar-y-soltar)
 
 ### 4.1 Layout

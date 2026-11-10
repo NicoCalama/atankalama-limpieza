@@ -91,5 +91,6 @@ cortes): así, mover la hora no cambia cómo se ve el pasado. El cierre de día 
 
 - **v7.24:** checklist premarcado en piezas con chapa, desde la hora de la tarde (hecho: §3.1).
 - **v7.25:** pestañas Día | Noche en Asignaciones; las Noche no se asignan antes de la hora (hecho: [asignacion.md](asignacion.md) §3.4).
-- **v7.26:** dos tarjetas por pieza y día en las Día/Noche (una persona en cada ventana). Con ellas, las Día/Noche también
-  se podrán planificar en la pestaña Noche de un día futuro (en la v7.25 Noche trae solo las Noche).
+- **v7.26:** dos tarjetas por pieza y día en las Día/Noche (una persona en cada ventana), detrás del interruptor
+  `TARJETA_NOCHE_DOBLE` (se sube apagado). Con él prendido, las Día/Noche también se planifican en la pestaña Noche de un día
+  futuro (hecho: [asignacion.md](asignacion.md) §3.5).

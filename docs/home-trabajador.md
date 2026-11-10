@@ -316,6 +316,12 @@ decía «Acceder», solo abría la ficha, y ahí había que tocar «Comenzar lim
 mensaje sale bajo el botón y la pantalla se recarga. La ficha conserva su propio botón para quien llega por
 otro camino (la lista de Habitaciones).
 
+**Tarjeta de noche (v7.26, con `TARJETA_NOCHE_DOBLE`).** En una pieza Día/Noche con dos tarjetas, la de noche
+«programada» (antes de la hora de la tarde, o mientras siga la limpieza de la mañana) no es la habitación actual: cuenta
+como pendiente y, si no hay otra cosa que hacer, el Inicio muestra «Tu limpieza de noche» con la pieza y «Desde las
+HH:MM» o «Cuando termine la limpieza de la mañana» (`proxima_noche`). La de día que tomó la noche («No limpiada») ya no
+cuenta. Ver [asignacion.md](asignacion.md) §3.5.
+
 Estilo del botón:
 ```html
 <button class="w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm">

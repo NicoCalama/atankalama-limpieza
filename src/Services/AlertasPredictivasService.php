@@ -196,6 +196,14 @@ final class AlertasPredictivasService
 
     private function contarHabitacionesRestantes(int $usuarioId, string $fecha): int
     {
+        // v7.26: con dos tarjetas por pieza, el estado de cada tarjeta sale de la cola (una de noche «programada»
+        // todavía no es trabajo de este turno; una de día «No limpiada» ya no es de esta persona).
+        if (AsignacionService::tarjetaNocheDoble()) {
+            return count(array_filter(
+                (new AsignacionService())->colaDelTrabajador($usuarioId, $fecha),
+                static fn(array $h): bool => !$h['es_prueba'] && in_array($h['estado'], ['sucia', 'en_progreso', 'rechazada'], true)
+            ));
+        }
         $fila = Database::fetchOne(
             "SELECT COUNT(*) AS n
                FROM #__asignaciones a
