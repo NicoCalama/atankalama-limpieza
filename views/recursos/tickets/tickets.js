@@ -34,6 +34,8 @@ function ticketsApp() {
             enviandoComentario: false,
         },
         cierreFotos: [], // [{ file, url }] — fotos opcionales al cerrar, máx. 3
+        // v7.21: cámara propia (camara-fotos.js) si el navegador la permite.
+        camaraPropia: typeof camaraFotosDisponible === 'function' && camaraFotosDisponible(),
         // Respuestas predefinidas para comentar (v7.4, Ajustes → Checklists y listas), se piden una vez.
         respuestas: [],
         respuestasCargando: false,
@@ -448,6 +450,20 @@ function ticketsApp() {
                 var comprimido = await comprimirFotoParaSubir(archivos[i], 1600, 0.8);
                 this.cierreFotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
             }
+        },
+
+        // v7.21: hasta 3 fotos de cierre seguidas con la cámara propia. Llegan ya comprimidas.
+        async tomarFotosCierre() {
+            var espacio = 3 - this.cierreFotos.length;
+            if (espacio <= 0 || this.detalle.enviando) return;
+            var ticketId = this.detalle.ticket ? this.detalle.ticket.id : null;
+            var archivos = await abrirCamaraFotos({ max: espacio });
+            // Si mientras tanto se cerró el panel o se abrió otro ticket, esas fotos no van.
+            if (!this.detalle.mostrarCierre || !this.detalle.ticket || this.detalle.ticket.id !== ticketId) return;
+            var self = this;
+            archivos.slice(0, Math.max(0, 3 - this.cierreFotos.length)).forEach(function (archivo) {
+                self.cierreFotos.push({ file: archivo, url: URL.createObjectURL(archivo) });
+            });
         },
 
         quitarCierreFoto(idx) {

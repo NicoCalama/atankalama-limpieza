@@ -27,6 +27,8 @@ $ticketPuedeEditarPrioridad = $usuario->tienePermiso('tickets.editar_prioridad')
 
 $modalTicketNuevoJsFile = __DIR__ . '/../recursos/componentes/modal-ticket-nuevo.js';
 $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
+// v7.21: cámara propia para sacar hasta 3 fotos seguidas (include_once: una sola por página).
+include_once __DIR__ . '/camara-fotos.php';
 ?>
 <script src="<?= u('/views/recursos/componentes/modal-ticket-nuevo.js') ?>?v=<?= $modalTicketNuevoJsV ?>"></script>
 
@@ -236,7 +238,14 @@ $modalTicketNuevoJsV = @filemtime($modalTicketNuevoJsFile) ?: '1';
                     </div>
                     <p x-show="procesandoFotos > 0" x-cloak class="text-xs text-gray-500 dark:text-gray-400 mb-2">Procesando foto...</p>
                     <div x-show="fotos.length + procesandoFotos < 3" class="flex gap-2">
-                        <label class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                        <!-- v7.21: la cámara propia queda abierta y saca hasta 3 seguidas (camara-fotos.php) -->
+                        <button type="button" x-show="camaraPropia" @click="tomarFotos()" :disabled="enviando"
+                                class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px] disabled:opacity-50">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                            <span>Tomar fotos</span>
+                        </button>
+                        <!-- Sin cámara propia (navegador sin getUserMedia): la del teléfono, una foto por toque -->
+                        <label x-show="!camaraPropia" class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                             <i data-lucide="camera" class="w-4 h-4"></i>
                             <span>Tomar foto</span>
                             <!-- Sin "multiple": la cámara solo entrega 1 archivo por captura -->

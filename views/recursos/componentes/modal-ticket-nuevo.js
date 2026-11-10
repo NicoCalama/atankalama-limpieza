@@ -75,6 +75,8 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
         abrirBuscador: false,
         habitacionSeleccionadaNumero: null,
         fotos: [], // [{ file, url }] — máx. 3, el server vuelve a validar igual
+        // v7.21: cámara propia (camara-fotos.js) si el navegador la permite; si no, la del teléfono.
+        camaraPropia: typeof camaraFotosDisponible === 'function' && camaraFotosDisponible(),
         form: {
             hotel_id: null,
             habitacion_id: null,
@@ -160,6 +162,19 @@ function modalTicketNuevo(puedeAsignar, puedeEditarPrioridad) {
                 this.fotos.push({ file: comprimido, url: URL.createObjectURL(comprimido) });
                 this.procesandoFotos = Math.max(0, this.procesandoFotos - 1);
             }
+        },
+
+        // v7.21: hasta 3 fotos seguidas con la cámara propia. Llegan ya comprimidas.
+        async tomarFotos() {
+            var espacio = 3 - this.fotos.length - this.procesandoFotos;
+            if (espacio <= 0 || this.enviando) return;
+            var generacion = this._generacion;
+            var archivos = await abrirCamaraFotos({ max: espacio });
+            if (generacion !== this._generacion) return; // se abrió otro reporte mientras tanto
+            var self = this;
+            archivos.slice(0, Math.max(0, 3 - this.fotos.length - this.procesandoFotos)).forEach(function (archivo) {
+                self.fotos.push({ file: archivo, url: URL.createObjectURL(archivo) });
+            });
         },
 
         quitarFoto(idx) {

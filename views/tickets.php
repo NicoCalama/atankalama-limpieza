@@ -15,6 +15,9 @@ $ticketsCssFile = __DIR__ . '/recursos/tickets/tickets.css';
 $ticketsJsFile  = __DIR__ . '/recursos/tickets/tickets.js';
 $ticketsCssV = @filemtime($ticketsCssFile) ?: '1';
 $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
+
+// v7.21: cámara propia para las fotos de cierre (include_once: el modal de ticket nuevo también la incluye).
+include_once __DIR__ . '/componentes/camara-fotos.php';
 ?>
 
 <link rel="stylesheet" href="<?= u('/views/recursos/tickets/tickets.css') ?>?v=<?= $ticketsCssV ?>">
@@ -546,7 +549,7 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                         <textarea id="ticket-comentario-cierre" x-model="detalle.comentarioCierre" rows="2" maxlength="500" :disabled="detalle.enviando"
                                                   placeholder="Ej.: se cambió la ampolleta"
                                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm disabled:opacity-60"></textarea>
-                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Foto de cierre (opcional)</p>
+                                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide">Fotos de cierre (opcional, máx. 3)</p>
                                         <div class="flex flex-wrap gap-2" x-show="cierreFotos.length > 0">
                                             <template x-for="(foto, idx) in cierreFotos" :key="foto.url">
                                                 <div class="relative w-16 h-16">
@@ -557,12 +560,20 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                                 </div>
                                             </template>
                                         </div>
-                                        <label x-show="cierreFotos.length < 3"
-                                               class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
-                                            <i data-lucide="camera" class="w-4 h-4"></i>
-                                            <span>Agregar foto</span>
-                                            <input type="file" accept="image/*" multiple class="hidden" @change="onCierreFotoSeleccionada($event)">
-                                        </label>
+                                        <!-- v7.21: «Tomar fotos» con la cámara propia (hasta 3 seguidas) y «Galería» para las guardadas.
+                                             Sin cámara propia queda el botón de antes, que deja elegir cámara o archivo. -->
+                                        <div x-show="cierreFotos.length < 3" class="flex flex-wrap gap-2">
+                                            <button type="button" x-show="camaraPropia" @click="tomarFotosCierre()" :disabled="detalle.enviando"
+                                                    class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px] disabled:opacity-50">
+                                                <i data-lucide="camera" class="w-4 h-4"></i>
+                                                <span>Tomar fotos</span>
+                                            </button>
+                                            <label class="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                                                <span x-show="camaraPropia" class="inline-flex items-center gap-2"><i data-lucide="image" class="w-4 h-4"></i>Galería</span>
+                                                <span x-show="!camaraPropia" class="inline-flex items-center gap-2"><i data-lucide="camera" class="w-4 h-4"></i>Agregar foto</span>
+                                                <input type="file" accept="image/*" multiple class="hidden" @change="onCierreFotoSeleccionada($event)">
+                                            </label>
+                                        </div>
                                         <div class="flex gap-2 pt-1">
                                             <button type="button" @click="cancelarCierre()" :disabled="detalle.enviando"
                                                     class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
@@ -570,7 +581,7 @@ $ticketsJsV  = @filemtime($ticketsJsFile) ?: '1';
                                             </button>
                                             <button type="button" @click="confirmarCierre()" :disabled="detalle.enviando"
                                                     class="flex-1 min-h-[40px] px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-600 hover:bg-gray-700 disabled:opacity-50 text-white transition">
-                                                <span x-text="detalle.enviando ? 'Cerrando...' : (cierreFotos.length > 0 ? 'Cerrar con foto' : 'Cerrar sin foto')"></span>
+                                                <span x-text="detalle.enviando ? 'Cerrando...' : (cierreFotos.length > 1 ? 'Cerrar con fotos' : (cierreFotos.length === 1 ? 'Cerrar con foto' : 'Cerrar sin foto'))"></span>
                                             </button>
                                         </div>
                                     </div>

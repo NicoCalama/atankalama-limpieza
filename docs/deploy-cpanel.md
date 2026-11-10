@@ -3895,3 +3895,26 @@ columna del nombre quedan fijos: cada tabla se desplaza dentro de su caja, con u
 
 **ZIP:** `build/limpieza-v7201-delta.zip` (se extrae en `public_html/`). 2 archivos: `CHANGELOG.md` y `views/reportes.php`.
 **Vuelta atrás:** `build/limpieza-v7201-vuelta-atras.zip`, con los mismos archivos en la v7.20 (`5d3b44b`).
+
+**Desplegada el 10/11/2026** (Nicolás). `/api/health` 200 con `esquema.ok: true` (00:22:00). Smoke: sin confirmar al registrar.
+
+### 11.54 Release "cámara para 3 fotos seguidas en tickets" → v7.21
+
+Origen: reunión del 08/11/2026 (con `<input capture>` el teléfono entregaba una foto y cerraba la cámara).
+
+**Qué cambia:** al crear y al cerrar un ticket, «Tomar fotos» abre una cámara propia (`getUserMedia`) que queda abierta y
+saca hasta 3 fotos seguidas; vuelven juntas con «Listo», la X o al llegar al máximo. Sin permiso o sin cámara, la misma
+pantalla ofrece la cámara del teléfono (una foto por toque). «Galería» sigue igual. Detalle en `docs/tickets.md` §5.1.
+
+**Sin SQL**, sin `.env`, sin `vendor/` y sin cambios en los cron. **Sin estáticos de `public/` ni cambio de `sw.js`:** el JS
+nuevo va en `views/recursos/`, que la app sirve y el service worker pide siempre a la red (solo `/assets/` va con caché).
+
+**ZIP:** `build/limpieza-v721-delta.zip` (se extrae en `public_html/`). 7 archivos: `CHANGELOG.md`,
+`views/componentes/{camara-fotos,modal-ticket-nuevo}.php`, `views/recursos/componentes/{camara-fotos,modal-ticket-nuevo}.js`,
+`views/recursos/tickets/tickets.js` y `views/tickets.php`.
+**Vuelta atrás:** `build/limpieza-v721-vuelta-atras.zip`, con los 5 archivos que ya existían en la v7.20.1 (`fdba731`). Los dos
+archivos nuevos (`camara-fotos.*`) pueden quedar en el servidor: la versión anterior no los usa.
+
+**Smoke:** badge v7.21 en incógnito y `/api/health` 200. En un Android y en un iPhone reales (también con la app instalada en
+la pantalla de inicio): crear un ticket de prueba con «Tomar fotos», aceptar el permiso, sacar 3 seguidas, enviarlo y ver las 3
+en el detalle; después cerrarlo con fotos (la app no borra tickets: queda cerrado, con «prueba» en el comentario).

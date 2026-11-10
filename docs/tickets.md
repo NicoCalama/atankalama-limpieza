@@ -81,7 +81,14 @@ Transición `resuelto → abierto` (reabrir) es posible si alguien detecta que n
      descripción sigue siendo el nombre del tipo. Se ve bajo el título en la bandeja y como «Comentario»
      en el detalle, y viaja a novedades con la descripción. Cuando la descripción es igual al título
      (tickets sin comentario) no se repite en pantalla. No se edita después de creado.
-   - **Fotos** (opcional, máx. 3).
+   - **Fotos** (opcional, máx. 3). Desde la v7.21 (reunión del 08/11/2026), «Tomar fotos» abre una cámara
+     propia (`getUserMedia`, `views/componentes/camara-fotos.php`) que queda abierta: se sacan hasta 3
+     seguidas y vuelven juntas con «Listo», con la X o al llegar al máximo (la X no descarta: para sacar una
+     foto está la × de su miniatura). Antes, la cámara del teléfono (`<input capture>`) entregaba una foto y
+     se cerraba. Las fotos salen comprimidas (lado mayor 1600 px, JPEG 0,8). Sin permiso o sin cámara, la
+     misma pantalla ofrece la cámara del teléfono, una foto por toque; en un navegador sin `getUserMedia`
+     queda el botón de antes. «Galería» sigue igual. Al pasar la app a segundo plano la cámara se suelta y
+     se vuelve a abrir al volver.
    - **Prioridad** (solo con `tickets.editar_prioridad`; default normal).
 3. POST `/api/tickets` → crea fila, estado `abierto`.
 4. Se crea alerta P2 `ticket_nuevo` dirigida a usuarios con `tickets.ver_todos`.
@@ -120,7 +127,7 @@ Acciones:
   Recepción solo pueden **agregar** Trabajadores (`tickets.asignar_a_cualquier_perfil` es de Admin);
   los responsables que ya estaban se conservan, y los que quedaron inactivos se quitan al guardar.
 - **Marcar resuelto** → estado `resuelto`, `resuelto_at = now`.
-- **Cerrar** → estado `cerrado` (solo si estaba resuelto). Fotos y comentario opcionales (v7.19, máx. 500 caracteres): el comentario queda en el historial. Volver a cerrar un ticket cerrado no da error y no repite el comentario.
+- **Cerrar** → estado `cerrado` (solo si estaba resuelto). Fotos y comentario opcionales (v7.19, máx. 500 caracteres): el comentario queda en el historial. Volver a cerrar un ticket cerrado no da error y no repite el comentario. Fotos de cierre (máx. 3): desde la v7.21, «Tomar fotos» (la misma cámara propia del §5.1) y «Galería»; sin cámara propia queda «Agregar foto», como antes.
 - **Comentar** (v7.19, reunión del 08/11/2026) → una respuesta de la lista `ticket_respuesta`, un texto de hasta 500 caracteres o ambos, guardados como «Respuesta: texto». Tocar de nuevo la respuesta elegida la quita.
 - **Reabrir** → estado `abierto` (revierte resuelto/cerrado).
 
