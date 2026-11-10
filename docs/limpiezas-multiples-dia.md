@@ -62,6 +62,14 @@ preservarse:
 **Este invariante se blinda con un test** (§6): re-abrir una pieza `aprobada` → la nueva limpieza
 arranca vacía y acredita al nuevo trabajador, sin alterar los créditos del primero.
 
+**Excepción desde la v7.24 (reunión del 08/11/2026; plan aprobado el 09/11):** si la pieza tiene chapa
+**Noche** o **Día/Noche** vigente y la limpieza **empieza desde la hora de la tarde** (Ajustes → Hora de la
+tarde, 16:00 por defecto), el checklist nace con todos los ítems marcados **a nombre de quien limpia**
+(`ChecklistService::premarcarSiCorresponde`). Sigue sin haber crédito para nadie más: los créditos son de
+esa persona, como si los hubiera marcado ella, y la ejecución queda `premarcada = 1`. No se premarca la
+re-limpieza de un rechazo ni la de un NO de Recepción. Las piezas Día siguen arrancando de cero. Riesgo
+aceptado: una premarcada que nadie inspecciona se aprueba sola a las 23:55. Ver [nocheros.md](nocheros.md).
+
 Única consecuencia (no es castigo a nadie): en los totales agregados, una pieza limpiada 2 veces en
 el día cuenta como **2 servicios de limpieza**, no como 1 pieza. Es lo esperable; si se quiere, el
 resumen puede distinguir "piezas" de "servicios" (fuera de alcance de este MVP).

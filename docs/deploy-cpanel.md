@@ -4168,3 +4168,90 @@ inventado).
 4. **Inspección:** las pendientes dicen «Día» o «Día/Noche».
 5. **Como Admin, Ajustes → Hora de la tarde:** muestra 16:00. Dejarla así salvo que se quiera cambiar.
 6. **En la tarde:** después de la hora, las Día/Noche aprobadas vuelven a sucia como siempre.
+
+### 11.57 Release "checklist premarcado" → v7.24
+
+Origen: reunión del 08/11/2026; plan aprobado el 09/11 (premarcado solo en piezas con chapa, desde la hora de la tarde,
+a nombre de quien limpia). Detalle en [nocheros.md](nocheros.md) §3.1. **Requiere la v7.23 arriba** (chapa y hora de la
+tarde).
+
+**Qué cambia:**
+- Pieza con chapa **Noche** o **Día/Noche** vigente cuya limpieza **empieza** desde la hora de la tarde: el checklist nace
+  con todos los ítems marcados a nombre de quien limpia (créditos normales) y se termina de un toque.
+- No se premarca: piezas Día, áreas comunes, limpiezas empezadas antes de la hora, marcas vencidas, la re-limpieza de un
+  rechazo ni la de un NO de Recepción. Sin cambio de sábanas, los ítems «Sábanas» no se marcan.
+- La ejecución queda `premarcada = 1`: sirve para revisarlas (consulta de abajo) y queda fuera del tiempo promedio de las
+  alertas predictivas.
+- Riesgo aceptado: una premarcada que nadie inspecciona se aprueba sola a las 23:55.
+- **Inicio de la trabajadora, un solo toque** (Nicolás, 10/11/2026): «Comenzar limpieza» empieza la pieza y abre su checklist.
+  Antes eran dos: «Acceder» y, en la ficha, «Comenzar limpieza». El aviso «Cloudbeds indica huésped en la pieza», que antes
+  se veía en la ficha antes de empezar, ahora sale en la tarjeta de Inicio.
+
+**Lleva SQL:** una columna. Sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- La columna no existe todavía. Esperado: 0.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_ejecuciones_checklist' AND column_name = 'premarcada';
+
+-- La v7.23 está arriba: la columna de la chapa existe. Esperado: 1.
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'nochero_modo';
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_ejecuciones_checklist
+  ADD COLUMN premarcada TINYINT NOT NULL DEFAULT 0 CHECK (premarcada IN (0, 1));
+```
+
+`scripts/migrate-add-premarcada.php` hace lo mismo. Se probó en los tests (correrla dos veces no falla).
+
+**Comprobación:** el precheck da 1 y, después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL:** health daría 503 y fallarían el cálculo de las alertas predictivas (lee la columna) y
+el premarcado de la tarde.
+
+#### ZIP
+
+`build/limpieza-v724-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en
+`public_html/`). La fila de la v7.24 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `scripts/migrate-add-premarcada.php`;
+- `src/Controllers/HomeController.php` y `src/Models/EjecucionChecklist.php`;
+- `src/Services/{AlertasPredictivasService,AsignacionService,ChecklistService}.php`;
+- `views/home-trabajador.php`.
+
+**Vuelta atrás:** `build/limpieza-v724-vuelta-atras.zip`, con los archivos que ya existían en la v7.23. La columna puede
+quedar: la v7.23 no la lee (y las limpiezas que ya se premarcaron quedan como están).
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.24** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Antes de la hora de la tarde**, nada cambia: una pieza Noche o Día/Noche se limpia como siempre (checklist vacío).
+3. **Después de la hora**, en la habitación PRUEBA (Admin): chapa «Noche», asignártela, empezarla: el checklist llega todo
+   marcado y «Habitación terminada» se puede tocar al tiro. Después inspeccionarla o dejarla para el cierre.
+4. **Inicio de una trabajadora real** («Ver como este usuario» es solo lectura): con una pieza pendiente, el botón dice «Comenzar limpieza»
+   y un toque abre el checklist con la pieza «En progreso».
+5. Con la consulta de abajo, mañana: las premarcadas del día y quién las inspeccionó.
+
+**Consulta de premarcadas** (para revisarlas):
+
+```sql
+SELECT ec.id, ho.nombre AS hotel, h.numero, u.nombre AS limpio, ec.timestamp_inicio, ec.timestamp_fin,
+       ec.estado, a.veredicto, au.nombre AS inspecciono
+  FROM cat6852_australia.limpieza_ejecuciones_checklist ec
+  JOIN cat6852_australia.limpieza_habitaciones h ON h.id = ec.habitacion_id
+  JOIN cat6852_australia.limpieza_hoteles ho ON ho.id = h.hotel_id
+  JOIN cat6852_australia.limpieza_usuarios u ON u.id = ec.usuario_id
+  LEFT JOIN cat6852_australia.limpieza_auditorias a ON a.ejecucion_id = ec.id
+  LEFT JOIN cat6852_australia.limpieza_usuarios au ON au.id = a.auditor_id
+ WHERE ec.premarcada = 1
+ ORDER BY ec.id DESC
+ LIMIT 50;
+```

@@ -452,6 +452,9 @@ final class HomeController
             'fecha_salida' => $item['cb_departure_date'] ?? null,
             'huespedes' => isset($item['cb_huespedes']) ? (int) $item['cb_huespedes'] : null,
             'huespedes_llegan' => isset($item['cb_huespedes_llegan']) ? (int) $item['cb_huespedes_llegan'] : null,
+            // v7.24: el aviso «huésped en la pieza» que la ficha mostraba antes de «Comenzar limpieza». Con el
+            // toque único de Inicio la trabajadora ya no pasa por esa pantalla antes de empezar.
+            'huesped_en_pieza' => isset($item['cb_ocupada']) && (int) $item['cb_ocupada'] === 1,
         ];
     }
 

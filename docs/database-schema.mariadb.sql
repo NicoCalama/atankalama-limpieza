@@ -332,6 +332,7 @@ CREATE TABLE #__ejecuciones_checklist (
     auditoria_iniciada_at VARCHAR(30),                   -- apertura de la pieza en inspección; KPI tiempo por auditación (ver schema SQLite)
     cerrada_por_sistema TINYINT NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1)),  -- la cerró el cierre de la noche sin que nadie apretara «terminar» (v6.19): sin créditos (ver schema SQLite)
     con_cambio_sabanas  TINYINT NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1)),  -- v7.7: 0 = esta limpieza no lleva cambio de sábanas, sus ítems es_cambio_sabanas no aplican (ver schema SQLite)
+    premarcada          TINYINT NOT NULL DEFAULT 0 CHECK (premarcada IN (0, 1)),  -- v7.24: 1 = llegó con el checklist ya marcado (pieza Noche o Día/Noche, empezada desde la hora de la tarde). Ver schema SQLite
     created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
     FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES #__asignaciones(id) ON DELETE CASCADE,

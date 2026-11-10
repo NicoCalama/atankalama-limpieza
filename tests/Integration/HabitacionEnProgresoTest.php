@@ -89,6 +89,21 @@ final class HabitacionEnProgresoTest extends TestCase
         $this->assertSame('en_progreso', $this->checklist->iniciarEjecucion($h101, $this->ana, $this->hoy, true)->estado);
     }
 
+    /**
+     * v7.24: con el toque único de Inicio la trabajadora ya no ve la ficha antes de empezar, así que el aviso
+     * «huésped en la pieza» de Cloudbeds tiene que llegar a la tarjeta de Inicio.
+     */
+    public function testInicioAvisaSiCloudbedsDiceQueHayHuespedEnLaPieza(): void
+    {
+        [$h101] = $this->asignarA($this->ana, '101');
+        $home = $this->json((new HomeController())->trabajador($this->req($this->ana)));
+        $this->assertFalse($home['data']['habitacion_actual']['huesped_en_pieza']);
+
+        Database::execute('UPDATE habitaciones SET cb_ocupada = 1 WHERE id = ?', [$h101]);
+        $home = $this->json((new HomeController())->trabajador($this->req($this->ana)));
+        $this->assertTrue($home['data']['habitacion_actual']['huesped_en_pieza']);
+    }
+
     public function testSubirUnaPendienteSobreLaQueEstaLimpiandoNoCambiaLaActual(): void
     {
         [$h101, $h102] = $this->asignarA($this->ana, '101', '102');

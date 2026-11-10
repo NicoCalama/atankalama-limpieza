@@ -25,7 +25,15 @@ final class ChecklistService
         // y obligatorio rompería los `new ChecklistService()` existentes.
         private readonly ?CloudbedsSyncService $cloudbeds = null,
         private readonly SabanasService $sabanas = new SabanasService(),
+        // v7.24: la hora local («HH:MM») con que se decide el premarcado. Sin él, la del reloj; los tests
+        // fijan una para no depender de a qué hora corre la suite.
+        private readonly ?\Closure $reloj = null,
     ) {
+    }
+
+    private function horaActual(): string
+    {
+        return $this->reloj !== null ? (string) ($this->reloj)() : date('H:i');
     }
 
     // ----- Templates -----
@@ -753,8 +761,9 @@ final class ChecklistService
 
         // Re-limpieza por un NO de la inspección pre-entrega (v7): si es esa, queda vinculada y no cuenta
         // en los KPIs. Nunca puede impedir que la trabajadora empiece: si falla, solo queda en el log.
+        $revisionVinculada = null;
         try {
-            RevisionEntregaService::vincularRelimpieza($habitacionId, $id, $fecha);
+            $revisionVinculada = RevisionEntregaService::vincularRelimpieza($habitacionId, $id, $fecha);
         } catch (\Throwable $e) {
             Logger::warning('checklist', 'no se pudo revisar si la limpieza es una re-limpieza de la inspección pre-entrega', [
                 'habitacion_id' => $habitacionId,
@@ -763,9 +772,16 @@ final class ChecklistService
             ], $usuarioId);
         }
 
+        // v7.24: pieza Noche o Día/Noche empezada desde la hora de la tarde → checklist ya marcado. Nunca en
+        // una re-limpieza (de un rechazo o de un NO de Recepción): ahí hay algo que corregir de verdad.
+        $premarcados = 0;
+        if ($heredados === 0 && $revisionVinculada === null) {
+            $premarcados = $this->premarcarSiCorresponde($habitacion, $id, $templateId, $fecha, $conSabanas, $usuarioId);
+        }
+
         Logger::audit($usuarioId, 'checklist.iniciar', 'ejecucion_checklist', $id, [
             'habitacion_id' => $habitacionId, 'template_id' => $templateId, 'items_heredados' => $heredados,
-            'con_cambio_sabanas' => $conSabanas,
+            'con_cambio_sabanas' => $conSabanas, 'items_premarcados' => $premarcados,
         ]);
 
         $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$id]);
@@ -1620,6 +1636,52 @@ final class ChecklistService
         }
 
         return $heredados;
+    }
+
+    /**
+     * v7.24 (reunión del 08/11/2026; plan aprobado el 09/11): si la pieza tiene chapa Noche o Día/Noche vigente
+     * ese día y la limpieza empieza desde la hora de la tarde (Ajustes → Hora de la tarde), todos los ítems
+     * nacen marcados a nombre de quien limpia: créditos normales y se termina de un toque. La ejecución queda
+     * `premarcada = 1` (para revisarlas después y fuera del tiempo promedio de las alertas predictivas).
+     *
+     * No premarca: áreas comunes, piezas Día, otro día que no sea hoy, antes de la hora, ni la re-limpieza de
+     * un rechazo (ahí hay ítems que corregir; además, los heredados chocarían con UNIQUE(ejecucion_id, item_id)).
+     * Sin cambio de sábanas, los ítems «Sábanas» no se marcan: quedarían ocultos dando créditos.
+     * Cambia la regla «la limpieza arranca de cero» de docs/limpiezas-multiples-dia.md §2 para estas piezas.
+     *
+     * @return int cuántos ítems quedaron marcados
+     */
+    private function premarcarSiCorresponde(Habitacion $habitacion, int $ejecucionId, int $templateId, string $fecha, bool $conSabanas, int $usuarioId): int
+    {
+        if ($habitacion->esEspacioComun || $habitacion->chapa() === 'dia') {
+            return 0;
+        }
+        if ($habitacion->nocheroHasta !== null && $habitacion->nocheroHasta < $fecha) {
+            return 0; // la marca ya no está vigente ese día
+        }
+        if ($fecha !== date('Y-m-d') || $this->horaActual() < (new HoraTardeService())->hora()) {
+            return 0;
+        }
+        $fila = Database::fetchOne('SELECT * FROM #__ejecuciones_checklist WHERE id = ?', [$ejecucionId]);
+        if ($fila === null || $this->rechazoQueSeRehace(EjecucionChecklist::desdeFila($fila)) !== null) {
+            return 0;
+        }
+
+        $marcados = 0;
+        foreach ($this->itemsDelTemplate($templateId) as $item) {
+            if (!$conSabanas && (int) $item['es_cambio_sabanas'] === 1) {
+                continue;
+            }
+            $marcados += Database::execute(
+                'INSERT INTO #__ejecuciones_items (ejecucion_id, item_id, marcado, marcado_por) VALUES (?, ?, 1, ?)',
+                [$ejecucionId, (int) $item['id'], $usuarioId]
+            );
+        }
+        Database::execute('UPDATE #__ejecuciones_checklist SET premarcada = 1 WHERE id = ?', [$ejecucionId]);
+        Logger::info('checklist', 'checklist premarcado (pieza con chapa, desde la hora de la tarde)', [
+            'habitacion_id' => $habitacion->id, 'ejecucion_id' => $ejecucionId, 'chapa' => $habitacion->chapa(), 'items' => $marcados,
+        ], $usuarioId);
+        return $marcados;
     }
 
     /**

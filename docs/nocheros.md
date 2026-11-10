@@ -45,7 +45,23 @@ cuartos de hora. Solo la cambia el Admin (`habitaciones.configurar_hora_tarde`, 
 La usan:
 - el barrido del cron (`scripts/sync-cloudbeds.php`, cada 10 min) desde esa hora;
 - el barrido inmediato al marcar una pieza Día/Noche ya aprobada después de esa hora (v6.17);
-- desde la v7.24 y la v7.25: el checklist premarcado y desde cuándo se pueden asignar las piezas Noche.
+- el checklist premarcado (v7.24, §3.1);
+- desde la v7.25: desde cuándo se pueden asignar las piezas Noche.
+
+### 3.1 Checklist premarcado (v7.24)
+
+Si la pieza tiene chapa **Noche** o **Día/Noche** vigente ese día y la limpieza **empieza** desde la hora de
+la tarde, el checklist nace con todos los ítems marcados a nombre de quien limpia: créditos normales, y se
+termina de un toque. No es un proceso del cron: pasa al empezar la limpieza (`ChecklistService::iniciarEjecucion`).
+- Sin cambio de sábanas, los ítems «Sábanas» no se marcan (estarían ocultos dando créditos).
+- **No** se premarca: una pieza Día, un área común, una limpieza empezada antes de la hora, una marca vencida, la
+  re-limpieza de un rechazo (hereda lo que quedó bien y corrige lo desmarcado) ni la de un NO de Recepción.
+- La ejecución queda `premarcada = 1` (`ejecuciones_checklist`): sirve para revisarlas con una consulta y queda fuera
+  del tiempo promedio de las alertas predictivas (se terminan de un toque).
+- Riesgo aceptado en el plan: una premarcada que nadie inspecciona se aprueba sola a las 23:55, con créditos por un
+  toque. Por eso existe la marca `premarcada`.
+- Cambia la regla «la limpieza arranca de cero» de [limpiezas-multiples-dia.md](limpiezas-multiples-dia.md) §2 para
+  estas piezas.
 
 **No** la usan el Registro de días pasados (corte fijo a las 16:00 por la hora de inicio) ni Reportes (sus propios
 cortes): así, mover la hora no cambia cómo se ve el pasado. El cierre de día de las 15:50 tampoco cambia.
@@ -71,6 +87,6 @@ cortes): así, mover la hora no cambia cómo se ve el pasado. El cierre de día 
 
 ## 6. Lo que viene
 
-- **v7.24:** checklist premarcado en piezas con chapa, desde la hora de la tarde.
+- **v7.24:** checklist premarcado en piezas con chapa, desde la hora de la tarde (hecho: §3.1).
 - **v7.25:** pestañas Día | Noche en Asignaciones; las Noche no se asignan antes de la hora.
 - **v7.26:** dos tarjetas por pieza y día en las Día/Noche (una persona en cada ventana).

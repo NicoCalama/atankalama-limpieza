@@ -23,6 +23,8 @@ final class EjecucionChecklist
         public readonly ?string $auditoriaIniciadaAt = null,
         /** ¿Esta limpieza lleva cambio de sábanas? Si no, los ítems «Sábanas» no aplican (v7.7). */
         public readonly bool $conCambioSabanas = true,
+        /** v7.24: llegó con el checklist ya marcado (pieza Noche o Día/Noche, desde la hora de la tarde). */
+        public readonly bool $premarcada = false,
     ) {
     }
 
@@ -42,6 +44,7 @@ final class EjecucionChecklist
             timestampFin: $fila['timestamp_fin'] !== null ? (string) $fila['timestamp_fin'] : null,
             auditoriaIniciadaAt: $abierta !== null ? (string) $abierta : null,
             conCambioSabanas: ((int) ($fila['con_cambio_sabanas'] ?? 1)) === 1,
+            premarcada: ((int) ($fila['premarcada'] ?? 0)) === 1,
         );
     }
 
@@ -56,6 +59,7 @@ final class EjecucionChecklist
             'template_id' => $this->templateId,
             'estado' => $this->estado,
             'con_cambio_sabanas' => $this->conCambioSabanas,
+            'premarcada' => $this->premarcada,
         ];
     }
 }

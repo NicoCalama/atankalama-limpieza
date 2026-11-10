@@ -364,6 +364,7 @@ CREATE TABLE ejecuciones_checklist (
     auditoria_iniciada_at TEXT,                          -- instante en que la supervisora ABRIÓ la pieza para inspeccionarla (se sobreescribe en cada apertura); KPI "tiempo por auditación" = auditorias.created_at − este valor. Ver docs/kpis-sueldos.md (Supervisora S1.2)
     cerrada_por_sistema INTEGER NOT NULL DEFAULT 0 CHECK (cerrada_por_sistema IN (0, 1)),  -- 1 = nadie apretó «terminar»: la cerró el cierre de la noche (v6.19). No da créditos ni cuenta como limpieza hecha. Ver docs/checklist.md
     con_cambio_sabanas  INTEGER NOT NULL DEFAULT 1 CHECK (con_cambio_sabanas IN (0, 1)),  -- v7.7: ¿esta limpieza lleva cambio de sábanas? Se decide al empezar (SabanasService::llevaCambioSabanas). 0 = los ítems es_cambio_sabanas no se muestran, no se exigen ni dan créditos. Las limpiezas anteriores a la v7.7 quedan en 1 (todos los ítems). Ver docs/checklist.md
+    premarcada          INTEGER NOT NULL DEFAULT 0 CHECK (premarcada IN (0, 1)),  -- v7.24: 1 = llegó con el checklist ya marcado a nombre de quien limpia (pieza Noche o Día/Noche, empezada desde la hora de la tarde). Créditos normales; queda fuera del tiempo promedio de las alertas predictivas. Ver docs/nocheros.md
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
     FOREIGN KEY (asignacion_id) REFERENCES asignaciones(id) ON DELETE CASCADE,

@@ -309,6 +309,13 @@ El texto del botón cambia según el estado de la habitación:
 | `pendiente` (nunca tocada) | "Comenzar limpieza" |
 | `en_progreso` (ya empezada) | "Continuar" |
 
+**Un solo toque (v7.24, Nicolás, 10/11/2026).** «Comenzar limpieza» empieza la limpieza ahí mismo
+(`POST /api/habitaciones/{id}/iniciar`, el mismo de la ficha) y abre la ficha con el checklist. Antes el botón
+decía «Acceder», solo abría la ficha, y ahí había que tocar «Comenzar limpieza»: dos toques para lo mismo.
+«Continuar» abre la ficha (ya empezada). Si el servidor no deja empezarla (p. ej. el sync la aprobó), el
+mensaje sale bajo el botón y la pantalla se recarga. La ficha conserva su propio botón para quien llega por
+otro camino (la lista de Habitaciones).
+
 Estilo del botón:
 ```html
 <button class="w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm">

@@ -27,6 +27,7 @@ medios**.
 
 | Versión | Qué cambió |
 |---|---|
+| **v7.24** · 10/11/2026 | Piezas Noche y Día/Noche: desde la hora de la tarde, el checklist llega ya marcado a nombre de quien limpia y se termina de un toque · No pasa en las piezas Día ni en la re-limpieza de un rechazo · Inicio: «Comenzar limpieza» empieza la pieza de un toque (antes «Acceder» y después «Comenzar limpieza»); si Cloudbeds indica huésped en la pieza, el aviso sale ahí mismo |
 | **v7.23** · 10/11/2026 | Habitaciones: la chapa de cada pieza (Día, Noche o Día/Noche) reemplaza al botón «N», con su «hasta cuándo» · Las piezas Noche no vuelven a sucias en la tarde; las Día/Noche sí, como los nocheros de antes · La chapa se ve siempre, también la de Día, en Habitaciones, Asignaciones e Inspección · Ajustes: la hora de la tarde se puede cambiar (antes 16:00 fijo) · Una marca vencida vuelve a Día al tiro, no recién en la tarde |
 | **v7.22** · 10/11/2026 | Usuarios: en la ficha de cada persona se eligen sus supervisores · Al asignar un ticket, también les llega el aviso a los supervisores de la persona asignada · Mantención ve arriba de cada pantalla sus trabajos abiertos y los tickets sin responsable · Un ticket nuevo sin responsable le avisa a toda mantención, y en la mañana llega un recordatorio de lo pendiente |
 | **v7.21** · 10/11/2026 | Tickets: «Tomar fotos» abre una cámara que queda abierta y saca hasta 3 fotos seguidas, al crear y al cerrar un ticket · Si no hay permiso o cámara, se puede usar la cámara del teléfono como antes |

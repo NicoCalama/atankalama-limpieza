@@ -210,7 +210,8 @@ final class AlertasPredictivasService
 
     /**
      * Promedio de duración (minutos) de las últimas 20 ejecuciones del trabajador,
-     * descartando outliers (> 2σ). null si tiene < 5.
+     * descartando outliers (> 2σ). null si tiene < 5. Sin las premarcadas (v7.24): se terminan de
+     * un toque y bajarían el promedio sin que la pieza se haya limpiado más rápido.
      */
     public function tiempoPromedioPersonal(int $usuarioId): ?int
     {
@@ -220,6 +221,7 @@ final class AlertasPredictivasService
               WHERE usuario_id = ?
                 AND estado IN ('completada', 'auditada')
                 AND cerrada_por_sistema = 0
+                AND premarcada = 0
                 AND timestamp_fin IS NOT NULL
                 AND NOT EXISTS (SELECT 1 FROM #__habitaciones hp WHERE hp.id = habitacion_id AND hp.es_prueba = 1)
               ORDER BY id DESC LIMIT 20",

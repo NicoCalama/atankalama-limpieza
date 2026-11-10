@@ -217,10 +217,21 @@ if ($hora < 12) {
                                         </div>
                                     </template>
                                 </div>
-                                <a :href="u('/habitaciones/' + data.habitacion_actual.id)"
-                                   class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
-                                    <span x-text="data.habitacion_actual.estado === 'en_progreso' ? 'Continuar' : 'Acceder'"></span>
-                                </a>
+                                <!-- v7.24: el mismo aviso que la ficha daba antes de empezar. Con el toque único ya no se
+                                     pasa por ella: si Cloudbeds dice que hay alguien, se avisa acá, junto a «No puedo limpiarla ahora». -->
+                                <template x-if="data.habitacion_actual.huesped_en_pieza && data.habitacion_actual.estado !== 'en_progreso'">
+                                    <div class="mb-3 rounded-lg p-3 border bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 flex items-start gap-2" role="alert">
+                                        <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"></i>
+                                        <p class="text-sm font-medium text-amber-900 dark:text-amber-200">Cloudbeds indica huésped en la pieza — verifica antes de entrar.</p>
+                                    </div>
+                                </template>
+                                <!-- v7.24 (Nicolás, 10/11/2026): un solo toque. Antes «Acceder» abría la ficha y ahí
+                                     había que tocar «Comenzar limpieza»; ahora la empieza acá y entra directo al checklist. -->
+                                <button type="button" @click="comenzarLimpieza()" :disabled="entrando"
+                                        class="block w-full min-h-[56px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 text-white text-lg font-semibold rounded-xl transition shadow-sm flex items-center justify-center">
+                                    <span x-text="textoBotonPrincipal()"></span>
+                                </button>
+                                <p x-show="errorEntrar" x-cloak class="mt-2 text-sm text-red-600 dark:text-red-400 text-center" role="alert" x-text="errorEntrar"></p>
                                 <?php if ($usuario->tienePermiso('habitaciones.saltar')): ?>
                                 <button type="button" @click="abrirSaltar()" data-tour="htr.saltar"
                                         class="block w-full min-h-[44px] mt-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 text-sm font-medium rounded-xl transition">
@@ -333,6 +344,8 @@ function homeTrabajador() {
         motivosSaltar: [],  // [{id, nombre}] desde /api/listas/saltar, al abrir la ventana
         cargandoMotivosSaltar: false,
         errorSaltar: null,
+        entrando: false,     // v7.24: «Comenzar limpieza» de un toque en curso
+        errorEntrar: null,
 
         get motivoSaltarValido() {
             return this.motivoSaltar !== null;
@@ -502,6 +515,44 @@ function homeTrabajador() {
                 if (document.activeElement === ultimo || !elModal.contains(document.activeElement)) {
                     e.preventDefault(); primero.focus();
                 }
+            }
+        },
+
+        textoBotonPrincipal() {
+            var h = this.data && this.data.habitacion_actual;
+            if (this.entrando) return 'Entrando...';
+            if (!h) return '';
+            // Inicio muestra sucia y rechazada como «pendiente» (HomeController::formatearHabitacion).
+            return h.estado === 'en_progreso' ? 'Continuar' : 'Comenzar limpieza';
+        },
+
+        // v7.24: un toque. Empieza la limpieza acá (POST /iniciar, el mismo que el botón de la ficha; si ya
+        // está en curso solo la retoma) y abre la ficha con el checklist. Antes eran dos toques: «Acceder» y,
+        // en la ficha, «Comenzar limpieza».
+        async comenzarLimpieza() {
+            var h = this.data && this.data.habitacion_actual;
+            if (!h || this.entrando) return;
+            var destino = u('/habitaciones/' + h.id);
+            if (h.estado === 'en_progreso') {
+                window.location.href = destino; // ya empezada: solo se retoma
+                return;
+            }
+            this.entrando = true;
+            this.errorEntrar = null;
+            try {
+                var r = await apiPost('/api/habitaciones/' + h.id + '/iniciar', {});
+                if (r && r.ok) {
+                    // «Entrando...» queda hasta que abra la ficha: así no se puede volver a tocar mientras carga.
+                    window.location.href = destino;
+                    return;
+                }
+                this.errorEntrar = (r && r.error && r.error.mensaje) || 'No pudimos empezar la habitación. Intenta de nuevo.';
+                this.entrando = false;
+                // La pantalla puede estar vieja (p. ej. el sync la aprobó): se recarga para mostrar lo que toca.
+                await this.cargar();
+            } catch (e) {
+                this.errorEntrar = 'No pudimos conectar con el servidor. Revisa tu señal e intenta de nuevo.';
+                this.entrando = false;
             }
         },
 
