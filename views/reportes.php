@@ -7,6 +7,31 @@
  */
 ?>
 
+<style>
+    /* v7.20.1: tablas de personas con el encabezado y la columna del nombre fijos. La caja de la
+       tabla se desplaza en los dos sentidos (overflow-auto + alto máximo): si solo se desplazara
+       hacia el lado, el encabezado no podría quedar fijo. Los fondos van opacos para tapar lo que
+       pasa por debajo y las líneas van como sombra, porque el borde de la celda no se mueve con ella. */
+    .tabla-fija thead th { position: sticky; top: 0; z-index: 20; background-color: #f9fafb; box-shadow: inset 0 -1px 0 #e5e7eb; }
+    .tabla-fija thead th:first-child { left: 0; z-index: 30; box-shadow: inset 0 -1px 0 #e5e7eb, inset -1px 0 0 #e5e7eb; }
+    .tabla-fija tbody td:first-child,
+    .tabla-fija tfoot td:first-child { position: sticky; left: 0; z-index: 10; background-color: #ffffff; box-shadow: inset -1px 0 0 #e5e7eb; }
+    .tabla-fija tfoot td:first-child { background-color: #f9fafb; }
+    .tabla-fija tbody tr:hover td:first-child { background-color: #f9fafb; }
+    .dark .tabla-fija thead th { background-color: #374151; box-shadow: inset 0 -1px 0 #4b5563; }
+    .dark .tabla-fija thead th:first-child { box-shadow: inset 0 -1px 0 #4b5563, inset -1px 0 0 #4b5563; }
+    .dark .tabla-fija tbody td:first-child,
+    .dark .tabla-fija tfoot td:first-child { background-color: #1f2937; box-shadow: inset -1px 0 0 #374151; }
+    .dark .tabla-fija tfoot td:first-child { background-color: #374151; }
+    .dark .tabla-fija tbody tr:hover td:first-child { background-color: #26303f; }
+    /* En el teléfono el nombre completo baja a dos líneas: así la columna fija no se come la pantalla.
+       Las etiquetas que van detrás del nombre (jornada, avisos) no se parten por dentro. */
+    @media (max-width: 767px) {
+        .tabla-fija tbody td:first-child { white-space: normal; min-width: 9.5rem; }
+        .tabla-fija tbody td:first-child > span:not(:first-child) { display: inline-block; white-space: nowrap; margin-top: 2px; }
+    }
+</style>
+
 <div x-data="reportes()"
      x-init="iniciar()"
      @hashchange.window="leerPestanaDeUrl()"
@@ -440,8 +465,8 @@
                             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Detalle por trabajadora</h2>
                             <span class="text-xs text-gray-400 dark:text-gray-500" x-text="data.por_trabajadora.length + ' trabajadoras'"></span>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
+                        <div class="overflow-auto max-h-[70vh]">
+                            <table class="tabla-fija w-full text-sm">
                                 <thead class="bg-gray-50 dark:bg-gray-700/40">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Trabajadora</th>
@@ -458,7 +483,7 @@
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
                                             @click="filtrarPorTrabajadora(t.usuario_id)">
                                             <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                                                <span x-text="primerNombre(t.nombre)"></span>
+                                                <span x-text="t.nombre"></span>
                                                 <template x-if="t.jornada">
                                                     <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
                                                 </template>
@@ -536,11 +561,11 @@
 
             <template x-if="ficha && ficha.trabajadores.length > 0">
                 <div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
+                    <div class="overflow-auto max-h-[70vh]">
+                        <table class="tabla-fija w-full text-sm">
                             <thead class="bg-gray-50 dark:bg-gray-700/40">
                                 <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700/40">Trabajador</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap">Trabajador</th>
                                     <template x-for="c in fichaCols" :key="c.clave">
                                         <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap" :title="c.ayuda" x-text="c.titulo"></th>
                                     </template>
@@ -549,8 +574,8 @@
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                                 <template x-for="t in ficha.trabajadores" :key="t.usuario_id">
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30" :class="t.datos_suficientes ? '' : 'opacity-70'">
-                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap sticky left-0 bg-white dark:bg-gray-800">
-                                            <span x-text="primerNombre(t.nombre)"></span>
+                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
+                                            <span x-text="t.nombre"></span>
                                             <template x-if="t.jornada">
                                                 <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" :title="jornadaTitulo(t.jornada)" x-text="jornadaCorta(t.jornada)"></span>
                                             </template>
@@ -571,7 +596,7 @@
                             </tbody>
                             <tfoot class="bg-gray-50 dark:bg-gray-700/40 border-t border-gray-200 dark:border-gray-700">
                                 <tr>
-                                    <td class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap sticky left-0 bg-gray-50 dark:bg-gray-700/40">Promedio equipo</td>
+                                    <td class="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">Promedio equipo</td>
                                     <template x-for="c in fichaCols" :key="'p-' + c.clave">
                                         <td class="px-3 py-2 text-right text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap" x-text="fmtPromedio(c)"></td>
                                     </template>
@@ -698,8 +723,8 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No hay inspecciones humanas registradas en este período.</p>
                     </template>
                     <template x-if="ficha.supervisoras.inspectoras.length > 0">
-                        <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                            <table class="w-full text-sm">
+                        <div class="overflow-auto max-h-[70vh] border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <table class="tabla-fija w-full text-sm">
                                 <thead class="bg-gray-50 dark:bg-gray-700/50">
                                     <tr>
                                         <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspectora</th>
@@ -715,7 +740,7 @@
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                     <template x-for="i in ficha.supervisoras.inspectoras" :key="i.usuario_id">
                                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap" x-text="primerNombre(i.nombre)"></td>
+                                            <td class="px-3 py-2 text-gray-900 dark:text-gray-100 whitespace-nowrap" x-text="i.nombre"></td>
                                             <td class="px-3 py-2 text-right whitespace-nowrap">
                                                 <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="i.total"></span>
                                                 <span class="block text-[11px] text-gray-400 dark:text-gray-500" x-text="deltaTxt(i.cmp.total, '')"></span>
@@ -904,8 +929,8 @@
 
             <template x-if="!mensualError && mensualData && mensualData.length > 0">
                 <div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
+                    <div class="overflow-auto max-h-[70vh]">
+                        <table class="tabla-fija w-full text-sm">
                             <thead class="bg-gray-50 dark:bg-gray-700/50">
                                 <tr>
                                     <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Trabajador</th>
@@ -1006,8 +1031,8 @@
             </template>
 
             <template x-if="!auditError && auditData && auditData.length > 0">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
+                <div class="overflow-auto max-h-[70vh]">
+                    <table class="tabla-fija w-full text-sm">
                         <thead class="bg-gray-50 dark:bg-gray-700/50">
                             <tr>
                                 <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Inspector</th>
@@ -1157,8 +1182,8 @@
                             <p class="text-sm text-gray-500 dark:text-gray-400">Nadie registró inspecciones en el período.</p>
                         </template>
                         <template x-if="revEntrega.por_recepcionista.length > 0">
-                            <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-                                <table class="w-full text-sm">
+                            <div class="overflow-auto max-h-[70vh] border border-gray-200 dark:border-gray-700 rounded-lg">
+                                <table class="tabla-fija w-full text-sm">
                                     <thead class="bg-gray-50 dark:bg-gray-700/50">
                                         <tr>
                                             <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Recepcionista</th>
@@ -2228,10 +2253,6 @@ function reportes() {
 
         jornadaTitulo(j) {
             return j === 'parcial' ? 'Jornada: tiempo parcial' : (j === 'completa' ? 'Jornada: tiempo completo' : '');
-        },
-
-        primerNombre(nombre) {
-            return nombre ? nombre.split(' ')[0] : nombre;
         },
     };
 }

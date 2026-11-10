@@ -3865,3 +3865,33 @@ Origen: reunión del 08/11/2026 (v7.19) y Nicolás, 09/11/2026 (v7.18.1, el turn
 **Vuelta atrás:** `build/limpieza-v719-vuelta-atras.zip`, con los mismos archivos en la v7.18.1 (`7ad3d67`).
 
 **Desplegada el 09/11/2026** (Nicolás). `/api/health` 200 con `esquema.ok: true` (21:12:35). Smoke: sin confirmar al registrar.
+
+### 11.52 Release "registro de días pasados en Asignaciones" → v7.20
+
+Origen: reunión del 08/11/2026 (Rafael Rodas: lo que limpió en la mañana desaparecía si la pieza se reasignaba en la tarde).
+
+**Qué cambia:** un día pasado en Asignaciones pasa a modo Registro, solo para ver: por persona, cada limpieza con pieza,
+Mañana/Tarde (corte fijo a las 16:00 por la hora de inicio), hora de término y estado de esa limpieza, y aparte lo que le quedó
+sin limpiar. Asignar, desasignar, reasignar, reordenar y el automático en una fecha pasada responden 409 `DIA_CERRADO`.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+**ZIP:** `build/limpieza-v720-delta.zip`, desde `5d3b44b` (se extrae en `public_html/`). 4 archivos: `CHANGELOG.md`,
+`src/Controllers/AsignacionesController.php`, `src/Services/ReportesService.php` y `views/asignaciones.php`.
+**Vuelta atrás:** `build/limpieza-v720-vuelta-atras.zip`, con los mismos archivos en `3bc0c5f` (v7.19.1).
+
+**Desplegada** (Nicolás, avisó el 10/11/2026). `/api/health` 200 con `esquema.ok: true` (00:17:50 del 10/11). Smoke: sin confirmar
+al registrar. Por comprobar con datos reales: las piezas de Rafael Rodas en un día de octubre contra «Limpiadas» de Reportes.
+
+### 11.53 Release "nombre completo y tablas fijas en Reportes" → v7.20.1
+
+Origen: Nicolás, 10/11/2026.
+
+**Qué cambia:** en Reportes, las tablas muestran el nombre completo, no solo el primer nombre (Detalle por trabajadora, Ficha de
+KPIs y Por inspectora). En las tablas de personas (Aseo ×2, Por inspectora, Mensual ×2 y Por recepcionista), el encabezado y la
+columna del nombre quedan fijos: cada tabla se desplaza dentro de su caja, con un alto máximo del 70 % de la pantalla.
+
+**Sin SQL**, sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+**ZIP:** `build/limpieza-v7201-delta.zip` (se extrae en `public_html/`). 2 archivos: `CHANGELOG.md` y `views/reportes.php`.
+**Vuelta atrás:** `build/limpieza-v7201-vuelta-atras.zip`, con los mismos archivos en la v7.20 (`5d3b44b`).
