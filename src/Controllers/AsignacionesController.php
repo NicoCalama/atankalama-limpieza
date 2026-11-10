@@ -11,6 +11,7 @@ use Atankalama\Limpieza\Services\AsignacionService;
 use Atankalama\Limpieza\Services\HabitacionesPrueba;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\ListasOpcionesService;
+use Atankalama\Limpieza\Services\ReportesService;
 
 final class AsignacionesController
 {
@@ -31,6 +32,9 @@ final class AsignacionesController
 
         if (!is_array($habitacionIds) || $habitacionIds === [] || $usuarioId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_ids, usuario_id y fecha son requeridos.', 400);
+        }
+        if ($this->esDiaPasado($fecha)) {
+            return $this->diaCerrado();
         }
         $ids = array_values(array_map('intval', $habitacionIds));
 
@@ -55,6 +59,9 @@ final class AsignacionesController
         $fecha = $request->inputString('fecha');
         if ($fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'fecha es requerida (YYYY-MM-DD).', 400);
+        }
+        if ($this->esDiaPasado($fecha)) {
+            return $this->diaCerrado();
         }
 
         try {
@@ -81,6 +88,9 @@ final class AsignacionesController
 
         if ($habitacionId === null || $usuarioId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id, usuario_id y fecha son requeridos.', 400);
+        }
+        if ($this->esDiaPasado($fecha)) {
+            return $this->diaCerrado();
         }
         if ($opcionId === null) {
             return Response::error('OPCION_REQUERIDA', 'Elige por qué la cambias de persona. Si no ves la lista, recarga la página.', 400);
@@ -111,6 +121,9 @@ final class AsignacionesController
         if ($habitacionId === null || $fecha === '') {
             return Response::error('PARAMETROS_INVALIDOS', 'habitacion_id y fecha son requeridos.', 400);
         }
+        if ($this->esDiaPasado($fecha)) {
+            return $this->diaCerrado();
+        }
 
         try {
             $this->svc->desasignar(
@@ -131,6 +144,9 @@ final class AsignacionesController
 
         if ($usuarioId === null || $fecha === '' || !is_array($orden)) {
             return Response::error('PARAMETROS_INVALIDOS', 'usuario_id, fecha y orden son requeridos.', 400);
+        }
+        if ($this->esDiaPasado($fecha)) {
+            return $this->diaCerrado();
         }
 
         try {
@@ -193,6 +209,7 @@ final class AsignacionesController
      * Vista consolidada para la página de Asignaciones:
      *   - habitaciones "sucia" sin asignar hoy (agrupadas por hotel)
      *   - trabajadores con turno hoy, con su cola (habitaciones + estados)
+     * Un día pasado trae el Registro (v7.20), con las listas del tablero vacías.
      */
     public function vista(Request $request): Response
     {
@@ -200,12 +217,32 @@ final class AsignacionesController
         $fecha = $request->query['fecha'] ?? date('Y-m-d');
         $hotel = is_string($hotel) ? $hotel : 'ambos';
         $fecha = is_string($fecha) ? $fecha : date('Y-m-d');
+        $incluirPrueba = $request->usuario?->tienePermiso(HabitacionesPrueba::PERMISO_VER) ?? false;
 
-        return Response::ok($this->svc->vistaConsolidada(
-            $hotel,
-            $fecha,
-            $request->usuario?->tienePermiso(HabitacionesPrueba::PERMISO_VER) ?? false,
-        ));
+        if ($this->esDiaPasado($fecha)) {
+            return Response::ok([
+                'fecha' => $fecha,
+                'hotel' => $hotel,
+                'registro' => (new ReportesService())->registroDelDia($fecha, $hotel, $incluirPrueba),
+                'sin_asignar' => [],
+                're_limpiar' => [],
+                'trabajadores' => [],
+                'reservas' => null,
+            ]);
+        }
+
+        return Response::ok($this->svc->vistaConsolidada($hotel, $fecha, $incluirPrueba));
+    }
+
+    /** v7.20: un día pasado queda solo para ver, para que el Registro sea confiable. */
+    private function esDiaPasado(string $fecha): bool
+    {
+        return $fecha < date('Y-m-d');
+    }
+
+    private function diaCerrado(): Response
+    {
+        return Response::error('DIA_CERRADO', 'Ese día ya pasó y queda solo para ver. Cambia la fecha a hoy o a un día futuro.', 409);
     }
 
     /** Reasignar o quitar una pieza en progreso (ver AsignacionService::exigirPuedeMoverEnProgreso). */

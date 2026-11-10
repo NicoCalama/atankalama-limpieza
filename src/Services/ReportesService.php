@@ -1553,6 +1553,134 @@ final class ReportesService
     }
 
     /**
+     * Registro de un día pasado (v7.20, reunión del 08/11/2026): lo que limpió cada persona, con el
+     * estado de ESA limpieza. Lee las limpiezas y no las tarjetas, porque reasignar en la tarde apaga
+     * la tarjeta de la mañana (`asignaciones.activa = 0`) y antes esa limpieza desaparecía de la
+     * pantalla (caso de Rafael Rodas, 08/11/2026). Si dos personas limpiaron la misma pieza, cada una
+     * ve la suya.
+     *
+     * `totales.piezas` cuenta como «Limpiadas» de la ficha (una por pieza · franja · vuelta, solo de
+     * huésped y sin las re-limpiezas de la inspección pre-entrega, que se listan pero no suman).
+     * `sin_limpiar` son las tarjetas que le quedaron activas sin una limpieza terminada por esa persona.
+     *
+     * @return list<array<string, mixed>> una fila por persona, por nombre
+     */
+    public function registroDelDia(string $fecha, string $hotel, bool $incluirPrueba = false): array
+    {
+        $filtro = $incluirPrueba ? '' : ' AND ' . HabitacionesPrueba::sqlSinPrueba();
+        $params = [$fecha];
+        if ($hotel !== 'ambos') {
+            $filtro .= ' AND ho.codigo = ?';
+            $params[] = $hotel;
+        }
+
+        $personas = [];
+        $persona = static function (array &$personas, int $uid, string $nombre): void {
+            $personas[$uid] ??= [
+                'usuario_id' => $uid, 'nombre' => $nombre, 'limpiezas' => [], 'sin_limpiar' => [],
+                'totales' => ['piezas' => 0, 'areas' => 0],
+            ];
+        };
+        $lugar = static fn (array $f): array => [
+            'habitacion_id' => (int) $f['habitacion_id'],
+            'numero'        => (string) $f['numero'],
+            'hotel_codigo'  => (string) $f['hotel_codigo'],
+            'hotel_nombre'  => (string) $f['hotel_nombre'],
+            'es_area'       => (int) $f['es_espacio_comun'] === 1,
+        ];
+
+        $vueltas = $this->vueltasPorEjecucion($fecha, $fecha);
+        $ciclos = []; // uid → ciclo → true: una pieza limpiada y rechazada y vuelta a limpiar es una sola
+        foreach (Database::fetchAll(
+            "SELECT ec.id AS ejecucion_id, ec.usuario_id, u.nombre, ec.habitacion_id, ec.timestamp_inicio, ec.timestamp_fin,
+                    asg.franja, h.numero, h.es_espacio_comun, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre, a.veredicto,
+                    CASE WHEN " . self::sinRelimpieza() . " THEN 0 ELSE 1 END AS es_relimpieza_entrega
+               FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE asg.fecha = ?
+                AND ec.estado IN ('completada', 'auditada')
+                AND " . self::CON_TRABAJO . "
+                    {$filtro}
+           ORDER BY ec.timestamp_fin, ec.id",
+            $params
+        ) as $f) {
+            $uid = (int) $f['usuario_id'];
+            $persona($personas, $uid, (string) $f['nombre']);
+            $esRelimpiezaEntrega = (int) $f['es_relimpieza_entrega'] === 1;
+            $personas[$uid]['limpiezas'][] = $lugar($f) + [
+                'ejecucion_id'          => (int) $f['ejecucion_id'],
+                'pasada'                => self::pasadaDeLimpieza($f['franja'] ?? null, (string) $f['timestamp_inicio']),
+                'hora_fin'              => Fechas::horaMinutoLocalDeUtc((string) $f['timestamp_fin']),
+                'estado'                => self::ESTADO_REGISTRO[$f['veredicto'] ?? ''] ?? 'sin_inspeccionar',
+                'es_relimpieza_entrega' => $esRelimpiezaEntrega,
+            ];
+            if ($esRelimpiezaEntrega) {
+                continue;
+            }
+            if ((int) $f['es_espacio_comun'] === 1) {
+                $personas[$uid]['totales']['areas']++;
+                continue;
+            }
+            $ciclos[$uid][$f['habitacion_id'] . ':' . ($f['franja'] ?? '') . ':' . ($vueltas[(int) $f['ejecucion_id']] ?? 0)] = true;
+        }
+        foreach ($ciclos as $uid => $deLaPersona) {
+            $personas[$uid]['totales']['piezas'] = count($deLaPersona);
+        }
+
+        foreach (Database::fetchAll(
+            "SELECT asg.usuario_id, u.nombre, asg.habitacion_id, h.numero, h.es_espacio_comun,
+                    ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre
+               FROM #__asignaciones asg
+               JOIN #__usuarios u ON u.id = asg.usuario_id
+               JOIN #__habitaciones h ON h.id = asg.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+              WHERE asg.fecha = ?
+                AND asg.activa = 1
+                AND NOT EXISTS (SELECT 1 FROM #__ejecuciones_checklist ec
+                                 WHERE ec.asignacion_id = asg.id AND ec.usuario_id = asg.usuario_id
+                                   AND ec.estado IN ('completada', 'auditada')
+                                   AND " . self::CON_TRABAJO . ")
+                    {$filtro}
+           ORDER BY ho.codigo, h.numero",
+            $params
+        ) as $f) {
+            $uid = (int) $f['usuario_id'];
+            $persona($personas, $uid, (string) $f['nombre']);
+            $personas[$uid]['sin_limpiar'][] = $lugar($f);
+        }
+
+        $filas = array_values($personas);
+        usort($filas, static fn (array $a, array $b): int => strcmp(mb_strtolower($a['nombre']), mb_strtolower($b['nombre'])));
+        return $filas;
+    }
+
+    /** Estado de una limpieza en el Registro, según el veredicto de su inspección. */
+    private const ESTADO_REGISTRO = [
+        'aprobado'                 => 'aprobada',
+        'aprobado_con_observacion' => 'aprobada_con_observacion',
+        'rechazado'                => 'rechazada',
+        'aprobado_automatico'      => 'aprobada_automatica',
+        'sin_inspeccion'           => 'sin_inspeccion',
+    ];
+
+    /**
+     * Mañana o tarde de una limpieza en el Registro: la franja si la eligieron y, si no, la hora local
+     * en que empezó. El corte queda fijo en las 16:00, la hora del paso de nocheros, para que los días
+     * ya pasados no cambien de rótulo si después se mueve esa hora en Ajustes.
+     */
+    private static function pasadaDeLimpieza(?string $franja, string $timestampInicio): string
+    {
+        if ($franja !== null && $franja !== '') {
+            return mb_convert_case($franja, MB_CASE_TITLE);
+        }
+        return Fechas::horaLocalDeUtc($timestampInicio) < 16 ? 'Mañana' : 'Tarde';
+    }
+
+    /**
      * Trabajador N3: promedio y desviación estándar (σ) del equipo por KPI, y por persona
      * Δ + semáforo. Solo entran al promedio (y reciben semáforo) quienes tienen al menos
      * `min_datos` piezas trabajadas (aprobadas + rechazadas) en el período. Dirección por KPI según la ficha: más=mejor,

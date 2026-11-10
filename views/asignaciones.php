@@ -107,14 +107,19 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
         </div>
     </header>
 
-    <!-- Aviso: viendo otro día (planificación). Un día futuro trae solo lo que ese día necesita
-         limpieza según las reservas de Cloudbeds (v7.15); un día pasado, todo el inventario. -->
-    <div x-show="!esHoy" x-cloak
+    <!-- Aviso: planificando un día futuro, que trae solo lo que ese día necesita limpieza según las
+         reservas de Cloudbeds (v7.15). -->
+    <div x-show="esFuturo" x-cloak
          class="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 px-4 py-2 text-sm text-center">
         Planificando <span x-text="etiquetaFecha.toLowerCase()"></span> — el refresco automático está pausado.
-        <span x-show="esFuturo && reservasOk()" class="block text-xs mt-0.5">
+        <span x-show="reservasOk()" class="block text-xs mt-0.5">
             Se muestran las piezas que ese día necesitan limpieza, según las reservas de Cloudbeds.
         </span>
+    </div>
+    <!-- v7.20: un día pasado es un registro: lo que limpió cada persona, solo para ver. -->
+    <div x-show="esPasado" x-cloak
+         class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-4 py-2 text-sm text-center">
+        Registro del <span x-text="etiquetaFecha.toLowerCase()"></span>: queda solo para ver.
     </div>
     <!-- v7.15: si Cloudbeds no contestó para un hotel, ese hotel muestra todo, sin etiquetas. -->
     <div x-show="esFuturo && hotelesSinReservas().length > 0" x-cloak
@@ -166,7 +171,82 @@ require_once __DIR__ . '/componentes/candado-en-progreso.php';
         </div>
     </template>
 
-    <template x-if="data">
+    <!-- v7.20 (reunión del 08/11/2026): Registro de un día pasado, por persona, con el estado de cada limpieza. -->
+    <template x-if="data && data.registro">
+        <main class="px-3 md:px-4 py-4 max-w-3xl mx-auto pb-24 md:pb-8">
+            <template x-if="data.registro.length > 0">
+                <div class="relative max-w-sm mb-3">
+                    <label class="sr-only" for="registro-buscar-persona">Buscar persona</label>
+                    <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input id="registro-buscar-persona" x-model="busquedaEquipo" type="text"
+                           placeholder="Buscar persona por nombre..."
+                           class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                </div>
+            </template>
+            <template x-if="data.registro.length === 0">
+                <div class="min-h-[40vh] flex items-center justify-center px-4">
+                    <div class="text-center max-w-xs">
+                        <i data-lucide="calendar-x" class="w-12 h-12 text-gray-400 mx-auto mb-3"></i>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Sin limpiezas registradas</h2>
+                        <p class="text-gray-600 dark:text-gray-400">Ese día nadie terminó limpiezas ni quedaron tarjetas asignadas.</p>
+                    </div>
+                </div>
+            </template>
+            <template x-if="data.registro.length > 0 && registroVisible().length === 0">
+                <p class="text-center py-6 text-sm text-gray-600 dark:text-gray-400">Sin coincidencias para "<span x-text="busquedaEquipo"></span>".</p>
+            </template>
+
+            <div class="space-y-2">
+                <template x-for="p in registroVisible()" :key="p.usuario_id">
+                    <section class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <button type="button" @click="alternarRegistro(p.usuario_id)"
+                                :aria-expanded="registroAbierto(p.usuario_id) ? 'true' : 'false'"
+                                class="w-full min-h-[56px] px-4 py-2 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            <span class="inline-flex flex-shrink-0 transition-transform" :class="registroAbierto(p.usuario_id) ? 'rotate-90' : ''">
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-500 dark:text-gray-400"></i>
+                            </span>
+                            <span class="flex-1 min-w-0">
+                                <span class="block truncate text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="p.nombre"></span>
+                                <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="resumenRegistro(p)"></span>
+                            </span>
+                        </button>
+                        <div x-show="registroAbierto(p.usuario_id)" class="border-t border-gray-200 dark:border-gray-700">
+                            <ul class="divide-y divide-gray-100 dark:divide-gray-700">
+                                <template x-for="l in p.limpiezas" :key="l.ejecucion_id">
+                                    <li class="px-4 py-2.5 flex items-center gap-3">
+                                        <span class="w-16 flex-shrink-0 truncate text-sm font-bold text-gray-900 dark:text-gray-100" x-text="l.numero"></span>
+                                        <span class="flex-1 min-w-0">
+                                            <span class="block text-xs text-gray-700 dark:text-gray-300" x-text="l.pasada + ' · ' + l.hora_fin"></span>
+                                            <span class="block truncate text-xs text-gray-500 dark:text-gray-400"
+                                                  x-text="l.es_relimpieza_entrega ? 'Re-limpieza de Recepción · ' + l.hotel_nombre : l.hotel_nombre"></span>
+                                        </span>
+                                        <span class="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="chipRegistro(l.estado)" x-text="etiquetaEstadoHab(l.estado)"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                            <template x-if="p.sin_limpiar.length > 0">
+                                <div class="border-t border-gray-200 dark:border-gray-700">
+                                    <p class="px-4 pt-2.5 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Le quedaron sin limpiar</p>
+                                    <ul>
+                                        <template x-for="s in p.sin_limpiar" :key="s.habitacion_id">
+                                            <li class="px-4 py-2 flex items-center gap-3">
+                                                <span class="w-16 flex-shrink-0 truncate text-sm font-bold text-gray-900 dark:text-gray-100" x-text="s.numero"></span>
+                                                <span class="flex-1 min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" x-text="s.hotel_nombre"></span>
+                                                <span class="flex-shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium chip-estado-sucia">Sin limpiar</span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+                </template>
+            </div>
+        </main>
+    </template>
+
+    <template x-if="data && !data.registro">
         <div>
 
             <!-- Buscador de "Equipo del día" (compartido por Tablero y Clásico) -->
@@ -925,6 +1005,7 @@ function asignacionesApp() {
         // Buscador de "Equipo del día" — un solo campo, compartido por Tablero y
         // Clásico (misma instancia de componente). No filtra "Sin asignar".
         busquedaEquipo: '',
+        registroAbiertos: [], // v7.20: personas con su ficha abierta en el Registro de un día pasado
         // Pestaña del equipo (v7.14): 'aseo' u 'otros' (grupo que manda el backend en cada persona).
         grupoEquipo: localStorage.getItem('asignaciones_grupo') === 'otros' ? 'otros' : 'aseo',
         gruposEquipo: [
@@ -989,6 +1070,47 @@ function asignacionesApp() {
         // días pasados siguen cerrados.
         get esFuturo() {
             return this.fecha > window.hoyServidor();
+        },
+
+        get esPasado() {
+            return this.fecha < window.hoyServidor();
+        },
+
+        // --- Registro de un día pasado (v7.20) ---
+
+        registroVisible() {
+            var q = (this.busquedaEquipo || '').trim().toLowerCase();
+            var filas = (this.data && this.data.registro) || [];
+            return q === '' ? filas : filas.filter(function (p) { return p.nombre.toLowerCase().includes(q); });
+        },
+
+        registroAbierto(usuarioId) {
+            return this.registroAbiertos.includes(usuarioId);
+        },
+
+        alternarRegistro(usuarioId) {
+            var i = this.registroAbiertos.indexOf(usuarioId);
+            if (i === -1) {
+                this.registroAbiertos.push(usuarioId);
+            } else {
+                this.registroAbiertos.splice(i, 1);
+            }
+        },
+
+        resumenRegistro(p) {
+            var partes = [];
+            var conteo = function (n, uno, varios) { return n + ' ' + (n === 1 ? uno : varios); };
+            partes.push(conteo(p.totales.piezas, 'pieza', 'piezas'));
+            if (p.totales.areas > 0) partes.push(conteo(p.totales.areas, 'área', 'áreas'));
+            if (p.sin_limpiar.length > 0) partes.push(p.sin_limpiar.length + ' sin limpiar');
+            return partes.join(' · ');
+        },
+
+        // «Sin inspección» y «Sin inspeccionar» no tienen color propio: usan el del cierre automático
+        // y el de «Por inspeccionar».
+        chipRegistro(estado) {
+            var equivalente = { sin_inspeccion: 'aprobada_automatica', sin_inspeccionar: 'completada_pendiente_auditoria' };
+            return 'chip-estado-' + (equivalente[estado] || estado);
         },
 
         // Etiqueta legible del día que se está viendo, para el navegador de fecha del header.
@@ -1615,7 +1737,9 @@ function asignacionesApp() {
                 'aprobada': 'Aprobada',
                 'aprobada_con_observacion': 'Aprobada c/obs.',
                 'aprobada_automatica': 'Aprobada auto.',
-                'rechazada': 'Rechazada'
+                'rechazada': 'Rechazada',
+                'sin_inspeccion': 'Sin inspección',
+                'sin_inspeccionar': 'Sin inspeccionar'
             };
             return map[estado] || estado;
         },

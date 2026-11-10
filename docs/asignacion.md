@@ -128,6 +128,26 @@ En pantalla: pestañas «Aseo (n) · Otros (n)» bajo el buscador, compartidas p
 recuerda en `localStorage["asignaciones_grupo"]`, también la usa «Pedir limpieza»). Los modales de asignar
 y reasignar listan a todos, con una etiqueta «Otros» en los que no son de aseo.
 
+### 3.3 Registro de un día pasado (v7.20, reunión del 08/11/2026)
+
+Un día pasado no muestra el tablero: `GET /api/asignaciones/vista` trae `registro[]`, con `sin_asignar`, `re_limpiar` y
+`trabajadores` vacíos. Sale de `ReportesService::registroDelDia()` y queda **solo para ver**: asignar, repartir,
+reasignar, quitar y reordenar con una fecha pasada responden 409 `DIA_CERRADO`.
+
+Cada persona es una ficha que se abre al tocarla:
+- **Limpiezas:** cada una con su pieza, Mañana/Tarde, hora de término y estado de **esa** limpieza, según su veredicto (Aprobada,
+  Aprobada c/obs., Rechazada, Aprobada auto., Sin inspección o Sin inspeccionar). Lee `ejecuciones_checklist` por persona sin filtrar
+  `asignaciones.activa`: reasignar en la tarde apaga la tarjeta de la mañana, pero su limpieza sigue en la ficha de quien la hizo.
+  Si dos personas limpiaron la misma pieza, cada una ve la suya.
+- **Le quedaron sin limpiar:** tarjetas activas ese día sin una limpieza terminada por esa persona.
+- **Totales:** `piezas` calza con «Limpiadas» de Reportes (una por pieza · franja · vuelta, solo de huésped); `areas` va aparte. Las
+  re-limpiezas de la inspección pre-entrega se listan, pero no suman.
+- **Mañana o Tarde:** la franja si la eligieron; si no, la hora de inicio con corte fijo a las 16:00, para que los días ya pasados no
+  cambien de rótulo si se mueve la hora de la tarde en Ajustes.
+
+No entran las piezas que Cloudbeds dio por limpias sin que nadie las limpiara en la app, ni el atajo «Marcar limpia»: no son una
+limpieza de esa persona. Es la misma regla de Reportes. El tablero de hoy no cambia.
+
 ## 4. Modo Tablero (arrastrar-y-soltar)
 
 ### 4.1 Layout

@@ -125,6 +125,9 @@ Ver [habitaciones.md](habitaciones.md) §6.
 | POST | `/api/asignaciones/reasignar` | `asignaciones.asignar_manual` | Reasignar: `{ habitacion_id, usuario_id, fecha, opcion_id }`. Desde la v7.3 `opcion_id` (lista «reasignar», §18b) es obligatorio: 400 `OPCION_REQUERIDA` / `OPCION_INVALIDA`. Una pieza en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | POST | `/api/asignaciones/desasignar` | `asignaciones.asignar_manual` | Desasignar (activa=0, sin nuevo dueño); solo sucia/en_progreso/rechazada, en_progreso vuelve a sucia. Quitar una en progreso (hoy) exige además `asignaciones.mover_en_progreso` → si no, 403 `HABITACION_EN_PROGRESO` |
 | PUT | `/api/asignaciones/orden` | `asignaciones.reordenar_cola_trabajador` | Reordenar cola |
+| GET | `/api/asignaciones/vista` | `asignaciones.asignar_manual` | Tablero de hoy o de un día futuro. Un día pasado trae `registro[]` (v7.20, [asignacion.md](asignacion.md) §3.3) |
+
+Desde la v7.20, los `POST` y el `PUT` de arriba responden 409 `DIA_CERRADO` si la fecha ya pasó.
 | GET | `/api/usuarios/{id}/cola` | propia, o `asignaciones.asignar_manual` | Cola del trabajador. Sin `habitaciones.ver_todas` devuelve solo la **habitación actual** (la que tiene en curso; si no, la primera pendiente); con `?vista=completa` sobre la propia cola, todas las del día (pestaña Habitaciones del trabajador) |
 
 ---
