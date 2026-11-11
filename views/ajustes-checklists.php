@@ -23,16 +23,21 @@
  * (checklists.editar / listas.editar); con uno solo no hay barra de pestañas. La pestaña va en la URL
  * (#listas), así el enlace de Ajustes → Inspección pre-entrega abre directo en Listas.
  *
+ * v7.27: pestaña «Tareas» con el catálogo de áreas beta (docs/areas-comunes.md §9). tareas.ver la muestra de solo
+ * lectura; tareas.editar permite cambiar nombre y valor por m². GET /api/tareas/catalogo · PUT /api/tareas/{id}
+ *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
 $puedeChecklists = $usuario->tienePermiso('checklists.editar');
 $puedeListas = $usuario->tienePermiso('listas.editar');
+$puedeEditarTareas = $usuario->tienePermiso('tareas.editar');
+$puedeTareas = $puedeEditarTareas || $usuario->tienePermiso('tareas.ver');
 // El componente de la pestaña Listas se carga afuera del <template x-if>: un <script> insertado por x-if no corre.
 $listasJsV = @filemtime(__DIR__ . '/recursos/ajustes/listas-opciones.js') ?: '1';
 ?>
 <script src="<?= u('/views/recursos/ajustes/listas-opciones.js') ?>?v=<?= $listasJsV ?>"></script>
 
-<div x-data="ajustesChecklistsPestanas(<?= $puedeChecklists ? 'true' : 'false' ?>, <?= $puedeListas ? 'true' : 'false' ?>)"
+<div x-data="ajustesChecklistsPestanas(<?= $puedeChecklists ? 'true' : 'false' ?>, <?= $puedeListas ? 'true' : 'false' ?>, <?= $puedeTareas ? 'true' : 'false' ?>)"
      x-init="iniciar()" @hashchange.window="leerUrl()">
 
     <!-- Header -->
@@ -46,13 +51,13 @@ $listasJsV = @filemtime(__DIR__ . '/recursos/ajustes/listas-opciones.js') ?: '1'
             <div class="min-w-0 flex-1">
                 <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Checklists y listas</h1>
                 <p class="text-xs text-gray-500 dark:text-gray-400"
-                   x-text="pestana === 'listas' ? 'Opciones para elegir en vez de escribir' : 'Ítems y créditos por tipo de habitación'"></p>
+                   x-text="pestana === 'listas' ? 'Opciones para elegir en vez de escribir' : (pestana === 'tareas' ? 'Nombre y valor de las tareas de áreas comunes' : 'Ítems y créditos por tipo de habitación')"></p>
             </div>
             <?php include __DIR__ . '/componentes/boton-tema.php'; ?>
         </div>
         <!-- Pestañas (subrayado, como Ajustes → Turnos) -->
         <nav x-show="ambas" x-cloak class="max-w-5xl mx-auto mt-2 -mb-px flex gap-1" role="tablist" aria-label="Checklists y listas" data-tour="ajc.pestanas">
-            <template x-for="p in [{ id: 'checklists', label: 'Checklists', icono: 'list-checks' }, { id: 'listas', label: 'Listas', icono: 'list' }]" :key="p.id">
+            <template x-for="p in pestanas" :key="p.id">
                 <button type="button" role="tab" @click="cambiar(p.id)" :aria-selected="pestana === p.id ? 'true' : 'false'"
                         :class="pestana === p.id ? 'border-blue-600 text-blue-700 dark:text-blue-300' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
                         class="min-h-[44px] flex items-center gap-1.5 px-4 border-b-2 text-sm font-medium transition">
@@ -379,15 +384,167 @@ $listasJsV = @filemtime(__DIR__ . '/recursos/ajustes/listas-opciones.js') ?: '1'
     <template x-if="pestana === 'listas'">
         <?php include __DIR__ . '/ajustes/listas-opciones.php'; ?>
     </template>
+
+    <!-- ═══════════════ Pestaña TAREAS (v7.27): catálogo de las áreas comunes beta ═══════════════ -->
+    <template x-if="pestana === 'tareas'">
+        <main x-data="tareasCatalogoApp(<?= $puedeEditarTareas ? 'true' : 'false' ?>)" x-init="cargar()" class="max-w-3xl mx-auto px-4 py-4 pb-24 md:pb-6 space-y-3">
+            <div x-show="toast.visible" x-cloak
+                 class="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium max-w-sm w-[90%] text-center"
+                 :class="toast.tipo === 'exito' ? 'bg-green-600' : 'bg-red-600'" x-text="toast.mensaje"></div>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded-lg px-3 py-2">
+                <span x-show="puedeEditar">Los cambios rigen desde la próxima limpieza que se empiece, en todas las áreas que usan la tarea. Lo ya registrado no cambia.</span>
+                <span x-show="!puedeEditar">Puedes ver las tareas y su valor. Para cambiarlas, habla con un administrador.</span>
+            </p>
+
+            <template x-if="cargando">
+                <div class="min-h-[40vh] flex flex-col items-center justify-center gap-3">
+                    <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <p class="text-gray-600 dark:text-gray-400">Cargando...</p>
+                </div>
+            </template>
+
+            <template x-if="error">
+                <div class="text-center py-8">
+                    <p class="text-sm text-gray-700 dark:text-gray-300 mb-3" x-text="error"></p>
+                    <button type="button" @click="cargar()" class="min-h-[44px] px-6 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">Reintentar</button>
+                </div>
+            </template>
+
+            <template x-if="!cargando && !error && tareas.length === 0">
+                <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center">
+                    <i data-lucide="list-checks" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Todavía no hay tareas. Se crean al armar un área beta en Áreas comunes.</p>
+                </div>
+            </template>
+
+            <template x-if="!cargando && !error && tareas.length > 0">
+                <div class="space-y-3">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        <input type="search" x-model="filtro" placeholder="Buscar tarea..." aria-label="Buscar tarea"
+                               class="w-full pl-9 pr-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                    </div>
+                    <template x-for="t in filtradas" :key="t.id">
+                        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3">
+                            <template x-if="puedeEditar">
+                                <div class="flex flex-wrap items-end gap-2">
+                                    <label class="w-full sm:w-auto sm:flex-1 min-w-0">
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nombre</span>
+                                        <input x-model="t.nombre" type="text" maxlength="60" :aria-label="'Nombre de ' + t.original.nombre"
+                                               class="w-full px-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm">
+                                    </label>
+                                    <label class="flex-1 sm:flex-none">
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Créditos por m²</span>
+                                        <input x-model="t.creditos_m2" type="number" inputmode="decimal" min="0" step="0.001" :aria-label="'Créditos por metro cuadrado de ' + t.original.nombre"
+                                               class="w-full sm:w-28 px-3 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm text-center">
+                                    </label>
+                                    <button type="button" @click="guardar(t)" :disabled="t.enviando || !cambio(t)"
+                                            class="min-h-[44px] px-4 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40">Guardar</button>
+                                </div>
+                            </template>
+                            <template x-if="!puedeEditar">
+                                <div class="flex items-center justify-between gap-3">
+                                    <span class="min-w-0 break-words text-sm font-medium text-gray-900 dark:text-gray-100" x-text="t.original.nombre"></span>
+                                    <span class="text-sm text-gray-600 dark:text-gray-400 flex-shrink-0" x-text="String(t.original.creditos_m2).replace('.', ',') + ' por m²'"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="filtradas.length === 0">
+                        <p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Ninguna tarea con ese nombre.</p>
+                    </template>
+                </div>
+            </template>
+        </main>
+    </template>
 </div>
 
 <script>
-function ajustesChecklistsPestanas(puedeChecklists, puedeListas) {
-    var validas = [];
-    if (puedeChecklists) validas.push('checklists');
-    if (puedeListas) validas.push('listas');
+function tareasCatalogoApp(puedeEditar) {
     return {
-        ambas: validas.length === 2,
+        puedeEditar: puedeEditar,
+        tareas: [],
+        cargando: true,
+        error: '',
+        filtro: '',
+        toast: { visible: false, tipo: 'exito', mensaje: '' },
+
+        get filtradas() {
+            var q = this.normalizar(this.filtro);
+            var self = this;
+            return this.tareas.filter(function (t) { return self.normalizar(t.original.nombre).indexOf(q) !== -1; });
+        },
+        normalizar(texto) {
+            return (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+        },
+        cambio(t) {
+            return t.nombre.trim() !== t.original.nombre || parseFloat(t.creditos_m2) !== t.original.creditos_m2;
+        },
+        async cargar() {
+            this.cargando = true;
+            this.error = '';
+            try {
+                var r = await apiFetch('/api/tareas/catalogo');
+                if (r && r.ok) {
+                    this.tareas = r.data.tareas.map(function (t) {
+                        return { id: t.id, nombre: t.nombre, creditos_m2: t.creditos_m2, enviando: false, original: { nombre: t.nombre, creditos_m2: t.creditos_m2 } };
+                    });
+                } else {
+                    this.error = (r && r.error && r.error.mensaje) || 'No pudimos cargar las tareas.';
+                }
+            } catch (e) {
+                this.error = 'No pudimos conectar con el servidor.';
+            } finally {
+                this.cargando = false;
+                this.$nextTick(function () { lucide.createIcons(); });
+            }
+        },
+        async guardar(t) {
+            if (t.enviando || !this.cambio(t)) return;
+            var nombre = t.nombre.trim();
+            var valor = parseFloat(t.creditos_m2);
+            if (nombre === '') { this.mostrarToast('error', 'Escribe el nombre de la tarea.'); return; }
+            if (!(valor > 0)) { this.mostrarToast('error', 'El valor debe ser mayor que cero.'); return; }
+            // El valor mueve créditos: se confirma. Corregir solo el nombre no lo necesita.
+            if (valor !== t.original.creditos_m2
+                && !confirm('¿Cambiar «' + t.original.nombre + '» a ' + String(valor).replace('.', ',') + ' créditos por m²? Rige desde la próxima limpieza en todas las áreas que la usan.')) return;
+            t.enviando = true;
+            try {
+                var r = await apiPut('/api/tareas/' + t.id, { nombre: nombre, creditos_m2: valor });
+                if (r && r.ok) {
+                    t.nombre = nombre;
+                    t.original = { nombre: nombre, creditos_m2: valor };
+                    this.mostrarToast('exito', 'Tarea actualizada.');
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar la tarea.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                t.enviando = false;
+            }
+        },
+        mostrarToast(tipo, mensaje) {
+            this.toast = { visible: true, tipo: tipo, mensaje: mensaje };
+            var self = this;
+            setTimeout(function () { self.toast.visible = false; }, 2500);
+        },
+    };
+}
+
+function ajustesChecklistsPestanas(puedeChecklists, puedeListas, puedeTareas) {
+    var pestanas = [];
+    if (puedeChecklists) pestanas.push({ id: 'checklists', label: 'Checklists', icono: 'list-checks' });
+    if (puedeListas) pestanas.push({ id: 'listas', label: 'Listas', icono: 'list' });
+    if (puedeTareas) pestanas.push({ id: 'tareas', label: 'Tareas', icono: 'sparkles' });
+    var validas = pestanas.map(function (p) { return p.id; });
+    return {
+        pestanas: pestanas,
+        ambas: validas.length > 1,
         pestana: validas[0] || 'checklists',
 
         iniciar() {

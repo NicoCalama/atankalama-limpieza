@@ -1436,7 +1436,7 @@ final class Tours
                         'pregunta' => '¿Cómo cambio las opciones de rechazar o saltar?',
                         'requiere' => [],
                         'pasos' => [
-                            ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Dos pestañas',
+                            ['sel' => '[data-tour="ajc.pestanas"]', 'titulo' => 'Las pestañas',
                              'texto' => '«Checklists» tiene los ítems y créditos de cada tipo. «Listas» tiene las opciones que se eligen en vez de escribir: rechazar, reasignar, saltar, las áreas de Cambio Tarea, Recepción y tickets.'],
                             ['sel' => '[data-tour="lst.tarjetas"]', 'titulo' => 'Una tarjeta por acción',
                              'modo' => 'dialogo', 'abrir' => 'Toca la pestaña «Listas» y la ayuda sigue sola.',

@@ -1170,7 +1170,7 @@ final class ReportesService
         $hc = $this->hotelCondCreditos($hotel, $p);
         $valido = "ei.marcado = 1 AND ei.desmarcado_por_auditor = 0";
         $ciclosA = []; // uid → ciclo → true si alguna ejecución tuvo veredicto humano (A), false si solo B
-        foreach (Database::fetchAll(
+        foreach ($this->sumarExtrasDeAreas($p, $hc, Database::fetchAll(
             "SELECT ei.marcado_por AS usuario_id, u.nombre, ec.id AS ejecucion_id, ec.usuario_id AS dueno_id,
                     ec.habitacion_id, ec.timestamp_inicio, asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto,
                     SUM(CASE WHEN {$valido} THEN ic.creditos ELSE 0 END) AS creditos,
@@ -1194,7 +1194,7 @@ final class ReportesService
                        asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto
               ORDER BY ec.timestamp_inicio",
             $p
-        ) as $f) {
+        )) as $f) {
             if ((int) $f['items_validos'] === 0) {
                 continue;
             }
@@ -2104,6 +2104,147 @@ final class ReportesService
                 . ($conSabanas ? '' : ' AND es_cambio_sabanas = 0'),
             [$templateId]
         );
+    }
+
+    /**
+     * Suma los extras de las áreas beta (v7.27, tabla propia) a las filas de créditos ganados, por limpieza y persona.
+     * Mismo criterio que los ítems: marcado y no desmarcado por la inspección, y fuera las rechazadas. Solo se agrega
+     * una fila nueva si esa persona hizo únicamente extras en esa limpieza (re-limpieza parcial).
+     *
+     * @param list<mixed> $params los de la consulta de créditos: desde, hasta y, si filtra, el hotel
+     * @param list<array<string, mixed>> $filas
+     * @return list<array<string, mixed>>
+     */
+    private function sumarExtrasDeAreas(array $params, string $condHotel, array $filas): array
+    {
+        $extras = Database::fetchAll(
+            "SELECT ex.marcado_por AS usuario_id, u.nombre, ec.id AS ejecucion_id, ec.usuario_id AS dueno_id,
+                    ec.habitacion_id, ec.timestamp_inicio, asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto,
+                    SUM(CASE WHEN ex.marcado = 1 AND ex.desmarcado_por_auditor = 0 THEN ex.creditos ELSE 0 END) AS creditos,
+                    SUM(CASE WHEN ex.marcado = 1 AND ex.desmarcado_por_auditor = 0 THEN 1 ELSE 0 END) AS items_validos
+               FROM #__extras_areas_comunes ex
+               JOIN #__usuarios u ON u.id = ex.marcado_por
+               JOIN #__ejecuciones_checklist ec ON ec.id = ex.ejecucion_id
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
+                AND ex.marcado_por IS NOT NULL
+                AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                AND " . self::sinRelimpieza() . "
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                    {$condHotel}
+              GROUP BY ex.marcado_por, u.nombre, ec.id, ec.usuario_id, ec.habitacion_id, ec.timestamp_inicio,
+                       asg.fecha, asg.franja, h.es_espacio_comun, a.veredicto",
+            $params
+        );
+        if ($extras === []) {
+            return $filas;
+        }
+
+        $indice = [];
+        foreach ($filas as $i => $f) {
+            $indice[$f['ejecucion_id'] . ':' . $f['usuario_id']] = $i;
+        }
+        foreach ($extras as $e) {
+            $clave = $e['ejecucion_id'] . ':' . $e['usuario_id'];
+            if (isset($indice[$clave])) {
+                $filas[$indice[$clave]]['creditos'] = (int) $filas[$indice[$clave]]['creditos'] + (int) $e['creditos'];
+                $filas[$indice[$clave]]['items_validos'] = (int) $filas[$indice[$clave]]['items_validos'] + (int) $e['items_validos'];
+            } else {
+                $filas[] = $e;
+            }
+        }
+        usort($filas, static fn(array $a, array $b): int => strcmp((string) $a['timestamp_inicio'], (string) $b['timestamp_inicio']));
+        return $filas;
+    }
+
+    /**
+     * Reporte por área común (v7.27): limpiezas válidas del período, con sus créditos de tareas fijas y de extras.
+     * Mismo universo que los créditos de la ficha: terminadas por la persona y no rechazadas.
+     *
+     * @return array{areas: list<array<string, mixed>>, totales: array{limpiezas: int, creditos_base: int, creditos_extras: int, creditos: int}}
+     */
+    public function resumenAreas(string $desde, string $hasta, string $hotel = 'ambos'): array
+    {
+        $p = Fechas::rangoUtc($desde, $hasta);
+        $hc = $this->hotelCondCreditos($hotel, $p);
+        $universo = "FROM #__ejecuciones_checklist ec
+               JOIN #__asignaciones asg ON asg.id = ec.asignacion_id
+               JOIN #__habitaciones h ON h.id = ec.habitacion_id AND h.es_espacio_comun = 1
+               JOIN #__hoteles ho ON ho.id = h.hotel_id
+               JOIN #__usuarios u ON u.id = ec.usuario_id
+          LEFT JOIN #__auditorias a ON a.ejecucion_id = ec.id
+              WHERE ec.estado IN ('completada', 'auditada')
+                AND " . self::NO_CERRADA_POR_SISTEMA . "
+                AND (a.veredicto IS NULL OR a.veredicto <> 'rechazado')
+                AND " . self::sinRelimpieza() . "
+                AND ec.timestamp_inicio >= ? AND ec.timestamp_inicio < ?
+                    {$hc}";
+
+        $limpiezas = Database::fetchAll(
+            "SELECT ec.id, ec.habitacion_id, ec.timestamp_inicio, h.numero, h.area_beta, ho.codigo AS hotel_codigo,
+                    asg.fecha, u.nombre AS persona, a.veredicto
+             {$universo}
+              ORDER BY ho.codigo, h.numero, ec.timestamp_inicio DESC",
+            $p
+        );
+        $base = [];
+        foreach (Database::fetchAll(
+            "SELECT ec.id, SUM(ic.creditos) AS creditos
+               FROM #__ejecuciones_items ei
+               JOIN #__items_checklist ic ON ic.id = ei.item_id AND ic.obligatorio = 1
+               JOIN #__ejecuciones_checklist ecx ON ecx.id = ei.ejecucion_id
+               JOIN (SELECT ec.id {$universo}) ec ON ec.id = ecx.id
+              WHERE ei.marcado = 1 AND ei.desmarcado_por_auditor = 0 AND ei.marcado_por IS NOT NULL
+              GROUP BY ec.id",
+            $p
+        ) as $f) {
+            $base[(int) $f['id']] = (int) $f['creditos'];
+        }
+        $extras = [];
+        foreach (Database::fetchAll(
+            "SELECT ex.ejecucion_id, ex.creditos, t.nombre
+               FROM #__extras_areas_comunes ex
+               JOIN #__tareas_catalogo t ON t.id = ex.tarea_id
+               JOIN (SELECT ec.id {$universo}) ec ON ec.id = ex.ejecucion_id
+              WHERE ex.marcado = 1 AND ex.desmarcado_por_auditor = 0 AND ex.marcado_por IS NOT NULL
+              ORDER BY ex.id",
+            $p
+        ) as $f) {
+            $extras[(int) $f['ejecucion_id']][] = ['nombre' => (string) $f['nombre'], 'creditos' => (int) $f['creditos']];
+        }
+
+        $areas = [];
+        $totales = ['limpiezas' => 0, 'creditos_base' => 0, 'creditos_extras' => 0, 'creditos' => 0];
+        foreach ($limpiezas as $l) {
+            $id = (int) $l['id'];
+            $areaId = (int) $l['habitacion_id'];
+            $creditosBase = $base[$id] ?? 0;
+            $susExtras = $extras[$id] ?? [];
+            $creditosExtras = array_sum(array_column($susExtras, 'creditos'));
+
+            $areas[$areaId] ??= [
+                'habitacion_id' => $areaId, 'nombre' => (string) $l['numero'], 'hotel_codigo' => (string) $l['hotel_codigo'],
+                'beta' => (int) $l['area_beta'] === 1, 'limpiezas' => 0, 'creditos_base' => 0, 'creditos_extras' => 0, 'creditos' => 0, 'detalle' => [],
+            ];
+            $areas[$areaId]['limpiezas']++;
+            $areas[$areaId]['creditos_base'] += $creditosBase;
+            $areas[$areaId]['creditos_extras'] += $creditosExtras;
+            $areas[$areaId]['creditos'] += $creditosBase + $creditosExtras;
+            $areas[$areaId]['detalle'][] = [
+                'ejecucion_id' => $id, 'fecha' => (string) $l['fecha'], 'persona' => (string) $l['persona'], 'veredicto' => $l['veredicto'],
+                'creditos_base' => $creditosBase, 'creditos_extras' => $creditosExtras, 'extras' => array_column($susExtras, 'nombre'),
+            ];
+            $totales['limpiezas']++;
+            $totales['creditos_base'] += $creditosBase;
+            $totales['creditos_extras'] += $creditosExtras;
+            $totales['creditos'] += $creditosBase + $creditosExtras;
+        }
+
+        return ['areas' => array_values($areas), 'totales' => $totales];
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

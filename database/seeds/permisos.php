@@ -32,6 +32,12 @@ return [
     ['espacios.ver', 'Ver el listado de áreas comunes', 'Espacios', 'global'],
     ['espacios.crear_editar', 'Crear/editar áreas comunes y su checklist', 'Espacios', 'global'],
     ['espacios.pedir_limpieza', 'Solicitar la limpieza de un área común a un trabajador', 'Espacios', 'global'],
+    // v7.27 (áreas beta): decisiones de Nicolás del 11/11/2026. El valor por m² mueve créditos: cambiarlo es de pocos.
+    ['espacios.agregar_extra', 'Agregar extras a la limpieza de un área común beta', 'Espacios', 'global'],
+    ['espacios.editar_m2', 'Cambiar los m² o quitar las tareas ya guardadas de un área común beta', 'Espacios', 'global'],
+    ['tareas.crear', 'Crear tareas nuevas en el catálogo de áreas comunes', 'Espacios', 'global'],
+    ['tareas.ver', 'Ver el catálogo de tareas en Ajustes, sin poder cambiarlo', 'Espacios', 'global'],
+    ['tareas.editar', 'Editar una tarea ya creada del catálogo: nombre y valor por m²', 'Espacios', 'global'],
 
     ['auditoria.ver_bandeja', 'Ver la bandeja de habitaciones pendientes de auditar', 'Auditoría', 'global'],
     ['auditoria.aprobar', 'Dar veredicto aprobada', 'Auditoría', 'global'],

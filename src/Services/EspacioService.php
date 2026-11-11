@@ -100,7 +100,7 @@ final class EspacioService
         }
 
         $filas = Database::fetchAll(
-            'SELECT h.id, h.numero, h.estado, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
+            'SELECT h.id, h.numero, h.estado, h.area_beta, ho.codigo AS hotel_codigo, ho.nombre AS hotel_nombre,
                     (SELECT u.nombre
                        FROM #__asignaciones a
                        JOIN #__usuarios u ON u.id = a.usuario_id
@@ -126,6 +126,7 @@ final class EspacioService
             $params
         );
         return array_map(static function (array $f): array {
+            $f['area_beta'] = (int) $f['area_beta'] === 1;
             $f['asignada_hoy'] = $f['asignado_a_nombre'] !== null;
             $f['asignado_a_id'] = $f['asignado_a_id'] !== null ? (int) $f['asignado_a_id'] : null;
             $f['franja'] = self::franjaVisible((string) $f['estado'], $f['asignada_hoy']);
@@ -138,7 +139,7 @@ final class EspacioService
     /**
      * Detalle de un espacio + los ítems de su checklist.
      *
-     * @return array{espacio: array<string, mixed>, items: list<array<string, mixed>>}
+     * @return array{espacio: array<string, mixed>, items: list<array<string, mixed>>, tareas: list<array<string, mixed>>}
      */
     public function obtenerDetalle(int $id): array
     {
@@ -164,7 +165,258 @@ final class EspacioService
             [$id]
         );
 
-        return ['espacio' => $espacio, 'items' => $items];
+        return ['espacio' => $espacio, 'items' => $items, 'tareas' => $this->composicionDe($id)];
+    }
+
+    /**
+     * Tareas fijas y extras recordados de un área beta (vacío en una alfa).
+     *
+     * @return list<array{tarea_id: int, nombre: string, creditos_m2: float, m2: float, tipo: string}>
+     */
+    private function composicionDe(int $id): array
+    {
+        $filas = Database::fetchAll(
+            "SELECT et.tarea_id, t.nombre, t.creditos_m2, et.m2, et.tipo
+               FROM #__espacio_tareas et
+               JOIN #__tareas_catalogo t ON t.id = et.tarea_id
+              WHERE et.habitacion_id = ?
+              ORDER BY CASE WHEN et.tipo = 'base' THEN 0 ELSE 1 END, et.orden, t.nombre",
+            [$id]
+        );
+        return array_map(static fn(array $f): array => [
+            'tarea_id' => (int) $f['tarea_id'],
+            'nombre' => (string) $f['nombre'],
+            'creditos_m2' => (float) $f['creditos_m2'],
+            'm2' => (float) $f['m2'],
+            'tipo' => (string) $f['tipo'],
+        ], $filas);
+    }
+
+    /**
+     * Crea un área beta: una fila de área común armada desde el catálogo, con sus m².
+     *
+     * @param list<mixed> $tareas [{tarea_id, m2, tipo?}]
+     */
+    public function crearBeta(string $nombre, string $hotelCodigo, array $tareas, ?int $actorId = null): int
+    {
+        $nombre = $this->validarNombre($nombre);
+        $composicion = $this->normalizarComposicion($tareas);
+        $hotelId = $this->hotelIdPorCodigo($hotelCodigo);
+        $this->asegurarNombreLibre($hotelId, $nombre, null);
+
+        $id = Database::transaction(function () use ($nombre, $hotelId, $composicion, $actorId): int {
+            Database::execute(
+                'INSERT INTO #__habitaciones (hotel_id, numero, tipo_habitacion_id, cloudbeds_room_id, estado, es_espacio_comun, area_beta)
+                 VALUES (?, ?, ?, NULL, ?, 1, 1)',
+                [$hotelId, $nombre, $this->tipoAreaComunId(), Habitacion::ESTADO_APROBADA]
+            );
+            $id = Database::lastInsertId();
+            $this->guardarComposicion($id, $composicion);
+            $this->versionarChecklist($id, $nombre, $this->itemsDeComposicion($composicion), $actorId);
+            return $id;
+        });
+
+        Logger::audit($actorId, 'espacio.crear_beta', 'habitacion', $id, [
+            'nombre' => $nombre, 'hotel' => $hotelCodigo, 'tareas' => count($composicion),
+        ]);
+        return $id;
+    }
+
+    /**
+     * Guarda la composición de un área: si era alfa, la transforma en beta (la misma área, con todo su historial);
+     * si ya era beta, la edita. Lo que ya se está limpiando no cambia: el checklist nuevo es otra versión.
+     *
+     * Lo ya guardado (tareas y m²) solo lo cambia o lo quita quien tiene espacios.editar_m2 (decisión de Nicolás,
+     * 11/11/2026): la supervisora carga cada tarea y sus m² una vez, y puede sumar tareas nuevas.
+     *
+     * @param list<mixed> $tareas [{tarea_id, m2, tipo?}]
+     */
+    public function guardarBeta(int $id, string $nombre, array $tareas, ?int $actorId = null, bool $puedeEditarM2 = false): void
+    {
+        $espacio = $this->obtenerDetalle($id)['espacio'];
+        $nombre = $this->validarNombre($nombre);
+        $composicion = $this->normalizarComposicion($tareas);
+        $this->asegurarNombreLibre((int) $espacio['hotel_id'], $nombre, $id);
+        if (!$puedeEditarM2) {
+            $this->exigirGuardadasSinCambios($id, $composicion);
+        }
+        $eraBeta = (int) $espacio['area_beta'] === 1;
+
+        Database::transaction(function () use ($id, $nombre, $composicion, $actorId): void {
+            Database::execute(
+                "UPDATE #__habitaciones SET numero = ?, area_beta = 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                [$nombre, $id]
+            );
+            $this->guardarComposicion($id, $composicion);
+            $this->versionarChecklist($id, $nombre, $this->itemsDeComposicion($composicion), $actorId);
+        });
+
+        Logger::audit($actorId, $eraBeta ? 'espacio.editar_beta' : 'espacio.pasar_a_beta', 'habitacion', $id, [
+            'nombre' => $nombre, 'tareas' => count($composicion),
+        ]);
+    }
+
+    /**
+     * Cada tarea ya guardada sigue en el área con sus mismos m². Quitarla también se bloquea: si no, bastaría con
+     * sacarla y volver a agregarla con otra medida. Pasar un extra recordado a fija no cambia sus m²: se permite.
+     *
+     * @param list<array{tarea_id: int, nombre: string, valor: float, m2: float, tipo: string}> $composicion
+     */
+    private function exigirGuardadasSinCambios(int $id, array $composicion): void
+    {
+        $nuevas = array_column($composicion, null, 'tarea_id');
+        foreach ($this->composicionDe($id) as $guardada) {
+            $nueva = $nuevas[$guardada['tarea_id']] ?? null;
+            if ($nueva === null
+                || abs($nueva['m2'] - $guardada['m2']) >= 0.05
+                || ($guardada['tipo'] === 'base' && $nueva['tipo'] !== 'base')) {
+                throw new EspacioException(
+                    'M2_BLOQUEADO',
+                    "«{$guardada['nombre']}» ya está guardada: solo un administrador puede cambiar sus m² o quitarla.",
+                    403
+                );
+            }
+        }
+    }
+
+    /**
+     * Rehace el checklist de las áreas beta que tienen esta tarea como fija (cambió su valor por m²).
+     *
+     * @return int áreas actualizadas
+     */
+    public function rehacerChecklistsDeTarea(int $tareaId, ?int $actorId = null): int
+    {
+        $areas = Database::fetchAll(
+            "SELECT h.id, h.numero
+               FROM #__espacio_tareas et
+               JOIN #__habitaciones h ON h.id = et.habitacion_id
+              WHERE et.tarea_id = ? AND et.tipo = 'base' AND h.activa = 1",
+            [$tareaId]
+        );
+        foreach ($areas as $area) {
+            $id = (int) $area['id'];
+            $items = [];
+            foreach ($this->composicionDe($id) as $tarea) {
+                if ($tarea['tipo'] === 'base') {
+                    $items[] = [
+                        'descripcion' => $tarea['nombre'],
+                        'creditos' => TareasCatalogoService::creditosDe($tarea['m2'], $tarea['creditos_m2']),
+                    ];
+                }
+            }
+            $this->versionarChecklist($id, (string) $area['numero'], $items, $actorId);
+        }
+        return count($areas);
+    }
+
+    /**
+     * @param list<mixed> $tareas
+     * @return list<array{tarea_id: int, nombre: string, valor: float, m2: float, tipo: string}>
+     */
+    private function normalizarComposicion(array $tareas): array
+    {
+        $limpias = [];
+        foreach ($tareas as $tarea) {
+            $tareaId = is_array($tarea) && is_numeric($tarea['tarea_id'] ?? null) ? (int) $tarea['tarea_id'] : 0;
+            $catalogo = TareasCatalogoService::obtener($tareaId);
+            if (isset($limpias[$tareaId])) {
+                throw new EspacioException('TAREA_REPETIDA', "«{$catalogo['nombre']}» está repetida.", 400);
+            }
+            $m2 = is_numeric($tarea['m2'] ?? null) ? (float) $tarea['m2'] : 0.0;
+            $limpias[$tareaId] = [
+                'tarea_id' => $tareaId,
+                'nombre' => (string) $catalogo['nombre'],
+                'valor' => (float) $catalogo['creditos_m2'],
+                'm2' => TareasCatalogoService::validarM2($m2),
+                'tipo' => ($tarea['tipo'] ?? 'base') === 'extra' ? 'extra' : 'base',
+            ];
+        }
+        if (array_filter($limpias, static fn(array $t): bool => $t['tipo'] === 'base') === []) {
+            throw new EspacioException('COMPOSICION_VACIA', 'El área necesita al menos una tarea fija.', 400);
+        }
+        return array_values($limpias);
+    }
+
+    /** @param list<array{tarea_id: int, nombre: string, valor: float, m2: float, tipo: string}> $composicion */
+    private function guardarComposicion(int $id, array $composicion): void
+    {
+        Database::execute('DELETE FROM #__espacio_tareas WHERE habitacion_id = ?', [$id]);
+        foreach ($composicion as $orden => $tarea) {
+            Database::execute(
+                'INSERT INTO #__espacio_tareas (habitacion_id, tarea_id, m2, tipo, orden) VALUES (?, ?, ?, ?, ?)',
+                [$id, $tarea['tarea_id'], $tarea['m2'], $tarea['tipo'], $orden]
+            );
+        }
+    }
+
+    /**
+     * @param list<array{tarea_id: int, nombre: string, valor: float, m2: float, tipo: string}> $composicion
+     * @return list<array{descripcion: string, creditos: int}>
+     */
+    private function itemsDeComposicion(array $composicion): array
+    {
+        $items = [];
+        foreach ($composicion as $tarea) {
+            if ($tarea['tipo'] === 'base') {
+                $items[] = ['descripcion' => $tarea['nombre'], 'creditos' => TareasCatalogoService::creditosDe($tarea['m2'], $tarea['valor'])];
+            }
+        }
+        return $items;
+    }
+
+    /**
+     * Deja el checklist del área en una versión nueva, igual que las habitaciones: la anterior queda apagada pero
+     * sus ítems siguen activos, así que una limpieza empezada termina con los suyos y el historial no cambia.
+     * Sin diferencias con la vigente, no hace nada.
+     *
+     * @param list<array{descripcion: string, creditos: int}> $items
+     */
+    private function versionarChecklist(int $id, string $nombre, array $items, ?int $actorId): void
+    {
+        $vigente = Database::fetchOne(
+            'SELECT id, raiz_id FROM #__checklists_template WHERE habitacion_id = ? AND activo = 1 ORDER BY id LIMIT 1',
+            [$id]
+        );
+        if ($vigente !== null) {
+            $actuales = array_map(
+                static fn(array $f): array => ['descripcion' => (string) $f['descripcion'], 'creditos' => (int) $f['creditos']],
+                Database::fetchAll(
+                    'SELECT descripcion, creditos FROM #__items_checklist WHERE template_id = ? AND activo = 1 ORDER BY orden, id',
+                    [(int) $vigente['id']]
+                )
+            );
+            if ($actuales === $items) {
+                return;
+            }
+        }
+
+        $tipoId = $this->tipoAreaComunId();
+        $raizId = $vigente === null ? null : (int) ($vigente['raiz_id'] ?? $vigente['id']);
+        try {
+            if ($vigente !== null) {
+                Database::execute('UPDATE #__checklists_template SET raiz_id = ?, activo = 0 WHERE id = ?', [$raizId, (int) $vigente['id']]);
+            }
+            $version = $raizId === null ? 1 : 1 + (int) Database::fetchColumn(
+                'SELECT COALESCE(MAX(version), 0) FROM #__checklists_template WHERE raiz_id = ?',
+                [$raizId]
+            );
+            Database::execute(
+                'INSERT INTO #__checklists_template (tipo_habitacion_id, habitacion_id, nombre, version, raiz_id, creado_por, activo)
+                 VALUES (?, ?, ?, ?, ?, ?, 1)',
+                [$tipoId, $id, 'Checklist — ' . $nombre, $version, $raizId, $actorId]
+            );
+        } catch (\PDOException $e) {
+            // 23000 = dos guardados simultáneos del mismo checklist (UNIQUE de raíz + versión).
+            if ((string) $e->getCode() === '23000') {
+                throw new EspacioException('VERSION_DESACTUALIZADA', 'Alguien guardó esta área al mismo tiempo. Recarga e intenta de nuevo.', 409);
+            }
+            throw $e;
+        }
+        $templateId = Database::lastInsertId();
+        if ($raizId === null) {
+            Database::execute('UPDATE #__checklists_template SET raiz_id = ? WHERE id = ?', [$templateId, $templateId]);
+        }
+        $this->insertarItems($templateId, $items);
     }
 
     /**
@@ -222,6 +474,10 @@ final class EspacioService
     {
         $detalle = $this->obtenerDetalle($id);
         $espacio = $detalle['espacio'];
+        if ((int) $espacio['area_beta'] === 1) {
+            // Una pantalla abierta desde antes de pasarla a beta no puede pisarle el checklist con ítems a mano.
+            throw new EspacioException('ESPACIO_BETA', 'Esta área ya es beta. Recarga la página para editarla.', 409);
+        }
         $nombre = $this->validarNombre($nombre);
         $items = $this->normalizarItems($items);
         $this->asegurarNombreLibre((int) $espacio['hotel_id'], $nombre, $id);
@@ -280,6 +536,11 @@ final class EspacioService
      * v7.4.1 (gerencia: sin cuadros de texto, motivo obligatorio al cambiar de persona): si ese día
      * el área ya la tiene otra persona y esa limpieza no está hecha, es un cambio de persona y
      * $opcionId (lista «reasignar») es obligatorio; queda registrada como reasignación.
+     *
+     * v7.27: $extras (solo áreas beta) es la lista de extras de esa limpieza; null = no se tocan. Se valida antes
+     * de asignar, para que un dato malo no deje la limpieza pedida a medias.
+     *
+     * @param list<mixed>|null $extras [{tarea_id, m2?}]
      */
     public function pedirLimpieza(
         int $id,
@@ -288,8 +549,28 @@ final class EspacioService
         ?int $actorId = null,
         bool $puedeMoverEnProgreso = false,
         ?int $opcionId = null,
+        ?array $extras = null,
     ): Asignacion {
         $this->obtenerDetalle($id); // valida que exista y sea espacio
+        $servicioExtras = new ExtrasAreasService();
+        $listos = $extras === null ? null : $servicioExtras->preparar($id, $extras);
+
+        $asignacion = $this->asignarLimpieza($id, $usuarioId, $fecha, $actorId, $puedeMoverEnProgreso, $opcionId);
+
+        if ($listos !== null) {
+            $servicioExtras->sincronizar($id, $fecha, $listos, $actorId);
+        }
+        return $asignacion;
+    }
+
+    private function asignarLimpieza(
+        int $id,
+        int $usuarioId,
+        string $fecha,
+        ?int $actorId,
+        bool $puedeMoverEnProgreso,
+        ?int $opcionId,
+    ): Asignacion {
         // El trabajador debe existir y estar activo (evita un 500 por FK si llega un id inválido).
         // No se exige turno a propósito: el coordinador puede pedir un servicio puntual a quien esté.
         $u = Database::fetchOne('SELECT id FROM #__usuarios WHERE id = ? AND activo = 1', [$usuarioId]);

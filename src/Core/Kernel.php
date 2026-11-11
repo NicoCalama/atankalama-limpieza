@@ -28,6 +28,7 @@ use Atankalama\Limpieza\Controllers\RolesController;
 use Atankalama\Limpieza\Controllers\PushController;
 use Atankalama\Limpieza\Controllers\RevisionEntregaController;
 use Atankalama\Limpieza\Controllers\SistemaController;
+use Atankalama\Limpieza\Controllers\TareasController;
 use Atankalama\Limpieza\Controllers\TicketsController;
 use Atankalama\Limpieza\Controllers\TurnosController;
 use Atankalama\Limpieza\Controllers\TurnosImportController;
@@ -365,6 +366,38 @@ final class Kernel
             $authCheck,
             new PermissionCheck('espacios.crear_editar'),
         ]);
+        // Áreas beta y su catálogo de tareas (v7.27). Ver docs/areas-comunes.md §9
+        $router->post('/api/espacios/beta', [$espacios, 'crearBeta'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->put('/api/espacios/{id}/beta', [$espacios, 'guardarBeta'], [
+            $authCheck,
+            new PermissionCheck('espacios.crear_editar'),
+        ]);
+        $router->get('/api/espacios/{id}/extras', [$espacios, 'extrasDeFecha'], [
+            $authCheck,
+            new PermissionCheck('espacios.agregar_extra'),
+        ]);
+        $router->put('/api/espacios/{id}/extras', [$espacios, 'guardarExtras'], [
+            $authCheck,
+            new PermissionCheck('espacios.agregar_extra'),
+        ]);
+        $tareas = new TareasController();
+        $router->get('/api/tareas', [$tareas, 'buscar'], [$authCheck]);
+        // Antes de cualquier ruta con {id}: el router resuelve por orden de registro.
+        $router->get('/api/tareas/catalogo', [$tareas, 'catalogo'], [
+            $authCheck,
+            new PermissionCheck(['tareas.ver', 'tareas.editar']),
+        ]);
+        $router->post('/api/tareas', [$tareas, 'crear'], [
+            $authCheck,
+            new PermissionCheck('tareas.crear'),
+        ]);
+        $router->put('/api/tareas/{id}', [$tareas, 'editar'], [
+            $authCheck,
+            new PermissionCheck('tareas.editar'),
+        ]);
         $router->put('/api/espacios/{id}', [$espacios, 'editar'], [
             $authCheck,
             new PermissionCheck('espacios.crear_editar'),
@@ -683,6 +716,10 @@ final class Kernel
 
         // Reportes y KPIs
         $reportes = new ReportesController();
+        $router->get('/api/reportes/areas', [$reportes, 'areas'], [
+            $authCheck,
+            new PermissionCheck('reportes.ver'),
+        ]);
         $router->get('/api/reportes/kpis', [$reportes, 'kpis'], [
             $authCheck,
             new PermissionCheck('reportes.ver'),

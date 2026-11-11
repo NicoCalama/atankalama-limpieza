@@ -285,3 +285,68 @@ automáticamente cada N días.
 - [checklist.md](checklist.md) — resolución de template (ahora por-habitación con fallback por-tipo)
 - [roles-permisos.md](roles-permisos.md) — permisos `espacios.*`
 - `scripts/migrate-add-espacios.php` — migración portable para BDs existentes
+
+---
+
+## 9. Áreas beta (v7.27)
+
+Propuesta de Nicolás, decisiones del 11/11/2026. Las áreas de arriba («alfa») siguen funcionando igual. Conviven hasta que todas
+hayan pasado a beta; ahí se elimina la forma antigua, en una entrega aparte.
+
+**Qué cambia para cada persona:**
+
+| Quién | Qué hace |
+|---|---|
+| Supervisora o Admin | «Crear beta» para un área nueva o «Pasar a beta» para una existente: elige tareas del catálogo y les pone sus m². Al asignar, agrega extras. |
+| Supervisora | Ajustes → Checklists y listas → Tareas: ve las tareas y su valor, sin poder cambiarlos. |
+| Admin | En esa misma pestaña, edita el nombre y el valor por m² de una tarea ya creada. |
+| Quien limpia | Ve una sola lista: la base y después los extras, con borde ámbar y etiqueta «Extra». Se tiquea igual. No ve m² ni créditos. |
+| Quien inspecciona | La misma lista. Un extra se observa o se rechaza como cualquier tarea. |
+
+**Catálogo** (`tareas_catalogo`): único para los dos hoteles, parte vacío. Cada tarea tiene un valor en créditos por m², el mismo en
+todas las áreas. Todo se mide en m²: no hay tareas de valor fijo. La búsqueda encuentra cualquier palabra que empiece con lo escrito,
+sin acentos ni mayúsculas, hasta 8 resultados y las más usadas primero. Los nombres no se repiten aunque cambien acentos o mayúsculas. Si se renombra una tarea, las limpiezas ya empezadas conservan el nombre de sus tareas fijas; los extras muestran siempre el nombre vigente.
+
+**Créditos:** `TareasCatalogoService::creditosDe` = valor por m² × m², al entero más cercano y como mínimo 1. Se calcula en enteros para
+que sea exacto; la pantalla usa el mismo cálculo para mostrar «Antes · Ahora» al pasar un área.
+
+**Composición:** `espacio_tareas` guarda las tareas fijas (`tipo = 'base'`) y los m² recordados de los extras (`tipo = 'extra'`). Las
+tareas fijas son ítems normales del checklist del área, en una versión nueva de su plantilla (`EspacioService::versionarChecklist`, igual
+que las habitaciones). La versión anterior queda apagada con sus ítems activos: una limpieza empezada termina con los suyos y el
+historial no cambia. Por eso el valor queda fijo **al empezar la limpieza**, no al asignarla como decía la propuesta (avisado a Nicolás).
+
+**Extras** (`extras_areas_comunes`, tabla propia, solo áreas: decisión de Nicolás). Las habitaciones no leen esta tabla.
+- Se agregan en «Pedir limpieza» o después con «Extras», hasta que la persona empieza. Con la limpieza empezada, la lista no cambia.
+- Esperan por área y fecha (`ejecucion_id` NULL), así que siguen a la limpieza aunque se la pasen a otra persona. Al empezar pasan a
+  esa limpieza y se recalcula su valor (`ExtrasAreasService::vincularAEjecucion`). Si la limpieza se salta o se abandona, vuelven sin marcar.
+- Si el área no tiene m² para esa tarea, se piden una vez y quedan recordados. Sigue siendo extra hasta que alguien aprieta «Hacer fija»
+  al editar el área. Una tarea de la base no se puede agregar como extra.
+- Son obligatorios: sin marcarlos no se puede terminar.
+- En el checklist y la inspección viajan **con el id en negativo**, para convivir con los ítems en la misma lista sin chocar. Un id
+  negativo en `PUT /api/ejecuciones/{id}/items/{itemId}` o en `items_desmarcados` es un extra.
+- En un rechazo viajan a la re-limpieza del mismo ciclo: los que quedaron bien siguen marcados a nombre de quien los hizo.
+- `ReportesService::sumarExtrasDeAreas` los suma a los créditos ganados. Los créditos esperados y «Observ.» no incluyen áreas, igual que antes.
+
+**Permisos** (catálogo `database/seeds/permisos.php`):
+
+| Permiso | Para qué | Roles al desplegar |
+|---|---|---|
+| `tareas.crear` | Crear tareas nuevas. Quitarlo oculta el botón; no borra nada. | Admin, Supervisora |
+| `tareas.ver` | Ver la pestaña Tareas de Ajustes, sin poder cambiar nada. | Admin, Supervisora |
+| `tareas.editar` | Editar el nombre y el valor de una tarea ya creada (pestaña Tareas de Ajustes). | Admin |
+| `espacios.editar_m2` | Cambiar los m² o quitar las tareas ya guardadas de un área. | Admin |
+| `espacios.agregar_extra` | Agregar extras. | Admin, Supervisora |
+
+La supervisora crea cada tarea, le pone su valor y sus m² una sola vez (decisión de Nicolás, 11/11/2026). Después puede sumar tareas
+nuevas al área y hacer fijo un extra recordado, pero corregir un m² o quitar una tarea guardada es del Admin. Quitar también se bloquea:
+si no, bastaría con sacarla y volver a agregarla con otra medida. El backend lo exige en `EspacioService::guardarBeta`.
+
+Buscar en el catálogo está disponible para todos. Cuando el catálogo esté estable, gerencia retira `tareas.crear` a Supervisora desde
+Ajustes → Roles y Permisos, sin tocar código; ese cambio queda en el registro de auditoría (`rol.actualizar`).
+
+**Endpoints:** `POST /api/espacios/beta`, `PUT /api/espacios/{id}/beta` (pasa a beta o edita), `GET|PUT /api/espacios/{id}/extras`,
+`POST /api/espacios/{id}/pedir-limpieza` con `extras` opcional, `GET /api/tareas?q=`, `POST /api/tareas`, `GET /api/tareas/catalogo`,
+`PUT /api/tareas/{id}`, `GET /api/reportes/areas`.
+
+**Reportes → Áreas:** por cada área, limpiezas terminadas y no rechazadas, con créditos de la base y de los extras, y su historial.
+

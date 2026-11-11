@@ -41,6 +41,16 @@ final class ReportesController
         ]);
     }
 
+    /** GET /api/reportes/areas?desde&hasta&hotel — créditos e historial por área común (v7.27). */
+    public function areas(Request $request): Response
+    {
+        [$desde, $hasta, $hotel] = $this->parsearFiltros($request);
+
+        return Response::ok($this->service->resumenAreas($desde, $hasta, $hotel) + [
+            'filtros' => ['desde' => $desde, 'hasta' => $hasta, 'hotel' => $hotel],
+        ]);
+    }
+
     /** GET /api/reportes/kpis */
     public function kpis(Request $request): Response
     {

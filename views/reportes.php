@@ -62,9 +62,9 @@
             </div>
         </div>
 
-        <!-- Pestañas: en el teléfono, 4 columnas con el ícono arriba (caben las 4 en 375 px, sin desplazar);
+        <!-- Pestañas: en el teléfono, 5 columnas con el ícono arriba (caben las 5 en 375 px, sin desplazar);
              desde md, en fila. La elegida queda en la URL (#mensual) para recargar sin perderla. -->
-        <nav class="max-w-5xl mx-auto mt-2 -mb-px grid grid-cols-4 md:flex md:gap-1" role="tablist" aria-label="Secciones de Reportes" data-tour="rep.pestanas">
+        <nav class="max-w-5xl mx-auto mt-2 -mb-px grid grid-cols-5 md:flex md:gap-1" role="tablist" aria-label="Secciones de Reportes" data-tour="rep.pestanas">
             <template x-for="p in pestanas" :key="p.id">
                 <button type="button" role="tab" @click="cambiarPestana(p.id)"
                         :aria-selected="pestana === p.id ? 'true' : 'false'"
@@ -1121,6 +1121,85 @@
         </template>
         <!-- ═══════════════ fin pestaña MENSUAL ═══════════════ -->
 
+        <!-- ═══════════════ Pestaña ÁREAS (v7.27, docs/areas-comunes.md §9) ═══════════════ -->
+        <template x-if="pestana === 'areas'">
+        <section class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+                <i data-lucide="building-2" class="w-5 h-5 text-teal-600 dark:text-teal-400 flex-shrink-0"></i>
+                <div class="min-w-0">
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-100">Créditos por área común</h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Limpiezas terminadas y no rechazadas del período y hotel elegidos. Toca un área para ver su historial.</p>
+                </div>
+            </header>
+
+            <template x-if="areasCargando && !areas">
+                <div class="p-8 flex flex-col items-center gap-3">
+                    <svg class="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+                </div>
+            </template>
+            <template x-if="areasError">
+                <div class="p-8 text-center">
+                    <i data-lucide="alert-circle" class="w-10 h-10 text-red-500 mx-auto mb-3"></i>
+                    <p class="text-sm text-gray-700 dark:text-gray-300" x-text="areasError"></p>
+                </div>
+            </template>
+            <template x-if="areas && areas.areas.length === 0 && !areasError">
+                <div class="p-8 text-center">
+                    <i data-lucide="building-2" class="w-10 h-10 text-gray-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">No hay limpiezas de áreas comunes en este período.</p>
+                </div>
+            </template>
+
+            <template x-if="areas && areas.areas.length > 0 && !areasError">
+                <div>
+                    <div class="grid grid-cols-3 gap-2 p-4 border-b border-gray-200 dark:border-gray-700 text-center">
+                        <div><p class="text-xl font-bold text-gray-900 dark:text-gray-100" x-text="areas.totales.limpiezas"></p><p class="text-xs text-gray-500 dark:text-gray-400">Limpiezas</p></div>
+                        <div><p class="text-xl font-bold text-gray-900 dark:text-gray-100" x-text="areas.totales.creditos"></p><p class="text-xs text-gray-500 dark:text-gray-400">Créditos</p></div>
+                        <div><p class="text-xl font-bold text-amber-700 dark:text-amber-400" x-text="areas.totales.creditos_extras"></p><p class="text-xs text-gray-500 dark:text-gray-400">De extras</p></div>
+                    </div>
+                    <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <template x-for="a in areas.areas" :key="a.habitacion_id">
+                            <li>
+                                <button type="button" @click="areaAbierta = (areaAbierta === a.habitacion_id ? null : a.habitacion_id)"
+                                        :aria-expanded="areaAbierta === a.habitacion_id ? 'true' : 'false'"
+                                        class="w-full min-h-[44px] px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <span class="min-w-0">
+                                        <span class="font-medium text-gray-900 dark:text-gray-100" x-text="a.nombre"></span>
+                                        <span x-show="a.beta" class="ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">Beta</span>
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400" x-text="a.limpiezas + (a.limpiezas === 1 ? ' limpieza' : ' limpiezas') + ' · ' + a.hotel_codigo.replace('1_sur', 'Atankalama').replace('inn', 'Atankalama Inn')"></span>
+                                    </span>
+                                    <span class="text-right flex-shrink-0">
+                                        <span class="block font-semibold text-gray-900 dark:text-gray-100" x-text="a.creditos + ' créd.'"></span>
+                                        <span x-show="a.creditos_extras > 0" class="block text-xs text-amber-700 dark:text-amber-400" x-text="a.creditos_extras + ' de extras'"></span>
+                                    </span>
+                                </button>
+                                <template x-if="areaAbierta === a.habitacion_id">
+                                    <ul class="bg-gray-50 dark:bg-gray-900/40 px-4 py-2 space-y-2">
+                                        <template x-for="d in a.detalle" :key="d.ejecucion_id">
+                                            <li class="text-sm py-1">
+                                                <div class="flex items-start justify-between gap-3">
+                                                    <span class="min-w-0 text-gray-800 dark:text-gray-200">
+                                                        <span x-text="d.fecha.split('-').reverse().join('/')"></span> · <span x-text="d.persona"></span>
+                                                    </span>
+                                                    <span class="font-medium text-gray-900 dark:text-gray-100 flex-shrink-0" x-text="(d.creditos_base + d.creditos_extras) + ' créd.'"></span>
+                                                </div>
+                                                <p x-show="d.extras.length > 0" class="text-xs text-amber-700 dark:text-amber-400" x-text="'Extras: ' + d.extras.join(' · ')"></p>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+        </section>
+        </template>
+
         <!-- ═══════════════ Pestaña RECEPCIÓN ═══════════════ -->
         <template x-if="pestana === 'recepcion'">
         <div class="space-y-4">
@@ -1319,6 +1398,7 @@ function reportes() {
         supervisoras: VE_SUPERVISORAS ? ['ficha', 'pend'] : ['pend'], // la ficha trae la sección de supervisoras
         recepcion:    ['rev'],
         mensual:      ['mensual', 'audit', 'recmes'],
+        areas:        ['areas'],
     };
     var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -1333,9 +1413,16 @@ function reportes() {
             { id: 'supervisoras', label: 'Supervisoras', icono: 'shield-check' },
             { id: 'recepcion',    label: 'Recepción',    icono: 'concierge-bell' },
             { id: 'mensual',      label: 'Mensual',      icono: 'calendar' },
+            { id: 'areas',        label: 'Áreas',        icono: 'building-2' },
         ],
         // true = ya se pidió con los filtros actuales; false = hay que pedirla al abrir su pestaña.
-        vigente: { kpis: false, ficha: false, pend: false, rev: false, mensual: false, audit: false, recmes: false },
+        vigente: { kpis: false, ficha: false, pend: false, rev: false, mensual: false, audit: false, recmes: false, areas: false },
+        // Pestaña Áreas (v7.27)
+        areas:         null,
+        areasCargando: false,
+        areasError:    '',
+        areasSeq:      0,
+        areaAbierta:   null,
 
         data:         null,
         cargando:     false,
@@ -1500,7 +1587,7 @@ function reportes() {
             var cargadores = {
                 kpis: () => this.cargarKpis(), ficha: () => this.cargarFicha(), pend: () => this.cargarAuditPendientes(),
                 rev: () => this.cargarRevisionEntrega(), mensual: () => this.cargarMensual(), audit: () => this.cargarAudit(),
-                recmes: () => this.cargarRecepcionMensual(),
+                recmes: () => this.cargarRecepcionMensual(), areas: () => this.cargarAreas(),
             };
             (CARGAS_POR_PESTANA[this.pestana] || []).forEach(k => {
                 if (this.vigente[k]) return;
@@ -1518,18 +1605,18 @@ function reportes() {
             var enCurso = {
                 kpis: this.cargando, ficha: this.fichaCargando, pend: this.auditPendCargando,
                 rev: this.revEntregaCargando, mensual: this.mensualCargando, audit: this.auditCargando,
-                recmes: this.recMesCargando,
+                recmes: this.recMesCargando, areas: this.areasCargando,
             };
             return (CARGAS_POR_PESTANA[this.pestana] || []).some(k => enCurso[k]);
         },
 
         alCambiarPeriodo() {
-            this.invalidar(['kpis', 'ficha', 'rev']);
+            this.invalidar(['kpis', 'ficha', 'rev', 'areas']);
             this.asegurar();
         },
 
         alCambiarHotel() {
-            this.invalidar(['kpis', 'ficha', 'pend', 'rev', 'mensual', 'audit', 'recmes']);
+            this.invalidar(['kpis', 'ficha', 'pend', 'rev', 'mensual', 'audit', 'recmes', 'areas']);
             this.asegurar();
         },
 
@@ -2056,6 +2143,33 @@ function reportes() {
             } finally {
                 if (seq === this.auditPendSeq) {
                     this.auditPendCargando = false;
+                    this.$nextTick(() => lucide.createIcons());
+                }
+            }
+        },
+
+        async cargarAreas() {
+            var seq = ++this.areasSeq;
+            this.areasCargando = true;
+            this.areasError = '';
+            var resp = null;
+            try {
+                var params = new URLSearchParams({ desde: this.desde, hasta: this.hasta, hotel: this.hotel });
+                resp = await fetch(u('/api/reportes/areas?' + params.toString()));
+                var json = await resp.json();
+                if (seq !== this.areasSeq) return;
+                if (json.ok) {
+                    this.areas = json.data;
+                    this.areaAbierta = null;
+                } else {
+                    this.areas = null;
+                    this.areasError = this.mensajeError(resp, json);
+                }
+            } catch (e) {
+                if (seq === this.areasSeq) { this.areas = null; this.areasError = this.mensajeError(resp, null); }
+            } finally {
+                if (seq === this.areasSeq) {
+                    this.areasCargando = false;
                     this.$nextTick(() => lucide.createIcons());
                 }
             }

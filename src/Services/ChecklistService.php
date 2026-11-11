@@ -28,7 +28,20 @@ final class ChecklistService
         // v7.24: la hora local («HH:MM») con que se decide el premarcado. Sin él, la del reloj; los tests
         // fijan una para no depender de a qué hora corre la suite.
         private readonly ?\Closure $reloj = null,
+        // v7.27: extras de las áreas comunes beta, en su tabla propia. Solo se consulta en limpiezas de áreas.
+        private readonly ExtrasAreasService $extras = new ExtrasAreasService(),
     ) {
+    }
+
+    /** @var array<int, bool> habitación → ¿es área común? (cada tap del checklist calcula el progreso) */
+    private array $esAreaCache = [];
+
+    private function esDeArea(int $habitacionId): bool
+    {
+        return $this->esAreaCache[$habitacionId] ??= (int) Database::fetchColumn(
+            'SELECT es_espacio_comun FROM #__habitaciones WHERE id = ?',
+            [$habitacionId]
+        ) === 1;
     }
 
     private function horaActual(): string
@@ -773,6 +786,12 @@ final class ChecklistService
         // conserva a nombre de quién lo hizo (reparto de créditos). Ver docs/creditos-rework.md.
         $heredados = $this->heredarItemsSiEsRelimpieza($habitacionId, $id, $templateId, $asignacion->fecha, $asignacion->franja, $conSabanas);
 
+        // v7.27: los extras de ese día pasan a esta limpieza y su valor queda fijo; en una re-limpieza, viajan.
+        if ($habitacion->esEspacioComun) {
+            $this->extras->vincularAEjecucion($habitacionId, $asignacion->fecha, $id);
+            $this->extras->heredarDeRechazo($habitacionId, $id, $asignacion->fecha, $asignacion->franja);
+        }
+
         // Re-limpieza por un NO de la inspección pre-entrega (v7): si es esa, queda vinculada y no cuenta
         // en los KPIs. Nunca puede impedir que la trabajadora empiece: si falla, solo queda en el log.
         $revisionVinculada = null;
@@ -998,6 +1017,11 @@ final class ChecklistService
             [$ejecucionId, $ejec->templateId]
         );
 
+        // v7.27: en un área, los extras van al final de la misma lista, con el id en negativo.
+        if ($this->esDeArea($ejec->habitacionId)) {
+            $items = array_merge($items, $this->extras->deEjecucion($ejecucionId));
+        }
+
         // Re-limpieza de un rechazo: la vista muestra el motivo arriba del checklist y en rojo
         // los ítems que la supervisora desmarcó (v6.21).
         $rechazo = $this->rechazoQueSeRehace($ejec);
@@ -1075,6 +1099,11 @@ final class ChecklistService
                 }
             }
         }
+        if ($this->esDeArea($ejec->habitacionId)) {
+            foreach ($this->extras->rechazados((int) $anterior['id'], $ejec->id) as $extra) {
+                $items[$extra] = $extra;
+            }
+        }
 
         $comentario = $anterior['comentario'] === null ? null : trim((string) $anterior['comentario']);
 
@@ -1103,6 +1132,12 @@ final class ChecklistService
             throw new ChecklistException('EJECUCION_NO_EDITABLE', 'No se puede modificar una ejecución ya completada.', 409);
         }
         $this->exigirAsignacionActiva($ejec);
+
+        // v7.27: un id negativo es un extra del área (ver ExtrasAreasService).
+        if ($itemId < 0) {
+            $this->extras->marcar($ejecucionId, -$itemId, $marcado, $usuarioId);
+            return $this->calcularProgreso($ejec);
+        }
 
         $item = Database::fetchOne(
             'SELECT id, es_cambio_sabanas FROM #__items_checklist WHERE id = ? AND template_id = ? AND activo = 1',
@@ -1509,6 +1544,14 @@ final class ChecklistService
         $marcados = (int) ($fila['marcados'] ?? 0);
         $oblTotal = (int) ($fila['obligatorios_total'] ?? 0);
         $oblMarcados = (int) ($fila['obligatorios_marcados'] ?? 0);
+        // v7.27: los extras de un área son obligatorios: sin ellos no se puede terminar.
+        if ($this->esDeArea($ejec->habitacionId)) {
+            $extras = $this->extras->progreso($ejec->id);
+            $total += $extras['total'];
+            $marcados += $extras['marcados'];
+            $oblTotal += $extras['total'];
+            $oblMarcados += $extras['marcados'];
+        }
         return [
             'marcados' => $marcados,
             'total' => $total,

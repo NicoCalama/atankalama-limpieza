@@ -181,6 +181,7 @@ CREATE TABLE #__habitaciones (
     )),
     activa                  TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        TINYINT NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
+    area_beta               TINYINT NOT NULL DEFAULT 0 CHECK (area_beta IN (0, 1)),  -- v7.27: 1 = área común armada desde el catálogo de tareas. Ver schema SQLite
     es_prueba               TINYINT NOT NULL DEFAULT 0 CHECK (es_prueba IN (0, 1)),  -- 1 = habitación de prueba (v7.5): sin Cloudbeds, fuera de KPIs y avisos, solo la ve habitaciones.ver_prueba. Ver docs/habitacion-prueba.md
     minimo_terminar_min     INT NULL,                             -- v7.6, solo áreas comunes: minutos mínimos para poder terminar (0 = sin mínimo); NULL = el general de 3 min. Ver docs/areas-comunes.md
     -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
@@ -359,6 +360,55 @@ CREATE TABLE #__ejecuciones_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_ejecuciones_items_ejecucion ON #__ejecuciones_items(ejecucion_id);
+
+-- Áreas comunes beta (v7.27). Ver el schema SQLite y docs/areas-comunes.md §9
+CREATE TABLE #__tareas_catalogo (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    nombre              VARCHAR(60) NOT NULL,
+    nombre_busqueda     VARCHAR(60) NOT NULL UNIQUE,
+    creditos_m2         DECIMAL(7,3) NOT NULL CHECK (creditos_m2 > 0),
+    activa              TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    creado_por          INT NULL,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    FOREIGN KEY (creado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE #__espacio_tareas (
+    habitacion_id       INT NOT NULL,
+    tarea_id            INT NOT NULL,
+    m2                  DECIMAL(8,1) NOT NULL CHECK (m2 > 0),
+    tipo                VARCHAR(5) NOT NULL DEFAULT 'base' CHECK (tipo IN ('base', 'extra')),
+    orden               INT NOT NULL DEFAULT 0,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    PRIMARY KEY (habitacion_id, tarea_id),
+    KEY idx_espacio_tareas_tarea (tarea_id),
+    FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (tarea_id) REFERENCES #__tareas_catalogo(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE #__extras_areas_comunes (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    habitacion_id       INT NOT NULL,
+    fecha               VARCHAR(10) NOT NULL,
+    ejecucion_id        INT NULL,
+    tarea_id            INT NOT NULL,
+    m2                  DECIMAL(8,1) NOT NULL CHECK (m2 > 0),
+    creditos            INT NOT NULL CHECK (creditos >= 0),
+    marcado             TINYINT NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
+    marcado_por         INT NULL,
+    desmarcado_por_auditor  TINYINT NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    agregado_por        INT NULL,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    KEY idx_extras_areas_area_fecha (habitacion_id, fecha),
+    KEY idx_extras_areas_ejecucion (ejecucion_id),
+    FOREIGN KEY (habitacion_id) REFERENCES #__habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (ejecucion_id) REFERENCES #__ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (tarea_id) REFERENCES #__tareas_catalogo(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (agregado_por) REFERENCES #__usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
 -- LISTAS DE SELECCIÓN (v7.3, gerencia 10/10/2026: sin cuadros de texto, solo selección)

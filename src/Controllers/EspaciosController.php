@@ -9,6 +9,7 @@ use Atankalama\Limpieza\Core\Response;
 use Atankalama\Limpieza\Services\AsignacionException;
 use Atankalama\Limpieza\Services\EspacioException;
 use Atankalama\Limpieza\Services\EspacioService;
+use Atankalama\Limpieza\Services\ExtrasAreasService;
 use Atankalama\Limpieza\Services\ListasOpcionesException;
 use Atankalama\Limpieza\Services\PersonalAsignableService;
 
@@ -136,18 +137,107 @@ final class EspaciosController
             return Response::error('USUARIO_REQUERIDO', 'Falta el trabajador al que asignar la limpieza.', 400);
         }
         $fecha = $request->inputString('fecha', date('Y-m-d'));
+        $extras = $request->input('extras');
+        if (is_array($extras) && !($request->usuario?->tienePermiso('espacios.agregar_extra') ?? false)) {
+            return Response::error('PERMISO_INSUFICIENTE', 'Falta permiso espacios.agregar_extra.', 403);
+        }
 
         try {
             $asignacion = $this->espacios->pedirLimpieza(
                 $id, $usuarioId, $fecha, $request->usuario?->id,
                 puedeMoverEnProgreso: $request->usuario?->tienePermiso('asignaciones.mover_en_progreso') ?? false,
                 opcionId: $request->inputInt('opcion_id'),
+                extras: is_array($extras) ? array_values($extras) : null,
             );
         } catch (EspacioException | AsignacionException | ListasOpcionesException $e) {
             return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
         }
 
         return Response::ok(['asignacion_id' => $asignacion->id]);
+    }
+
+    /** POST /api/espacios/beta — crear { nombre, hotel, tareas: [{tarea_id, m2}] }. */
+    public function crearBeta(Request $request): Response
+    {
+        try {
+            $id = $this->espacios->crearBeta(
+                $request->inputString('nombre'),
+                $request->inputString('hotel'),
+                $this->listaDelRequest($request, 'tareas'),
+                $request->usuario?->id,
+            );
+        } catch (EspacioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['id' => $id], 201);
+    }
+
+    /** PUT /api/espacios/{id}/beta — { nombre, tareas: [{tarea_id, m2, tipo}] }: pasa a beta o edita una beta. */
+    public function guardarBeta(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ID de área común inválido.', 400);
+        }
+        try {
+            $this->espacios->guardarBeta(
+                $id,
+                $request->inputString('nombre'),
+                $this->listaDelRequest($request, 'tareas'),
+                $request->usuario?->id,
+                puedeEditarM2: $request->usuario?->tienePermiso('espacios.editar_m2') ?? false,
+            );
+        } catch (EspacioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['id' => $id]);
+    }
+
+    /** GET /api/espacios/{id}/extras?fecha= — extras en espera y si todavía se pueden cambiar. */
+    public function extrasDeFecha(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ID de área común inválido.', 400);
+        }
+        try {
+            return Response::ok((new ExtrasAreasService())->enEspera($id, $this->fechaDeQuery($request)));
+        } catch (EspacioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+    }
+
+    /** PUT /api/espacios/{id}/extras — { fecha, extras: [{tarea_id, m2?}] }: solo hasta que la limpieza empieza. */
+    public function guardarExtras(Request $request): Response
+    {
+        $id = $request->rutaInt('id');
+        if ($id === null) {
+            return Response::error('ID_INVALIDO', 'ID de área común inválido.', 400);
+        }
+        try {
+            (new ExtrasAreasService())->guardar(
+                $id,
+                $request->inputString('fecha', date('Y-m-d')),
+                $this->listaDelRequest($request, 'extras'),
+                $request->usuario?->id,
+            );
+        } catch (EspacioException $e) {
+            return Response::error($e->codigo, $e->getMessage(), $e->httpStatus);
+        }
+        return Response::ok(['id' => $id]);
+    }
+
+    /** @return list<mixed> */
+    private function listaDelRequest(Request $request, string $clave): array
+    {
+        $lista = $request->input($clave, []);
+        return is_array($lista) ? array_values($lista) : [];
+    }
+
+    private function fechaDeQuery(Request $request): string
+    {
+        $fecha = $request->query['fecha'] ?? null;
+        return is_string($fecha) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha) === 1 ? $fecha : date('Y-m-d');
     }
 
     /**

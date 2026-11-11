@@ -15,6 +15,8 @@
  *  - DELETE /api/espacios/{id}
  *  - POST   /api/espacios/{id}/pedir-limpieza { usuario_id, fecha, opcion_id? }  (opcion_id: motivo si ya la tiene otra, v7.4.1)
  *  - POST   /api/habitaciones/{id}/marcar-limpia | marcar-sucia  (menú ⋮, v6.19: los mismos de Habitaciones)
+ *  - Áreas beta (v7.27, docs/areas-comunes.md §9): POST /api/espacios/beta · PUT /api/espacios/{id}/beta ·
+ *    GET|PUT /api/espacios/{id}/extras · GET|POST /api/tareas
  *
  * Variable requerida: $usuario (Atankalama\Limpieza\Models\Usuario)
  */
@@ -145,6 +147,15 @@
                         </button>
                     </template>
                 </div>
+                <!-- v7.27: áreas beta. Conviven con las de arriba hasta que todas hayan pasado. -->
+                <template x-if="puedeEditar">
+                    <div class="w-full flex items-center gap-2 sm:justify-end">
+                        <button @click="abrirCrearBeta()"
+                                class="flex-1 sm:flex-none min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition inline-flex items-center justify-center gap-1.5">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> Crear beta
+                        </button>
+                    </div>
+                </template>
             </div>
 
             <!-- Buscador + filtro por estado -->
@@ -210,7 +221,10 @@
                              :class="colorHotelBorde(esp.hotel_codigo)">
                             <div class="p-4 flex flex-col gap-1">
                                 <div class="flex items-start justify-between gap-2">
-                                    <span class="text-xl font-bold text-gray-900 dark:text-gray-100 min-w-0 break-words" x-text="esp.numero"></span>
+                                    <span class="min-w-0 break-words">
+                                        <span class="text-xl font-bold text-gray-900 dark:text-gray-100" x-text="esp.numero"></span>
+                                        <span x-show="esp.area_beta" class="ml-1 align-middle text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">Beta</span>
+                                    </span>
                                     <div class="flex items-start gap-1 flex-shrink-0">
                                         <span class="text-xs uppercase tracking-wide font-semibold mt-1"
                                               :class="colorEtiquetaHotel(esp.hotel_codigo)"
@@ -253,6 +267,18 @@
                                         <i data-lucide="pencil" class="w-4 h-4"></i> Editar
                                     </button>
                                 </template>
+                                <template x-if="puedeEditar && !esp.area_beta">
+                                    <button @click="abrirPasarBeta(esp)"
+                                            class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-violet-100 dark:bg-violet-900/40 hover:bg-violet-200 dark:hover:bg-violet-900/60 text-violet-800 dark:text-violet-200 transition inline-flex items-center gap-1.5">
+                                        <i data-lucide="sparkles" class="w-4 h-4"></i> Pasar a beta
+                                    </button>
+                                </template>
+                                <template x-if="muestraExtras(esp)">
+                                    <button @click="abrirExtras(esp)"
+                                            class="min-h-[44px] px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 transition inline-flex items-center gap-1.5">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> Extras
+                                    </button>
+                                </template>
                                 <!-- ml-auto: archivar queda lejos de «Editar», para no tocarlo por error. -->
                                 <template x-if="puedeEditar">
                                     <button @click="archivar(esp)" aria-label="Archivar"
@@ -289,7 +315,10 @@
                             <tbody>
                                 <template x-for="esp in espaciosOrdenados" :key="esp.id">
                                     <tr class="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100" x-text="esp.numero"></td>
+                                        <td class="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                                            <span x-text="esp.numero"></span>
+                                            <span x-show="esp.area_beta" class="ml-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">Beta</span>
+                                        </td>
                                         <td class="px-3 py-2 text-gray-700 dark:text-gray-300" x-text="esp.hotel_nombre"></td>
                                         <td class="px-3 py-2">
                                             <template x-if="esp.franja">
@@ -320,6 +349,18 @@
                                                     <button @click="archivar(esp)" aria-label="Archivar"
                                                             class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-500 hover:text-red-600 dark:text-gray-400">
                                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="puedeEditar && !esp.area_beta">
+                                                    <button @click="abrirPasarBeta(esp)" aria-label="Pasar a beta" title="Pasar a beta"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-violet-50 dark:hover:bg-violet-900/30 text-violet-600 dark:text-violet-400">
+                                                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                                    </button>
+                                                </template>
+                                                <template x-if="muestraExtras(esp)">
+                                                    <button @click="abrirExtras(esp)" aria-label="Extras" title="Extras"
+                                                            class="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                                                        <i data-lucide="plus" class="w-4 h-4"></i>
                                                     </button>
                                                 </template>
                                                 <template x-if="tieneMenuEstado(esp)">
@@ -423,6 +464,164 @@
         </div>
     </div>
 
+    <!-- Modal: crear beta, pasar a beta o editar una beta (v7.27, docs/areas-comunes.md §9) -->
+    <div x-show="modalBeta.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
+         @click.self="cerrarBeta()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full shadow-xl max-h-[85vh] flex flex-col">
+            <div class="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+                    x-text="formBeta.pasando ? 'Pasar a beta: ' + formBeta.nombre : (formBeta.id ? 'Editar área beta' : 'Crear área beta')"></h3>
+                <button @click="cerrarBeta()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-5 pb-3 space-y-4">
+                <template x-if="modalBeta.cargando">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+                </template>
+
+                <div>
+                    <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Nombre</label>
+                    <input x-model="formBeta.nombre" type="text" maxlength="20" placeholder="Ej: Piscina, Pasillo 2º piso"
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                </div>
+
+                <div x-show="!formBeta.id">
+                    <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Hotel</label>
+                    <select x-model="formBeta.hotel"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
+                        <option value="1_sur">Atankalama</option>
+                        <option value="inn">Atankalama Inn</option>
+                    </select>
+                </div>
+
+                <!-- El catálogo parte limpio: las tareas de la versión anterior son solo un recordatorio. -->
+                <template x-if="formBeta.pasando && formBeta.antiguas.length > 0">
+                    <div class="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3">
+                        <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Tareas que tenía esta área</p>
+                        <ul class="text-sm text-gray-700 dark:text-gray-300 list-disc pl-4 space-y-0.5">
+                            <template x-for="(a, i) in formBeta.antiguas" :key="i">
+                                <li x-text="a"></li>
+                            </template>
+                        </ul>
+                    </div>
+                </template>
+
+                <div>
+                    <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Tareas fijas</label>
+                    <p x-show="formBeta.id && !puedeEditarM2 && formBeta.tareas.some(function (t) { return t.guardada; })"
+                       class="text-xs text-gray-500 dark:text-gray-400 mb-1">Las tareas ya guardadas solo las cambia un administrador. Puedes sumar tareas nuevas.</p>
+                    <div class="space-y-2 mb-2">
+                        <template x-for="(t, idx) in formBeta.tareas" :key="t.tarea_id">
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-2 flex flex-wrap items-center gap-2">
+                                <span class="flex-1 min-w-0 break-words text-sm text-gray-900 dark:text-gray-100" x-text="t.nombre"></span>
+                                <template x-if="puedeCambiarM2(t)">
+                                    <label class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                        <input x-model="t.m2" type="number" inputmode="decimal" min="0" step="0.1" aria-label="Metros cuadrados"
+                                               class="w-20 px-2 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm text-center">
+                                        m²
+                                    </label>
+                                </template>
+                                <template x-if="!puedeCambiarM2(t)">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400" x-text="fmtNum(t.m2) + ' m²'"></span>
+                                </template>
+                                <span class="text-xs font-semibold text-gray-700 dark:text-gray-300" x-text="creditosDe(t.m2, t.creditos_m2) + ' créd.'"></span>
+                                <template x-if="puedeCambiarM2(t)">
+                                    <button type="button" @click="formBeta.tareas.splice(idx, 1)" aria-label="Quitar tarea"
+                                            class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30">
+                                        <i data-lucide="x" class="w-4 h-4"></i>
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                    <?php include __DIR__ . '/componentes/buscador-tareas.php'; ?>
+                </div>
+
+                <!-- Extras con m² recordados: siguen siendo extras hasta que alguien decide hacerlos fijos. -->
+                <template x-if="formBeta.extras.length > 0">
+                    <div>
+                        <label class="block text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Extras recordados</label>
+                        <div class="space-y-2">
+                            <template x-for="(t, idx) in formBeta.extras" :key="t.tarea_id">
+                                <div class="rounded-lg border border-gray-200 dark:border-gray-700 border-l-4 border-l-amber-500 p-2 flex flex-wrap items-center gap-2">
+                                    <span class="flex-1 min-w-0 break-words text-sm text-gray-900 dark:text-gray-100" x-text="t.nombre"></span>
+                                    <template x-if="puedeCambiarM2(t)">
+                                        <label class="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                            <input x-model="t.m2" type="number" inputmode="decimal" min="0" step="0.1" aria-label="Metros cuadrados"
+                                                   class="w-20 px-2 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm text-center">
+                                            m²
+                                        </label>
+                                    </template>
+                                    <template x-if="!puedeCambiarM2(t)">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400" x-text="fmtNum(t.m2) + ' m²'"></span>
+                                    </template>
+                                    <button type="button" @click="hacerFija(idx)"
+                                            class="min-h-[44px] px-3 text-xs font-medium rounded-lg bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300">Hacer fija</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="px-5 py-4 border-t border-gray-100 dark:border-gray-700 space-y-3">
+                <!-- Comparación antes/después (v7.27): un valor desproporcionado se ve antes de guardar. -->
+                <p class="text-sm text-gray-700 dark:text-gray-300 text-center">
+                    <template x-if="formBeta.pasando"><span>Antes <span class="font-semibold" x-text="formBeta.creditosAntes"></span> · Ahora </span></template>
+                    <template x-if="!formBeta.pasando"><span>Total </span></template>
+                    <span class="font-semibold" x-text="totalBeta() + ' crédito' + (totalBeta() === 1 ? '' : 's')"></span>
+                </p>
+                <div class="flex gap-2">
+                    <button @click="cerrarBeta()"
+                            class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                        Cancelar
+                    </button>
+                    <button @click="guardarBeta()" :disabled="modalBeta.enviando || modalBeta.cargando"
+                            class="flex-1 min-h-[44px] px-4 py-2 text-sm font-semibold rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition disabled:opacity-50">
+                        <span x-text="modalBeta.enviando ? 'Guardando...' : (formBeta.pasando ? 'Pasar a beta' : 'Guardar')"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: extras de una limpieza ya asignada (hasta que la persona la empieza) -->
+    <div x-show="modalExtras.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
+         @click.self="cerrarExtras()">
+        <div class="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full shadow-xl max-h-[85vh] flex flex-col">
+            <div class="flex items-start justify-between gap-3 px-5 pt-5 pb-3">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 break-words">
+                    Extras: <span x-text="modalExtras.espacio?.numero"></span>
+                </h3>
+                <button @click="cerrarExtras()" class="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" aria-label="Cerrar">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-5 pb-3">
+                <template x-if="!extrasEd.cargando && !extrasEd.editable">
+                    <p class="text-sm text-amber-700 dark:text-amber-400 mb-2">La limpieza ya empezó o ya se hizo: estos extras no se pueden cambiar.</p>
+                </template>
+                <template x-if="extrasEd.editable || extrasEd.cargando">
+                    <?php include __DIR__ . '/componentes/extras-area-editor.php'; ?>
+                </template>
+            </div>
+            <div class="flex gap-2 px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+                <button @click="cerrarExtras()"
+                        class="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition">
+                    Cancelar
+                </button>
+                <button @click="guardarExtras()" :disabled="modalExtras.enviando || extrasEd.cargando || !extrasEd.editable"
+                        class="flex-1 min-h-[44px] px-4 py-2 text-sm font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition disabled:opacity-50">
+                    <span x-text="modalExtras.enviando ? 'Guardando...' : 'Guardar'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: pedir limpieza -->
     <div x-show="modalPedir.abierto" x-cloak
          class="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/50"
@@ -444,6 +643,13 @@
                 <input type="date" x-model="modalPedir.fecha" :min="fechaHoy" @change="cambiarFechaPedir()"
                        class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg text-sm min-h-[44px]">
             </div>
+            <!-- Extras de esta limpieza (v7.27): solo áreas beta y con permiso. Se guardan al elegir a la persona. -->
+            <template x-if="muestraExtrasPedir()">
+                <div class="mb-3">
+                    <p class="text-xs uppercase text-gray-500 dark:text-gray-400 tracking-wide mb-1">Extras de esta limpieza</p>
+                    <?php include __DIR__ . '/componentes/extras-area-editor.php'; ?>
+                </div>
+            </template>
             <!-- Motivo (v7.4.1, gerencia: sin cuadros de texto): si el área ya la tiene otra persona y esa
                  limpieza no está hecha, pedírsela a otra es cambiarla de persona. Motivo obligatorio de la
                  lista «reasignar» (Ajustes → Checklists y listas), antes de elegir a quién. -->
@@ -577,6 +783,12 @@ function espaciosApp() {
         ],
         modalEstado: { abierto: false, espacio: null },
         accionEstadoEnCurso: false,
+        // Áreas beta (v7.27). Un solo buscador de tareas: no hay dos ventanas abiertas a la vez.
+        modalBeta: { abierto: false, enviando: false, cargando: false },
+        formBeta: { id: null, pasando: false, nombre: '', hotel: '1_sur', tareas: [], extras: [], antiguas: [], creditosAntes: 0 },
+        busc: { destino: null, q: '', buscado: null, resultados: [], cargando: false, seq: 0, creando: false, valorNuevo: '', enviando: false, error: '' },
+        modalExtras: { abierto: false, enviando: false, espacio: null },
+        extrasEd: { cargando: false, editable: true, conocidas: {}, lista: [] },
 
         hotelOpciones: [
             { valor: 'ambos', etiqueta: 'Ambos hoteles' },
@@ -619,6 +831,22 @@ function espaciosApp() {
         get puedeVerTodas() {
             var a = Alpine.store('auth');
             return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('habitaciones.ver_todas'));
+        },
+        get puedeAgregarExtra() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('espacios.agregar_extra'));
+        },
+        get puedeEditarM2() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('espacios.editar_m2'));
+        },
+        // Una tarea recién agregada siempre se puede medir o quitar; una ya guardada, solo con el permiso.
+        puedeCambiarM2(t) {
+            return !t.guardada || this.puedeEditarM2;
+        },
+        get puedeCrearTarea() {
+            var a = Alpine.store('auth');
+            return !!(a && typeof a.tienePermiso === 'function' && a.tienePermiso('tareas.crear'));
         },
         get fechaHoy() {
             return window.hoyServidor();
@@ -790,6 +1018,7 @@ function espaciosApp() {
             this.$nextTick(function () { lucide.createIcons(); });
         },
         async abrirEditar(esp) {
+            if (esp.area_beta) { this.abrirEditarBeta(esp); return; }
             this.modalForm = { abierto: true, enviando: false };
             this.form = { id: esp.id, nombre: esp.numero, hotel: esp.hotel_codigo, items: [{ descripcion: '', creditos: 1 }] };
             try {
@@ -873,10 +1102,258 @@ function espaciosApp() {
             }
         },
 
+        // --- Áreas beta (v7.27, docs/areas-comunes.md §9) ---
+        // El mismo cálculo del backend (TareasCatalogoService::creditosDe), en enteros: al más cercano y mínimo 1.
+        creditosDe(m2, valor) {
+            var decimas = Math.round(parseFloat(m2) * 10), milesimas = Math.round(parseFloat(valor) * 1000);
+            if (!(decimas > 0) || !(milesimas > 0)) return 0;
+            return Math.max(1, Math.floor((decimas * milesimas + 5000) / 10000));
+        },
+        fmtNum(n) {
+            return String(n).replace('.', ',');
+        },
+        limpiarBuscador(destino) {
+            this.busc = { destino: destino, q: '', buscado: null, resultados: [], cargando: false, seq: this.busc.seq + 1, creando: false, valorNuevo: '', enviando: false, error: '' };
+        },
+        async buscarTareas() {
+            var q = this.busc.q;
+            this.busc.error = '';
+            if (q.trim() === '') { this.busc.resultados = []; this.busc.buscado = null; return; }
+            var seq = ++this.busc.seq;
+            this.busc.cargando = true;
+            try {
+                var r = await apiFetch('/api/tareas?q=' + encodeURIComponent(q));
+                if (seq !== this.busc.seq) return; // llegó tarde: ya se escribió otra cosa
+                if (!r || !r.ok) {
+                    // Una búsqueda que falló no es «no existe»: no se ofrece crear una tarea que quizás ya está.
+                    this.busc.resultados = [];
+                    this.busc.error = (r && r.error && r.error.mensaje) || 'No pudimos buscar en el catálogo. Intenta de nuevo.';
+                    return;
+                }
+                this.busc.resultados = r.data.tareas;
+                this.busc.buscado = q;
+            } catch (e) {
+                if (seq === this.busc.seq) {
+                    this.busc.resultados = [];
+                    this.busc.error = 'No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.';
+                }
+            } finally {
+                if (seq === this.busc.seq) this.busc.cargando = false;
+                this.$nextTick(function () { lucide.createIcons(); });
+            }
+        },
+        // La misma forma de comparar del backend (TareasCatalogoService::normalizarNombre).
+        normalizarNombre(texto) {
+            return (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+        },
+        existeNombreExacto() {
+            var buscado = this.normalizarNombre(this.busc.q);
+            var self = this;
+            return this.busc.resultados.some(function (t) { return self.normalizarNombre(t.nombre) === buscado; });
+        },
+        iniciarCrearTarea() {
+            this.busc.creando = true;
+            this.busc.valorNuevo = '';
+        },
+        async crearTarea() {
+            if (this.busc.enviando) return;
+            var nombre = this.busc.q.trim();
+            var valor = parseFloat(this.busc.valorNuevo);
+            if (!(valor > 0)) { this.mostrarToast('error', 'Indica los créditos por m².'); return; }
+            this.busc.enviando = true;
+            try {
+                var r = await apiPost('/api/tareas', { nombre: nombre, creditos_m2: valor });
+                if (r && r.ok) {
+                    this.elegirTarea({ id: r.data.id, nombre: nombre, creditos_m2: valor });
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos crear la tarea.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.busc.enviando = false;
+            }
+        },
+        elegirTarea(t) {
+            if (this.busc.destino === 'beta') this.agregarTareaBeta(t);
+            else this.agregarExtra(t);
+            this.limpiarBuscador(this.busc.destino);
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+
+        abrirCrearBeta() {
+            this.limpiarBuscador('beta');
+            this.formBeta = { id: null, pasando: false, nombre: '', hotel: (this.hotel !== 'ambos' ? this.hotel : '1_sur'), tareas: [], extras: [], antiguas: [], creditosAntes: 0 };
+            this.modalBeta = { abierto: true, enviando: false, cargando: false };
+            this.$nextTick(function () { lucide.createIcons(); });
+        },
+        async cargarFormBeta(esp, pasando) {
+            this.limpiarBuscador('beta');
+            this.formBeta = { id: esp.id, pasando: pasando, nombre: esp.numero, hotel: esp.hotel_codigo, tareas: [], extras: [], antiguas: [], creditosAntes: parseInt(esp.creditos_total, 10) || 0 };
+            this.modalBeta = { abierto: true, enviando: false, cargando: true };
+            try {
+                var r = await apiFetch('/api/espacios/' + esp.id);
+                if (r && r.ok) {
+                    var tareas = (r.data.tareas || []).map(function (t) { return Object.assign({ guardada: true }, t); });
+                    this.formBeta.tareas = tareas.filter(function (t) { return t.tipo === 'base'; });
+                    this.formBeta.extras = tareas.filter(function (t) { return t.tipo === 'extra'; });
+                    this.formBeta.antiguas = (r.data.items || []).map(function (i) { return i.descripcion; });
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos cargar el área.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.modalBeta.cargando = false;
+                this.$nextTick(function () { lucide.createIcons(); });
+            }
+        },
+        abrirPasarBeta(esp) { this.cargarFormBeta(esp, true); },
+        abrirEditarBeta(esp) { this.cargarFormBeta(esp, false); },
+        cerrarBeta() {
+            this.modalBeta.abierto = false;
+        },
+        agregarTareaBeta(t) {
+            var id = t.id;
+            var extra = this.formBeta.extras.findIndex(function (e) { return e.tarea_id === id; });
+            if (extra !== -1) { this.hacerFija(extra); return; }
+            if (this.formBeta.tareas.some(function (e) { return e.tarea_id === id; })) {
+                this.mostrarToast('error', 'Esa tarea ya está en el área.');
+                return;
+            }
+            this.formBeta.tareas.push({ tarea_id: id, nombre: t.nombre, creditos_m2: t.creditos_m2, m2: '', tipo: 'base' });
+        },
+        hacerFija(idx) {
+            var t = this.formBeta.extras.splice(idx, 1)[0];
+            t.tipo = 'base';
+            this.formBeta.tareas.push(t);
+        },
+        totalBeta() {
+            var self = this;
+            return this.formBeta.tareas.reduce(function (acc, t) { return acc + self.creditosDe(t.m2, t.creditos_m2); }, 0);
+        },
+        async guardarBeta() {
+            if (this.modalBeta.enviando) return;
+            var nombre = (this.formBeta.nombre || '').trim();
+            if (nombre === '') { this.mostrarToast('error', 'Ponle un nombre al área.'); return; }
+            if (this.formBeta.tareas.length === 0) { this.mostrarToast('error', 'Agrega al menos una tarea fija.'); return; }
+            var todas = this.formBeta.tareas.concat(this.formBeta.extras);
+            if (todas.some(function (t) { return !(parseFloat(t.m2) > 0); })) {
+                this.mostrarToast('error', 'Indica los m² de cada tarea.');
+                return;
+            }
+            var tareas = todas.map(function (t) { return { tarea_id: t.tarea_id, m2: parseFloat(t.m2), tipo: t.tipo }; });
+            this.modalBeta.enviando = true;
+            try {
+                var r = this.formBeta.id
+                    ? await apiPut('/api/espacios/' + this.formBeta.id + '/beta', { nombre: nombre, tareas: tareas })
+                    : await apiPost('/api/espacios/beta', { nombre: nombre, hotel: this.formBeta.hotel, tareas: tareas });
+                if (r && r.ok) {
+                    this.mostrarToast('exito', this.formBeta.pasando ? 'El área pasó a beta.' : 'Área guardada.');
+                    this.cerrarBeta();
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.modalBeta.enviando = false;
+            }
+        },
+
+        // Extras: se pueden cambiar mientras nadie haya empezado esa limpieza.
+        muestraExtras(esp) {
+            return this.puedeAgregarExtra && !!esp.area_beta && !!esp.asignada_hoy && ['sucia', 'rechazada'].indexOf(esp.estado) !== -1;
+        },
+        muestraExtrasPedir() {
+            return this.puedeAgregarExtra && !!this.modalPedir.espacio && !!this.modalPedir.espacio.area_beta;
+        },
+        async cargarExtras(esp, fecha) {
+            this.limpiarBuscador('extras');
+            this.extrasEd = { cargando: true, editable: true, conocidas: {}, lista: [] };
+            try {
+                var detalle = await apiFetch('/api/espacios/' + esp.id);
+                var espera = await apiFetch('/api/espacios/' + esp.id + '/extras?fecha=' + encodeURIComponent(fecha));
+                if (detalle && detalle.ok) {
+                    var conocidas = {};
+                    (detalle.data.tareas || []).forEach(function (t) { conocidas[t.tarea_id] = t; });
+                    this.extrasEd.conocidas = conocidas;
+                }
+                if (espera && espera.ok) {
+                    this.extrasEd.editable = espera.data.editable;
+                    this.extrasEd.lista = espera.data.extras.map(function (e) {
+                        return { tarea_id: e.tarea_id, nombre: e.nombre, m2: e.m2, creditos: e.creditos, creditos_m2: 0, m2_nuevo: false };
+                    });
+                } else {
+                    this.mostrarToast('error', (espera && espera.error && espera.error.mensaje) || 'No pudimos cargar los extras.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.extrasEd.cargando = false;
+                this.$nextTick(function () { lucide.createIcons(); });
+            }
+        },
+        agregarExtra(t) {
+            var id = t.id;
+            if (this.extrasEd.lista.some(function (e) { return e.tarea_id === id; })) {
+                this.mostrarToast('error', 'Ese extra ya está en la lista.');
+                return;
+            }
+            var conocida = this.extrasEd.conocidas[id];
+            if (conocida && conocida.tipo === 'base') {
+                this.mostrarToast('error', 'Esa tarea ya es parte de la base del área.');
+                return;
+            }
+            // Los m² se piden solo si el área no los tiene guardados para esa tarea.
+            this.extrasEd.lista.push(conocida
+                ? { tarea_id: id, nombre: t.nombre, m2: conocida.m2, creditos: this.creditosDe(conocida.m2, t.creditos_m2), creditos_m2: t.creditos_m2, m2_nuevo: false }
+                : { tarea_id: id, nombre: t.nombre, m2: '', creditos: 0, creditos_m2: t.creditos_m2, m2_nuevo: true });
+        },
+        // La lista para enviar, o null si falta algún m² (avisa).
+        extrasParaEnviar() {
+            if (this.extrasEd.lista.some(function (e) { return e.m2_nuevo && !(parseFloat(e.m2) > 0); })) {
+                this.mostrarToast('error', 'Indica los m² de cada extra nuevo.');
+                return null;
+            }
+            return this.extrasEd.lista.map(function (e) {
+                return e.m2_nuevo ? { tarea_id: e.tarea_id, m2: parseFloat(e.m2) } : { tarea_id: e.tarea_id };
+            });
+        },
+        abrirExtras(esp) {
+            this.modalExtras = { abierto: true, enviando: false, espacio: esp };
+            this.cargarExtras(esp, this.fechaHoy);
+        },
+        cerrarExtras() {
+            this.modalExtras.abierto = false;
+        },
+        async guardarExtras() {
+            if (this.modalExtras.enviando) return;
+            var extras = this.extrasParaEnviar();
+            if (extras === null) return;
+            this.modalExtras.enviando = true;
+            try {
+                var r = await apiPut('/api/espacios/' + this.modalExtras.espacio.id + '/extras', { fecha: this.fechaHoy, extras: extras });
+                if (r && r.ok) {
+                    this.mostrarToast('exito', 'Extras guardados.');
+                    this.cerrarExtras();
+                    this.cargar();
+                } else {
+                    this.mostrarToast('error', (r && r.error && r.error.mensaje) || 'No pudimos guardar los extras.');
+                }
+            } catch (e) {
+                this.mostrarToast('error', 'No pudimos conectar con el servidor.');
+            } finally {
+                this.modalExtras.enviando = false;
+            }
+        },
+
         // --- Pedir limpieza ---
         abrirPedir(esp) {
             this.modalPedir = { abierto: true, enviando: false, espacio: esp, fecha: this.fechaHoy, opcionId: null, forzarMotivo: false };
             if (this.pidiendoMotivo()) this.asegurarMotivos();
+            if (this.muestraExtrasPedir()) this.cargarExtras(esp, this.fechaHoy);
             this.$nextTick(function () { lucide.createIcons(); });
         },
         cerrarPedir() {
@@ -941,6 +1418,7 @@ function espaciosApp() {
         async cambiarFechaPedir() {
             this.modalPedir.forzarMotivo = false;
             if (this.pidiendoMotivo()) this.asegurarMotivos();
+            if (this.modalPedir.fecha && this.muestraExtrasPedir()) this.cargarExtras(this.modalPedir.espacio, this.modalPedir.fecha);
             if (!this.modalPedir.fecha || !this.data) return;
             try {
                 var url = '/api/espacios?fecha=' + encodeURIComponent(this.modalPedir.fecha);
@@ -952,11 +1430,18 @@ function espaciosApp() {
         async confirmarPedir(tr) {
             if (this.modalPedir.enviando || !this.modalPedir.espacio) return;
             if (this.faltaMotivoPara(tr)) return;
+            var extras = null;
+            if (this.muestraExtrasPedir()) {
+                if (this.extrasEd.cargando) return; // todavía no se sabe cuáles estaban en espera
+                extras = this.extrasParaEnviar();
+                if (extras === null) return;
+            }
             this.modalPedir.enviando = true;
             try {
                 var cuerpo = { usuario_id: tr.id, fecha: this.modalPedir.fecha || this.fechaHoy };
                 // El backend solo lo usa si es un cambio de persona.
                 if (this.modalPedir.opcionId !== null) cuerpo.opcion_id = this.modalPedir.opcionId;
+                if (extras !== null) cuerpo.extras = extras;
                 var r = await apiPost('/api/espacios/' + this.modalPedir.espacio.id + '/pedir-limpieza', cuerpo);
                 if (r && r.ok) {
                     this.mostrarToast('exito', 'Limpieza pedida a ' + tr.nombre + '.');

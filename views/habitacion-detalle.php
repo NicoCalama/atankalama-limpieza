@@ -442,6 +442,10 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                        :class="item.marcado == 1 ? 'line-through text-gray-400 dark:text-gray-500' : (item.rechazado_por_supervisora == 1 ? 'font-medium !text-red-700 dark:!text-red-300' : '')"
                                        x-text="item.descripcion"></p>
                                     <div class="flex flex-wrap items-center gap-2 mt-1">
+                                        <!-- v7.27: tarea extra de esta limpieza, para notarla de un vistazo. -->
+                                        <template x-if="item.es_extra == 1">
+                                            <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Extra</span>
+                                        </template>
                                         <template x-if="item.rechazado_por_supervisora == 1">
                                             <span class="inline-flex items-center gap-1 text-xs font-semibold text-red-700 dark:text-red-300">
                                                 <i data-lucide="x-circle" class="w-3 h-3"></i> La supervisora lo desmarcó
@@ -1089,12 +1093,13 @@ function habitacionDetalleApp(habitacionId, usuarioId) {
         // Fila del checklist: la que desmarcó la supervisora va en rojo mientras falte volver a
         // hacerla (v6.21); al marcarla queda como las demás, con la etiqueta roja.
         claseFilaItem(item) {
+            var borde = item.es_extra == 1 ? 'border-l-4 !border-l-amber-500 ' : ''; // v7.27: los extras se notan al mirar rápido
             var pendienteRechazado = item.rechazado_por_supervisora == 1 && item.marcado != 1;
             if (pendienteRechazado) {
-                return 'bg-red-50 dark:bg-red-900/20 '
+                return borde + 'bg-red-50 dark:bg-red-900/20 '
                     + (this.puedeEditar ? 'cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30' : 'cursor-default');
             }
-            return this.puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default';
+            return borde + (this.puedeEditar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default');
         },
 
         toggleItem(item, nuevoValor) {

@@ -4395,3 +4395,154 @@ En `app_core/.env` agregar `TARJETA_NOCHE_DOBLE=true` (tarda 1–2 minutos en to
 3. Limpiar la de día e inspeccionarla. Después de la hora: la de día queda «Aprobada» y la de noche «Pendiente»; empezarla (la
    pieza queda barrida) y terminarla.
 4. Al día siguiente, en el Registro de ese día: dos limpiezas de la PRUEBA, una «Mañana» y una «Noche».
+
+### 11.60 Release "áreas comunes beta" → v7.27
+
+Origen: propuesta de Nicolás, decisiones del 11/11/2026. Detalle en [areas-comunes.md](areas-comunes.md) §9. **Un solo delta**
+con catálogo, «Pasar a beta», extras y Reportes → Áreas. Eliminar las áreas alfa va en una entrega aparte, cuando no quede ninguna.
+
+**Qué cambia:** nada para las áreas existentes ni para las habitaciones hasta que alguien pase un área a beta. Supervisora y Admin ven
+«Crear beta» y «Pasar a beta»; el Admin ve la pestaña **Tareas** en Ajustes → Checklists y listas; Reportes suma la pestaña **Áreas**.
+
+**Antes de pasar la primera área:** el catálogo parte vacío, y todo valor por m² mueve créditos que van camino a definir pagos. Conviene
+probar los valores con dos o tres áreas reales y avisarle a RRHH que los créditos de áreas cambian de escala a medida que cada una pasa.
+
+**Lleva SQL.** Sin `.env`, sin `vendor/`, sin estáticos de `public/` y sin cambios en los cron.
+
+#### Precheck (phpMyAdmin, solo lee)
+
+```sql
+-- 1) Las tablas y la columna no existen. Esperado: 0 y 0.
+SELECT COUNT(*) FROM information_schema.tables
+ WHERE table_schema = 'cat6852_australia'
+   AND table_name IN ('limpieza_tareas_catalogo', 'limpieza_espacio_tareas', 'limpieza_extras_areas_comunes');
+SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema = 'cat6852_australia' AND table_name = 'limpieza_habitaciones' AND column_name = 'area_beta';
+
+-- 2) Los permisos no existen. Esperado: 0.
+SELECT COUNT(*) FROM cat6852_australia.limpieza_permisos
+ WHERE codigo IN ('espacios.agregar_extra', 'espacios.editar_m2', 'tareas.crear', 'tareas.editar', 'tareas.ver');
+
+-- 3) Los roles que los reciben existen. Esperado: dos filas.
+SELECT id, nombre FROM cat6852_australia.limpieza_roles WHERE nombre IN ('Admin', 'Supervisora') ORDER BY nombre;
+
+-- 4) Cuántas áreas hay para pasar a beta (informativo).
+SELECT COUNT(*) AS areas FROM cat6852_australia.limpieza_habitaciones WHERE es_espacio_comun = 1 AND activa = 1;
+```
+
+#### SQL (phpMyAdmin, ANTES del ZIP)
+
+```sql
+ALTER TABLE cat6852_australia.limpieza_habitaciones
+  ADD COLUMN area_beta TINYINT NOT NULL DEFAULT 0 CHECK (area_beta IN (0, 1));
+
+CREATE TABLE cat6852_australia.limpieza_tareas_catalogo (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    nombre              VARCHAR(60) NOT NULL,
+    nombre_busqueda     VARCHAR(60) NOT NULL UNIQUE,
+    creditos_m2         DECIMAL(7,3) NOT NULL CHECK (creditos_m2 > 0),
+    activa              TINYINT NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    creado_por          INT NULL,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    FOREIGN KEY (creado_por) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cat6852_australia.limpieza_espacio_tareas (
+    habitacion_id       INT NOT NULL,
+    tarea_id            INT NOT NULL,
+    m2                  DECIMAL(8,1) NOT NULL CHECK (m2 > 0),
+    tipo                VARCHAR(5) NOT NULL DEFAULT 'base' CHECK (tipo IN ('base', 'extra')),
+    orden               INT NOT NULL DEFAULT 0,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    PRIMARY KEY (habitacion_id, tarea_id),
+    KEY idx_espacio_tareas_tarea (tarea_id),
+    FOREIGN KEY (habitacion_id) REFERENCES cat6852_australia.limpieza_habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (tarea_id) REFERENCES cat6852_australia.limpieza_tareas_catalogo(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cat6852_australia.limpieza_extras_areas_comunes (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    habitacion_id       INT NOT NULL,
+    fecha               VARCHAR(10) NOT NULL,
+    ejecucion_id        INT NULL,
+    tarea_id            INT NOT NULL,
+    m2                  DECIMAL(8,1) NOT NULL CHECK (m2 > 0),
+    creditos            INT NOT NULL CHECK (creditos >= 0),
+    marcado             TINYINT NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
+    marcado_por         INT NULL,
+    desmarcado_por_auditor  TINYINT NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    agregado_por        INT NULL,
+    created_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    updated_at          VARCHAR(30) NOT NULL DEFAULT (CONCAT(REPLACE(UTC_TIMESTAMP(3), ' ', 'T'), 'Z')),
+    KEY idx_extras_areas_area_fecha (habitacion_id, fecha),
+    KEY idx_extras_areas_ejecucion (ejecucion_id),
+    FOREIGN KEY (habitacion_id) REFERENCES cat6852_australia.limpieza_habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (ejecucion_id) REFERENCES cat6852_australia.limpieza_ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (tarea_id) REFERENCES cat6852_australia.limpieza_tareas_catalogo(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (agregado_por) REFERENCES cat6852_australia.limpieza_usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO cat6852_australia.limpieza_permisos (codigo, descripcion, categoria, scope) VALUES
+  ('espacios.agregar_extra', 'Agregar extras a la limpieza de un área común beta', 'Espacios', 'global'),
+  ('espacios.editar_m2', 'Cambiar los m² o quitar las tareas ya guardadas de un área común beta', 'Espacios', 'global'),
+  ('tareas.crear', 'Crear tareas nuevas en el catálogo de áreas comunes', 'Espacios', 'global'),
+  ('tareas.ver', 'Ver el catálogo de tareas en Ajustes, sin poder cambiarlo', 'Espacios', 'global'),
+  ('tareas.editar', 'Editar una tarea ya creada del catálogo: nombre y valor por m²', 'Espacios', 'global');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'espacios.agregar_extra' FROM cat6852_australia.limpieza_roles WHERE nombre IN ('Admin', 'Supervisora');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'tareas.crear' FROM cat6852_australia.limpieza_roles WHERE nombre IN ('Admin', 'Supervisora');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'tareas.ver' FROM cat6852_australia.limpieza_roles WHERE nombre IN ('Admin', 'Supervisora');
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'tareas.editar' FROM cat6852_australia.limpieza_roles WHERE nombre = 'Admin';
+
+INSERT INTO cat6852_australia.limpieza_rol_permisos (rol_id, permiso_codigo)
+SELECT id, 'espacios.editar_m2' FROM cat6852_australia.limpieza_roles WHERE nombre = 'Admin';
+```
+
+La base va escrita en cada tabla, también en las FK (§11.34). Nombrar roles en el SQL es solo para estos datos iniciales: el código no
+mira nombres de rol. `scripts/migrate-add-areas-beta.php` hace lo mismo; se probó en los tests sobre una base SQLite como la de antes de la
+v7.27, no contra MariaDB.
+
+**Comprobación:**
+- el precheck (1) da 3 y 1, y el (2) da 5;
+- `SELECT permiso_codigo, COUNT(*) FROM cat6852_australia.limpieza_rol_permisos WHERE permiso_codigo IN ('espacios.agregar_extra',
+  'espacios.editar_m2', 'tareas.crear', 'tareas.editar', 'tareas.ver') GROUP BY permiso_codigo` da 2 en `agregar_extra`, `crear` y `ver`, y 1 en
+  `editar_m2` y `tareas.editar`;
+- después del ZIP, `/api/health` → `checks.esquema.ok: true`.
+
+**El ZIP no se sube sin el SQL.** El verificador vería lo que falta (health 503), y Áreas comunes y Reportes darían error. El
+checklist de las habitaciones no depende de estas tablas.
+
+#### ZIP
+
+`build/limpieza-v727-delta.zip`, con `git -c core.autocrlf=false archive --prefix=limpieza/app_core/` (se extrae en `public_html/`). La
+fila de la v7.27 del `CHANGELOG.md` se fecha antes de armarlo. Todo va a `limpieza/app_core/`:
+- `CHANGELOG.md`;
+- `docs/database-schema{,.mariadb}.sql`, porque los lee el verificador;
+- `database/seeds/{permisos,roles}.php` (roles: solo para una base nueva);
+- `scripts/migrate-add-areas-beta.php`;
+- `src/Controllers/{EspaciosController,PaginasController,ReportesController,TareasController}.php`, `src/Core/Kernel.php`, `src/Support/Tours.php`;
+- `src/Services/{AuditoriaService,ChecklistService,EspacioService,ExtrasAreasService,ReportesService,TareasCatalogoService}.php`;
+- `views/{ajustes,ajustes-checklists,auditoria-detalle,espacios,habitacion-detalle,reportes}.php`, `views/componentes/{buscador-tareas,extras-area-editor}.php`.
+
+**Vuelta atrás:** `build/limpieza-v727-vuelta-atras.zip`, con los archivos que ya existían en la v7.26 (`8fbcd5d`). Los archivos nuevos y
+el SQL pueden quedar, porque nada los llama. Las áreas ya pasadas a beta siguen limpiándose con su checklist; sus extras dejan de verse.
+
+**Cuándo subir:** fuera de 15:45–16:05 y de 23:45–00:00.
+
+**Smoke:**
+1. Badge **v7.27** (en incógnito) y `/api/health` 200 con `checks.esquema.ok: true`.
+2. **Como Supervisora**, en Áreas comunes: ve «Crear beta» y «Pasar a beta», y en Ajustes → Checklists y listas ve la pestaña Tareas sin campos para editar. Las áreas siguen con sus créditos. Al
+   editar un área beta, las tareas ya guardadas salen sin campo de m² y sin botón para quitarlas.
+3. **Como Admin:** Ajustes → Checklists y listas muestra la pestaña Tareas (vacía) y Reportes → Áreas carga.
+4. **Una habitación cualquiera:** su checklist se ve y se tiquea igual que antes.
+5. **Primera área real, de poco uso:** pasarla a beta revisando «Antes · Ahora», pedir su limpieza con un extra, limpiarla e inspeccionarla.
+   El extra sale con borde ámbar y etiqueta, y Reportes → Áreas muestra sus créditos.

@@ -42,6 +42,10 @@ return [
             'espacios.ver',
             'espacios.crear_editar',
             'espacios.pedir_limpieza',
+            // v7.27: agrega extras y llena el catálogo en la etapa inicial; gerencia le retira tareas.crear desde Ajustes.
+            'espacios.agregar_extra',
+            'tareas.crear',
+            'tareas.ver',
             'habitaciones.importar_inventario',
             'auditoria.ver_bandeja',
             'auditoria.aprobar',

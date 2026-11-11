@@ -214,7 +214,7 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                     </div>
                     <template x-for="item in items" :key="item.id">
                         <label class="flex items-start gap-3 px-4 py-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-                               :class="puedeDesmarcar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default'">
+                               :class="(item.es_extra == 1 ? 'border-l-4 !border-l-amber-500 ' : '') + (puedeDesmarcar ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'cursor-default')">
                             <input type="checkbox"
                                    :checked="estaMarcadoVisual(item)"
                                    :disabled="!puedeDesmarcar"
@@ -225,6 +225,9 @@ require_once __DIR__ . '/componentes/badge-estado.php';
                                    :class="estaMarcadoVisual(item) ? 'line-through text-gray-400 dark:text-gray-500' : ''"
                                    x-text="item.descripcion"></p>
                                 <div class="flex items-center gap-2 mt-1">
+                                    <template x-if="item.es_extra == 1">
+                                        <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Extra</span>
+                                    </template>
                                     <template x-if="item.obligatorio == 0">
                                         <span class="text-xs text-gray-500 dark:text-gray-400">Opcional</span>
                                     </template>

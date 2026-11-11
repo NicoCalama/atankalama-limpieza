@@ -158,7 +158,11 @@ final class AuditoriaService
 
             // Desde la v7.3 la observación y el rechazo traen siempre al menos una casilla (validado arriba).
             if ($admiteDesmarcados) {
-                $this->checklist->desmarcarPorAuditor($ejecucion->id, $itemsDesmarcados, $ejecucion->templateId);
+                // v7.27: los ids negativos son extras de un área (ver ExtrasAreasService).
+                $positivos = array_values(array_filter($itemsDesmarcados, static fn(int $i): bool => $i > 0));
+                $extras = array_values(array_map('abs', array_filter($itemsDesmarcados, static fn(int $i): bool => $i < 0)));
+                $this->checklist->desmarcarPorAuditor($ejecucion->id, $positivos, $ejecucion->templateId);
+                (new ExtrasAreasService())->desmarcarPorAuditor($ejecucion->id, $extras);
             }
 
             Database::execute(
@@ -218,11 +222,20 @@ final class AuditoriaService
      */
     private function textoObservacion(array $itemsIds): string
     {
-        $marcas = implode(', ', array_fill(0, count($itemsIds), '?'));
-        $nombres = array_column(Database::fetchAll(
-            "SELECT descripcion FROM #__items_checklist WHERE id IN ({$marcas}) ORDER BY orden, id",
-            $itemsIds
-        ), 'descripcion');
+        // v7.27: los ids negativos son extras de un área, que van después de los ítems.
+        $positivos = array_values(array_filter($itemsIds, static fn(int $i): bool => $i > 0));
+        $extras = array_values(array_map('abs', array_filter($itemsIds, static fn(int $i): bool => $i < 0)));
+        $nombres = [];
+        if ($positivos !== []) {
+            $marcas = implode(', ', array_fill(0, count($positivos), '?'));
+            $nombres = array_column(Database::fetchAll(
+                "SELECT descripcion FROM #__items_checklist WHERE id IN ({$marcas}) ORDER BY orden, id",
+                $positivos
+            ), 'descripcion');
+        }
+        if ($extras !== []) {
+            $nombres = array_merge($nombres, (new ExtrasAreasService())->nombres($extras));
+        }
         return 'Observado: ' . ($nombres === [] ? 'casillas del checklist' : implode(' · ', array_map('strval', $nombres)));
     }
 

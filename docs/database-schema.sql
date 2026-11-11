@@ -202,6 +202,7 @@ CREATE TABLE habitaciones (
     )),
     activa                  INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
     es_espacio_comun        INTEGER NOT NULL DEFAULT 0 CHECK (es_espacio_comun IN (0, 1)),  -- 1 = área común (piscina, pasillo…); sin Cloudbeds ni auditoría. Ver docs/areas-comunes.md
+    area_beta               INTEGER NOT NULL DEFAULT 0 CHECK (area_beta IN (0, 1)),  -- v7.27: 1 = área común armada desde el catálogo de tareas, con créditos por m². Ver docs/areas-comunes.md §9
     es_prueba               INTEGER NOT NULL DEFAULT 0 CHECK (es_prueba IN (0, 1)),  -- 1 = habitación de prueba (v7.5): sin Cloudbeds, fuera de KPIs y avisos, solo la ve habitaciones.ver_prueba. Ver docs/habitacion-prueba.md
     minimo_terminar_min     INTEGER,                              -- v7.6, solo áreas comunes: minutos mínimos desde que se empieza para poder terminar (0 = sin mínimo); NULL = el general de 3 min. Valores en EspacioService::MINIMOS_TERMINAR_MIN. Ver docs/areas-comunes.md
     -- Ocupación sincronizada desde Cloudbeds (getHousekeepingStatus). Es contexto: NO cambia 'estado'. Ver docs/ocupacion-y-sabanas.md
@@ -393,6 +394,64 @@ CREATE TABLE ejecuciones_items (
 );
 
 CREATE INDEX idx_ejecuciones_items_ejecucion ON ejecuciones_items(ejecucion_id);
+
+-- ============================================================================
+-- ÁREAS COMUNES BETA (v7.27, propuesta de Nicolás del 11/11/2026). Ver docs/areas-comunes.md §9
+-- ============================================================================
+
+-- Catálogo de tareas, único para los dos hoteles. El valor por m² es el mismo en todas las áreas.
+CREATE TABLE tareas_catalogo (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre              TEXT NOT NULL,
+    nombre_busqueda     TEXT NOT NULL UNIQUE,                 -- minúsculas y sin acentos: la búsqueda y que no se repitan
+    creditos_m2         REAL NOT NULL CHECK (creditos_m2 > 0),
+    activa              INTEGER NOT NULL DEFAULT 1 CHECK (activa IN (0, 1)),
+    creado_por          INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+-- Composición de cada área beta: sus tareas fijas (base) y los m² recordados de sus extras.
+CREATE TABLE espacio_tareas (
+    habitacion_id       INTEGER NOT NULL,
+    tarea_id            INTEGER NOT NULL,
+    m2                  REAL NOT NULL CHECK (m2 > 0),
+    tipo                TEXT NOT NULL DEFAULT 'base' CHECK (tipo IN ('base', 'extra')),
+    orden               INTEGER NOT NULL DEFAULT 0,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (habitacion_id, tarea_id),
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (tarea_id) REFERENCES tareas_catalogo(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_espacio_tareas_tarea ON espacio_tareas(tarea_id);
+
+-- Extras de una limpieza puntual. Solo áreas comunes: las habitaciones no leen esta tabla.
+-- ejecucion_id NULL = todavía nadie empieza esa limpieza (el extra espera en el área y la fecha).
+CREATE TABLE extras_areas_comunes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    habitacion_id       INTEGER NOT NULL,
+    fecha               TEXT NOT NULL,
+    ejecucion_id        INTEGER,
+    tarea_id            INTEGER NOT NULL,
+    m2                  REAL NOT NULL CHECK (m2 > 0),
+    creditos            INTEGER NOT NULL CHECK (creditos >= 0),  -- queda fijo al empezar la limpieza
+    marcado             INTEGER NOT NULL DEFAULT 0 CHECK (marcado IN (0, 1)),
+    marcado_por         INTEGER,
+    desmarcado_por_auditor  INTEGER NOT NULL DEFAULT 0 CHECK (desmarcado_por_auditor IN (0, 1)),
+    agregado_por        INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    FOREIGN KEY (habitacion_id) REFERENCES habitaciones(id) ON DELETE CASCADE,
+    FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones_checklist(id) ON DELETE SET NULL,
+    FOREIGN KEY (tarea_id) REFERENCES tareas_catalogo(id) ON DELETE RESTRICT,
+    FOREIGN KEY (marcado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (agregado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_extras_areas_area_fecha ON extras_areas_comunes(habitacion_id, fecha);
+CREATE INDEX idx_extras_areas_ejecucion ON extras_areas_comunes(ejecucion_id);
 
 -- ============================================================================
 -- LISTAS DE SELECCIÓN (v7.3, pedido de gerencia 10/10/2026: sin cuadros de texto, solo selección)

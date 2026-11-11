@@ -205,8 +205,10 @@ final class PaginasController
         if ($request->usuario->requiereCambioPwd) {
             return self::redirect('/cambiar-contrasena');
         }
-        // v7.3: la página suma la pestaña «Listas» (listas de selección); entra quien edita una u otra cosa.
-        if (!$request->usuario->tienePermiso('checklists.editar') && !$request->usuario->tienePermiso('listas.editar')) {
+        // v7.3: la página suma la pestaña «Listas» (listas de selección); v7.27: «Tareas» (catálogo de áreas beta).
+        // Entra quien puede editar alguna de las tres, o solo ver las tareas.
+        if (!$request->usuario->tienePermiso('checklists.editar') && !$request->usuario->tienePermiso('listas.editar')
+            && !$request->usuario->tienePermiso('tareas.editar') && !$request->usuario->tienePermiso('tareas.ver')) {
             return self::redirect('/ajustes');
         }
         return View::conLayout('ajustes-checklists', [
