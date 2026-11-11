@@ -4546,3 +4546,7 @@ el SQL pueden quedar, porque nada los llama. Las áreas ya pasadas a beta siguen
 4. **Una habitación cualquiera:** su checklist se ve y se tiquea igual que antes.
 5. **Primera área real, de poco uso:** pasarla a beta revisando «Antes · Ahora», pedir su limpieza con un extra, limpiarla e inspeccionarla.
    El extra sale con borde ámbar y etiqueta, y Reportes → Áreas muestra sus créditos.
+
+**Desplegada el 11/11/2026** (Nicolás: SQL de arriba y después el ZIP `build/limpieza-v727-delta.zip`, desde `1c7a216`).
+Smoke OK (Nicolás). Lo siguiente es de terreno: probar los valores con dos o tres áreas reales antes de pasar el resto y avisarle
+a RRHH que los créditos de áreas cambian de escala a medida que cada una pasa a beta.
